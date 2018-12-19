@@ -110,7 +110,20 @@ def bump_mse_loss(input, target, kernel, l1=torch.nn.L1Loss(), l2=torch.nn.MSELo
 
     loss_heatmap = l2(heatmap_pred, heatmap_true)
     loss_spikes = l1(input, target)
-    return loss_heatmap + loss_spikes
+
+    # loss_num = num_active_emitter_loss(input, target)
+    return loss_heatmap + .1 * loss_spikes # + 10**(-2) * loss_num
+
+
+def num_active_emitter_loss(input, target, threshold=0.05):
+    input_f = input.view(*input.shape[:2], -1)
+    target_f = target.view(*target.shape[:2], -1)
+
+    num_true_emitters = torch.sum(target_f > threshold * target_f.max(), 2)
+    num_pred_emitters = torch.sum(input_f > threshold * input_f.max(), 2)
+
+    loss = ((num_pred_emitters - num_true_emitters)**2).sum() / input.__len__()
+    return loss.type(torch.FloatTensor)
 
 
 def save_model(model, epoch, net_folder='network'):
@@ -137,7 +150,7 @@ if __name__ == '__main__':
     net_folder = 'network'
     epochs = 1000
 
-    data_smlm = SMLMDataset('data_32px.npz', transform=True)
+    data_smlm = SMLMDataset('data/data_32px_1e4.npz', transform=True)
     # model_deep = load_model()
     model_deep = DeepSLMN()
     model_deep.weight_init()

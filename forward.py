@@ -12,8 +12,8 @@ from train import SMLMDataset, load_model
 
 
 if __name__ == '__main__':
-    data = SMLMDataset('data_32px_xlarge.npz')
-    model = load_model(file='network/net_14.pt')
+    data = SMLMDataset('data/data_32px_1e4.npz')
+    model = load_model(file='network/net_3.pt')
     model.eval()
     num_examples = 2
 

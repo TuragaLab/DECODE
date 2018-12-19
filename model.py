@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -40,9 +41,8 @@ class DeepSLMN(nn.Module):
 
         return x
 
+
     def weight_init(self):
         for m in self._modules:
             if isinstance(m, nn.Conv2d):
                 nn.init.uniform_(m)
-
-

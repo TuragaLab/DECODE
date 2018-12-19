@@ -200,11 +200,13 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
 
 
 if __name__ == '__main__':
+    binary_path = 'data/data_32px_1e4.npz'
+
     image_size = (32, 32)
     upscale_factor = 1
     image_size_hr = (image_size[0] * upscale_factor, image_size[1] * upscale_factor)
     emitter_p_frame = 15
-    total_frames = 100000
+    total_frames = 10000
     bg_value = 10
     sigma = np.array([1.5, 1.5])
 
@@ -219,7 +221,7 @@ if __name__ == '__main__':
                      background=_bg, psf=_psf, psf_hr=_psf_hr)
     sim.image = upscale(sim.camera_image(upscale=1), sim.upscale)  # don't upscale before convolution, scale final image
     sim.image_hr = sim.camera_image(psf=sim.psf_hr, bg=False, upscale=upscale_factor)  # work on hr, no need to upscale
-    sim.write_to_binary('data_26_104px_large')
+    sim.write_to_binary(binary_path)
 
     plt.figure(figsize=(10, 10))
     plt.subplot(121)
@@ -228,4 +230,4 @@ if __name__ == '__main__':
     sim.plot_frame(0, image=sim.image_hr, crosses=False)
     plt.show()
 
-    print("Done.")
+    print("Generating samples done. Filename: ")
