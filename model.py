@@ -25,7 +25,7 @@ class DeepSLMN(nn.Module):
         self.conv6_bn = nn.BatchNorm2d(64)
         self.conv7 = nn.Conv2d(64, 32, (3, 3), 1, padding=1)
         self.conv7_bn = nn.BatchNorm2d(32)
-        self.conv8 = nn.Conv2d(32, 1, (1, 1), 1)
+        self.conv8 = nn.Conv2d(32, 1, (1, 1), 1, bias=False)
 
     def forward(self, x):
         # encode and downsample

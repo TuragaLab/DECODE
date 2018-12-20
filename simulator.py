@@ -52,7 +52,7 @@ class Simulation:
     @property
     def num_frames(self):
         em_matrix = self.get_emitter_matrix('all')
-        return np.max(em_matrix[:, 4]).astype('uint16')
+        return np.max(em_matrix[:, 4]).astype('uint16') + 1
 
     def camera_image(self, psf=None, bg=True, upscale=1):
         # get emitter matrix
@@ -126,7 +126,7 @@ class Simulation:
 
     def write_to_binary(self, outfile):
 
-        np.savez(outfile, frames=self.image, frames_hr=self.image_hr, emitters=self.get_emitter_matrix())
+        np.savez_compressed(outfile, frames=self.image, frames_hr=self.image_hr, emitters=self.get_emitter_matrix(), len=self.num_frames)
 
 
 class Emitter:
@@ -200,13 +200,13 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
 
 
 if __name__ == '__main__':
-    binary_path = 'data/test_32px_100.npz'
+    binary_path = 'data/check.npz'
 
     image_size = (32, 32)
     upscale_factor = 1
     image_size_hr = (image_size[0] * upscale_factor, image_size[1] * upscale_factor)
     emitter_p_frame = 15
-    total_frames = 100
+    total_frames = 18000
     bg_value = 10
     sigma = np.array([1.5, 1.5])
 

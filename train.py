@@ -41,8 +41,16 @@ class SMLMDataset(Dataset):
 
         # transform
         if self.transform is not None:
-            self.images = project01(self.images)
-            self.images_hr = project01(self.images_hr)
+            if 'project01' in self.transform:
+                self.images = project01(self.images)
+                # self.images_hr = project01(self.images_hr)
+            if 'normalise'  in self.transform:
+                mean = self.images.mean()
+                std = self.images.std()
+
+                self.images = normalise(self.images, mean, std)
+
+        print("Dataset of {} samples loaded.".format(self.__len__()))
 
     def __len__(self):
         return self.images.shape[0]
@@ -61,6 +69,10 @@ def project01(img):
 
     img_flat_norm = (img_flat - img_min) / (img_max - img_min)
     return img_flat_norm.view(img.shape[0], img.shape[1], img.shape[2], img.shape[3])
+
+
+def normalise(img, _mean, _std):
+    return (img - _mean) / _std
 
 
 def get_outputsize(input_size, model):
@@ -105,10 +117,10 @@ def bump_mse_loss(output, target, kernel_pred, kernel_true=lambda x: x, l1=torch
     heatmap_pred = kernel_pred(output)
     heatmap_true = kernel_true(target)
 
-    l1_loss = l1(output, target)
+    l1_loss = l1(output, torch.zeros('like', target))
     l2_loss = l2(heatmap_pred, heatmap_true)
 
-    return l1_loss + l2_loss  # + 10**(-2) * loss_num
+    return l1_sc * l1_loss + l2_sc * l2_loss  # + 10**(-2) * loss_num
 
 
 def num_active_emitter_loss(input, target, threshold=0.15):
@@ -150,17 +162,16 @@ if __name__ == '__main__':
     net_folder = 'network'
     epochs = 1000
 
-    data_smlm = SMLMDataset('data/data_32px_xlarge.npz', transform=True)
+    data_smlm = SMLMDataset('data/data_32px_1e6.npz', transform=['project01', 'normalise'])
     model_deep = load_model('network/net_14.pt')
     #model_deep = DeepSLMN()
     #model_deep.weight_init()
     optimiser = Adam(model_deep.parameters(), lr=0.001)
 
-    gaussian_kernel = GaussianSmoothing(1, [9, 9], 1.5, dim=2, cuda=torch.cuda.is_available(),
-                                        padding=lambda x: F.pad(x, (4, 4, 4, 4), mode='reflect'))
+    gaussian_kernel = GaussianSmoothing(1, [7, 7], 1, dim=2, cuda=torch.cuda.is_available(),
+                                        padding=lambda x: F.pad(x, (3, 3, 3, 3), mode='reflect'))
     criterion = lambda input, target: bump_mse_loss(input, target,
-                                                    kernel_pred=gaussian_kernel, kernel_true=gaussian_kernel) + \
-                                      1e-4 * num_active_emitter_loss(input, target)
+                                                    kernel_pred=gaussian_kernel, kernel_true=gaussian_kernel)
 
     if torch.cuda.is_available():
         model_eep = model_deep.cuda()
