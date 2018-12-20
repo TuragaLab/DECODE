@@ -62,6 +62,7 @@ def project01(img):
     img_flat_norm = (img_flat - img_min) / (img_max - img_min)
     return img_flat_norm.view(img.shape[0], img.shape[1], img.shape[2], img.shape[3])
 
+
 def get_outputsize(input_size, model):
     input = torch.randn(1, 1, input_size, input_size)
     return model.forward(input).size()
@@ -100,39 +101,38 @@ def test(data, model, crit):
     pass
 
 
-def bump_mse_loss(input, target, kernel, l1=torch.nn.L1Loss(), l2=torch.nn.MSELoss()):
+def bump_mse_loss(output, target, kernel_pred, kernel_true=lambda x: x, l1=torch.nn.L1Loss(), l2=torch.nn.MSELoss(), l1_sc=1, l2_sc=1):
+    heatmap_pred = kernel_pred(output)
+    heatmap_true = kernel_true(target)
 
-    prediction_pad = F.pad(input, (3, 3, 3, 3), mode='reflect')
-    heatmap_pred = kernel(prediction_pad)
+    l1_loss = l1(output, target)
+    l2_loss = l2(heatmap_pred, heatmap_true)
 
-    target_pad = F.pad(target, (3, 3, 3, 3), mode='reflect')
-    heatmap_true = kernel(target_pad)
-
-    loss_heatmap = l2(heatmap_pred, heatmap_true)
-    loss_spikes = l1(input, target)
-
-    # loss_num = num_active_emitter_loss(input, target)
-    return loss_heatmap + .1 * loss_spikes # + 10**(-2) * loss_num
+    return l1_loss + l2_loss  # + 10**(-2) * loss_num
 
 
-def num_active_emitter_loss(input, target, threshold=0.05):
+def num_active_emitter_loss(input, target, threshold=0.15):
     input_f = input.view(*input.shape[:2], -1)
     target_f = target.view(*target.shape[:2], -1)
 
     num_true_emitters = torch.sum(target_f > threshold * target_f.max(), 2)
     num_pred_emitters = torch.sum(input_f > threshold * input_f.max(), 2)
 
-    loss = ((num_pred_emitters - num_true_emitters)**2).sum() / input.__len__()
+    loss = ((num_pred_emitters - num_true_emitters) ** 2).sum() / input.__len__()
     return loss.type(torch.FloatTensor)
 
 
-def save_model(model, epoch, net_folder='network'):
-    if epoch == 0:
-        file_ix = len(os.listdir(net_folder))
-        torch.save(model, '{}/net_{}.pt'.format(net_folder, file_ix))
+def save_model(model, epoch, net_folder='network', filename=None):
+
+    if filename is None:
+        if epoch == 0:
+            file_ix = len(os.listdir(net_folder))
+            torch.save(model, '{}/net_{}.pt'.format(net_folder, file_ix))
+        else:
+            file_ix = len(os.listdir(net_folder)) - 1
+            torch.save(model, '{}/net_{}.pt'.format(net_folder, file_ix))
     else:
-        file_ix = len(os.listdir(net_folder)) - 1
-        torch.save(model, '{}/net_{}.pt'.format(net_folder, file_ix))
+        torch.save(model, '{}/{}'.format(net_folder, filename))
 
 
 def load_model(file=None, net_folder='network'):
@@ -150,14 +150,17 @@ if __name__ == '__main__':
     net_folder = 'network'
     epochs = 1000
 
-    data_smlm = SMLMDataset('data/data_32px_1e4.npz', transform=True)
-    # model_deep = load_model()
-    model_deep = DeepSLMN()
-    model_deep.weight_init()
+    data_smlm = SMLMDataset('data/data_32px_xlarge.npz', transform=True)
+    model_deep = load_model('network/net_14.pt')
+    #model_deep = DeepSLMN()
+    #model_deep.weight_init()
     optimiser = Adam(model_deep.parameters(), lr=0.001)
 
-    gaussian_kernel = GaussianSmoothing(1, [7, 7], 1.5, dim=2, cuda=torch.cuda.is_available())
-    criterion = lambda input, target: bump_mse_loss(input, target, kernel=gaussian_kernel)
+    gaussian_kernel = GaussianSmoothing(1, [9, 9], 1.5, dim=2, cuda=torch.cuda.is_available(),
+                                        padding=lambda x: F.pad(x, (4, 4, 4, 4), mode='reflect'))
+    criterion = lambda input, target: bump_mse_loss(input, target,
+                                                    kernel_pred=gaussian_kernel, kernel_true=gaussian_kernel) + \
+                                      1e-4 * num_active_emitter_loss(input, target)
 
     if torch.cuda.is_available():
         model_eep = model_deep.cuda()
@@ -166,10 +169,10 @@ if __name__ == '__main__':
     test_size = len(data_smlm) - train_size
     train_data, test_data = torch.utils.data.random_split(data_smlm, [train_size, test_size])
 
-    train_loader = DataLoader(train_data, batch_size=100, shuffle=True, num_workers=2)
-    test_loader = DataLoader(test_data, batch_size=100, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_data, batch_size=100, shuffle=True, num_workers=4)
+    test_loader = DataLoader(test_data, batch_size=100, shuffle=False, num_workers=4)
 
     for i in range(epochs):
         print('Epoch no.: {}'.format(i))
         train(train_loader, model_deep, optimiser, criterion)
-        save_model(model_deep, i)
+        save_model(model_deep, i, filename='test.pt')

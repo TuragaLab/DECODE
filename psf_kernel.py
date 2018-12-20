@@ -230,8 +230,8 @@ class GaussianSmoothing(nn.Module):
     output = smoothing(input)
     """
 
-    def __init__(self, channels, kernel_size, sigma, dim=2, cuda=False):
-        super(GaussianSmoothing, self).__init__()
+    def __init__(self, channels, kernel_size, sigma, dim=2, cuda=False, padding=lambda x: x):
+        super().__init__()
         if isinstance(kernel_size, numbers.Number):
             kernel_size = [kernel_size] * dim
         if isinstance(sigma, numbers.Number):
@@ -275,7 +275,9 @@ class GaussianSmoothing(nn.Module):
                 'Only 1, 2 and 3 dimensions are supported. Received {}.'.format(dim)
             )
 
-    def forward(self, input):
+        self.padding = padding  # padding function
+
+    def forward(self, input, padding=None):
         """
         Apply gaussian filter to input.
         Arguments:
@@ -283,7 +285,8 @@ class GaussianSmoothing(nn.Module):
         Returns:
             filtered (torch.Tensor): Filtered output.
         """
-        return self.conv(input, weight=self.weight, groups=self.groups)
+
+        return self.conv(self.padding(input), weight=self.weight, groups=self.groups)
 
 
 def weighted_avg_std(values, weights):

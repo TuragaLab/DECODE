@@ -200,13 +200,13 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
 
 
 if __name__ == '__main__':
-    binary_path = 'data/data_32px_1e4.npz'
+    binary_path = 'data/test_32px_100.npz'
 
     image_size = (32, 32)
     upscale_factor = 1
     image_size_hr = (image_size[0] * upscale_factor, image_size[1] * upscale_factor)
     emitter_p_frame = 15
-    total_frames = 10000
+    total_frames = 100
     bg_value = 10
     sigma = np.array([1.5, 1.5])
 
@@ -230,4 +230,4 @@ if __name__ == '__main__':
     sim.plot_frame(0, image=sim.image_hr, crosses=False)
     plt.show()
 
-    print("Generating samples done. Filename: ")
+    print("Generating samples done. Filename: {}".format(binary_path))
