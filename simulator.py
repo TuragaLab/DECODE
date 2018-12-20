@@ -1,6 +1,8 @@
+import itertools as iter
 import numpy as np
 import matplotlib.pyplot as plt
 import functools
+from multiprocessing.dummy import Pool as ThreadPool
 
 import time
 
@@ -12,7 +14,7 @@ class Simulation:
     A class representing a smlm simulation
     """
     def __init__(self, emitters=None, contaminators=None, img_size=(64, 64), img_size_hr=(64,64), upscale=1,
-                 background=None, psf=None, psf_hr=None, performance=None):
+                 background=None, psf=None, psf_hr=None, performance=None, poolsize=4):
         """
         Initialise a simulation
         :param emitters: array of instances of emitters
@@ -44,6 +46,7 @@ class Simulation:
         self.psf = psf
         self.psf_hr = psf_hr
         self.performance = performance
+        self.poolsize = poolsize
 
     @property
     def num_emitters(self):
@@ -59,12 +62,25 @@ class Simulation:
         em_mat = self.get_emitter_matrix(kind='all')
 
         img = np.zeros((self.img_size[0] * upscale, self.img_size[1] * upscale, self.num_frames))
-        for i in range(self.num_frames):
-            # get emitters in current frame
-            em_in_frame = em_mat[em_mat[:, 4] == i, :]
-            frame = self.get_frame(em_in_frame[:, :3], em_in_frame[:, 3], psf=psf, bg=bg)
-            img[:, :, i] = frame
+
+        pool = ThreadPool(self.poolsize)
+        frame_list = pool.starmap(self.get_frame_wrapper, zip(list(range(self.num_frames)),
+                                                     iter.repeat(em_mat),
+                                                     iter.repeat(psf),
+                                                     iter.repeat(bg)))
+        img = np.moveaxis(np.asarray(frame_list), 0, -1)
+
+        # # serial version
+        # for i in range(self.num_frames):
+        #     # get emitters in current frame
+        #     em_in_frame = em_mat[em_mat[:, 4] == i, :]
+        #     frame = self.get_frame(em_in_frame[:, :3], em_in_frame[:, 3], psf=psf, bg=bg)
+        #     img[:, :, i] = frame
         return img.astype('uint16')
+
+    def get_frame_wrapper(self, ix, em_mat, psf, bg=True):
+        em_in_frame = em_mat[em_mat[:, 4] == ix, :]
+        return self.get_frame(em_in_frame[:, :3], em_in_frame[:, 3], psf=psf, bg=bg)
 
     def get_frame(self, pos, phot, psf, bg=True):
         if psf is None:
@@ -206,7 +222,7 @@ if __name__ == '__main__':
     upscale_factor = 1
     image_size_hr = (image_size[0] * upscale_factor, image_size[1] * upscale_factor)
     emitter_p_frame = 15
-    total_frames = 18000
+    total_frames = 100
     bg_value = 10
     sigma = np.array([1.5, 1.5])
 
