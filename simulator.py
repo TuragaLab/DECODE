@@ -13,11 +13,11 @@ class Simulation:
     """
     A class representing a smlm simulation
     """
-    def __init__(self, emitters=None, contaminators=None, img_size=(64, 64), img_size_hr=(64,64), upscale=1,
+    def __init__(self, em_mat=None, cont_mat=None, img_size=(64, 64), img_size_hr=(64,64), upscale=1,
                  background=None, psf=None, psf_hr=None, performance=None, poolsize=4):
         """
         Initialise a simulation
-        :param emitters: array of instances of emitters
+        :param emitter_mat: matrix of emitters. N x 6. 0-2 col: xyz, 3 photon, 4: frameix, 5 emit id
         :param img_size: tuple of image dimension
         :param img_size_hr: tuple of high_resolution image dimension (i.e. image with delta function psf)
         :param background: function to generate background, comprises a fct for pre capture bg and post bg
@@ -32,8 +32,9 @@ class Simulation:
         :param image: camera image
         """
 
-        self.emitters = emitters
-        self.contaminators = contaminators
+        self.emitter_mat = em_mat
+        self.contaminator_mat = cont_mat
+
         self.img_size = img_size
         self.img_size_hr = img_size_hr
         self.upscale = upscale
@@ -50,18 +51,16 @@ class Simulation:
 
     @property
     def num_emitters(self):
-        return self.emitters.__len__()
+        return self.emitter_mat.shape[0]
 
     @property
     def num_frames(self):
         em_matrix = self.get_emitter_matrix('all')
-        return np.max(em_matrix[:, 4]).astype('uint16') + 1
+        return int(np.max(em_matrix[:, 4]) + 1)
 
     def camera_image(self, psf=None, bg=True, upscale=1):
         # get emitter matrix
         em_mat = self.get_emitter_matrix(kind='all')
-
-        img = np.zeros((self.img_size[0] * upscale, self.img_size[1] * upscale, self.num_frames))
 
         pool = ThreadPool(self.poolsize)
         frame_list = pool.starmap(self.get_frame_wrapper, zip(list(range(self.num_frames)),
@@ -98,18 +97,13 @@ class Simulation:
         :return: Matrix number of emitters x 5. (x,y,z, photon count, frameix)
         """
         if kind == 'all':
-            emitters = self.emitters + self.contaminators
+            return np.concatenate([self.emitter_mat, self.contaminator_mat], axis=0)
         elif kind == 'emitter':
-            emitters = self.emitters
+            return self.emitter_mat
         elif kind == 'contaminator':
-            emitters = self.contaminators
+            return self.contaminator_mat
         else:
             raise ValueError('Not supported kind.')
-
-        em_mat = np.zeros((emitters.__len__(), 5))
-        for i, emitter in enumerate(emitters):
-            em_mat[i, :] = emitter.return_matrix()
-        return em_mat
 
     def get_emitter_matrix_frame(self, ix, kind=None):
         em_mat = self.get_emitter_matrix(kind=kind)
@@ -191,38 +185,39 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
     if lifetime is None:  # assume 1 frame emitters
         num_emitters = emitter_per_frame * frames
         positions = np.random.uniform(-cont_radius, img_size[0] + cont_radius, (num_emitters, 3))  # place emitters entirely randomly
-        start_frame = np.random.randint(0, frames, num_emitters)  # start on state is distributed uniformly
+        start_frame = np.random.randint(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
         lifetime_per_emitter = 1
 
+        emit_id = np.expand_dims(np.mgrid[0:num_emitters], 1)
     else:  # prototype
         raise NotImplementedError
         num_emitters = np.round(emitter_per_frame * frames / lifetime)  # roughly
         positions = np.random.uniform(-cont_radius, img_size[0] + cont_radius,
                                       (num_emitters, 3))  # place emitters entirely randomly
-        start_frame = np.random.uniform(0, frames, num_emitters)  # start on state is distributed uniformly
+        start_frame = np.random.uniform(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
         lifetime_per_emitter = np.random.exponential(lifetime, num_emitters)  # lifetime drawn from exponential dist
 
-    photon_count = np.random.randint(800, 4000, num_emitters)
+    photon_count = np.random.randint(800, 4000, (num_emitters, 1))
 
-    emit = []
-    cont = []
-    for i in range(num_emitters):
-        if np.any(positions[i, :2] < 0) or np.any(positions[i, :2] > img_size[0]):
-            cont.append(Emitter(positions[i, :], np.array([photon_count[i]]), np.array([start_frame[i]]), True))
-        else:
-            emit.append(Emitter(positions[i, :], np.array([photon_count[i]]), np.array([start_frame[i]])))
+    emit_all = np.concatenate([positions, photon_count, start_frame, emit_id], axis=1)
+    is_emit = np.multiply(np.all(emit_all[:, :2] >= 0, 1), np.all(emit_all[:, :2] <= img_size[0], 1))
+    is_cont = ~is_emit
 
-    return emit, cont
+    if img_size[0] != img_size[1]:
+        raise NotImplementedError("Image must be square at the moment because otherwise the following doesn't work.")
+
+    emit_mat, cont_mat = emit_all[is_emit, :], emit_all[is_cont, :]
+    return emit_mat, cont_mat
 
 
 if __name__ == '__main__':
-    binary_path = 'data/check.npz'
+    binary_path = 'data/try.npz'
 
     image_size = (32, 32)
     upscale_factor = 1
     image_size_hr = (image_size[0] * upscale_factor, image_size[1] * upscale_factor)
     emitter_p_frame = 15
-    total_frames = 100
+    total_frames = 100000
     bg_value = 10
     sigma = np.array([1.5, 1.5])
 
@@ -234,16 +229,9 @@ if __name__ == '__main__':
 
     emit, cont = random_emitters(emitter_p_frame, total_frames, None, image_size, 3)
     sim = Simulation(emit, cont, img_size=image_size, upscale=upscale_factor,
-                     background=_bg, psf=_psf, psf_hr=_psf_hr)
+                     background=_bg, psf=_psf, psf_hr=_psf_hr, poolsize=4)
     sim.image = upscale(sim.camera_image(upscale=1), sim.upscale)  # don't upscale before convolution, scale final image
     sim.image_hr = sim.camera_image(psf=sim.psf_hr, bg=False, upscale=upscale_factor)  # work on hr, no need to upscale
     sim.write_to_binary(binary_path)
-
-    plt.figure(figsize=(10, 10))
-    plt.subplot(121)
-    sim.plot_frame(0)
-    plt.subplot(122)
-    sim.plot_frame(0, image=sim.image_hr, crosses=False)
-    plt.show()
 
     print("Generating samples done. Filename: {}".format(binary_path))

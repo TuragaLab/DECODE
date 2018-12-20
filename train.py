@@ -117,7 +117,7 @@ def bump_mse_loss(output, target, kernel_pred, kernel_true=lambda x: x, l1=torch
     heatmap_pred = kernel_pred(output)
     heatmap_true = kernel_true(target)
 
-    l1_loss = l1(output, torch.zeros('like', target))
+    l1_loss = l1(output, torch.zeros_like(target))
     l2_loss = l2(heatmap_pred, heatmap_true)
 
     return l1_sc * l1_loss + l2_sc * l2_loss  # + 10**(-2) * loss_num
@@ -162,10 +162,10 @@ if __name__ == '__main__':
     net_folder = 'network'
     epochs = 1000
 
-    data_smlm = SMLMDataset('data/data_32px_1e6.npz', transform=['project01', 'normalise'])
-    model_deep = load_model('network/net_14.pt')
-    #model_deep = DeepSLMN()
-    #model_deep.weight_init()
+    data_smlm = SMLMDataset('data/try.npz', transform=['project01', 'normalise'])
+    #model_deep = load_model('network/net_14.pt')
+    model_deep = DeepSLMN()
+    model_deep.weight_init()
     optimiser = Adam(model_deep.parameters(), lr=0.001)
 
     gaussian_kernel = GaussianSmoothing(1, [7, 7], 1, dim=2, cuda=torch.cuda.is_available(),
