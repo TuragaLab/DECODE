@@ -89,7 +89,9 @@ def get_gaussian_kernel(sigma=(1.5, 1.5)):
 def train(data, model, opt, crit):
 
     model.train()
-    # batch
+
+    print_steps = torch.round(torch.linspace(0, data.__len__(), 5))
+
     for ix, data_i in enumerate(data, 0):
         input, ground_truth = data_i
 
@@ -105,7 +107,7 @@ def train(data, model, opt, crit):
         loss.backward()
         opt.step()
 
-        if ix % 10 == 0:
+        if ix in print_steps:
             print(loss.data)
 
 
@@ -121,6 +123,10 @@ def bump_mse_loss(output, target, kernel_pred, kernel_true=lambda x: x, l1=torch
     l2_loss = l2(heatmap_pred, heatmap_true)
 
     return l1_sc * l1_loss + l2_sc * l2_loss  # + 10**(-2) * loss_num
+
+
+def inverse_intens(output, target):
+    pass
 
 
 def num_active_emitter_loss(input, target, threshold=0.15):
@@ -162,10 +168,10 @@ if __name__ == '__main__':
     net_folder = 'network'
     epochs = 1000
 
-    data_smlm = SMLMDataset('data/try.npz', transform=['project01', 'normalise'])
-    #model_deep = load_model('network/net_14.pt')
-    model_deep = DeepSLMN()
-    model_deep.weight_init()
+    data_smlm = SMLMDataset('data/data_32px_1e6.npz', transform=['project01', 'normalise'])
+    model_deep = load_model('network/test.pt')
+    #model_deep = DeepSLMN()
+    #model_deep.weight_init()
     optimiser = Adam(model_deep.parameters(), lr=0.001)
 
     gaussian_kernel = GaussianSmoothing(1, [7, 7], 1, dim=2, cuda=torch.cuda.is_available(),
@@ -180,10 +186,10 @@ if __name__ == '__main__':
     test_size = len(data_smlm) - train_size
     train_data, test_data = torch.utils.data.random_split(data_smlm, [train_size, test_size])
 
-    train_loader = DataLoader(train_data, batch_size=100, shuffle=True, num_workers=4)
-    test_loader = DataLoader(test_data, batch_size=100, shuffle=False, num_workers=4)
+    train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=4)
+    test_loader = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=4)
 
     for i in range(epochs):
         print('Epoch no.: {}'.format(i))
         train(train_loader, model_deep, optimiser, criterion)
-        save_model(model_deep, i, filename='test.pt')
+        save_model(model_deep, i, filename='trained_32px_1e6.pt')

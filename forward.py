@@ -11,9 +11,14 @@ from model import DeepSLMN
 from train import SMLMDataset, load_model
 
 
+def plot_frame(tensor):
+    img = tensor.squeeze()
+    plt.imshow(img, cmap='gray')
+
+
 if __name__ == '__main__':
-    data = SMLMDataset('data/data_32px_1e4.npz')
-    model = load_model(file='network/net_3.pt')
+    data = SMLMDataset('data/test_32px.npz', transform=['project01', 'normalise'])
+    model = load_model(file='network/trained_32px_1e6.pt')
     model.eval()
     num_examples = 2
 
@@ -22,21 +27,18 @@ if __name__ == '__main__':
     #f, axarr = plt.subplots(plt_rows, 3, gridspec_kw={'wspace':0.025, 'hspace':0.05})
     for i in range(num_examples):
 
-        ix = np.random.randint(0, data.__len__())
+        ran_ix = np.random.randint(data.__len__() - 1)
+        print(ran_ix)
+        input_image, target = data.__getitem__(ran_ix)
+        input_image, target = input_image.unsqueeze(0), target.unsqueeze(0)
 
-        input = torch.unsqueeze(data.__getitem__(ix)[0], 0)
         if torch.cuda.is_available():  # model_deep.cuda():
-            input = input.cuda()
-        out = model(input)
+            input_image = input_image.cuda()
+        output = model(input_image)
 
-        in_np = np.squeeze(data.__getitem__(ix)[0].numpy())
-        ground_truth = np.squeeze(data.__getitem__(ix)[1].numpy())
-        out_np = out.data.cpu().numpy()
-        out_np = out_np.squeeze()
-
-        axarr[i, 0].imshow(in_np, cmap='gray')
-        axarr[i, 1].imshow(ground_truth, cmap='gray')
-        axarr[i, 2].imshow(out_np, cmap='gray')
+        axarr[i, 0].imshow(input_image.squeeze(), cmap='gray')
+        axarr[i, 1].imshow(target.squeeze(), cmap='gray')
+        axarr[i, 2].imshow(output.detach().numpy().squeeze(), cmap='gray')
 
         # hide labels
         for j in range(3):
