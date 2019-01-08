@@ -44,7 +44,7 @@ class SMLMDataset(Dataset):
             if 'project01' in self.transform:
                 self.images = project01(self.images)
                 # self.images_hr = project01(self.images_hr)
-            if 'normalise'  in self.transform:
+            if 'normalise' in self.transform:
                 mean = self.images.mean()
                 std = self.images.std()
 
@@ -169,7 +169,7 @@ if __name__ == '__main__':
     epochs = 1000
 
     data_smlm = SMLMDataset('data/data_32px_1e6.npz', transform=['project01', 'normalise'])
-    model_deep = load_model('network/test.pt')
+    model_deep = load_model('network/trained_32px_1e6.pt')
     #model_deep = DeepSLMN()
     #model_deep.weight_init()
     optimiser = Adam(model_deep.parameters(), lr=0.001)
@@ -186,8 +186,8 @@ if __name__ == '__main__':
     test_size = len(data_smlm) - train_size
     train_data, test_data = torch.utils.data.random_split(data_smlm, [train_size, test_size])
 
-    train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=4)
-    test_loader = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=4)
+    train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=12)
+    test_loader = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=12)
 
     for i in range(epochs):
         print('Epoch no.: {}'.format(i))
