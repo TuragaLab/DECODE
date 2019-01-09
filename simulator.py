@@ -2,6 +2,7 @@ import itertools as iter
 import numpy as np
 import matplotlib.pyplot as plt
 import functools
+import torch
 from multiprocessing.dummy import Pool as ThreadPool
 
 import time
@@ -58,9 +59,9 @@ class Simulation:
         em_matrix = self.get_emitter_matrix('all')
         return int(np.max(em_matrix[:, 4]) + 1)
 
-    def camera_image(self, psf=None, bg=True, upscale=1):
+    def camera_image(self, psf=None, bg=True, upscale=1, emitter_kind='all'):
         # get emitter matrix
-        em_mat = self.get_emitter_matrix(kind='all')
+        em_mat = self.get_emitter_matrix(kind=emitter_kind)
 
         pool = ThreadPool(self.poolsize)
         frame_list = pool.starmap(self.get_frame_wrapper, zip(list(range(self.num_frames)),
@@ -76,6 +77,17 @@ class Simulation:
         #     frame = self.get_frame(em_in_frame[:, :3], em_in_frame[:, 3], psf=psf, bg=bg)
         #     img[:, :, i] = frame
         return img.astype('uint16')
+
+    def directed_distance(em_mat, px_positions, image_shape):
+        em_mat = torch.from_numpy(em_mat)
+        image_shape = torch.from_numpy(image_shape)
+        # get index of emitter which is closest, remember the order
+        ix_closest_emitter = pairwise_distances(px_positions, em_mat).min(1)[1]
+
+        # place cordinates of closest emitter
+        directed_distance = (em_mat[ix_closest_emitter, :] - px_positions).view(em_mat.shape[1], *image_shape)
+
+        return directed_distance
 
     def get_frame_wrapper(self, ix, em_mat, psf, bg=True):
         em_in_frame = em_mat[em_mat[:, 4] == ix, :]
@@ -168,6 +180,43 @@ class Emitter:
         return p
 
 
+# https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065
+def pairwise_distances(x, y=None):  # not numerically stable but fast
+    '''
+    Input: x is a Nxd matrix
+           y is an optional Mxd matirx
+    Output: dist is a NxM matrix where dist[i,j] is the square norm between x[i,:] and y[j,:]
+            if y is not given then use 'y=x'.
+    i.e. dist[i,j] = ||x[i,:]-y[j,:]||^2
+    '''
+    x_norm = (x**2).sum(1).view(-1, 1)
+    if y is not None:
+        y_norm = (y**2).sum(1).view(1, -1)
+    else:
+        y = x
+        y_norm = x_norm.view(1, -1)
+
+    dist = x_norm + y_norm - 2.0 * torch.mm(x, torch.transpose(y, 0, 1))
+    return dist
+
+
+# https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065
+def expanded_pairwise_distances(x, y=None):  # numerically stable but slow
+    '''
+    Input: x is a Nxd matrix
+           y is an optional Mxd matirx
+    Output: dist is a NxM matrix where dist[i,j] is the square norm between x[i,:] and y[j,:]
+            if y is not given then use 'y=x'.
+    i.e. dist[i,j] = ||x[i,:]-y[j,:]||^2
+    '''
+    if y is not None:
+         differences = x.unsqueeze(1) - y.unsqueeze(0)
+    else:
+        differences = x.unsqueeze(1) - x.unsqueeze(0)
+    distances = torch.sum(differences * differences, -1)
+    return distances
+
+
 def upscale(img, scale=1):  # either 2D or 3D batch of 2D
     if img.ndim == 3:
         return np.kron(img, np.ones((scale, scale, 1)))
@@ -200,7 +249,7 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
     photon_count = np.random.randint(800, 4000, (num_emitters, 1))
 
     emit_all = np.concatenate([positions, photon_count, start_frame, emit_id], axis=1)
-    is_emit = np.multiply(np.all(emit_all[:, :2] >= 0, 1), np.all(emit_all[:, :2] <= img_size[0], 1))
+    is_emit = np.multiply(np.all(emit_all[:, :2] >= 0, 1), np.all(emit_all[:, :2] <= img_size[0] - 1, 1))
     is_cont = ~is_emit
 
     if img_size[0] != img_size[1]:
@@ -211,13 +260,13 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
 
 
 if __name__ == '__main__':
-    binary_path = 'data/data_32px_1e6.npz'
+    binary_path = 'data/data_32px_up8_1e1.npz'
 
     image_size = (32, 32)
-    upscale_factor = 1
+    upscale_factor = 8
     image_size_hr = (image_size[0] * upscale_factor, image_size[1] * upscale_factor)
     emitter_p_frame = 15
-    total_frames = 1000000
+    total_frames = 10
     bg_value = 10
     sigma = np.array([1.5, 1.5])
 
@@ -231,7 +280,14 @@ if __name__ == '__main__':
     sim = Simulation(emit, cont, img_size=image_size, upscale=upscale_factor,
                      background=_bg, psf=_psf, psf_hr=_psf_hr, poolsize=10)
     sim.image = upscale(sim.camera_image(upscale=1), sim.upscale)  # don't upscale before convolution, scale final image
-    sim.image_hr = sim.camera_image(psf=sim.psf_hr, bg=False, upscale=upscale_factor)  # work on hr, no need to upscale
+    sim.image_hr = sim.camera_image(psf=sim.psf_hr, bg=False, upscale=upscale_factor, emitter_kind='emitter')  # work on hr, no need to upscale
     sim.write_to_binary(binary_path)
 
     print("Generating samples done. Filename: {}".format(binary_path))
+
+    plt.subplot(121)
+    sim.plot_frame(0, sim.image_hr, False)
+    plt.subplot(122)
+    sim.plot_frame(0, sim.image, True)
+    plt.show()
+    print("Done")

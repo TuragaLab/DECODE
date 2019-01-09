@@ -4,6 +4,9 @@ import torch.nn.functional as F
 
 
 class DeepSLMN(nn.Module):
+    """
+    Architecture Nehme, E. - Deep-STORM - https://www.osapublishing.org/abstract.cfm?URI=optica-5-4-458
+    """
     def __init__(self):
         super().__init__()
 

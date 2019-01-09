@@ -17,7 +17,7 @@ def plot_frame(tensor):
 
 
 if __name__ == '__main__':
-    data = SMLMDataset('data/test_32px_1e5.npz', transform=['project01', 'normalise'])
+    data = SMLMDataset('data/test_32px_1e4.npz', transform=['project01', 'normalise'])
     model = load_model(file='network/trained_32px_1e6_interpoint.pt')
     model.eval()
     num_examples = 2
@@ -47,6 +47,9 @@ if __name__ == '__main__':
             axarr[i, j].set_xticklabels([])
             axarr[i, j].set_yticklabels([])
             axarr[i, j].set_aspect('equal')
+        axarr[i, 0].set_title('Input')
+        axarr[i, 1].set_title('Target')
+        axarr[i, 2].set_title('Output')
     plt.show()
 
     print('Done.')

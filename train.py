@@ -56,7 +56,6 @@ class SMLMDataset(Dataset):
         return self.images.shape[0]
 
     def __getitem__(self, index):
-
         return self.images[index, :, :, :], self.images_hr[index, :, :, :]
 
 
@@ -190,7 +189,7 @@ if __name__ == '__main__':
     net_folder = 'network'
     epochs = 1000
 
-    data_smlm = SMLMDataset('data/data_32px_1e6.npz', transform=['project01', 'normalise'])
+    data_smlm = SMLMDataset('data/data_32px_1e6.npz', transform=['normalise'])
     model_deep = load_model('network/trained_32px_1e5_interpoint.pt')
     #model_deep = DeepSLMN()
     #model_deep.weight_init()
