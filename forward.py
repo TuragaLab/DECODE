@@ -17,8 +17,8 @@ def plot_frame(tensor):
 
 
 if __name__ == '__main__':
-    data = SMLMDataset('data/test_32px.npz', transform=['project01', 'normalise'])
-    model = load_model(file='network/trained_32px_1e6.pt')
+    data = SMLMDataset('data/test_32px_1e5.npz', transform=['project01', 'normalise'])
+    model = load_model(file='network/trained_32px_1e6_interpoint.pt')
     model.eval()
     num_examples = 2
 

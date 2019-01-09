@@ -125,6 +125,28 @@ def bump_mse_loss(output, target, kernel_pred, kernel_true=lambda x: x, l1=torch
     return l1_sc * l1_loss + l2_sc * l2_loss  # + 10**(-2) * loss_num
 
 
+def interpoint_loss(input, target, threshold=500):
+    def expanded_pairwise_distances(x, y=None):
+        '''
+        Taken from https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065
+
+        Input: x is a Nxd matrix
+               y is an optional Mxd matirx
+        Output: dist is a NxM matrix where dist[i,j] is the square norm between x[i,:] and y[j,:]
+                if y is not given then use 'y=x'.
+        i.e. dist[i,j] = ||x[i,:]-y[j,:]||^2
+        '''
+        if y is not None:
+             differences = x.unsqueeze(1) - y.unsqueeze(0)
+        else:
+            differences = x.unsqueeze(1) - x.unsqueeze(0)
+        distances = torch.sum(differences * differences, -1)
+        return distances
+
+    interpoint_dist = expanded_pairwise_distances((input >= threshold).nonzero(), target.nonzero())
+    return interpoint_dist.min(1)[0].sum() / input.__len__()  # return distance to closest target point
+
+
 def inverse_intens(output, target):
     pass
 
@@ -169,7 +191,7 @@ if __name__ == '__main__':
     epochs = 1000
 
     data_smlm = SMLMDataset('data/data_32px_1e6.npz', transform=['project01', 'normalise'])
-    model_deep = load_model('network/trained_32px_1e6.pt')
+    model_deep = load_model('network/trained_32px_1e5_interpoint.pt')
     #model_deep = DeepSLMN()
     #model_deep.weight_init()
     optimiser = Adam(model_deep.parameters(), lr=0.001)
@@ -177,7 +199,8 @@ if __name__ == '__main__':
     gaussian_kernel = GaussianSmoothing(1, [7, 7], 1, dim=2, cuda=torch.cuda.is_available(),
                                         padding=lambda x: F.pad(x, (3, 3, 3, 3), mode='reflect'))
     criterion = lambda input, target: bump_mse_loss(input, target,
-                                                    kernel_pred=gaussian_kernel, kernel_true=gaussian_kernel)
+                                                    kernel_pred=gaussian_kernel, kernel_true=gaussian_kernel) \
+                                      + 10 * interpoint_loss(input, target)
 
     if torch.cuda.is_available():
         model_eep = model_deep.cuda()
@@ -192,4 +215,4 @@ if __name__ == '__main__':
     for i in range(epochs):
         print('Epoch no.: {}'.format(i))
         train(train_loader, model_deep, optimiser, criterion)
-        save_model(model_deep, i, filename='trained_32px_1e6.pt')
+        save_model(model_deep, i, filename='trained_32px_1e6_interpoint.pt')
