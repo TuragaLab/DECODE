@@ -5,8 +5,6 @@ import functools
 import torch
 from multiprocessing.dummy import Pool as ThreadPool
 
-import time
-
 from psf_kernel import gaussian_expect, gaussian_convolution, noise_psf, delta_psf
 
 
@@ -57,7 +55,7 @@ class Simulation:
     @property
     def num_frames(self):
         em_matrix = self.get_emitter_matrix('all')
-        return int(np.max(em_matrix[:, 4]) + 1)
+        return int(torch.max(em_matrix[:, 4]) + 1)
 
     def camera_image(self, psf=None, bg=True, upscale=1, emitter_kind='all'):
         # get emitter matrix
@@ -68,15 +66,9 @@ class Simulation:
                                                      iter.repeat(em_mat),
                                                      iter.repeat(psf),
                                                      iter.repeat(bg)))
-        img = np.moveaxis(np.asarray(frame_list), 0, -1)
+        img = torch.stack(frame_list, dim=2)  # np.moveaxis(np.asarray(frame_list), 0, -1)
 
-        # # serial version
-        # for i in range(self.num_frames):
-        #     # get emitters in current frame
-        #     em_in_frame = em_mat[em_mat[:, 4] == i, :]
-        #     frame = self.get_frame(em_in_frame[:, :3], em_in_frame[:, 3], psf=psf, bg=bg)
-        #     img[:, :, i] = frame
-        return img.astype('uint16')
+        return img.type(torch.int16)
 
     def directed_distance(em_mat, px_positions, image_shape):
         em_mat = torch.from_numpy(em_mat)
@@ -109,7 +101,7 @@ class Simulation:
         :return: Matrix number of emitters x 5. (x,y,z, photon count, frameix)
         """
         if kind == 'all':
-            return np.concatenate([self.emitter_mat, self.contaminator_mat], axis=0)
+            return torch.cat([self.emitter_mat, self.contaminator_mat], dim=0)
         elif kind == 'emitter':
             return self.emitter_mat
         elif kind == 'contaminator':
@@ -137,14 +129,14 @@ class Simulation:
         if image is None:
             image = self.image
 
-        plt.imshow(image[:, :, ix], cmap='gray', extent=self.get_extent(image.shape[:2]))
+        plt.imshow(image[:, :, ix].numpy(), cmap='gray', extent=self.get_extent(image.shape[:2]))
 
         ground_truth = self.get_emitter_matrix_frame(ix, kind='emitter')
         if crosses is True:
-            plt.plot(ground_truth[:, 0], ground_truth[:, 1], 'rx')
+            plt.plot(ground_truth[:, 0].numpy(), ground_truth[:, 1].numpy(), 'rx')
 
         if self.predictions is not None:
-            plt.plot(localisation[:, 0], localisation[:, 1], 'bo')
+            plt.plot(localisation[:, 0].numpy(), localisation[:, 1].numpy(), 'bo')
 
     def write_to_binary(self, outfile):
 
@@ -172,9 +164,9 @@ class Emitter:
 
     def return_matrix(self):
         num_frames = self.frames.__len__()
-        p = np.zeros((num_frames, 5))  # frames x (x,y,z,photons,frame_ix)
+        p = torch.zeros((num_frames, 5))  # frames x (x,y,z,photons,frame_ix)
 
-        p[:, :3] = np.repeat(np.expand_dims(self.position, axis=0), num_frames, axis=0)
+        p[:, :3] = np.repeat(torch.unsqueeze(self.position, 0), num_frames, axis=0)  # change!
         p[:, 3] = self.photons
         p[:, 4] = self.frames
         return p
@@ -218,10 +210,11 @@ def expanded_pairwise_distances(x, y=None):  # numerically stable but slow
 
 
 def upscale(img, scale=1):  # either 2D or 3D batch of 2D
-    if img.ndim == 3:
-        return np.kron(img, np.ones((scale, scale, 1)))
+    if img.dim() == 3:
+        output = np.kron(img.numpy(), np.ones((scale, scale, 1)))
     else:
-        return np.kron(img, np.ones((scale, scale)))
+        output = np.kron(img.numpy(), np.ones((scale, scale)))
+    return torch.from_numpy(output)
 
 
 def dist_phot_lifetime(start_frame, lifetime, photon_count):
@@ -233,23 +226,22 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
 
     if lifetime is None:  # assume 1 frame emitters
         num_emitters = emitter_per_frame * frames
-        positions = np.random.uniform(-cont_radius, img_size[0] + cont_radius, (num_emitters, 3))  # place emitters entirely randomly
-        start_frame = np.random.randint(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
+        positions = torch.rand(num_emitters, 3) * (img_size[0] + 2 * cont_radius) - cont_radius  # np.random.uniform(-cont_radius, img_size[0] + cont_radius, (num_emitters, 3))  # place emitters entirely randomly
+        start_frame = torch.randint(0, frames, (num_emitters, 1))  # np.random.randint(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
         lifetime_per_emitter = 1
 
-        emit_id = np.expand_dims(np.mgrid[0:num_emitters], 1)
+        emit_id =  torch.arange(0, num_emitters).unsqueeze(0).transpose(0, 1)  #  np.expand_dims(np.mgrid[0:num_emitters], 1)
     else:  # prototype
         raise NotImplementedError
-        num_emitters = np.round(emitter_per_frame * frames / lifetime)  # roughly
-        positions = np.random.uniform(-cont_radius, img_size[0] + cont_radius,
-                                      (num_emitters, 3))  # place emitters entirely randomly
-        start_frame = np.random.uniform(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
-        lifetime_per_emitter = np.random.exponential(lifetime, num_emitters)  # lifetime drawn from exponential dist
+        num_emitters = torch.round(emitter_per_frame * frames / lifetime)  # roughly
+        positions = torch.uniform(num_emitters, 3) * (img_size[0] + 2 * cont_radius) - cont_radius  # place emitters entirely randomly
+        # start_frame = np.random.uniform(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
+        lifetime_per_emitter = torch.zeros(num_emitters).exponential(lifetime)  # np.random.exponential(lifetime, num_emitters)  # lifetime drawn from exponential dist
 
-    photon_count = np.random.randint(800, 4000, (num_emitters, 1))
+    photon_count = torch.randint(800, 4000, (num_emitters, 1))  # np.random.randint(800, 4000, (num_emitters, 1))
 
-    emit_all = np.concatenate([positions, photon_count, start_frame, emit_id], axis=1)
-    is_emit = np.multiply(np.all(emit_all[:, :2] >= 0, 1), np.all(emit_all[:, :2] <= img_size[0] - 1, 1))
+    emit_all = torch.cat((positions, photon_count.float(), start_frame.float(), emit_id.float()), 1)  # np.concatenate([positions, photon_count, start_frame, emit_id], axis=1)
+    is_emit = torch.mul((emit_all[:, :2] >= 0).all(1), (emit_all[:, :2] <= img_size[0] - 1).all(1))  # np.multiply(np.all(emit_all[:, :2] >= 0, 1), np.all(emit_all[:, :2] <= img_size[0] - 1, 1))
     is_cont = ~is_emit
 
     if img_size[0] != img_size[1]:
@@ -260,7 +252,7 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
 
 
 if __name__ == '__main__':
-    binary_path = 'data/data_32px_up8_1e1.npz'
+    binary_path = 'data/data_32px_up8_1e1_test.npz'
 
     image_size = (32, 32)
     upscale_factor = 8
@@ -268,13 +260,13 @@ if __name__ == '__main__':
     emitter_p_frame = 15
     total_frames = 10
     bg_value = 10
-    sigma = np.array([1.5, 1.5])
+    sigma = torch.tensor([1.5, 1.5])
 
     _bg = lambda img: noise_psf(img, bg_poisson=bg_value)
     _psf = lambda pos, phot: gaussian_expect(pos, sigma, phot, img_shape=image_size)
     _psf_hr = lambda pos, phot: delta_psf(pos, phot, img_shape=image_size_hr,
-                                          xextent=np.array([0, image_size[0]], dtype=float),
-                                          yextent=np.array([0, image_size[1]], dtype=float))
+                                          xextent=torch.tensor([0, image_size[0]], dtype=torch.float),
+                                          yextent=torch.tensor([0, image_size[1]], dtype=torch.float))
 
     emit, cont = random_emitters(emitter_p_frame, total_frames, None, image_size, 3)
     sim = Simulation(emit, cont, img_size=image_size, upscale=upscale_factor,

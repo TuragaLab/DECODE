@@ -23,12 +23,16 @@ def noise_psf(img, noise=True, bg_poisson=10, readout_gaussian=0):
     if not noise:
         return img
 
-    noise_mask_poisson = np.random.poisson(np.zeros_like(img) + bg_poisson)  # not additive
-    noise_mask_gaussian = readout_gaussian * np.random.randn(img.shape[0], img.shape[1])  # additive
+    noise_mask_poisson = torch.distributions.poisson.Poisson(torch.zeros_like(img) + bg_poisson).sample()  # not additive
+    noise_mask_gaussian = readout_gaussian * torch.randn(img.shape[0], img.shape[1])  # additive
     return img + noise_mask_poisson + noise_mask_gaussian
 
 
 def delta_psf(pos, p_count, img_shape=np.array([64, 64]), origin='px_centre', xextent=None, yextent=None):
+
+    # as long as we don't have a good replacement in pytorch for histogram2d let this live in numpy
+    pos = pos.numpy()
+    p_count = p_count.numpy()
 
     shape = img_shape
     # extent of our coordinate system
@@ -48,10 +52,10 @@ def delta_psf(pos, p_count, img_shape=np.array([64, 64]), origin='px_centre', xe
     bin_rows = np.linspace(xextent[0], xextent[1], img_shape[0] + 1, endpoint=True)
     bin_cols = np.linspace(yextent[0], yextent[1], img_shape[1] + 1, endpoint=True)
 
-    camera, xedges, yedges = np.histogram2d(pos[:, 1], pos[:, 0], bins=(
+    camera, _, _ = np.histogram2d(pos[:, 1], pos[:, 0], bins=(
         bin_rows, bin_cols), weights=p_count)  # bin into 2d histogram with px edges
 
-    return camera
+    return torch.from_numpy(camera)
 
 
 def gaussian_expect(pos, sig, p_count=1000, img_shape=np.array([64, 64])):
@@ -65,33 +69,44 @@ def gaussian_expect(pos, sig, p_count=1000, img_shape=np.array([64, 64])):
     :param img_shape:
     :return:
     """
+
+    # for now convert to numpy
     num_emitters = pos.shape[0]
 
-    # setup coordinate world
-    x = np.arange(img_shape[0])
-    y = np.arange(img_shape[1])
 
-    i = 0
-    xpos = np.repeat(pos[:, 0].reshape((1, 1, num_emitters)), img_shape[i], axis=i)
-    ypos = np.repeat(pos[:, 1].reshape((1, 1, num_emitters)), img_shape[i], axis=i)
-    i = 1
-    xpos = np.repeat(xpos, img_shape[i], axis=i)
-    ypos = np.repeat(ypos, img_shape[i], axis=i)
 
-    xx, yy = np.meshgrid(x, y)
-    xx = np.expand_dims(xx, 2)
-    yy = np.expand_dims(yy, 2)
-    xx = np.repeat(xx, num_emitters, axis=2)
-    yy = np.repeat(yy, num_emitters, axis=2)
+    # Old numpy code. Will be removed eventually
+    # i = 0
+    # xpos = np.repeat(pos[:, 0].reshape((1, 1, num_emitters)), img_shape[i], axis=i)
+    # ypos = np.repeat(pos[:, 1].reshape((1, 1, num_emitters)), img_shape[i], axis=i)
+    # i = 1
+    # xpos = np.repeat(xpos, img_shape[i], axis=i)
+    # ypos = np.repeat(ypos, img_shape[i], axis=i)
 
-    gauss_x = special.erf((xx - xpos + 0.5) / (np.sqrt(2) * sig[0])) \
-            - special.erf((xx - xpos - 0.5) / (np.sqrt(2) * sig[0]))
-    gauss_y = special.erf((yy - ypos + 0.5) / (np.sqrt(2) * sig[1])) \
-            - special.erf((yy - ypos - 0.5) / (np.sqrt(2) * sig[1]))
-    gaussCdf = p_count / 4 * np.multiply(gauss_x, gauss_y)
+    # xx, yy = np.meshgrid(x, y)
+    # xx = np.expand_dims(xx, 2)
+    # yy = np.expand_dims(yy, 2)
+    # xx = np.repeat(xx, num_emitters, axis=2)
+    # yy = np.repeat(yy, num_emitters, axis=2)
 
-    gaussCdf = np.sum(gaussCdf, axis=2)
-    return np.random.poisson(gaussCdf)
+    xpos = pos[:, 0].repeat(img_shape[0], img_shape[1], 1)
+    ypos = pos[:, 1].repeat(img_shape[0], img_shape[1], 1)
+
+    x = torch.arange(img_shape[0], dtype=torch.float32)
+    y = torch.arange(img_shape[1], dtype=torch.float32)
+    xx, yy = torch.meshgrid(x, y)
+
+    xx = xx.transpose(0, 1).unsqueeze(2).repeat(1, 1, num_emitters)
+    yy = yy.transpose(0, 1).unsqueeze(2).repeat(1, 1, num_emitters)
+
+    gauss_x = torch.erf((xx - xpos + 0.5) / (math.sqrt(2) * sig[0])) \
+            - torch.erf((xx - xpos - 0.5) / (math.sqrt(2) * sig[0]))
+    gauss_y = torch.erf((yy - ypos + 0.5) / (math.sqrt(2) * sig[1])) \
+            - torch.erf((yy - ypos - 0.5) / (math.sqrt(2) * sig[1]))
+    gaussCdf = p_count / 4 * torch.mul(gauss_x, gauss_y)
+
+    gaussCdf = torch.sum(gaussCdf, 2)
+    return torch.distributions.poisson.Poisson(gaussCdf).sample()
 
 
 def gaussian_convolution(pos,
