@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import functools
 import torch
 from multiprocessing.dummy import Pool as ThreadPool
+from missingFromNumpy import repeat_np
 
 from psf_kernel import gaussian_expect, gaussian_convolution, noise_psf, delta_psf
 
@@ -13,7 +14,7 @@ class Simulation:
     A class representing a smlm simulation
     """
     def __init__(self, em_mat=None, cont_mat=None, img_size=(64, 64), img_size_hr=(64,64), upscale=1,
-                 background=None, psf=None, psf_hr=None, performance=None, poolsize=4):
+                 background=None, psf=None, psf_hr=None, performance=None, poolsize=4, use_cuda=True):
         """
         Initialise a simulation
         :param emitter_mat: matrix of emitters. N x 6. 0-2 col: xyz, 3 photon, 4: frameix, 5 emit id
@@ -23,6 +24,7 @@ class Simulation:
                             input: image
         :param psf: psf function
         :param psf_hr: psf function for high resolution image (e.g. delta function psf)
+        :param use_cuda: perform calculations as much as possible in cuda. support is rudimentary atm.
 
         :param performance: function to evaluate performance of prediction
 
@@ -47,6 +49,7 @@ class Simulation:
         self.psf_hr = psf_hr
         self.performance = performance
         self.poolsize = poolsize
+        self.use_cuda = use_cuda if torch.cuda.is_available() else False  # use cuda only if it's really possible
 
     @property
     def num_emitters(self):
@@ -57,18 +60,23 @@ class Simulation:
         em_matrix = self.get_emitter_matrix('all')
         return int(torch.max(em_matrix[:, 4]) + 1)
 
-    def camera_image(self, psf=None, bg=True, upscale=1, emitter_kind='all'):
+    def camera_image(self, psf=None, bg=True, postupscaling=False, emitter_kind='all'):
         # get emitter matrix
         em_mat = self.get_emitter_matrix(kind=emitter_kind)
 
         pool = ThreadPool(self.poolsize)
         frame_list = pool.starmap(self.get_frame_wrapper, zip(list(range(self.num_frames)),
-                                                     iter.repeat(em_mat),
-                                                     iter.repeat(psf),
-                                                     iter.repeat(bg)))
-        img = torch.stack(frame_list, dim=2)  # np.moveaxis(np.asarray(frame_list), 0, -1)
-
-        return img.type(torch.int16)
+                                                              iter.repeat(em_mat),
+                                                              iter.repeat(psf),
+                                                              iter.repeat(bg),
+                                                              iter.repeat(postupscaling)))
+        img = torch.stack(frame_list, dim=2).type(torch.int16)
+        if postupscaling:
+            if self.use_cuda:
+                img = img.cuda()
+            return upscale(img, self.upscale, img_dims=(0, 1)).cpu()
+        else:
+            return img
 
     def directed_distance(em_mat, px_positions, image_shape):
         em_mat = torch.from_numpy(em_mat)
@@ -81,7 +89,7 @@ class Simulation:
 
         return directed_distance
 
-    def get_frame_wrapper(self, ix, em_mat, psf, bg=True):
+    def get_frame_wrapper(self, ix, em_mat, psf, bg=True, postupscaling=False):
         em_in_frame = em_mat[em_mat[:, 4] == ix, :]
         return self.get_frame(em_in_frame[:, :3], em_in_frame[:, 3], psf=psf, bg=bg)
 
@@ -209,12 +217,8 @@ def expanded_pairwise_distances(x, y=None):  # numerically stable but slow
     return distances
 
 
-def upscale(img, scale=1):  # either 2D or 3D batch of 2D
-    if img.dim() == 3:
-        output = np.kron(img.numpy(), np.ones((scale, scale, 1)))
-    else:
-        output = np.kron(img.numpy(), np.ones((scale, scale)))
-    return torch.from_numpy(output)
+def upscale(img, scale=1, img_dims=(0, 1)):  # either 2D or 3D batch of 2D
+    return repeat_np(repeat_np(img, scale, img_dims[0]), scale, img_dims[1])
 
 
 def dist_phot_lifetime(start_frame, lifetime, photon_count):
@@ -252,13 +256,13 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
 
 
 if __name__ == '__main__':
-    binary_path = 'data/data_32px_up8_1e1_test.npz'
+    binary_path = 'data/data_32px_up8_1e4.npz'
 
     image_size = (32, 32)
     upscale_factor = 8
     image_size_hr = (image_size[0] * upscale_factor, image_size[1] * upscale_factor)
     emitter_p_frame = 15
-    total_frames = 10
+    total_frames = 10000
     bg_value = 10
     sigma = torch.tensor([1.5, 1.5])
 
@@ -270,12 +274,17 @@ if __name__ == '__main__':
 
     emit, cont = random_emitters(emitter_p_frame, total_frames, None, image_size, 3)
     sim = Simulation(emit, cont, img_size=image_size, upscale=upscale_factor,
-                     background=_bg, psf=_psf, psf_hr=_psf_hr, poolsize=10)
-    sim.image = upscale(sim.camera_image(upscale=1), sim.upscale)  # don't upscale before convolution, scale final image
-    sim.image_hr = sim.camera_image(psf=sim.psf_hr, bg=False, upscale=upscale_factor, emitter_kind='emitter')  # work on hr, no need to upscale
+                     background=_bg, psf=_psf, psf_hr=_psf_hr, poolsize=10, use_cuda=True)
+    """
+    Frame will be in image_size, upscale afterwards so that it looks like image_size 
+    where it's actually in image_size_hr. For the case of finer target, upscaling is part of the psf, since the original
+    output of the 'delta shaped psf' must be in high resolution already.
+    """
+    sim.image = sim.camera_image(postupscaling=True)
+    sim.image_hr = sim.camera_image(psf=sim.psf_hr, bg=False, postupscaling=False, emitter_kind='emitter')
     sim.write_to_binary(binary_path)
 
-    print("Generating samples done. Filename: {}".format(binary_path))
+    print("Generating {} samples done. Filename: {}".format(total_frames, binary_path))
 
     plt.subplot(121)
     sim.plot_frame(0, sim.image_hr, False)
