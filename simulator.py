@@ -1,7 +1,9 @@
+import configparser
 import itertools as iter
 import numpy as np
 import matplotlib.pyplot as plt
 import functools
+import sys
 import torch
 from multiprocessing.dummy import Pool as ThreadPool
 from missingFromNumpy import repeat_np
@@ -13,8 +15,9 @@ class Simulation:
     """
     A class representing a smlm simulation
     """
-    def __init__(self, em_mat=None, cont_mat=None, img_size=(64, 64), img_size_hr=(64,64), upscale=1,
-                 background=None, psf=None, psf_hr=None, performance=None, poolsize=4, use_cuda=True):
+    def __init__(self, em_mat=None, cont_mat=None, img_size=(64, 64), sigma=1.5, upscale=1,
+                 bg_value=10, background=None, psf=None, psf_hr=None, performance=None, poolsize=4,
+                 use_cuda=True):
         """
         Initialise a simulation
         :param emitter_mat: matrix of emitters. N x 6. 0-2 col: xyz, 3 photon, 4: frameix, 5 emit id
@@ -37,19 +40,24 @@ class Simulation:
         self.contaminator_mat = cont_mat
 
         self.img_size = img_size
-        self.img_size_hr = img_size_hr
         self.upscale = upscale
+        self.img_size_hr = (self.img_size[0] * self.upscale, self.img_size[1] * self.upscale)
         self.image = None
         self.image_hr = None
 
         self.predictions = None
 
-        self.background = background
+        self.sigma = sigma
+        self.bg_value = bg_value
         self.psf = psf
         self.psf_hr = psf_hr
+        self.background = background
         self.performance = performance
         self.poolsize = poolsize
         self.use_cuda = use_cuda if torch.cuda.is_available() else False  # use cuda only if it's really possible
+
+        if not any([self.psf, self.psf_hr, self.background]):  # i.e. if all are None
+            self.init_standard_psf()
 
     @property
     def num_emitters(self):
@@ -59,6 +67,21 @@ class Simulation:
     def num_frames(self):
         em_matrix = self.get_emitter_matrix('all')
         return int(torch.max(em_matrix[:, 4]) + 1)
+
+    @property
+    def simulation_extent(self):
+        return self.get_extent(self.img_size)
+
+    @property
+    def simulation_extent_hr(self):
+        return self.get_extent(self.img_size_hr)
+
+    def init_standard_psf(self):
+        self.background = lambda img: noise_psf(img, bg_poisson=self.bg_value)
+        self.psf = lambda pos, phot: gaussian_expect(pos, self.sigma, phot, img_shape=self.img_size)
+        self.psf_hr = lambda pos, phot: delta_psf(pos, phot, img_shape=self.img_size_hr,
+                                                  xextent=torch.tensor([0, self.img_size[0]], dtype=torch.float),
+                                                  yextent=torch.tensor([0, self.img_size[1]], dtype=torch.float))
 
     def camera_image(self, psf=None, bg=True, postupscaling=False, emitter_kind='all'):
         # get emitter matrix
@@ -125,14 +148,6 @@ class Simulation:
     def get_extent(self, img_size):
         return [-0.5, img_size[0]/self.upscale - 0.5, img_size[1]/self.upscale - 0.5, -0.5]
 
-    @property
-    def simulation_extent(self):
-        return self.get_extent(self.img_size)
-
-    @property
-    def simulation_extent_hr(self):
-        return self.get_extent(self.img_size_hr)
-
     def plot_frame(self, ix, image=None, crosses=True):
         if image is None:
             image = self.image
@@ -146,38 +161,58 @@ class Simulation:
         if self.predictions is not None:
             plt.plot(localisation[:, 0].numpy(), localisation[:, 1].numpy(), 'bo')
 
+    def run_simulation(self, plot_sample=False):
+        """
+        Frame will be in image_size, upscale afterwards so that it looks like image_size
+        where it's actually in image_size_hr. For the case of finer target, upscaling is part of the psf, since the original
+        output of the 'delta shaped psf' must be in high resolution already.
+        """
+        self.image = self.camera_image(postupscaling=True)
+        self.image_hr = self.camera_image(psf=self.psf_hr, bg=False, postupscaling=False, emitter_kind='emitter')
+        print("Generating {} samples done.".format(self.num_frames))
+
+        if plot_sample:
+            plt.subplot(121)
+            self.plot_frame(0, self.image_hr, False)
+
+            plt.subplot(122)
+            self.plot_frame(0, self.image, True)
+
+            plt.show()
+
     def write_to_binary(self, outfile):
+        np.savez_compressed(outfile, frames=self.image, frames_hr=self.image_hr,
+                            emitters=self.get_emitter_matrix(), len=self.num_frames)
+        print("Saving simulation to {}.".format(outfile))
 
-        np.savez_compressed(outfile, frames=self.image, frames_hr=self.image_hr, emitters=self.get_emitter_matrix(), len=self.num_frames)
 
-
-class Emitter:
+class Args:
     """
-    Class representing a single emitter
+    Simple class to init from configuration file
     """
-    def __init__(self, position, photons, frames, is_contaminator=False):
-        """
+    def __init__(self, ini_file):
+        self.ini_file = ini_file
+        self.config = configparser.ConfigParser()
 
-        :param position: x,y,z emitters position as numpy array, size 3
-        :param photons: number of photons per frame, size: num_frames
-        :param frames: frame indices, size: num_frames
+        self.binary_path = None
+        self.image_size = None
+        self.upscale_factor = None
+        self.emitter_p_frame = None
+        self.total_frames = None
+        self.bg_value = None
+        self.sigma = None
 
-        :param is_contaminator:
-        """
-        self.position = position
-        self.photons = photons
-        self.frames = frames
-
-        self.contaminator = is_contaminator
-
-    def return_matrix(self):
-        num_frames = self.frames.__len__()
-        p = torch.zeros((num_frames, 5))  # frames x (x,y,z,photons,frame_ix)
-
-        p[:, :3] = np.repeat(torch.unsqueeze(self.position, 0), num_frames, axis=0)  # change!
-        p[:, 3] = self.photons
-        p[:, 4] = self.frames
-        return p
+    def parse(self, section='DEFAULT'):
+        self.config.read(self.ini_file)
+        self.binary_path = self.config[section]['binary_path']
+        self.image_size = eval(self.config[section]['image_size'])
+        self.upscale_factor = int(self.config[section]['upscale_factor'])
+        self.emitter_p_frame = int(self.config[section]['emitter_p_frame'])
+        self.total_frames = int(self.config[section]['total_frames'])
+        self.bg_value = int(self.config[section]['bg_value'])
+        self.sigma = torch.tensor([float(self.config[section]['sigma']),
+                              float(self.config[section]['sigma'])])
+        self.poolsize = int(self.config[section]['poolsize'])
 
 
 # https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065
@@ -256,39 +291,27 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
 
 
 if __name__ == '__main__':
-    binary_path = 'data/data_32px_up8_1e4.npz'
+    if len(sys.argv) == 1:  # no .ini file specified
+        ini_file = 'SimulationDefault.ini'
+        section = 'DEFAULT'
+    else:
+        ini_file = sys.argv[1]
+        section = sys.argv[2]
 
-    image_size = (32, 32)
-    upscale_factor = 8
-    image_size_hr = (image_size[0] * upscale_factor, image_size[1] * upscale_factor)
-    emitter_p_frame = 15
-    total_frames = 10000
-    bg_value = 10
-    sigma = torch.tensor([1.5, 1.5])
+    args = Args(ini_file)
+    args.parse(section=section)
 
-    _bg = lambda img: noise_psf(img, bg_poisson=bg_value)
-    _psf = lambda pos, phot: gaussian_expect(pos, sigma, phot, img_shape=image_size)
-    _psf_hr = lambda pos, phot: delta_psf(pos, phot, img_shape=image_size_hr,
-                                          xextent=torch.tensor([0, image_size[0]], dtype=torch.float),
-                                          yextent=torch.tensor([0, image_size[1]], dtype=torch.float))
+    emit, cont = random_emitters(args.emitter_p_frame, args.total_frames, None, args.image_size, 3)
+    sim = Simulation(emit, cont,
+                     img_size=args.image_size,
+                     sigma=args.sigma,
+                     upscale=args.upscale_factor,
+                     bg_value=args.bg_value,
+                     background=None,
+                     psf=None,
+                     psf_hr=None,
+                     poolsize=args.poolsize,
+                     use_cuda=True)
 
-    emit, cont = random_emitters(emitter_p_frame, total_frames, None, image_size, 3)
-    sim = Simulation(emit, cont, img_size=image_size, upscale=upscale_factor,
-                     background=_bg, psf=_psf, psf_hr=_psf_hr, poolsize=10, use_cuda=True)
-    """
-    Frame will be in image_size, upscale afterwards so that it looks like image_size 
-    where it's actually in image_size_hr. For the case of finer target, upscaling is part of the psf, since the original
-    output of the 'delta shaped psf' must be in high resolution already.
-    """
-    sim.image = sim.camera_image(postupscaling=True)
-    sim.image_hr = sim.camera_image(psf=sim.psf_hr, bg=False, postupscaling=False, emitter_kind='emitter')
-    sim.write_to_binary(binary_path)
-
-    print("Generating {} samples done. Filename: {}".format(total_frames, binary_path))
-
-    plt.subplot(121)
-    sim.plot_frame(0, sim.image_hr, False)
-    plt.subplot(122)
-    sim.plot_frame(0, sim.image, True)
-    plt.show()
-    print("Done")
+    sim.run_simulation(plot_sample=False)
+    sim.write_to_binary(args.binary_path)

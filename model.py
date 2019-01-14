@@ -30,19 +30,19 @@ class DeepSLMN(nn.Module):
         self.conv7_bn = nn.BatchNorm2d(32)
         self.conv8 = nn.Conv2d(32, 1, (1, 1), 1, bias=False)
 
-    def forward(self, x):
+    def forward(self, x0):
         # encode and downsample
-        x = F.max_pool2d(self.act(self.conv1_bn(self.conv1(x))), 2, 2)
-        x = F.max_pool2d(self.act(self.conv2_bn(self.conv2(x))), 2, 2)
-        x = F.max_pool2d(self.act(self.conv3_bn(self.conv3(x))), 2, 2)
+        x1 = F.max_pool2d(self.act(self.conv1_bn(self.conv1(x0))), 2, 2)
+        x2 = F.max_pool2d(self.act(self.conv2_bn(self.conv2(x1))), 2, 2)
+        x3 = F.max_pool2d(self.act(self.conv3_bn(self.conv3(x2))), 2, 2)
 
-        x = F.interpolate(self.act(self.conv4_bn(self.conv4(x))), scale_factor=(2, 2))
-        x = F.interpolate(self.act(self.conv5_bn(self.conv5(x))), scale_factor=(2, 2))
-        x = F.interpolate(self.act(self.conv6_bn(self.conv6(x))), scale_factor=(2, 2))
-        x = self.act(self.conv7_bn(self.conv7(x)))
-        x = self.act(self.conv8(x))
+        x4 = F.interpolate(self.act(self.conv4_bn(self.conv4(x3))), scale_factor=(2, 2))
+        x5 = F.interpolate(self.act(self.conv5_bn(self.conv5(x4))), scale_factor=(2, 2))
+        x6 = F.interpolate(self.act(self.conv6_bn(self.conv6(x5))), scale_factor=(2, 2))
+        x7 = self.act(self.conv7_bn(self.conv7(x6)))
+        x8 = self.act(self.conv8(x7))
 
-        return x
+        return x8
 
 
     def weight_init(self):
