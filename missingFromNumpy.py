@@ -1,3 +1,5 @@
+import numpy as np
+import os
 import torch
 
 
@@ -25,6 +27,15 @@ def repeat_np(a, repeats, dim):
             torch.cat([init_dim * torch.arange(repeats) + i for i in range(init_dim)]))
 
     return torch.index_select(a, dim, order_index)
+
+
+def get_free_gpu():
+    """
+    https://discuss.pytorch.org/t/it-there-anyway-to-let-program-select-free-gpu-automatically/17560/7
+    """
+    os.system('nvidia-smi -q -d Memory |grep -A4 GPU|grep Free >tmp')
+    memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
+    return np.argmax(memory_available), np.max(memory_available) * 10**6
 
 
 def kron(t1, t2):

@@ -17,8 +17,8 @@ def plot_frame(tensor):
 
 
 if __name__ == '__main__':
-    data = SMLMDataset('data/test_32px_1e4.npz', transform=['normalise'])
-    model = load_model(file='network/trained_32px_1e6_interpoint.pt')
+    data = SMLMDataset('data/test.npz', transform=['normalise'])
+    model = load_model(file='network/trained_32px_upsample.pt')
     model.eval()
     num_examples = 2
 
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     #f, axarr = plt.subplots(plt_rows, 3, gridspec_kw={'wspace':0.025, 'hspace':0.05})
     for i in range(num_examples):
 
-        ran_ix = np.random.randint(data.__len__() - 1)
+        ran_ix = 8 # np.random.randint(data.__len__() - 1)
         print(ran_ix)
         input_image, target = data.__getitem__(ran_ix)
         input_image, target = input_image.unsqueeze(0), target.unsqueeze(0)

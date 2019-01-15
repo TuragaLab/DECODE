@@ -159,6 +159,7 @@ class Simulation:
             plt.plot(ground_truth[:, 0].numpy(), ground_truth[:, 1].numpy(), 'rx')
 
         if self.predictions is not None:
+            raise NotImplementedError()
             plt.plot(localisation[:, 0].numpy(), localisation[:, 1].numpy(), 'bo')
 
     def run_simulation(self, plot_sample=False):
@@ -172,17 +173,20 @@ class Simulation:
         print("Generating {} samples done.".format(self.num_frames))
 
         if plot_sample:
+            ix = np.random.randint(self.num_frames)
+            print(ix)
+
             plt.subplot(121)
-            self.plot_frame(0, self.image_hr, False)
+            self.plot_frame(ix, self.image_hr, False)
 
             plt.subplot(122)
-            self.plot_frame(0, self.image, True)
+            self.plot_frame(ix, self.image, True)
 
             plt.show()
 
     def write_to_binary(self, outfile):
-        np.savez_compressed(outfile, frames=self.image, frames_hr=self.image_hr,
-                            emitters=self.get_emitter_matrix(), len=self.num_frames)
+        np.savez_compressed(outfile, frames=self.image.numpy(), frames_hr=self.image_hr.numpy(),
+                            emitters=self.get_emitter_matrix().numpy(), len=self.num_frames)
         print("Saving simulation to {}.".format(outfile))
 
 
@@ -201,6 +205,7 @@ class Args:
         self.total_frames = None
         self.bg_value = None
         self.sigma = None
+        self.use_cuda = None
 
     def parse(self, section='DEFAULT'):
         self.config.read(self.ini_file)
@@ -213,6 +218,7 @@ class Args:
         self.sigma = torch.tensor([float(self.config[section]['sigma']),
                               float(self.config[section]['sigma'])])
         self.poolsize = int(self.config[section]['poolsize'])
+        self.use_cuda = eval(self.config[section]['use_cuda'])
 
 
 # https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065
@@ -311,7 +317,7 @@ if __name__ == '__main__':
                      psf=None,
                      psf_hr=None,
                      poolsize=args.poolsize,
-                     use_cuda=True)
+                     use_cuda=args.use_cuda)
 
-    sim.run_simulation(plot_sample=False)
+    sim.run_simulation(plot_sample=True)
     sim.write_to_binary(args.binary_path)

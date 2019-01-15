@@ -22,11 +22,11 @@ class DeepSLMN(nn.Module):
         self.conv4 = nn.Conv2d(128, 512, (3, 3), 1, padding=1)
         self.conv4_bn = nn.BatchNorm2d(512)
 
-        self.conv5 = nn.Conv2d(512, 128, (3, 3), 1, padding=1)
+        self.conv5 = nn.Conv2d(512 + 64, 128, (3, 3), 1, padding=1)
         self.conv5_bn = nn.BatchNorm2d(128)
-        self.conv6 = nn.Conv2d(128, 64, (3, 3), 1, padding=1)
+        self.conv6 = nn.Conv2d(128 + 32, 64, (3, 3), 1, padding=1)
         self.conv6_bn = nn.BatchNorm2d(64)
-        self.conv7 = nn.Conv2d(64, 32, (3, 3), 1, padding=1)
+        self.conv7 = nn.Conv2d(64 + 1, 32, (3, 3), 1, padding=1)
         self.conv7_bn = nn.BatchNorm2d(32)
         self.conv8 = nn.Conv2d(32, 1, (1, 1), 1, bias=False)
 
@@ -37,8 +37,14 @@ class DeepSLMN(nn.Module):
         x3 = F.max_pool2d(self.act(self.conv3_bn(self.conv3(x2))), 2, 2)
 
         x4 = F.interpolate(self.act(self.conv4_bn(self.conv4(x3))), scale_factor=(2, 2))
+
+        x4 = torch.cat((x4, x2), dim=1)
         x5 = F.interpolate(self.act(self.conv5_bn(self.conv5(x4))), scale_factor=(2, 2))
+
+        x5 = torch.cat((x5, x1), dim=1)
         x6 = F.interpolate(self.act(self.conv6_bn(self.conv6(x5))), scale_factor=(2, 2))
+
+        x6 = torch.cat((x6, x0), dim=1)
         x7 = self.act(self.conv7_bn(self.conv7(x6)))
         x8 = self.act(self.conv8(x7))
 
