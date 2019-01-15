@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import os
 import torch
@@ -29,13 +30,39 @@ def repeat_np(a, repeats, dim):
     return torch.index_select(a, dim, order_index)
 
 
-def get_free_gpu():
+def get_free_gpu(safety_factor=0.8):
     """
     https://discuss.pytorch.org/t/it-there-anyway-to-let-program-select-free-gpu-automatically/17560/7
     """
-    os.system('nvidia-smi -q -d Memory |grep -A4 GPU|grep Free >tmp')
-    memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
-    return np.argmax(memory_available), np.max(memory_available) * 10**6
+    if torch.cuda.is_available():
+        os.system('nvidia-smi -q -d Memory |grep -A4 GPU|grep Free >tmp')
+        memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
+        return np.argmax(memory_available), np.max(memory_available) * 10**6 * safety_factor
+    else:
+        return None
+
+
+def memory_of_tensor(a):
+    return a.element_size() * a.nelement()
+
+
+def splitbatchandrunfunc(b_vector, func, func_args, batch_size_target=None, to_cuda=False):
+    if batch_size_target is None:
+        b_vector_mem = memory_of_tensor(b_vector)
+        _, free_mem = get_free_gpu()
+        if free_mem > b_vector_mem:
+            batch_size_target = b_vector.shape[0]
+        else:
+            batch_size_target = math.floor(free_mem / b_vector_mem * b_vector.shape[0])
+
+    b_vector_split = torch.split(b_vector, batch_size_target)
+    out = [None] * b_vector_split.__len__()
+    for i in range(b_vector_split.__len__()):
+        if to_cuda:
+            out[i] = func(b_vector_split[i].cuda(), *func_args).cpu()
+        else:
+            out[i] = func(b_vector_split[i], *func_args)
+    return torch.cat(out, 0)
 
 
 def kron(t1, t2):
@@ -53,3 +80,9 @@ def kron(t1, t2):
     expanded_t1 = (t1.unsqueeze(2).unsqueeze(3).repeat(1, t2_height, t2_width, 1).view(out_height, out_width))
 
     return expanded_t1 * tiled_t2
+
+
+if __name__ == '__main__':
+    x = torch.rand(8, 2)
+    print(x)
+    print(splitbatchandrunfunc(x, lambda x: x + 2, [], None), True)

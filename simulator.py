@@ -6,7 +6,7 @@ import functools
 import sys
 import torch
 from multiprocessing.dummy import Pool as ThreadPool
-from missingFromNumpy import repeat_np
+from missingFromNumpy import repeat_np, splitbatchandrunfunc
 
 from psf_kernel import gaussian_expect, gaussian_convolution, noise_psf, delta_psf
 
@@ -14,6 +14,13 @@ from psf_kernel import gaussian_expect, gaussian_convolution, noise_psf, delta_p
 class Simulation:
     """
     A class representing a smlm simulation
+
+    an image is represented according to pytorch convention, i.e.
+    (N, C, H, W) in 2D - batched
+    (C, H, W) in 2D - single image
+    (N, C, D, H, W) in 3D - batched
+    (C, D, H, W) in 2D - single image
+    (https://pytorch.org/docs/stable/_modules/torch/nn/modules/conv.html#Conv3d)
     """
     def __init__(self, em_mat=None, cont_mat=None, img_size=(64, 64), sigma=1.5, upscale=1,
                  bg_value=10, background=None, psf=None, psf_hr=None, performance=None, poolsize=4,
@@ -54,9 +61,11 @@ class Simulation:
         self.background = background
         self.performance = performance
         self.poolsize = poolsize
-        self.use_cuda = use_cuda if torch.cuda.is_available() else False  # use cuda only if it's really possible
+        # use cuda only if it's really possible, i.e. a cuda device is detected
+        self.use_cuda = use_cuda if torch.cuda.is_available() else False
 
-        if not any([self.psf, self.psf_hr, self.background]):  # i.e. if all are None
+        # use standard psf's if all psf functions are none
+        if not any([self.psf, self.psf_hr, self.background]):
             self.init_standard_psf()
 
     @property
@@ -93,11 +102,10 @@ class Simulation:
                                                               iter.repeat(psf),
                                                               iter.repeat(bg),
                                                               iter.repeat(postupscaling)))
-        img = torch.stack(frame_list, dim=2).type(torch.int16)
+        img = torch.stack(frame_list, dim=0).type(torch.int16)
         if postupscaling:
-            if self.use_cuda:
-                img = img.cuda()
-            return upscale(img, self.upscale, img_dims=(0, 1)).cpu()
+            return splitbatchandrunfunc(img, upscale, (self.upscale, (2, 3)),
+                                        batch_size_target=10000, to_cuda=self.use_cuda)
         else:
             return img
 
@@ -152,7 +160,7 @@ class Simulation:
         if image is None:
             image = self.image
 
-        plt.imshow(image[:, :, ix].numpy(), cmap='gray', extent=self.get_extent(image.shape[:2]))
+        plt.imshow(image[ix, 0, :, :].numpy(), cmap='gray', extent=self.get_extent(image.shape[2:]))
 
         ground_truth = self.get_emitter_matrix_frame(ix, kind='emitter')
         if crosses is True:
@@ -177,10 +185,10 @@ class Simulation:
             print(ix)
 
             plt.subplot(121)
-            self.plot_frame(ix, self.image_hr, False)
+            self.plot_frame(ix, self.image, True)
 
             plt.subplot(122)
-            self.plot_frame(ix, self.image, True)
+            self.plot_frame(ix, self.image_hr, False)
 
             plt.show()
 
@@ -194,7 +202,7 @@ class Args:
     """
     Simple class to init from configuration file
     """
-    def __init__(self, ini_file):
+    def __init__(self, ini_file=None):
         self.ini_file = ini_file
         self.config = configparser.ConfigParser()
 
@@ -207,8 +215,9 @@ class Args:
         self.sigma = None
         self.use_cuda = None
 
-    def parse(self, section='DEFAULT'):
-        self.config.read(self.ini_file)
+    def parse(self, section='DEFAULT', from_variable=False):
+        if not from_variable:
+            self.config.read(self.ini_file)
         self.binary_path = self.config[section]['binary_path']
         self.image_size = eval(self.config[section]['image_size'])
         self.upscale_factor = int(self.config[section]['upscale_factor'])
@@ -258,7 +267,7 @@ def expanded_pairwise_distances(x, y=None):  # numerically stable but slow
     return distances
 
 
-def upscale(img, scale=1, img_dims=(0, 1)):  # either 2D or 3D batch of 2D
+def upscale(img, scale=1, img_dims=(2, 3)):  # either 2D or 3D batch of 2D
     return repeat_np(repeat_np(img, scale, img_dims[0]), scale, img_dims[1])
 
 
@@ -271,8 +280,8 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
 
     if lifetime is None:  # assume 1 frame emitters
         num_emitters = emitter_per_frame * frames
-        positions = torch.rand(num_emitters, 3) * (img_size[0] + 2 * cont_radius) - cont_radius  # np.random.uniform(-cont_radius, img_size[0] + cont_radius, (num_emitters, 3))  # place emitters entirely randomly
-        start_frame = torch.randint(0, frames, (num_emitters, 1))  # np.random.randint(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
+        positions = torch.rand(num_emitters, 3) * (img_size[0] + 2 * cont_radius) - cont_radius
+        start_frame = torch.randint(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
         lifetime_per_emitter = 1
 
         emit_id =  torch.arange(0, num_emitters).unsqueeze(0).transpose(0, 1)  #  np.expand_dims(np.mgrid[0:num_emitters], 1)
@@ -305,7 +314,22 @@ if __name__ == '__main__':
         section = sys.argv[2]
 
     args = Args(ini_file)
+    """
+    Alternatively you can specify here directly and call .parse(from_variable=True)
+
+    args.config['DirectConfiguration'] = {'binary_path': 'data/temp.npz',
+                                          'image_size': '(32, 32)',
+                                          'upscale_factor': '8',
+                                          'emitter_p_frame': '15',
+                                          'total_frames': '5',
+                                          'bg_value': '10',
+                                          'sigma': '1.5',
+                                          'poolsize': '10',
+                                          'use_cuda': 'True'}
+    """
+
     args.parse(section=section)
+    # args.parse(section='DirectConfiguration', from_variable=True)
 
     emit, cont = random_emitters(args.emitter_p_frame, args.total_frames, None, args.image_size, 3)
     sim = Simulation(emit, cont,
@@ -319,5 +343,5 @@ if __name__ == '__main__':
                      poolsize=args.poolsize,
                      use_cuda=args.use_cuda)
 
-    sim.run_simulation(plot_sample=True)
+    sim.run_simulation(plot_sample=False)
     sim.write_to_binary(args.binary_path)

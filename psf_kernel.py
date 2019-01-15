@@ -55,7 +55,7 @@ def delta_psf(pos, p_count, img_shape=np.array([64, 64]), origin='px_centre', xe
     camera, _, _ = np.histogram2d(pos[:, 1], pos[:, 0], bins=(
         bin_rows, bin_cols), weights=p_count)  # bin into 2d histogram with px edges
 
-    return torch.from_numpy(camera)
+    return torch.from_numpy(camera).unsqueeze(0)
 
 
 def gaussian_expect(pos, sig, p_count=1000, img_shape=np.array([64, 64])):
@@ -106,7 +106,7 @@ def gaussian_expect(pos, sig, p_count=1000, img_shape=np.array([64, 64])):
     gaussCdf = p_count / 4 * torch.mul(gauss_x, gauss_y)
 
     gaussCdf = torch.sum(gaussCdf, 2)
-    return torch.distributions.poisson.Poisson(gaussCdf).sample()
+    return torch.distributions.poisson.Poisson(gaussCdf).sample().unsqueeze(0)
 
 
 def gaussian_convolution(pos,
@@ -138,6 +138,8 @@ def gaussian_convolution(pos,
     # downsample
     img_lr = block_reduce(img_hr, block_size=(up_fact, up_fact), func=np.sum)
 
+    raise NotImplementedError('Image vector has wrong dimensionality. Need to add singleton dimension for channels.')
+
     return img_lr
 
 
@@ -159,6 +161,9 @@ def convolutional_sample(pos, p_count, kernel, img_shape):  # this convolution c
     img[pos[:, 1], pos[:, 0]] = p_count  # this effectively is the centre of the px
     img = np.clip(signal.fftconvolve(img, kernel, mode='same'), 0, None)
     img = np.random.poisson(img)  # inherent poisson noise
+
+    raise NotImplementedError('Image vector has wrong dimensionality. Need to add singleton dimension for channels.')
+
     return img
 
 
@@ -219,6 +224,8 @@ def gaussian_binned_sampling(pos, sig=(2, 2), photon_count=100, img_shape=(64, 6
 
     camera, xedges, yedges = np.histogram2d(phot_pos[:, 1], phot_pos[:, 0], bins=(
         bin_rows, bin_cols))  # bin into 2d histogram with px edges
+
+    raise NotImplementedError('Image vector has wrong dimensionality. Need to add singleton dimension for channels.')
 
     return camera
 

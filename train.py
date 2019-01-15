@@ -27,9 +27,7 @@ class SMLMDataset(Dataset):
         bin = np.load(inputfile)
 
         # from simulator it comes in x,y,batch_ix format, we want to change to NCHW (i.e. batch_ix, channel_ix, x,y)
-        img, img_hr, emitters = np.swapaxes(bin['frames'], 2, 0)[:, None, :, :], \
-                                np.swapaxes(bin['frames_hr'], 2, 0)[:, None, :, :], \
-                                bin['emitters']
+        img, img_hr, emitters = bin['frames'], bin['frames_hr'], bin['emitters']
 
         self.images = torch.from_numpy(img.astype(np.float32))
         self.images_hr = torch.from_numpy(img_hr.astype(np.float32))
@@ -189,13 +187,13 @@ if __name__ == '__main__':
     net_folder = 'network'
     epochs = 1000
 
-    data_smlm = SMLMDataset('data/data_32px_up8_1e4.npz', transform=['normalise'])
+    data_smlm = SMLMDataset('data/data_32px_up8_5e4.npz', transform=['normalise'])
     # model_deep = load_model('network/trained_32px_1e5_interpoint.pt')
     model_deep = DeepSLMN()
     model_deep.weight_init()
     optimiser = Adam(model_deep.parameters(), lr=0.001)
 
-    gaussian_kernel = GaussianSmoothing(1, [7, 7], 4, dim=2, cuda=torch.cuda.is_available(),
+    gaussian_kernel = GaussianSmoothing(1, [7, 7], 2, dim=2, cuda=torch.cuda.is_available(),
                                         padding=lambda x: F.pad(x, (3, 3, 3, 3), mode='reflect'))
     criterion = lambda input, target: bump_mse_loss(input, target,
                                                     kernel_pred=gaussian_kernel, kernel_true=gaussian_kernel)
