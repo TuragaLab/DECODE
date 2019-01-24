@@ -70,10 +70,9 @@ def gaussian_expect(pos, sig, p_count=1000, img_shape=np.array([64, 64])):
     :return:
     """
 
-    # for now convert to numpy
     num_emitters = pos.shape[0]
-
-
+    if num_emitters == 0:
+        return torch.zeros(1, img_shape[0], img_shape[1])
 
     # Old numpy code. Will be removed eventually
     # i = 0

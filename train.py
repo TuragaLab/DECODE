@@ -1,6 +1,7 @@
 import datetime
 import numpy as np
 import os
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -31,7 +32,7 @@ class SMLMDataset(Dataset):
 
         self.images = torch.from_numpy(img.astype(np.float32))
         self.images_hr = torch.from_numpy(img_hr.astype(np.float32))
-        self.emitters = torch.from_numpy(emitters.astype(np.float32))
+        emitters = torch.from_numpy(emitters.astype(np.float32))
 
         # double check that we have correct number of samples
         if self.images.shape[0] != self.images_hr.shape[0]:
@@ -48,13 +49,31 @@ class SMLMDataset(Dataset):
 
                 self.images = normalise(self.images, mean, std)
 
+        #  emitter matrix as list
+        self.emitters = [None] * self.__len__()
+        for j in range(self.__len__()):
+            self.emitters[j] = emitters[emitters[:, 4] == j, :]
+
         print("Dataset of {} samples loaded.".format(self.__len__()))
 
     def __len__(self):
         return self.images.shape[0]
 
     def __getitem__(self, index):
-        return self.images[index, :, :, :], self.images_hr[index, :, :, :]
+        # return 3-fold images as channels. Pad images at the borders by same image
+        if index == 0:
+            # img[0, :, :, :].dim == 3, so channel is first dimension
+            img = torch.cat((self.images[0, :, :, :], self.images[0, :, :, :], self.images[1, :, :, :]), dim=0)
+
+        elif index == (self.__len__() - 1):
+            l_ix = self.__len__() - 1
+            img = torch.cat((self.images[l_ix - 1, :, :, :], self.images[l_ix, :, :, :], self.images[l_ix, :, :, :]), dim=0)
+
+        else:
+            img = torch.cat((self.images[index - 1, :, :, :], self.images[index, :, :, :], self.images[index + 1, :, :, :]), dim=0)
+
+        img_hr = self.images_hr[index, :, :, :]
+        return img, img_hr, index
 
 
 def project01(img):
@@ -90,7 +109,7 @@ def train(data, model, opt, crit):
     print_steps = torch.round(torch.linspace(0, data.__len__(), 5))
 
     for ix, data_i in enumerate(data, 0):
-        input, ground_truth = data_i
+        input, ground_truth, _ = data_i
 
         if torch.cuda.is_available():  # model_deep.cuda():
             input, ground_truth = input.cuda(), ground_truth.cuda()
@@ -184,16 +203,28 @@ def load_model(file=None, net_folder='network'):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) == 1:  # no .ini file specified
+        dataset_file = 'data/temp.npz'
+        weight_in = None
+        weight_out = 'temp.pt'
+    else:
+        dataset_file = sys.argv[1]
+        weight_in = None if sys.argv[2].__len__() == 0 else sys.argv[2]
+        weight_out = sys.argv[3]
+
     net_folder = 'network'
     epochs = 1000
 
-    data_smlm = SMLMDataset('data/data_32px_up8_5e4.npz', transform=['normalise'])
-    # model_deep = load_model('network/trained_32px_1e5_interpoint.pt')
-    model_deep = DeepSLMN()
-    model_deep.weight_init()
+    data_smlm = SMLMDataset(dataset_file, transform=['normalise'])
+    if weight_in is None:
+        model_deep = DeepSLMN()
+        model_deep.weight_init()
+    else:
+        model_deep = load_model(weight_in)
+
     optimiser = Adam(model_deep.parameters(), lr=0.001)
 
-    gaussian_kernel = GaussianSmoothing(1, [7, 7], 2, dim=2, cuda=torch.cuda.is_available(),
+    gaussian_kernel = GaussianSmoothing(1, [7, 7], 1, dim=2, cuda=torch.cuda.is_available(),
                                         padding=lambda x: F.pad(x, (3, 3, 3, 3), mode='reflect'))
     criterion = lambda input, target: bump_mse_loss(input, target,
                                                     kernel_pred=gaussian_kernel, kernel_true=gaussian_kernel)
@@ -211,4 +242,4 @@ if __name__ == '__main__':
     for i in range(epochs):
         print('Epoch no.: {}'.format(i))
         train(train_loader, model_deep, optimiser, criterion)
-        save_model(model_deep, i, filename='trained_32px_upsample.pt')
+        save_model(model_deep, i, filename=weight_out)

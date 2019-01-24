@@ -2,9 +2,12 @@ import configparser
 import itertools as iter
 import numpy as np
 import matplotlib.pyplot as plt
+plt.rcParams["figure.dpi"] = 4 * plt.rcParams["figure.dpi"]
 import functools
+import pandas as pd
 import sys
 import torch
+import warnings
 from multiprocessing.dummy import Pool as ThreadPool
 from missingFromNumpy import repeat_np, splitbatchandrunfunc
 
@@ -162,8 +165,8 @@ class Simulation:
 
         plt.imshow(image[ix, 0, :, :].numpy(), cmap='gray', extent=self.get_extent(image.shape[2:]))
 
-        ground_truth = self.get_emitter_matrix_frame(ix, kind='emitter')
         if crosses is True:
+            ground_truth = self.get_emitter_matrix_frame(ix, kind='emitter')
             plt.plot(ground_truth[:, 0].numpy(), ground_truth[:, 1].numpy(), 'rx')
 
         if self.predictions is not None:
@@ -181,20 +184,33 @@ class Simulation:
         print("Generating {} samples done.".format(self.num_frames))
 
         if plot_sample:
-            ix = np.random.randint(self.num_frames)
-            print(ix)
+            ix = np.random.randint(1, self.num_frames-2)
+            print('You see frame {} {} {}'.format(ix - 1, ix, ix + 1))
 
-            plt.subplot(121)
+            plt.subplot(321)
+            self.plot_frame(ix-1, self.image, True)
+
+            plt.subplot(322)
+            self.plot_frame(ix-1, self.image_hr, False)
+
+            plt.subplot(323)
             self.plot_frame(ix, self.image, True)
 
-            plt.subplot(122)
+            plt.subplot(324)
             self.plot_frame(ix, self.image_hr, False)
+
+            plt.subplot(325)
+            self.plot_frame(ix+1, self.image, True)
+
+            plt.subplot(326)
+            self.plot_frame(ix+1, self.image_hr, False)
 
             plt.show()
 
     def write_to_binary(self, outfile):
         np.savez_compressed(outfile, frames=self.image.numpy(), frames_hr=self.image_hr.numpy(),
-                            emitters=self.get_emitter_matrix().numpy(), len=self.num_frames)
+                            emitters=self.get_emitter_matrix().numpy(), len=self.num_frames,
+                            extent=self.simulation_extent)
         print("Saving simulation to {}.".format(outfile))
 
 
@@ -207,6 +223,7 @@ class Args:
         self.config = configparser.ConfigParser()
 
         self.binary_path = None
+        self.positions_csv = None
         self.image_size = None
         self.upscale_factor = None
         self.emitter_p_frame = None
@@ -218,7 +235,9 @@ class Args:
     def parse(self, section='DEFAULT', from_variable=False):
         if not from_variable:
             self.config.read(self.ini_file)
+
         self.binary_path = self.config[section]['binary_path']
+        self.positions_csv = None if self.config[section]['positions_csv'] is 'None' else self.config[section]['positions_csv']
         self.image_size = eval(self.config[section]['image_size'])
         self.upscale_factor = int(self.config[section]['upscale_factor'])
         self.emitter_p_frame = int(self.config[section]['emitter_p_frame'])
@@ -276,7 +295,51 @@ def dist_phot_lifetime(start_frame, lifetime, photon_count):
     raise RuntimeError("Not yet supported.")
 
 
+def emitters_from_csv(csv_file, img_size, cont_radius=3):
+    emitters_matlab = pd.read_csv(csv_file)
+
+    emitters_matlab = torch.from_numpy(emitters_matlab.iloc[:, :].as_matrix()).type(torch.float32)
+    em_mat = torch.cat((emitters_matlab[:, 2:5] * (img_size[0] + 2 * cont_radius) - cont_radius,  # transform from 0, 1
+                        emitters_matlab[:, 5:6],
+                        emitters_matlab[:, 1:2] - 1,  # index shift from matlab to python
+                        torch.zeros_like(emitters_matlab[:, 0:1])), dim=1)
+
+    warnings.warn('Emitter ID not implemented yet.')
+
+    return split_emitter_cont(em_mat, img_size)
+
+
+def split_emitter_cont(em_mat, img_size):
+    """
+
+    :param em_mat: matrix of all emitters
+    :param img_size: img_size in px (not upscaled)
+    :return: emitter_matrix and contaminator matrix. contaminators are emitters which are outside the image
+    """
+
+    if img_size[0] != img_size[1]:
+        raise NotImplementedError("Image must be square at the moment because otherwise the following doesn't work.")
+
+    is_emit = torch.mul((em_mat[:, :2] >= 0).all(1), (em_mat[:, :2] <= img_size[0] - 1).all(1))
+    is_cont = ~is_emit
+
+    emit_mat, cont_mat = em_mat[is_emit, :], em_mat[is_cont, :]
+    return emit_mat, cont_mat
+
 def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3):
+    """
+
+    :param emitter_per_frame:
+    :param frames:
+    :param lifetime:
+    :param img_size:
+    :param cont_radius:
+    :return: emitter-matrix (em) (N x 6), N number of emitters in frames.
+             em[0:3] = x,y,z
+             em[3] = photon count
+             em[4] = start frame
+             em[5] = emit_id
+    """
 
     if lifetime is None:  # assume 1 frame emitters
         num_emitters = emitter_per_frame * frames
@@ -284,25 +347,18 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
         start_frame = torch.randint(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
         lifetime_per_emitter = 1
 
-        emit_id =  torch.arange(0, num_emitters).unsqueeze(0).transpose(0, 1)  #  np.expand_dims(np.mgrid[0:num_emitters], 1)
+        emit_id =  torch.arange(0, num_emitters).unsqueeze(0).transpose(0, 1)
+        photon_count = torch.randint(800, 4000, (num_emitters, 1))
     else:  # prototype
         raise NotImplementedError
         num_emitters = torch.round(emitter_per_frame * frames / lifetime)  # roughly
         positions = torch.uniform(num_emitters, 3) * (img_size[0] + 2 * cont_radius) - cont_radius  # place emitters entirely randomly
         # start_frame = np.random.uniform(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
-        lifetime_per_emitter = torch.zeros(num_emitters).exponential(lifetime)  # np.random.exponential(lifetime, num_emitters)  # lifetime drawn from exponential dist
+        lifetime_per_emitter = torch.zeros(num_emitters).exponential(lifetime)
 
-    photon_count = torch.randint(800, 4000, (num_emitters, 1))  # np.random.randint(800, 4000, (num_emitters, 1))
+    emit_all = torch.cat((positions, photon_count.float(), start_frame.float(), emit_id.float()), 1)
 
-    emit_all = torch.cat((positions, photon_count.float(), start_frame.float(), emit_id.float()), 1)  # np.concatenate([positions, photon_count, start_frame, emit_id], axis=1)
-    is_emit = torch.mul((emit_all[:, :2] >= 0).all(1), (emit_all[:, :2] <= img_size[0] - 1).all(1))  # np.multiply(np.all(emit_all[:, :2] >= 0, 1), np.all(emit_all[:, :2] <= img_size[0] - 1, 1))
-    is_cont = ~is_emit
-
-    if img_size[0] != img_size[1]:
-        raise NotImplementedError("Image must be square at the moment because otherwise the following doesn't work.")
-
-    emit_mat, cont_mat = emit_all[is_emit, :], emit_all[is_cont, :]
-    return emit_mat, cont_mat
+    return split_emitter_cont(emit_all, img_size)
 
 
 if __name__ == '__main__':
@@ -318,6 +374,7 @@ if __name__ == '__main__':
     Alternatively you can specify here directly and call .parse(from_variable=True)
 
     args.config['DirectConfiguration'] = {'binary_path': 'data/temp.npz',
+                                          'positions_csv' : 'None',
                                           'image_size': '(32, 32)',
                                           'upscale_factor': '8',
                                           'emitter_p_frame': '15',
@@ -329,9 +386,23 @@ if __name__ == '__main__':
     """
 
     args.parse(section=section)
-    # args.parse(section='DirectConfiguration', from_variable=True)
+    args.config['DirectConfiguration'] = {'binary_path': 'data/test_32px_1e3_multiframe.npz',
+                                          'positions_csv' : 'data/test_set-activations-1000-6400/activations.csv',
+                                          'image_size': '(32, 32)',
+                                          'upscale_factor': '8',
+                                          'emitter_p_frame': '0',
+                                          'total_frames': '0',
+                                          'bg_value': '10',
+                                          'sigma': '1.5',
+                                          'poolsize': '10',
+                                          'use_cuda': 'True'}
+    args.parse(section='DirectConfiguration', from_variable=True)
 
-    emit, cont = random_emitters(args.emitter_p_frame, args.total_frames, None, args.image_size, 3)
+    if args.positions_csv is None:
+        emit, cont = random_emitters(args.emitter_p_frame, args.total_frames, None, args.image_size, 3)
+    else:
+        emit, cont = emitters_from_csv(args.positions_csv, args.image_size)
+
     sim = Simulation(emit, cont,
                      img_size=args.image_size,
                      sigma=args.sigma,
@@ -343,5 +414,5 @@ if __name__ == '__main__':
                      poolsize=args.poolsize,
                      use_cuda=args.use_cuda)
 
-    sim.run_simulation(plot_sample=False)
+    sim.run_simulation(plot_sample=True)
     sim.write_to_binary(args.binary_path)

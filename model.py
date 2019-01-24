@@ -12,8 +12,9 @@ class DeepSLMN(nn.Module):
 
         self.act = F.relu
 
+        in_ch = 3
         # encode
-        self.conv1 = nn.Conv2d(1, 32, (3, 3), 1, padding=1)
+        self.conv1 = nn.Conv2d(in_ch, 32, (3, 3), 1, padding=1)
         self.conv1_bn = nn.BatchNorm2d(32)
         self.conv2 = nn.Conv2d(32, 64, (3, 3), 1, padding=1)
         self.conv2_bn = nn.BatchNorm2d(64)
@@ -26,7 +27,7 @@ class DeepSLMN(nn.Module):
         self.conv5_bn = nn.BatchNorm2d(128)
         self.conv6 = nn.Conv2d(128 + 32, 64, (3, 3), 1, padding=1)
         self.conv6_bn = nn.BatchNorm2d(64)
-        self.conv7 = nn.Conv2d(64 + 1, 32, (3, 3), 1, padding=1)
+        self.conv7 = nn.Conv2d(64 + in_ch, 32, (3, 3), 1, padding=1)
         self.conv7_bn = nn.BatchNorm2d(32)
         self.conv8 = nn.Conv2d(32, 1, (1, 1), 1, bias=False)
 
@@ -49,7 +50,6 @@ class DeepSLMN(nn.Module):
         x8 = self.act(self.conv8(x7))
 
         return x8
-
 
     def weight_init(self):
         for m in self._modules:
