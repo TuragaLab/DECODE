@@ -136,6 +136,11 @@ class Simulation:
             frame = self.background(frame)
         return frame
 
+    def em_mat_frame(self, ix, em_mat=None):
+        if em_mat is None:
+            em_mat = self.emitter_mat
+        return em_mat[em_mat[:, 4] == ix, :]
+
     @functools.lru_cache()
     def get_emitter_matrix(self, kind='emitter'):
         """
@@ -231,6 +236,7 @@ class Args:
         self.bg_value = None
         self.sigma = None
         self.use_cuda = None
+        self.dimension = None
 
     def parse(self, section='DEFAULT', from_variable=False):
         if not from_variable:
@@ -247,6 +253,7 @@ class Args:
                               float(self.config[section]['sigma'])])
         self.poolsize = int(self.config[section]['poolsize'])
         self.use_cuda = eval(self.config[section]['use_cuda'])
+        self.dimension = int(self.config[section]['dimension'])
 
 
 # https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065
@@ -326,7 +333,7 @@ def split_emitter_cont(em_mat, img_size):
     emit_mat, cont_mat = em_mat[is_emit, :], em_mat[is_cont, :]
     return emit_mat, cont_mat
 
-def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3):
+def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3, z_sigma=3):
     """
 
     :param emitter_per_frame:
@@ -335,15 +342,20 @@ def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3
     :param img_size:
     :param cont_radius:
     :return: emitter-matrix (em) (N x 6), N number of emitters in frames.
-             em[0:3] = x,y,z
-             em[3] = photon count
-             em[4] = start frame
-             em[5] = emit_id
+             em[:, 0:3] = x,y,z
+             em[:, 3] = photon count
+             em[:, 4] = start frame
+             em[:, 5] = emit_id
     """
 
     if lifetime is None:  # assume 1 frame emitters
         num_emitters = emitter_per_frame * frames
         positions = torch.rand(num_emitters, 3) * (img_size[0] + 2 * cont_radius) - cont_radius
+        if z_sigma != 0:
+            positions[:, 2] = torch.randn_like(positions[:, 2]) * z_sigma
+        else:
+            positions[:, 2] = 0.
+
         start_frame = torch.randint(0, frames, (num_emitters, 1))  # start on state is distributed uniformly
         lifetime_per_emitter = 1
 
@@ -382,24 +394,31 @@ if __name__ == '__main__':
                                           'bg_value': '10',
                                           'sigma': '1.5',
                                           'poolsize': '10',
-                                          'use_cuda': 'True'}
+                                          'use_cuda': 'True',
+                                          'dimension': '2'}
     """
 
     args.parse(section=section)
-    args.config['DirectConfiguration'] = {'binary_path': 'data/test_32px_1e3_multiframe.npz',
-                                          'positions_csv' : 'data/test_set-activations-1000-6400/activations.csv',
-                                          'image_size': '(32, 32)',
-                                          'upscale_factor': '8',
-                                          'emitter_p_frame': '0',
-                                          'total_frames': '0',
+    args.config['DirectConfiguration'] = {'binary_path': 'data/temp.npz',
+                                          'positions_csv': 'None',
+                                          'image_size': '(16, 16)',
+                                          'upscale_factor': '1',
+                                          'emitter_p_frame': '10',
+                                          'total_frames': '10',
                                           'bg_value': '10',
                                           'sigma': '1.5',
                                           'poolsize': '10',
-                                          'use_cuda': 'True'}
+                                          'use_cuda': 'True',
+                                          'dimension': '2'}
     args.parse(section='DirectConfiguration', from_variable=True)
 
     if args.positions_csv is None:
-        emit, cont = random_emitters(args.emitter_p_frame, args.total_frames, None, args.image_size, 3)
+        if args.dimension == 2:
+            z_sigma = 0
+        else:
+            z_sigma = 3
+
+        emit, cont = random_emitters(args.emitter_p_frame, args.total_frames, None, args.image_size, z_sigma=z_sigma)
     else:
         emit, cont = emitters_from_csv(args.positions_csv, args.image_size)
 

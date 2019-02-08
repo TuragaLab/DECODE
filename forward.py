@@ -18,8 +18,8 @@ def plot_frame(tensor):
 
 
 if __name__ == '__main__':
-    data = SMLMDataset('data/test_32px_1e3_multiframe.npz', transform=['normalise'])
-    model = load_model(file='network/3channel_smaller_kernel.pt')
+    data = SMLMDataset('data/spline_1e1.mat')
+    model = load_model(file='network/spline_1e4_no_z.pt')
     model.eval()
     num_examples = 2
 
@@ -37,10 +37,12 @@ if __name__ == '__main__':
             input_image = input_image.cuda()
         output = model(input_image)
 
+        channel = 0
+
         for j in range(3):
             axarr[i, j].imshow(input_image[:, j, :, :].squeeze(), cmap='gray')
-        axarr[i, 3].imshow(target.squeeze(), cmap='gray')
-        axarr[i, 4].imshow(output.detach().numpy().squeeze(), cmap='gray')
+        imt = axarr[i, 3].imshow(target[:, channel, :, :].squeeze(), cmap='gray')
+        imp = axarr[i, 4].imshow(output[:, channel, :, :].detach().numpy().squeeze(), cmap='gray')
 
         # hide labels
         for j in range(3):
@@ -49,6 +51,10 @@ if __name__ == '__main__':
             axarr[i, j].set_xticklabels([])
             axarr[i, j].set_yticklabels([])
             axarr[i, j].set_aspect('equal')
+        if channel == 1:
+            plt.colorbar(imt, ax=axarr[i, 3], extend='both')
+            imt.set_clim(-1000, 1000)
+
         axarr[i, 1].set_title('Input')
         axarr[i, 3].set_title('Target')
         axarr[i, 4].set_title('Output')

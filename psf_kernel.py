@@ -5,7 +5,7 @@ import numbers
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from scipy import signal, ndimage, special  # for gaussian convolution
+from scipy import io, signal, ndimage, special  # for gaussian convolution
 from skimage.measure import block_reduce
 
 
@@ -28,7 +28,7 @@ def noise_psf(img, noise=True, bg_poisson=10, readout_gaussian=0):
     return img + noise_mask_poisson + noise_mask_gaussian
 
 
-def delta_psf(pos, p_count, img_shape=np.array([64, 64]), origin='px_centre', xextent=None, yextent=None):
+def delta_psf(pos, p_count, img_shape=(64, 64), origin='px_centre', xextent=None, yextent=None):
 
     # as long as we don't have a good replacement in pytorch for histogram2d let this live in numpy
     pos = pos.numpy()
@@ -42,8 +42,8 @@ def delta_psf(pos, p_count, img_shape=np.array([64, 64]), origin='px_centre', xe
         yextent = np.array([0, shape[1]], dtype=float)
 
     if origin == 'px_centre':  # shift 0 right towards the centre of the first px, and down
-        xextent -= 0.5
-        yextent -= 0.5
+        xextent = xextent - 0.5
+        yextent = yextent - 0.5
     '''
     Binning in numpy: binning is (left Bin, right Bin]
     (open left edge, including right edge)
@@ -55,10 +55,10 @@ def delta_psf(pos, p_count, img_shape=np.array([64, 64]), origin='px_centre', xe
     camera, _, _ = np.histogram2d(pos[:, 1], pos[:, 0], bins=(
         bin_rows, bin_cols), weights=p_count)  # bin into 2d histogram with px edges
 
-    return torch.from_numpy(camera).unsqueeze(0)
+    return torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
 
 
-def gaussian_expect(pos, sig, p_count=1000, img_shape=np.array([64, 64])):
+def gaussian_expect(pos, sigma_0, p_count=1000, img_shape=np.array([64, 64]), shotnoise=True, bg=torch.zeros(1, dtype=torch.float), D3=True):
     """
     Function to return gaussian psf based on errorfunction.
     You must not use this function without the noise line at the end.
@@ -74,22 +74,17 @@ def gaussian_expect(pos, sig, p_count=1000, img_shape=np.array([64, 64])):
     if num_emitters == 0:
         return torch.zeros(1, img_shape[0], img_shape[1])
 
-    # Old numpy code. Will be removed eventually
-    # i = 0
-    # xpos = np.repeat(pos[:, 0].reshape((1, 1, num_emitters)), img_shape[i], axis=i)
-    # ypos = np.repeat(pos[:, 1].reshape((1, 1, num_emitters)), img_shape[i], axis=i)
-    # i = 1
-    # xpos = np.repeat(xpos, img_shape[i], axis=i)
-    # ypos = np.repeat(ypos, img_shape[i], axis=i)
-
-    # xx, yy = np.meshgrid(x, y)
-    # xx = np.expand_dims(xx, 2)
-    # yy = np.expand_dims(yy, 2)
-    # xx = np.repeat(xx, num_emitters, axis=2)
-    # yy = np.repeat(yy, num_emitters, axis=2)
-
     xpos = pos[:, 0].repeat(img_shape[0], img_shape[1], 1)
     ypos = pos[:, 1].repeat(img_shape[0], img_shape[1], 1)
+
+    if D3:
+        sig = astigmatism(pos, sigma_0=sigma_0)
+        sig_x = sig[:, 0].repeat(img_shape[0], img_shape[1], 1)
+        sig_y = sig[:, 1].repeat(img_shape[0], img_shape[1], 1)
+    else:
+        sig_x = sigma_0[0]
+        sig_y = sigma_0[1]
+
 
     x = torch.arange(img_shape[0], dtype=torch.float32)
     y = torch.arange(img_shape[1], dtype=torch.float32)
@@ -98,14 +93,103 @@ def gaussian_expect(pos, sig, p_count=1000, img_shape=np.array([64, 64])):
     xx = xx.transpose(0, 1).unsqueeze(2).repeat(1, 1, num_emitters)
     yy = yy.transpose(0, 1).unsqueeze(2).repeat(1, 1, num_emitters)
 
-    gauss_x = torch.erf((xx - xpos + 0.5) / (math.sqrt(2) * sig[0])) \
-            - torch.erf((xx - xpos - 0.5) / (math.sqrt(2) * sig[0]))
-    gauss_y = torch.erf((yy - ypos + 0.5) / (math.sqrt(2) * sig[1])) \
-            - torch.erf((yy - ypos - 0.5) / (math.sqrt(2) * sig[1]))
+    gauss_x = torch.erf((xx - xpos + 0.5) / (math.sqrt(2) * sig_x)) \
+            - torch.erf((xx - xpos - 0.5) / (math.sqrt(2) * sig_x))
+    gauss_y = torch.erf((yy - ypos + 0.5) / (math.sqrt(2) * sig_y)) \
+            - torch.erf((yy - ypos - 0.5) / (math.sqrt(2) * sig_y))
     gaussCdf = p_count / 4 * torch.mul(gauss_x, gauss_y)
 
-    gaussCdf = torch.sum(gaussCdf, 2)
-    return torch.distributions.poisson.Poisson(gaussCdf).sample().unsqueeze(0)
+    gaussCdf = torch.sum(gaussCdf, 2) + bg[0]
+    if shotnoise:
+        return torch.distributions.poisson.Poisson(gaussCdf).sample().unsqueeze(0)
+    else:
+        return gaussCdf.unsqueeze(0)
+
+
+class SplineExpect:
+    """
+    Partly based on
+    https://github.com/ZhuangLab/storm-analysis/blob/master/storm_analysis/spliner/spline3D.py
+    """
+
+    def __init__(self, coeff=None):
+        self.coeff = coeff
+        self.max_i = torch.as_tensor(coeff.shape, dtype=torch.float32) - 1
+
+    def roundAndCheck(self, x, max_x):
+        if (x < 0.0) or (x > max_x):
+            return [-1, -1]
+
+        x_floor = torch.floor(x)
+        x_diff = x - x_floor
+        ix = int(x_floor)
+        if (x == max_x):
+            ix -= 1
+            x_diff = 1.0
+
+        return [ix, x_diff]
+
+    def dxf(self, x, y, z):
+        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
+        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
+        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
+
+        if (ix == -1) or (iy == -1) or (iz == -1):
+            return 0.0
+
+        yval = 0.0
+        for i in range(3):
+            for j in range(4):
+                for k in range(4):
+                    yval += float(i+1) * self.coeff[ix, iy, iz, (i+1)*16+j*4+k] * torch.pow(x_diff, i) * torch.pow(y_diff, j) * torch.pow(z_diff, k)
+        return yval
+
+    def dyf(self, x, y, z):
+        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
+        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
+        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
+
+        if (ix == -1) or (iy == -1) or (iz == -1):
+            return 0.0
+
+        yval = 0.0
+        for i in range(4):
+            for j in range(3):
+                for k in range(4):
+                    yval += float(j+1) * self.coeff[ix, iy, iz, i*16+(j+1)*4+k] * torch.pow(x_diff, i) * torch.pow(y_diff, j) * torch.pow(z_diff, k)
+        return yval
+
+    def dzf(self, x, y, z):
+        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
+        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
+        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
+
+        if (ix == -1) or (iy == -1) or (iz == -1):
+            return 0.0
+
+        yval = 0.0
+        for i in range(4):
+            for j in range(4):
+                for k in range(3):
+                    yval += float(k+1) * self.coeff[ix, iy, iz, i*16+j*4+k+1] * torch.pow(x_diff, i) * torch.pow(y_diff, j) * torch.pow(z_diff, k)
+        return yval
+
+    def eval(self, x, y, z):
+        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
+        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
+        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
+
+        if (ix == -1) or (iy == -1) or (iz == -1):
+            return 0.0
+
+        f = 0.0
+        for i in range(4):
+            for j in range(4):
+                for k in range(4):
+                    f += self.coeff[ix, iy, iz, i * 16 + j * 4 + k] * \
+                        torch.pow(x_diff, i) * torch.pow(y_diff, j) * \
+                        torch.pow(z_diff, k)
+        return f
 
 
 def gaussian_convolution(pos,
@@ -166,23 +250,20 @@ def convolutional_sample(pos, p_count, kernel, img_shape):  # this convolution c
     return img
 
 
-def astigmatism(pos):
+def astigmatism(xyz, sigma_0=torch.tensor([1.5, 1.5]), m=torch.tensor([0.4, 0.1])):
     """
     Dummy function to test the ability of astigmatism
 
-    :param pos:
+    :param z:
 
     :return:
     """
-    if pos.__len__() == 3:  # when we are in 3D
-        if pos > 0:
-            cov[0, 0] = sig**2 + 0.2 * pos
-        elif pos < 0:
-            cov[-1, -1] = sig**2 - 0.2 * pos
+    z = xyz[:, 2]
+    sigma_xy = sigma_0 * torch.ones(z.shape[0], 2)
+    sigma_xy[z > 0, :] *= torch.cat(((1 + m[0] * z[z > 0]).unsqueeze(1), (1 + m[1] * z[z > 0]).unsqueeze(1)), 1)
+    sigma_xy[z < 0, :] *= torch.cat(((1 - m[0] * z[z < 0]).unsqueeze(1), (1 - m[1] * z[z < 0]).unsqueeze(1)), 1)
 
-    sigma_x = np.sqrt(cov[0, 0])
-    sigma_y = np.sqrt(cov[-1, -1])
-    return cov, sigma_x, sigma_y
+    return sigma_xy
 
 
 def gaussian_binned_sampling(pos, sig=(2, 2), photon_count=100, img_shape=(64, 64), origin='px_centre', xextent=None, yextent=None):
@@ -325,25 +406,24 @@ if __name__ == '__main__':
     im_size = 20
     im_extent = [-0.5, im_size-0.5, im_size-0.5, -0.5]
 
-    img1 = np.zeros((im_size, im_size))
-    img2 = np.zeros((40, 40))
-    positions = np.array(([[9, 5], [12, 14]]))
-    sigma = np.array([1.5, 1.5])
-    cov = np.array(([[4, 0], [0, 4]]))
-    photons = np.array([1000, 500])
+    img1 = torch.zeros((im_size, im_size))
+    img2 = torch.zeros((40, 40))
+    positions = torch.tensor(([[2., 4, 0], [7, 9, -1], [11, 14, 3]]))
+    sigma = torch.tensor([1.5, 1.5])   # torch.tensor([1.5, 1.5])
+    photons = torch.tensor([1000., 1000, 1000])
 
     # img1 += gaussian_binned_sampling(img1, pos[1, :], photons)
     # img2 = gaussian_convolution(positions, sigma, photons, img2.shape)
-    img1 = gaussian_expect(positions, sigma, photons, img1.shape)
+    img1 = gaussian_expect(positions, sigma_0, photons, img1.shape, shotnoise=False)
     img2 = delta_psf(positions, photons, img2.shape, im_extent,
                      xextent=np.array([0, img1.shape[0]]), yextent=np.array([0, img1.shape[1]]))
 
     plt.figure()
-    plt.subplot(221)
-    plt.imshow(img1, cmap='gray', extent=im_extent)
+    # plt.subplot(221)
+    plt.imshow(img1[0, : , :], cmap='gray', extent=im_extent)
 
-    plt.subplot(223)
-    plt.imshow(img2, cmap='gray', extent=im_extent)
+    #plt.subplot(223)
+    #plt.imshow(img2[0, :, :], cmap='gray', extent=im_extent)
     #
     # plt.subplot(222)
     # plt.bar(range(im_size), np.sum(img1, axis=0))
