@@ -10,6 +10,7 @@ class DeepSLMN(nn.Module):
     def __init__(self):
         super().__init__()
 
+        self.upsampling = 8  # as parameter? or constant here?
         self.act = F.relu
 
         in_ch = 3
@@ -32,6 +33,12 @@ class DeepSLMN(nn.Module):
         self.conv8 = nn.Conv2d(32, 2, (1, 1), 1, bias=False)
 
     def forward(self, x0):
+        """
+        F.interpolate uses the last 2/3/4/5/ dimensions for interpolation,
+        so unsqueeze and squeeze a bit.
+        """
+        x0 = F.interpolate(img, scale_factor=self.upsampling, mode='nearest')
+
         # encode and downsample
         x1 = F.max_pool2d(self.act(self.conv1_bn(self.conv1(x0))), 2, 2)
         x2 = F.max_pool2d(self.act(self.conv2_bn(self.conv2(x1))), 2, 2)
