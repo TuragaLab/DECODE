@@ -68,7 +68,7 @@ class DeltaPsf(PSF):
 
         if self.zextent is not None:
             self.bin_z = np.linspace(zextent[0], zextent[1],
-                                     img_shape[1] + 1, endpoint=True)
+                                     img_shape[2] + 1, endpoint=True)
 
     def forward(self, pos, weight):
         """
@@ -81,13 +81,12 @@ class DeltaPsf(PSF):
             camera, _, _ = np.histogram2d(pos[:, 1].numpy(), pos[:, 0].numpy(),  # reverse order
                                           bins=(self.bin_y, self.bin_x),
                                           weights=weight.numpy())
-
-            return torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
-
         else:
-            raise NotImplementedError
+            camera, _ = np.histogramdd((pos[:, 1].numpy(), pos[:, 0].numpy(), pos[:, 2].numpy()),
+                                       bins=(self.bin_y, self.bin_x, self.bin_z),
+                                       weights=weight.numpy())
 
-            return None
+        return torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
 
 
 class GaussianExpect(PSF):
