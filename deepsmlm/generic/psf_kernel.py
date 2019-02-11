@@ -55,7 +55,7 @@ class DeltaPsf(PSF):
         """
         (See abstract class constructor.)
         """
-        super().__init__(xextent, yextent, zextent, img_shape)
+        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
 
         """
         Binning in numpy: binning is (left Bin, right Bin]
@@ -78,9 +78,9 @@ class DeltaPsf(PSF):
         """
 
         if self.zextent is None:
-            camera, _, _ = np.histogram2d(pos[:, 1], pos[:, 0],  # reverse order
-                                          bins=(bin_x, bin_y),
-                                          weights=weight)
+            camera, _, _ = np.histogram2d(pos[:, 1].numpy(), pos[:, 0].numpy(),  # reverse order
+                                          bins=(self.bin_y, self.bin_x),
+                                          weights=weight.numpy())
 
             return torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
 
@@ -102,7 +102,7 @@ class GaussianExpect(PSF):
 
         :param sigma_0: initial sigma value in px dimension
         """
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape)
+        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
 
         self.sigma_0 = sigma_0
 
@@ -135,11 +135,14 @@ class GaussianExpect(PSF):
         """
 
         num_emitters = pos.shape[0]
-        if num_emitters == 0:
-            return torch.zeros(1, img_shape[0], img_shape[1])
+        img_shape = self.img_shape
+        sigma_0 = self.sigma_0
 
-        xpos = pos[:, 0].repeat(img_shape[0], img_shape[1], 1)
-        ypos = pos[:, 1].repeat(img_shape[0], img_shape[1], 1)
+        if num_emitters == 0:
+            return torch.zeros(1, img_shape[1], img_shape[0], dtype=torch.float32)
+
+        xpos = pos[:, 0].repeat(img_shape[1], img_shape[0], 1)
+        ypos = pos[:, 1].repeat(img_shape[1], img_shape[0], 1)
 
         if self.zextent is not None:
             sig = astigmatism(pos, sigma_0=self.sigma_0)
@@ -162,8 +165,8 @@ class GaussianExpect(PSF):
         gauss_y = torch.erf((yy - ypos + 0.5) / (math.sqrt(2) * sig_y)) \
             - torch.erf((yy - ypos - 0.5) / (math.sqrt(2) * sig_y))
 
-        gaussCdf = p_count / 4 * torch.mul(gauss_x, gauss_y)
-        gaussCdf = torch.sum(gaussCdf, 2) + bg[0]
+        gaussCdf = weight.type_as(gauss_x) / 4 * torch.mul(gauss_x, gauss_y)
+        gaussCdf = torch.sum(gaussCdf, 2)
 
         return gaussCdf
 
@@ -180,7 +183,7 @@ class SplineExpect(PSF):
 
         :param coeff:   cubic spline coefficient matrix. dimension: Nx * Ny * Nz * 64
         """
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape)
+        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
 
         self.coeff = coeff
         self.max_i = torch.as_tensor(coeff.shape, dtype=torch.float32) - 1
@@ -311,3 +314,27 @@ class GaussianSampleBased(PSF):
         raise NotImplementedError('Image vector has wrong dimensionality. Need to add singleton dimension for channels.')
 
         return camera
+
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+
+    xextent = (-.5, 31.5)
+    yextent = (-.5, 15.5)
+    zextent = None
+    img_shape = (32, 16)
+
+    delta_psf = DeltaPsf(xextent, yextent, zextent, img_shape)
+    gauss_psf = GaussianExpect(xextent, yextent, zextent, img_shape, sigma_0=(1.5, 1.5))
+
+    xy = torch.rand((3, 2)) * 16
+    xy = torch.tensor([[0., 0], [15, 2], [30, 10]], dtype=torch.float32)
+    phot = torch.randint(0, 5000, (3, ))
+    print(xy, phot)
+
+    plt.subplot(121)
+    plt.imshow(delta_psf.forward(xy, phot).squeeze())
+    plt.subplot(122)
+    plt.imshow(gauss_psf.forward(xy, phot).squeeze())
+
+    plt.show()
