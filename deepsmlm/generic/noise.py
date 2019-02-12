@@ -1,35 +1,58 @@
-import abc  # abstract class
+from abc import ABC, abstractmethod  # abstract class
 import torch
 
 
-class Noise_Post(ABC):
+class NoisePost(ABC):
+    """
+    Abstract class of noise functions.
+    """
 
     @abstractmethod
     def __init__(self):
         super.__init__(self)
 
     @abstractmethod
-    def forward(self, image=None):
-        pass
+    def forward(self, image):
+        """
+        Evaluate noise on the image.
+
+        :param image: torch.tensor of arbitrary dimensionality.
+        :return: image with noise.
+        """
+        return None
 
 
-def noise_psf(img, noise=True, bg_poisson=10, readout_gaussian=0):
-    """
-    Function to add noise to an image
+class Poisson(NoisePost):
 
-    :param img: image array
-    :param noise:  add noise?
-    :param bg_poisson:  constant background poissonian
-    :param readout_gaussian:  readout gaussian, needs double check
+    def __init__(self, bg_uniform=0):
+        """
 
-    :return: img with noise
-    """
-    if not noise:
-        return img
+        :param bg_uniform: uniform background value to be added before drawing from poisson distribution
+        """
+        super().__init__()
 
-    noise_mask_poisson = torch.distributions.poisson.Poisson(torch.zeros_like(img) + bg_poisson).sample()  # not additive
-    noise_mask_gaussian = readout_gaussian * torch.randn(img.shape[0], img.shape[1])  # additive
-    return img + noise_mask_poisson + noise_mask_gaussian
+        self.bg_uniform = bg_uniform
+
+    def forward(self, image):
+        return torch.distributions.poisson.Poisson(image + self.bg_uniform).sample()
+
+
+class Gaussian(NoisePost):
+
+    def __init__(self, sigma_gaussian, bg_uniform):
+        """
+
+        :param sigma_gaussian: sigma value of gauss noise
+        :param bg_uniform: uniform value to be added
+        """
+        super().__init__()
+
+        self.sigma_gaussian = sigma_gaussian
+        self.bg_uniform = bg_uniform
+
+    def forward(self, image):
+
+        return image + self.bg_uniform + self.sigma_gaussian * torch.randn(image.shape[0], image.shape[1])
 
 
 class GaussianSmoothing(nn.Module):

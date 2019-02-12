@@ -1,7 +1,5 @@
 import torch
-from torch.nn import functional
 from torch.utils.data import Dataset
-
 from dataprep import one_hot_dual, load_binary
 
 

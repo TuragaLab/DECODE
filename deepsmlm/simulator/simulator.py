@@ -11,8 +11,6 @@ import warnings
 from multiprocessing.dummy import Pool as ThreadPool
 from missingFromNumpy import repeat_np, splitbatchandrunfunc
 
-from psf_kernel import gaussian_expect, gaussian_convolution, noise_psf, delta_psf
-
 
 class Simulation:
     """

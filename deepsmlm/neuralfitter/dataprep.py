@@ -5,29 +5,6 @@ import torch
 
 from psf_kernel import delta_psf
 
-
-class EmitterSet:
-    """
-    Struct-like class, storing a set of emitters. Each attribute is a torch.Tensor.
-    It can be constructed from a binary.
-    """
-    def __init__(self, xyz_ppn, phot, frame_indx, id=None):
-        """
-        Constructor
-
-        :param xyz_ppn: torch.Tensor of size N x 3. x, y are in px units; z in units of nm (hence the name).
-        :param phot: torch.Tensor of size N. number of photons.
-        :param frame_indx: integer or torch.Tensor. If it's one element, the whole set belongs to the frame,
-            if it's a tensor, it must be of length N.
-        :param id: torch.Tensor of size N. id of an emitter.
-        """
-
-        self.xyz__ppn = xyz_ppn
-        self.phot = phot
-        self.frame_indx = frame_indx
-        self.id = id
-
-
 def load_binary(input_file):
     """
     Load a binary which is compatible with the current standard of processing. Return to Dataset class.

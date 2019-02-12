@@ -1,16 +1,13 @@
-import datetime
-import matplotlib.pyplot as plt
-import numpy as np
-import os
-import time
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.optim import Adam
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-from torch.autograd import Variable
-from scipy import signal, ndimage, special
+
+
+class Evaluation:
+    """
+    Don't know that yet.
+    """
+    def __init__(self):
+        pass
 
 
 def px_ix_2_coordinate(a, origin=torch.tensor([0, 0, 0]), scf=1):

@@ -45,7 +45,7 @@ class PSF(ABC):
         pass
 
 
-class DeltaPsf(PSF):
+class DelatPSF(PSF):
     """
     Delta function PSF. You input a list of coordinates,
     psf forwards an image where a single non-zero px corresponds to an emitter.
