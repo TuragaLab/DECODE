@@ -9,28 +9,10 @@
 #include <iostream>
 #include <torch/torch.h>
 #include "torch_boost.hpp"
+#include "torch_cubicspline.hpp"
 
 extern "C" {
     #include "cubic_spline.h"  // this shall be replaced by a better path specification
-}
-
-/**
- C++ Wrapper function to initialise 3D spline.
-
- @param coeff tensor (dtype: torch::kDouble) 4D
- @return Pointer to struct splineData (i.e. splineData*)
- */
-auto initSplineTorch(torch::Tensor coeff) -> splineData* {
-    
-    const int xsize = static_cast<int>(coeff.size(0));
-    const int ysize = static_cast<int>(coeff.size(1));
-    const int zsize = static_cast<int>(coeff.size(2));
-    
-//    double coeff_[xsize * ysize * zsize];
-    double* coeff_ = coeff.data<double>();
-    
-    return initSpline3D(coeff_, xsize, ysize, zsize);
-    
 }
     
 
@@ -57,6 +39,30 @@ int main() {
     
     
 //    cubic_spline_img();
+    
+    /* Test the function split_frames */
+    
+    torch::Tensor trial_tensor = torch::randint(40, {5, 6});  // does not work because the matrix must be sorted!
+    torch::Tensor frames = torch::ones(5);
+    frames[0] = 3.;
+    frames[1] = 3.;
+    frames[2] = 5.;
+    frames[3] = 7.;
+    frames[4] = 7.;
+    
+    //    std::cout << std::get<1>(x) << std::endl;
+    
+    //    auto x = split_tensor(trial_tensor, frames, 0, -1);
+    //    std::cout << trial_tensor << std::endl;
+    //    std::cout << x << std::endl;
+    
+    auto *y = initSplineTorch(torch::randn({10, 10, 10, 64}, torch::kDouble));
+    auto t = imgSplineTorch(y);
+    
+    std::cout << t << std::endl;
+    //    std::cout << y->aij[5] << std::endl;
+    
+    return 0;
     
     return 0;
 }

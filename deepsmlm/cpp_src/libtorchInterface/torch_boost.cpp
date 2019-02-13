@@ -62,23 +62,3 @@ auto split_tensor(torch::Tensor tensor_, torch::Tensor split_data, int bound_low
     }
     return tensor_split;
 }
-
-int main() {
-    /* Test the function split_frames */
-    
-    torch::Tensor trial_tensor = torch::randint(40, {5, 6});  // does not work because the matrix must be sorted!
-    torch::Tensor frames = torch::ones(5);
-    frames[0] = 3.;
-    frames[1] = 3.;
-    frames[2] = 5.;
-    frames[3] = 7.;
-    frames[4] = 7.;
-
-//    std::cout << std::get<1>(x) << std::endl;
-    
-//    auto x = split_tensor(trial_tensor, frames, 0, -1);
-//    std::cout << trial_tensor << std::endl;
-//    std::cout << x << std::endl;
-    
-    return 0;
-}
