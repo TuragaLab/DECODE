@@ -1,14 +1,14 @@
 import torch
 from torch.utils.data import Dataset
 
-from ..generic.psf_kernel import DualDelta
+from deepsmlm.generic.psf_kernel import DeltaPSF, DualDelta
 
 
 class SMLMDataset(Dataset):
     """
     A SMLMDataset derived from the Dataset class.
     """
-    def __init__(self, input_file):
+    def __init__(self, binary_loader, input_file):
         """
         Class constructor.
 
@@ -16,22 +16,22 @@ class SMLMDataset(Dataset):
         """
         super().__init__()
 
-        self.images = None
+        self.frames = None
         self.image_shape = None
         self.em = None
         self.extent = None
         self.upsampling = 8
 
-        self.images, self.em = load_binary(input_file)
-        self.image_shape = tuple(self.images.shape[2:])
-        self.image_shape_hr = (self.image_shape[0] * self.upsampling,
-                               self.image_shape[1] * self.upsampling,
-                               self.image_shape[2] * self.upsampling)
+        em_total, extent, self.frames = binary_loader(input_file)
+        self.em = em_total.split_in_frames()
 
-        self.extent = ((-0.5, self.images_shape[0] - 0.5), (-0.5, self.image_shape[1] - 0.5), None)
+        self.image_shape = tuple(self.frames.shape[2:])
+        self.image_shape_hr = (self.image_shape[0] * self.upsampling,
+                               self.image_shape[1] * self.upsampling)
+        self.extent = (extent[0], extent[1], None)
 
         """Target data generation. Borrowed from psf-kernel."""
-        self.target_generator = DualDelta(xextent=self.extent[0],
+        self.target_generator = DeltaPSF(xextent=self.extent[0],
                                           yextent=self.extent[1],
                                           zextent=self.extent[2],
                                           img_shape=self.image_shape_hr)
@@ -45,7 +45,7 @@ class SMLMDataset(Dataset):
         :return:    length of the dataset.
         """
 
-        return self.images.shape[0]
+        return self.frames.shape[0]
 
     def __getitem__(self, index):
         """
@@ -58,29 +58,28 @@ class SMLMDataset(Dataset):
         if index == 0:
 
             img = torch.cat((
-                self.images[0, :, :, :],
-                self.images[0, :, :, :],
-                self.images[1, :, :, :]), dim=0)
+                self.frames[0, :, :, :],
+                self.frames[0, :, :, :],
+                self.frames[1, :, :, :]), dim=0)
 
         elif index == (self.__len__() - 1):
 
             img = torch.cat((
-                self.images[-2, :, :, :],
-                self.images[-1, :, :, :],
-                self.images[-1, :, :, :]), dim=0)
+                self.frames[-2, :, :, :],
+                self.frames[-1, :, :, :],
+                self.frames[-1, :, :, :]), dim=0)
 
         else:
 
             img = torch.cat((
-                self.images[index - 1, :, :, :],
-                self.images[index, :, :, :],
-                self.images[index + 1, :, :, :]), dim=0)
+                self.frames[index - 1, :, :, :],
+                self.frames[index, :, :, :],
+                self.frames[index + 1, :, :, :]), dim=0)
 
         """
         Representation of the emitters on a grid, where each pixel / voxel is used for one emitter.
         """
         one_hot_img = self.target_generator.forward(self.em[index].xyz[:, :2],
-                                                    self.em[index].phot,
-                                                    self.em[index].xyz[:, 2])
+                                                    self.em[index].phot)
 
-        return img, one_hot_img, index
+        return img, one_hot_img

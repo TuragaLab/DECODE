@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
-from ..simulator.emittergenerator import EmitterSet
+from deepsmlm.simulator.emittergenerator import EmitterSet
 
 
 def load_temp_binary(input_file):

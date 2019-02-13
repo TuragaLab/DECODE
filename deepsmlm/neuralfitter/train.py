@@ -1,28 +1,26 @@
-import functools
-import numpy as np
-import os
 import sys
+import time
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
-from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from torch.autograd import Variable
-from scipy import signal, ndimage, special
 
-import dataprep
-from simulator import upscale
-from model import DeepSLMN
-from psf_kernel import GaussianSmoothing
+from deepsmlm.neuralfitter.dataset import SMLMDataset
+from deepsmlm.generic.io.load_save_model import LoadSaveModel
+from deepsmlm.generic.io.load_save_emitter import MatlabInterface
+from deepsmlm.generic.noise import GaussianSmoothing
+from deepsmlm.neuralfitter.losscollection import bump_mse_loss
 
 
 class Args:
     """
     Convenience for training options.
     """
-    def __init__(self, cuda=True):
+    def __init__(self, cuda=True, epochs=100, num_prints=5, sm_sigma=1):
         self.cuda = cuda if torch.cuda.is_available() else False
+        self.epochs = epochs
+        self.num_prints = num_prints
+        self.sm_sigma = sm_sigma
 
 
 class AverageMeter(object):
@@ -43,29 +41,52 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def train(data, model, opt, crit):
+def train(train_loader, model, optimizer, criterion, epoch):
+
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+    print_steps = torch.round(torch.linspace(0, train_loader.__len__(), args.num_prints))
 
     model.train()
-
-    print_steps = torch.round(torch.linspace(0, data.__len__(), 5))
-
-    for ix, data_i in enumerate(data, 0):
-        input, ground_truth, _ = data_i
+    end = time.time()
+    for i, (input, target) in enumerate(train_loader):
 
         if args.cuda:  # model_deep.cuda():
             input, ground_truth = input.cuda(), ground_truth.cuda()
-        input, target = Variable(input), Variable(ground_truth)
 
-        opt.zero_grad()
-
+        # compute output
         output = model(input)
+        loss = criterion(output, target)
 
-        loss = crit(output, ground_truth)
+        # measure accuracy and record loss
+        # prec1, prec5 = accuracy(output, target, topk=(1, 5))
+        losses.update(loss.item(), input.size(0))
+        # top1.update(prec1[0], input.size(0))
+        # top5.update(prec5[0], input.size(0))
+
+        # compute gradients in a backward pass
+        optimizer.zero_grad()
         loss.backward()
-        opt.step()
 
-        if ix in print_steps:
-            print(loss.data)
+        # Call step of optimizer to update model params
+        optimizer.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if i in print_steps:
+            print('Epoch: [{0}][{1}/{2}]\t'
+                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
+                   epoch, i, len(train_loader), batch_time=batch_time,
+                   data_time=data_time, loss=losses))
+                  # 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                  # 'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'
 
 
 def test(val_loader, model, criterion):
@@ -78,11 +99,11 @@ def test(val_loader, model, criterion):
     top1 = AverageMeter()
     top5 = AverageMeter()
 
-    print_steps = torch.round(torch.linspace(0, val_loader.__len__(), 5))
+    print_steps = torch.round(torch.linspace(0, val_loader.__len__(), args.num_prints))
 
     # switch to evaluate mode
     model.eval()
-
+    end = time.time()
     with torch.no_grad():
         end = time.time()
         for i, (input, target) in enumerate(val_loader):
@@ -96,10 +117,10 @@ def test(val_loader, model, criterion):
             loss = criterion(output, target)
 
             # measure accuracy and record loss
-            prec1, prec5 = accuracy(output, target, topk=(1, 5))
+            # prec1, prec5 = accuracy(output, target, topk=(1, 5))
             losses.update(loss.item(), input.size(0))
-            top1.update(prec1[0], input.size(0))
-            top5.update(prec5[0], input.size(0))
+            # top1.update(prec1[0], input.size(0))
+            # top5.update(prec5[0], input.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -108,83 +129,59 @@ def test(val_loader, model, criterion):
             if i in print_steps:
                 print('Test: [{0}/{1}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                      'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                      'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                       i, len(val_loader), batch_time=batch_time, loss=losses,
-                       top1=top1, top5=top5))
+                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
+                       i, len(val_loader), batch_time=batch_time, loss=losses))
+                      # 'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                      # 'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.
 
-        print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
-              .format(top1=top1, top5=top5))
-
-    return top1.avg
-
-
-def save_model(model, epoch, net_folder='network', filename=None):
-
-    if filename is None:
-        if epoch == 0:
-            file_ix = len(os.listdir(net_folder))
-            torch.save(model, '{}/net_{}.pt'.format(net_folder, file_ix))
-        else:
-            file_ix = len(os.listdir(net_folder)) - 1
-            torch.save(model, '{}/net_{}.pt'.format(net_folder, file_ix))
-    else:
-        torch.save(model, '{}/{}'.format(net_folder, filename))
-
-
-def load_model(file=None, net_folder='network'):
-    if file is None:
-        last_net = len(os.listdir(net_folder)) - 1
-        file = '{}/net_{}.pt'.format(net_folder, last_net)
-
-    if torch.cuda.is_available():
-        return torch.load(file)
-    else:
-        return torch.load(file, map_location='cpu')
+        # print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
+        #       .format(top1=top1, top5=top5))
 
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:  # no .ini file specified
-        dataset_file = 'data/spline_1e5.mat'
-        weight_in = 'network/spline_1e4_no_z.pt'
-        weight_out = 'spline_1e5_no_z.pt'
+        dataset_file = '/Users/lucasmueller/Repositories/deepsmlm/data/spline_1e3_noz.mat'
+        weight_out = '/Users/lucasmueller/Repositories/deepsmlm/network/spline_1e3_noz.pt'
+        weight_in = None  # '../../network/spline_1e4_no_z.pt'
+
     else:
         dataset_file = sys.argv[1]
-        weight_in = None if sys.argv[2].__len__() == 0 else sys.argv[2]
-        weight_out = sys.argv[3]
+        weight_out = sys.argv[2]
+        weight_in = None if sys.argv[3].__len__() == 0 else sys.argv[3]
 
-    net_folder = 'network'
-    epochs = 1000
-    if weight_in is None:
-        model_deep = DeepSLMN()
-        model_deep.weight_init()
-    else:
-        model_deep = load_model(weight_in)
+    args = Args(cuda=True,
+                epochs=1000,
+                num_prints=5,
+                sm_sigma=1)
 
-    data_smlm = SMLMDataset(dataset_file, transform=None)
+    data_smlm = SMLMDataset(MatlabInterface().load_binary, dataset_file)
+    model_ls = LoadSaveModel(weight_out,
+                             cuda=args.cuda,
+                             warmstart_file=weight_in)
 
-    optimiser = Adam(model_deep.parameters(), lr=0.001)
+    model = model_ls.load_init()
 
-    gaussian_kernel = GaussianSmoothing(1, [7, 7], 1, dim=2, cuda=torch.cuda.is_available(),
+    optimiser = Adam(model.parameters(), lr=0.001)
+
+    gaussian_kernel = GaussianSmoothing(1, [7, 7], args.sm_sigma, dim=2, cuda=args.cuda,
                                         padding=lambda x: F.pad(x, [3, 3, 3, 3], mode='reflect'))
 
-    def criterion(input, target): return bump_mse_loss_3d(input, target,
-                                                          kernel_pred=gaussian_kernel,
-                                                          kernel_true=gaussian_kernel,
-                                                          lz_sc=0)
+    def criterion(input, target):
+        return bump_mse_loss(input, target,
+                             kernel_pred=gaussian_kernel,
+                             kernel_true=gaussian_kernel)
 
-    if torch.cuda.is_available():
-        model_eep = model_deep.cuda()
+    if args.cuda:
+        model = model.cuda()
 
-    train_size = int(0.8 * len(data_smlm))
+    train_size = int(0.9 * len(data_smlm))
     test_size = len(data_smlm) - train_size
-    #train_data, test_data = torch.utils.data.random_split(data_smlm, [train_size, test_size])
+    train_data, test_data = torch.utils.data.random_split(data_smlm, [train_size, test_size])
 
-    train_loader = DataLoader(data_smlm, batch_size=32, shuffle=True, num_workers=12)
-    # test_loader = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=12)
+    train_loader = DataLoader(train_data, batch_size=1, shuffle=True, num_workers=12)
+    test_loader = DataLoader(test_data, batch_size=1, shuffle=False, num_workers=4)
 
-    for i in range(epochs):
-        print('Epoch no.: {}'.format(i))
-        train(train_loader, model_deep, optimiser, criterion)
-        save_model(model_deep, i, filename=weight_out)
+    for i in range(args.epochs):
+        train(train_loader, model, optimiser, criterion, i)
+        test(test_loader, model, criterion)
+        model_ls.save(model)
