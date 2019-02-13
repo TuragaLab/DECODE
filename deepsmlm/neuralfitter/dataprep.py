@@ -2,8 +2,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
+from ..simulator.emittergenerator import EmitterSet
 
-from psf_kernel import delta_psf
+
+def load_temp_binary(input_file):
+
+    """Save template: np.savez('output.npz', xyz=xyz, phot=phot, frame_indx=frame_indx, id=id)"""
+    data = np.load(input_file)
+
+    return EmitterSet(data['xyz'], data['phot'], data['frame_indx'], data['id'])
+
 
 def load_binary(input_file):
     """
@@ -37,18 +45,6 @@ def load_binary(input_file):
         raise ValueError('Datatype not supported.')
 
     return torch.from_numpy(frames), torch.from_numpy(em_mat)
-
-
-def one_hot_dual(em_mat, framedim, upsampling, xextent, yextent):
-    # first channel: number of photons in a single one hot px, 2nd channel: z position
-    hr_img_dim = framedim * upsampling
-    num_channels = 2  # namely photon count and z position
-
-    target = torch.zeros((num_channels, hr_img_dim[0], hr_img_dim[1]))
-    target[[0], :, :] = delta_psf(em_mat[:, :2], em_mat[:, 3], img_shape=hr_img_dim, xextent=xextent, yextent=yextent)
-    target[[1], :, :] = delta_psf(em_mat[:, :2], em_mat[:, 2], img_shape=hr_img_dim, xextent=xextent, yextent=yextent)
-
-    return target
 
 
 def project01(img):

@@ -45,7 +45,7 @@ class PSF(ABC):
         pass
 
 
-class DelatPSF(PSF):
+class DeltaPSF(PSF):
     """
     Delta function PSF. You input a list of coordinates,
     psf forwards an image where a single non-zero px corresponds to an emitter.
@@ -75,6 +75,8 @@ class DelatPSF(PSF):
 
         :param pos:  position of the emitter in 2 or 3D
         :param weight:  number of photons or any other 1:1 connection to an emitter
+
+        :return:  torch tensor of size 1 x H x W
         """
 
         if self.zextent is None:
@@ -87,6 +89,32 @@ class DelatPSF(PSF):
                                        weights=weight.numpy())
 
         return torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
+
+
+class DualDelta(DeltaPSF):
+    """
+    Delta function PSF in channel 0: photons, channel 1 z position.
+    Derived from DeltaPSF class.
+    """
+
+    def __init__(self, xextent, yextent, zextent, img_shape):
+        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
+
+    def forward(self, pos, weight, weight2):
+        """
+
+        :param pos: position of the emitter in 2 or 3D
+        :param weight:  number of photons or any other 1:1 connection to an emitter
+        :param weight2: z position or any other 1:1 connection to an emitter
+
+        :return: torch tensor of size 2 x H x W
+        """
+        dual_ch_img = torch.cat((
+            super(DualDelta, self).forward(pos, weight),
+            super(DualDelta, self).forward(pos, weight2)),
+            dim=0)
+
+        return dual_ch_img
 
 
 class GaussianExpect(PSF):
