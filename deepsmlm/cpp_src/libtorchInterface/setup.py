@@ -9,10 +9,18 @@ libraries = ['']
 library_dirs = ['']
 
 if sys.platform == 'win32':
+
     libraries.extend(static_libraries)
     library_dirs.append(static_lib_dir)
     extra_objects = []
-else:  # POSIX
+    extra_compile_args = []
+
+elif sys.platform == 'darwin':
+    extra_compile_args = ['-g', '-stdlib=libc++', '-std=c++11']
+    extra_objects = ['{}/lib{}.a'.format(static_lib_dir, l) for l in static_libraries]
+
+elif sys.platform == 'linux':
+    extra_compile_args = []
     extra_objects = ['{}/lib{}.a'.format(static_lib_dir, l) for l in static_libraries]
 
 setup(
@@ -21,7 +29,7 @@ setup(
         CppExtension(
             name='torch_cpp',
             sources=['pybind_wrapper.cpp', 'torch_boost.cpp', 'torch_cubicspline.cpp'],
-            extra_compile_args=['-g', '-stdlib=libc++', '-std=c++11'],
+            extra_compile_args=extra_compile_args,
             extra_objects=extra_objects)
 
         ],
