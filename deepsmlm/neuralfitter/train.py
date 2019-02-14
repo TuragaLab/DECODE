@@ -175,7 +175,7 @@ if __name__ == '__main__':
     if len(sys.argv) == 1:  # no .ini file specified
         dataset_file = deepsmlm_root + 'data/spline_1e5_noz.mat'
         weight_out = deepsmlm_root + 'network/spline_1e5_noz_2.pt'
-        weight_in = None # deepsmlm_root + 'network/spline_1e5_noz.pt'
+        weight_in =  deepsmlm_root + 'network/spline_1e5_noz_2.pt'
 
     else:
         dataset_file = deepsmlm_root + sys.argv[1]
@@ -212,8 +212,8 @@ if __name__ == '__main__':
     test_size = len(data_smlm) - train_size
     train_data, test_data = torch.utils.data.random_split(data_smlm, [train_size, test_size])
 
-    train_loader = DataLoader(train_data, batch_size=2, shuffle=True, num_workers=12)
-    test_loader = DataLoader(test_data, batch_size=2, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=12)
+    test_loader = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=2)
 
     """Ask if everything is correct before we start."""
     args.print_confirmation()

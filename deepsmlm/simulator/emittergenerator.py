@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod  # abstract class
-import os
-import sys
 import torch
 
-from ..generic.emitter import EmitterSet
+from deepsmlm.generic.emitter import EmitterSet
 
 
 class EmitterGenerator(ABC):
