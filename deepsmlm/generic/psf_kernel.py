@@ -133,7 +133,7 @@ class GaussianExpect(PSF):
 
         self.sigma_0 = sigma_0
 
-    def astigmatism(self, z_nm, sigma_0, m=torch.tensor([0.4, 0.1])):
+    def astigmatism(self, z, sigma_0, m=torch.tensor([0.4, 0.1])):
         """
         Astigmatism function for gaussians which are 3D.
 
@@ -165,10 +165,10 @@ class GaussianExpect(PSF):
         sigma_0 = self.sigma_0
 
         if num_emitters == 0:
-            return torch.zeros(1, img_shape[1], img_shape[0], dtype=torch.float32)
+            return torch.zeros(1, img_shape[0], img_shape[1], dtype=torch.float32)
 
-        xpos = pos[:, 0].repeat(img_shape[1], img_shape[0], 1)
-        ypos = pos[:, 1].repeat(img_shape[1], img_shape[0], 1)
+        xpos = pos[:, 0].repeat(img_shape[0], img_shape[1], 1)
+        ypos = pos[:, 1].repeat(img_shape[0], img_shape[1], 1)
 
         if self.zextent is not None:
             sig = astigmatism(pos, sigma_0=self.sigma_0)
@@ -178,18 +178,20 @@ class GaussianExpect(PSF):
             sig_x = sigma_0[0]
             sig_y = sigma_0[1]
 
-        x = torch.arange(img_shape[0], dtype=torch.float32)
-        y = torch.arange(img_shape[1], dtype=torch.float32)
+        x = torch.linspace(self.xextent[0], self.xextent[1], img_shape[0] + 1, dtype=torch.float32)
+        y = torch.linspace(self.yextent[0], self.yextent[1], img_shape[1] + 1, dtype=torch.float32)
         xx, yy = torch.meshgrid(x, y)
 
-        xx = xx.transpose(0, 1).unsqueeze(2).repeat(1, 1, num_emitters)
-        yy = yy.transpose(0, 1).unsqueeze(2).repeat(1, 1, num_emitters)
+        xx = xx.unsqueeze(2).repeat(1, 1, num_emitters)
+        yy = yy.unsqueeze(2).repeat(1, 1, num_emitters)
 
-        gauss_x = torch.erf((xx - xpos + 0.5) / (math.sqrt(2) * sig_x)) \
-            - torch.erf((xx - xpos - 0.5) / (math.sqrt(2) * sig_x))
+        print(xx.shape)
 
-        gauss_y = torch.erf((yy - ypos + 0.5) / (math.sqrt(2) * sig_y)) \
-            - torch.erf((yy - ypos - 0.5) / (math.sqrt(2) * sig_y))
+        gauss_x = torch.erf((xx[1:, 1:, :] - xpos) / (math.sqrt(2) * sig_x)) \
+            - torch.erf((xx[0:-1, 1:, :] - xpos) / (math.sqrt(2) * sig_x))
+
+        gauss_y = torch.erf((yy[1:, 1:, :] - ypos) / (math.sqrt(2) * sig_y)) \
+            - torch.erf((yy[1:, 0:-1, :] - ypos) / (math.sqrt(2) * sig_y))
 
         gaussCdf = weight.type_as(gauss_x) / 4 * torch.mul(gauss_x, gauss_y)
         gaussCdf = torch.sum(gaussCdf, 2)
