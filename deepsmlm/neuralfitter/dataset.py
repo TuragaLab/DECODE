@@ -10,10 +10,11 @@ class SMLMDataset(Dataset):
     """
     def __init__(self, binary_loader, input_file):
         """
-        Class constructor.
 
-        :param inputfile:   binary file consistent to the format which is needed here.
+        :param binary_loader: method of interface class to load from a binary
+        :param input_file:
         """
+
         super().__init__()
 
         self.frames = None
@@ -82,4 +83,4 @@ class SMLMDataset(Dataset):
         one_hot_img = self.target_generator.forward(self.em[index].xyz[:, :2],
                                                     self.em[index].phot)
 
-        return img, one_hot_img
+        return img, one_hot_img, index

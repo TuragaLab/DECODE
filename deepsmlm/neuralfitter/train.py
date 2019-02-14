@@ -1,26 +1,42 @@
+import os
+import pprint
 import sys
 import time
 import torch
-import torch.nn.functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.generic.io.load_save_model import LoadSaveModel
 from deepsmlm.generic.io.load_save_emitter import MatlabInterface
-from deepsmlm.generic.noise import GaussianSmoothing
-from deepsmlm.neuralfitter.losscollection import bump_mse_loss
+from deepsmlm.neuralfitter.losscollection import BumpMSELoss
 
 
 class Args:
     """
-    Convenience for training options.
+    Convenience for training arguments.
     """
-    def __init__(self, cuda=True, epochs=100, num_prints=5, sm_sigma=1):
+    def __init__(self, cuda=True, epochs=100, num_prints=5, sm_sigma=1,
+                 root_folder=None, data_path=None, model_in_path=None, model_out_path=None):
         self.cuda = cuda if torch.cuda.is_available() else False
         self.epochs = epochs
         self.num_prints = num_prints
         self.sm_sigma = sm_sigma
+
+        self.root_folder = root_folder
+        self.data_path = data_path
+        self.model_in_path = model_in_path
+        self.model_out_path = model_out_path
+
+    def print_confirmation(self):
+        """
+        Print arguments and wait for confirmation.
+        :return: void
+        """
+        print('The configured arguments are:')
+        pp = pprint.PrettyPrinter(width=-1)
+        pp.pprint(vars(self))
+        input('Press Enter to continue ...')
 
 
 class AverageMeter(object):
@@ -52,10 +68,22 @@ def train(train_loader, model, optimizer, criterion, epoch):
 
     model.train()
     end = time.time()
-    for i, (input, target) in enumerate(train_loader):
+    for i, (input, target, _) in enumerate(train_loader):
+
+        # measure data loading time
+        data_time.update(time.time() - end)
+
+        """Plot here to check whether what you feed the network is what we would expect."""
+        # if True:
+        #     import matplotlib.pyplot as plt
+        #     plt.subplot(121)
+        #     plt.imshow(input[0, 1, :, :])
+        #     plt.subplot(122)
+        #     plt.imshow(target[0, 0, :, :].detach().numpy())
+        #     plt.show()
 
         if args.cuda:  # model_deep.cuda():
-            input, ground_truth = input.cuda(), ground_truth.cuda()
+            input, target = input.cuda(), target.cuda()
 
         # compute output
         output = model(input)
@@ -99,14 +127,14 @@ def test(val_loader, model, criterion):
     top1 = AverageMeter()
     top5 = AverageMeter()
 
-    print_steps = torch.round(torch.linspace(0, val_loader.__len__(), args.num_prints))
+    print_steps = torch.round(torch.linspace(0, val_loader.__len__(), 3))
 
     # switch to evaluate mode
     model.eval()
     end = time.time()
     with torch.no_grad():
         end = time.time()
-        for i, (input, target) in enumerate(val_loader):
+        for i, (input, target, _) in enumerate(val_loader):
 
             if args.cuda:
                 input = input.cuda(non_blocking=True)
@@ -139,48 +167,56 @@ def test(val_loader, model, criterion):
 
 
 if __name__ == '__main__':
+
+    deepsmlm_root = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     os.pardir, os.pardir)) + '/'
+
     if len(sys.argv) == 1:  # no .ini file specified
-        dataset_file = '/Users/lucasmueller/Repositories/deepsmlm/data/spline_1e3_noz.mat'
-        weight_out = '/Users/lucasmueller/Repositories/deepsmlm/network/spline_1e3_noz.pt'
-        weight_in = None  # '../../network/spline_1e4_no_z.pt'
+        dataset_file = deepsmlm_root + 'data/spline_1e5_noz.mat'
+        weight_out = deepsmlm_root + 'network/spline_1e5_noz_2.pt'
+        weight_in = None # deepsmlm_root + 'network/spline_1e5_noz.pt'
 
     else:
-        dataset_file = sys.argv[1]
-        weight_out = sys.argv[2]
-        weight_in = None if sys.argv[3].__len__() == 0 else sys.argv[3]
+        dataset_file = deepsmlm_root + sys.argv[1]
+        weight_out = deepsmlm_root + sys.argv[2]
+        weight_in = None if sys.argv[3].__len__() == 0 else deepsmlm_root + sys.argv[3]
 
     args = Args(cuda=True,
                 epochs=1000,
                 num_prints=5,
-                sm_sigma=1)
+                sm_sigma=1,
+                root_folder=deepsmlm_root,
+                data_path=dataset_file,
+                model_out_path=weight_out,
+                model_in_path=weight_in)
 
+    """Load Data from binary."""
     data_smlm = SMLMDataset(MatlabInterface().load_binary, dataset_file)
+
+    """The model load and save interface."""
     model_ls = LoadSaveModel(weight_out,
                              cuda=args.cuda,
                              warmstart_file=weight_in)
-
     model = model_ls.load_init()
+
+    if args.cuda:  # move model to CUDA device
+        model = model.cuda()
 
     optimiser = Adam(model.parameters(), lr=0.001)
 
-    gaussian_kernel = GaussianSmoothing(1, [7, 7], args.sm_sigma, dim=2, cuda=args.cuda,
-                                        padding=lambda x: F.pad(x, [3, 3, 3, 3], mode='reflect'))
-
-    def criterion(input, target):
-        return bump_mse_loss(input, target,
-                             kernel_pred=gaussian_kernel,
-                             kernel_true=gaussian_kernel)
-
-    if args.cuda:
-        model = model.cuda()
+    """Get loss function."""
+    criterion = BumpMSELoss(kernel_sigma=args.sm_sigma, cuda=args.cuda).return_criterion()
 
     train_size = int(0.9 * len(data_smlm))
     test_size = len(data_smlm) - train_size
     train_data, test_data = torch.utils.data.random_split(data_smlm, [train_size, test_size])
 
-    train_loader = DataLoader(train_data, batch_size=1, shuffle=True, num_workers=12)
-    test_loader = DataLoader(test_data, batch_size=1, shuffle=False, num_workers=4)
+    train_loader = DataLoader(train_data, batch_size=2, shuffle=True, num_workers=12)
+    test_loader = DataLoader(test_data, batch_size=2, shuffle=False, num_workers=2)
 
+    """Ask if everything is correct before we start."""
+    args.print_confirmation()
     for i in range(args.epochs):
         train(train_loader, model, optimiser, criterion, i)
         test(test_loader, model, criterion)

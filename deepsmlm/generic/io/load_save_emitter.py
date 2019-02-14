@@ -70,6 +70,11 @@ class MatlabInterface(BinaryInterface):
 
         extent = totuple(bin[self.extent_key])
         frames = torch.from_numpy(bin[self.frame_key].astype(np.int64)).type(torch.FloatTensor)
+        """
+        Note that we need to transpose the input coming from matlab because there we don't have the issue with regard 
+        to coordinate axis order and image axis. 
+        """
+        frames = frames.transpose(-1, -2)
 
         return emitter_set, extent, frames
 
