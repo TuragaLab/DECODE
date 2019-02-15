@@ -1,23 +1,17 @@
 import numpy as np
 import torch
-import torch.nn as nn
-from torch.optim import Adam
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-from torch.autograd import Variable
-import matplotlib.pyplot as plt
-plt.rcParams["figure.dpi"] = 4 * plt.rcParams["figure.dpi"]
 
-from model import DeepSLMN
-from train import SMLMDataset, load_model
+from deepsmlm.generic.io.load_save_model import LoadSaveModel
+from deepsmlm.neuralfitter.dataset import SMLMDataset
+from deepsmlm.generic.io.load_save_emitter import MatlabInterface
 
-
-def plot_frame(tensor):
-    img = tensor.squeeze()
-    plt.imshow(img, cmap='gray')
 
 
 if __name__ == '__main__':
+    deepsmlm_root = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     os.pardir, os.pardir)) + '/'
+
     data = SMLMDataset('data/spline_1e1.mat')
     model = load_model(file='network/spline_1e4_no_z.pt')
     model.eval()

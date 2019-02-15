@@ -61,11 +61,14 @@ class BumpMSELoss(Loss):
         return l1_f * l1_loss + l2_f * l2_loss
 
     def return_criterion(self):
-        return partial(self.loss,
-                       kernel_out=self.gaussian_kernel,
-                       kernel_target=self.gaussian_kernel,
-                       l1_f=self.l1_f,
-                       l2_f=self.l2_f)
+        def loss_return(output, target):
+            x = self.loss(output, target,
+                      kernel_out=self.gaussian_kernel,
+                      kernel_target=self.gaussian_kernel,
+                      l1_f=self.l1_f,
+                      l2_f=self.l2_f)
+            return x
+        return loss_return
 
 
 def bump_mse_loss_3d(output, target, kernel_pred, kernel_true, l2=torch.nn.MSELoss(), lz_sc=0.001):

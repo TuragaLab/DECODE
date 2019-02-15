@@ -173,9 +173,9 @@ if __name__ == '__main__':
                      os.pardir, os.pardir)) + '/'
 
     if len(sys.argv) == 1:  # no .ini file specified
-        dataset_file = deepsmlm_root + 'data/spline_1e5_noz.mat'
-        weight_out = deepsmlm_root + 'network/spline_1e5_noz_2.pt'
-        weight_in =  deepsmlm_root + 'network/spline_1e5_noz_2.pt'
+        dataset_file = deepsmlm_root + 'data/2019-02-15 spline easy z/spline_1e4_easy_z_single_emitter_nobg.mat'
+        weight_out = deepsmlm_root + 'network/spline_1e4_easy_z_20190215.pt'
+        weight_in = deepsmlm_root + 'network/spline_1e5_noz_20190215.pt'
 
     else:
         dataset_file = deepsmlm_root + sys.argv[1]
@@ -197,16 +197,16 @@ if __name__ == '__main__':
     """The model load and save interface."""
     model_ls = LoadSaveModel(weight_out,
                              cuda=args.cuda,
-                             warmstart_file=weight_in)
+                             input_file=weight_in)
     model = model_ls.load_init()
 
     if args.cuda:  # move model to CUDA device
         model = model.cuda()
 
-    optimiser = Adam(model.parameters(), lr=0.001)
+    optimiser = Adam(model.parameters(), lr=0.0001)
 
     """Get loss function."""
-    criterion = BumpMSELoss(kernel_sigma=args.sm_sigma, cuda=args.cuda).return_criterion()
+    criterion = BumpMSELoss(kernel_sigma=args.sm_sigma, cuda=args.cuda, l1_f=0.1).return_criterion()
 
     train_size = int(0.9 * len(data_smlm))
     test_size = len(data_smlm) - train_size

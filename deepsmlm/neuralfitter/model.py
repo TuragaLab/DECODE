@@ -61,4 +61,4 @@ class DeepSLMN(nn.Module):
     def weight_init(self):
         for m in self._modules:
             if isinstance(m, nn.Conv2d):
-                nn.init.uniform_(m)
+                nn.init.xavier_uniform_(m, gain=1)

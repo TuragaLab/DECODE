@@ -37,7 +37,7 @@ class SMLMDataset(Dataset):
                                           zextent=self.extent[2],
                                           img_shape=self.image_shape_hr)
 
-        print("Dataset of {} samples loaded.".format(self.__len__()))
+        print("Dataset {} loaded. \nN: {} samples.".format(input_file, self.__len__()))
 
     def __len__(self):
         """
