@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import torch
 
 """
 Convention:
@@ -35,16 +36,18 @@ class PlotFrame:
 
 
 class PlotCoordinates:
-    def __init__(self, pos_tar=None, pos_out=None, pos_ini=None):
+    def __init__(self, pos_tar=None, pos_out=None, pos_ini=None, extent_limit=None):
         """
         :param pos_tar: torch tensor of target values
         :param pos_pred: torch tensor of outputted pos
         :param pos_ini: torch tensor of initilaised pos
         """
 
+        self.extent_limit = extent_limit
         self.pos_tar = pos_tar
         self.pos_out = pos_out
         self.pos_ini = pos_ini
+
 
     def plot(self):
         """
@@ -59,12 +62,15 @@ class PlotCoordinates:
 
         plt.xlabel('x')
         plt.ylabel('y')
+        if self.extent_limit is not None:
+            plt.xlim(*self.extent_limit[0])
+            plt.ylim(*self.extent_limit[1][::-1])  # reverse tuple order
 
 
 class PlotFrameCoord(PlotCoordinates, PlotFrame):
     """Combination of Frame and Coord"""
 
-    def __init__(self, frame, pos_tar=None, pos_out=None, pos_ini=None, extent=None):
+    def __init__(self, frame, pos_tar=None, pos_out=None, pos_ini=None, extent=None, coord_limit=None):
         """
         (see base classes)
         :param frame:
@@ -72,13 +78,15 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
         :param pos_out:
         :param pos_ini:
         """
-        PlotCoordinates.__init__(self, pos_tar=pos_tar, pos_out=pos_out, pos_ini=pos_ini)
+        PlotCoordinates.__init__(self, pos_tar=pos_tar, pos_out=pos_out, pos_ini=pos_ini, extent_limit=coord_limit)
         PlotFrame.__init__(self, frame, extent)
 
     def plot(self):
         """
-        plot both frame and coordinates
+        Plot both frame and coordinates. Plot frame first because if we have emtiters outside the box we wont see
+        them wenn we limit the extent first.
         :return: None
         """
-        PlotCoordinates.plot(self)
         PlotFrame.plot(self)
+        PlotCoordinates.plot(self)
+
