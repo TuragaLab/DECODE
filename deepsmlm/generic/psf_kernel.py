@@ -1,8 +1,13 @@
 from abc import ABC, abstractmethod  # abstract class
 import numpy as np
 import math
+import os
+import sys
 import torch
 from torch.autograd import Function
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'cpp_source/libtorchInterface'))
+import torch_cpp as tp
 
 
 class PSF(ABC):
@@ -197,6 +202,35 @@ class GaussianExpect(PSF):
         gaussCdf = torch.sum(gaussCdf, 2)
 
         return gaussCdf
+
+
+class SplineCPP(PSF):
+    """
+    Spline Function wrapper for C++ / C
+    """
+    def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0):
+        """
+        (see abstract class constructor
+
+        :param coeff: coefficient matrix / tensor of the cubic spline. Hc x Wc x Dc x 64 (Hc, Wc, DC height, width,
+                        depth with which spline was fitted)
+        :param ref0: index relative to coefficient matrix which gives the "midpoint of the psf"
+        """
+        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
+
+        self.coeff = coeff
+        self.spline_c = tp.init_spline(self.coeff.type(torch.DoubleTensor),
+                                       list(ref0), list((xextent[0], yextent[0])))
+
+        """Test whether extent corresponds to img shape"""
+        if (img_shape[0] != (xextent[1] - xextent[0])) or (img_shape[1] != (yextent[1] - yextent[0])):
+            raise ValueError("Unequal size of extent and image shape not supported.")
+
+    def forward(self, pos, weight):
+        return tp.img_spline(self.spline_c,
+                             pos.type(torch.DoubleTensor),
+                             weight.type(torch.DoubleTensor),
+                             list(self.img_shape))
 
 
 class SplineExpect(PSF):

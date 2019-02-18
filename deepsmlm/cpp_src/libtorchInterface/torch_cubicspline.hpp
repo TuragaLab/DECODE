@@ -15,7 +15,7 @@ extern "C" {
     #include "lib/cubic_spline.h"
 }
 
-auto initSplineTorch(torch::Tensor coeff) -> splineData*;
-auto imgSplineTorch(splineData *spline_data) -> torch::Tensor;
+auto initSplineTorch(torch::Tensor coeff, std::array<int, 3>, std::array<double, 2>) -> splineData*;
+auto imgSplineTorch(splineData *spline_data, torch::Tensor xyz, torch::Tensor phot, std::array<int, 2> img_size) -> torch::Tensor;
 
 #endif /* torch_cubicspline_hpp */

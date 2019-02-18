@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod  # abstract class
-from functools import partial
 import torch
 from torch.nn import functional
 
@@ -31,94 +30,151 @@ class BumpMSELoss(Loss):
     plus L1 loss (output, 0)
     """
 
-    def __init__(self, kernel_sigma, cuda, l1_f=1, l2_f=1):
+    def __init__(self, kernel_sigma, cuda, l1_f=1):
+        """
+
+        :param kernel_sigma: sigma value of gaussian kernel
+        :param cuda:
+        :param l1_f: scaling factor of L1
+        """
         super().__init__()
 
         self.l1_f = l1_f
-        self.l2_f = l2_f
 
-        padding = lambda x: functional.pad(x, [3, 3, 3, 3], mode='reflect')
-        self.gaussian_kernel = GaussianSmoothing(channels=1,
-                                                 kernel_size=[7, 7],
-                                                 sigma=kernel_sigma,
-                                                 dim=2,
-                                                 cuda=cuda,
-                                                 padding=padding)
+        def padding(x): return functional.pad(x, [3, 3, 3, 3], mode='reflect')
+        self.hm_kernel = GaussianSmoothing(channels=1,
+                                           kernel_size=[7, 7],
+                                           sigma=kernel_sigma,
+                                           dim=2,
+                                           cuda=cuda,
+                                           padding=padding)
+        self.l1 = torch.nn.L1Loss()
+        self.l2 = torch.nn.MSELoss()
 
     @staticmethod
-    def loss(output, target,
-             kernel_out, kernel_target,
-             l1=torch.nn.L1Loss(),
-             l2=torch.nn.MSELoss(),
-             l1_f=1, l2_f=1):
+    def loss(output, target, kernel, l1, l2, l1_f):
+        """
 
-        heatmap_out = kernel_out(output)
-        heatmap_target = kernel_target(target)
+        :param output: torch.tensor of size N x C x H x W
+        :param target: torch.tensor of size N x C x H x W
+        :param kernel: kernel function to produce heatmap
+        :param l1: l1 loss function
+        :param l2: l2 loss function
+        :param l1_f: weighting factor of l1 term
+        :return: loss value
+        """
+        hm_out = kernel(output)
+        hm_tar = kernel(target)
 
-        l1_loss = l1(output, torch.zeros_like(target))
-        l2_loss = l2(heatmap_out, heatmap_target)
+        l1_loss = l1(output, torch.zeros_like(output))
+        l2_loss = l2(hm_out, hm_tar)
 
-        return l1_f * l1_loss + l2_f * l2_loss
+        return l1_f * l1_loss + l2_loss
 
     def return_criterion(self):
+        """
+        :return: criterion function
+        """
         def loss_return(output, target):
-            x = self.loss(output, target,
-                      kernel_out=self.gaussian_kernel,
-                      kernel_target=self.gaussian_kernel,
-                      l1_f=self.l1_f,
-                      l2_f=self.l2_f)
-            return x
+            return self.loss(output, target, self.hm_kernel, self.l1, self.l2, self.l1_f)
+
         return loss_return
 
 
-def bump_mse_loss_3d(output, target, kernel_pred, kernel_true, l2=torch.nn.MSELoss(), lz_sc=0.001):
-
-    # call bump_mse_loss on first channel (photons)
-    loss_photons = bump_mse_loss(output[:, [0], :, :], target[:, [0], :, :], kernel_pred, kernel_true, l1_sc=1, l2_sc=1)
-
-    output_local_nz = kernel_pred(output[:, [0], :, :]) * kernel_pred(output[:, [1], :, :])
-    target_local_nz = kernel_pred(target[:, [0], :, :]) * kernel_pred(target[:, [1], :, :])
-
-    loss_z = l2(output_local_nz, target_local_nz)
-
-    return loss_photons + lz_sc * loss_z
-
-
-def interpoint_loss(input, target, threshold=500):
-    def expanded_pairwise_distances(x, y=None):
+class BumpMSELoss3DzLocal(Loss):
+    """
+    Class to output a composite loss, comprised of a N photons loss and a z value loss.
+    The loss value of z is only taken into account where we detect a photon in the first channel.
+    """
+    def __init__(self, kernel_sigma_photons, kernel_sigma_z, cuda, phot_thres, l1_f=1, d3_f=1):
         """
-        Taken from https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065
 
-        Input: x is a Nxd matrix
-               y is an optional Mxd matirx
-        Output: dist is a NxM matrix where dist[i,j] is the square norm between x[i,:] and y[j,:]
-                if y is not given then use 'y=x'.
-        i.e. dist[i,j] = ||x[i,:]-y[j,:]||^2
+        :param kernel_sigma_photons: kernel to produce the heatmap for photon
+        :param kernel_sigma_z: kernel to produce the heatmap for z values, this can be dangerous!
+        :param cuda:
+        :param phot_thres:
+        :param l1_f:
+        :param d3_f:
         """
-        if y is not None:
-            differences = x.unsqueeze(1) - y.unsqueeze(0)
-        else:
-            differences = x.unsqueeze(1) - x.unsqueeze(0)
-        distances = torch.sum(differences * differences, -1)
-        return distances
+        super().__init__()
 
-    interpoint_dist = expanded_pairwise_distances(
-        (input >= threshold).nonzero(), target.nonzero())
-    # return distance to closest target point
-    return interpoint_dist.min(1)[0].sum() / input.__len__()
+        self.phot_thres = phot_thres
+        self.d3_f = d3_f
+
+        self.loss_photon = BumpMSELoss(kernel_sigma=kernel_sigma_photons, cuda=cuda, l1_f=l1_f)
+        self.hm_kernel_z = lambda x: x  # BumpMSELoss(kernel_sigma=kernel_sigma_z, cuda=cuda).hm_kernel
+
+        self.z_loss_l2 = torch.nn.MSELoss(reduction='sum')
+
+    @staticmethod
+    def loss(output, target, kernel, threshold, l2, r):
+
+        hm_out = kernel(output[:, [1], :, :])
+        hm_tar = kernel(target[:, [1], :, :])
+
+        is_emit = output[:, [0], :, :] >= threshold
+        loss_z = l2(hm_out[is_emit], hm_tar[is_emit]) / r
+
+        return loss_z
+
+    def return_criterion(self):
+        def loss_compositum(output, target):
+            total_loss = self.d3_f * self.loss(output, target,
+                                               self.hm_kernel_z,
+                                               self.phot_thres,
+                                               self.z_loss_l2,
+                                               output.numel()) \
+                + self.loss_photon.return_criterion()(output[:, [0], :, :], target[:, [0], :, :])
+
+            return total_loss
+
+        return loss_compositum
 
 
-def inverse_intens(output, target):
-    pass
+class BumpMSELoss3DzLocal(Loss):
+    """
+    Class to output a composite loss, comprised of a N photons loss and a z value loss.
+    """
+    def __init__(self, kernel_sigma_photons, kernel_sigma_z, cuda, phot_thres, l1_f=1, d3_f=1):
+        """
 
+        :param kernel_sigma_photons: kernel to produce the heatmap for photon
+        :param kernel_sigma_z: kernel to produce the heatmap for z values, this can be dangerous!
+        :param cuda:
+        :param phot_thres:
+        :param l1_f:
+        :param d3_f:
+        """
+        super().__init__()
 
-def num_active_emitter_loss(input, target, threshold=0.15):
-    input_f = input.view(*input.shape[:2], -1)
-    target_f = target.view(*target.shape[:2], -1)
+        self.phot_thres = phot_thres
+        self.d3_f = d3_f
 
-    num_true_emitters = torch.sum(target_f > threshold * target_f.max(), 2)
-    num_pred_emitters = torch.sum(input_f > threshold * input_f.max(), 2)
+        self.loss_photon = BumpMSELoss(kernel_sigma=kernel_sigma_photons, cuda=cuda, l1_f=l1_f)
+        self.hm_kernel_z = BumpMSELoss(kernel_sigma=kernel_sigma_z, cuda=cuda).hm_kernel
 
-    loss = ((num_pred_emitters - num_true_emitters)
-            ** 2).sum() / input.__len__()
-    return loss.type(torch.FloatTensor)
+        self.z_loss_l2 = torch.nn.MSELoss(reduction='sum')
+
+    @staticmethod
+    def loss(output, target, kernel, threshold, l2, r):
+
+        hm_out = kernel(output[:, [1], :, :])
+        hm_tar = kernel(target[:, [1], :, :])
+
+        is_emit = output[:, [0], :, :] >= threshold
+        loss_z = l2(hm_out[is_emit], hm_tar[is_emit]) / r
+
+        return loss_z
+
+    def return_criterion(self):
+        def loss_compositum(output, target):
+            total_loss = self.d3_f * self.loss(output, target,
+                                               self.hm_kernel_z,
+                                               self.phot_thres,
+                                               self.z_loss_l2,
+                                               output.numel()) \
+                + self.loss_photon.return_criterion()(output[:, [0], :, :], target[:, [0], :, :])
+
+            return total_loss
+
+        return loss_compositum

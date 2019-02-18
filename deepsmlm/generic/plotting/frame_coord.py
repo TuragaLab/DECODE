@@ -48,17 +48,19 @@ class PlotCoordinates:
         self.pos_out = pos_out
         self.pos_ini = pos_ini
 
-
     def plot(self):
         """
         Plot the coordinates.
         """
         if self.pos_tar is not None:
-            plt.plot(self.pos_tar[:, 0].numpy(), self.pos_tar[:, 1].numpy(), 'ro', fillstyle='none', label='Target')
+            plt.plot(self.pos_tar[:, 0].numpy(), self.pos_tar[:, 1].numpy(),
+                     'ro', fillstyle='none', label='Target')
         if self.pos_out is not None:
-            plt.plot(self.pos_out[:, 0].numpy(), self.pos_out[:, 1].numpy(), 'bx', fillstyle='none', label='Output')
+            plt.plot(self.pos_out[:, 0].numpy(), self.pos_out[:, 1].numpy(),
+                     'bx', fillstyle='none', label='Output')
         if self.pos_ini is not None:
-            plt.plot(self.pos_ini[:, 0].numpy(), self.pos_ini[:, 1].numpy(), 'rx', fillstyle='none', label='Init')
+            plt.plot(self.pos_ini[:, 0].numpy(), self.pos_ini[:, 1].numpy(),
+                     'rx', fillstyle='none', label='Init')
 
         plt.xlabel('x')
         plt.ylabel('y')
@@ -78,15 +80,16 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
         :param pos_out:
         :param pos_ini:
         """
-        PlotCoordinates.__init__(self, pos_tar=pos_tar, pos_out=pos_out, pos_ini=pos_ini, extent_limit=coord_limit)
+        PlotCoordinates.__init__(self, pos_tar=pos_tar, pos_out=pos_out, pos_ini=pos_ini,
+                                 extent_limit=coord_limit)
         PlotFrame.__init__(self, frame, extent)
 
     def plot(self):
         """
-        Plot both frame and coordinates. Plot frame first because if we have emtiters outside the box we wont see
+        Plot both frame and coordinates. Plot frame first because if we have emtiters outside
+        the box we wont see
         them wenn we limit the extent first.
         :return: None
         """
         PlotFrame.plot(self)
         PlotCoordinates.plot(self)
-

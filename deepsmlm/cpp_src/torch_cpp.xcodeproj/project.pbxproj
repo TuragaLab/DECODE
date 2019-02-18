@@ -17,6 +17,7 @@
 		6FBB48BF2213635F006BFE2C /* cubic_spline.h in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F02B492220C7B5E00093004 /* cubic_spline.h */; };
 		6FBB48C02213636B006BFE2C /* cubic_spline.c in Sources */ = {isa = PBXBuildFile; fileRef = 6F02B495220C7B5E00093004 /* cubic_spline.c */; };
 		6FBB48C122141D11006BFE2C /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F02B4A4220C87AA00093004 /* main.cpp */; };
+		6FBB48C222172428006BFE2C /* torch_boost.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F4C47752213099E004EC347 /* torch_boost.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -294,6 +295,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6FBB48C222172428006BFE2C /* torch_boost.cpp in Sources */,
 				6FBB48BC22136210006BFE2C /* torch_cubicspline.cpp in Sources */,
 				6FBB48C02213636B006BFE2C /* cubic_spline.c in Sources */,
 				6FBB48C122141D11006BFE2C /* main.cpp in Sources */,

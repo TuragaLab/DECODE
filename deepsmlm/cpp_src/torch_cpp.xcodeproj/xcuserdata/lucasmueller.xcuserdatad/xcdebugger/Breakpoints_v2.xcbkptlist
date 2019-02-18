@@ -9,13 +9,29 @@
             shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "libtorchInterface/main.cpp"
-            timestampString = "571698988.84856"
+            filePath = "libtorchInterface/lib/cubic_spline.c"
+            timestampString = "572184290.5165631"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "42"
-            endingLineNumber = "42"
-            landmarkName = "main()"
+            startingLineNumber = "641"
+            endingLineNumber = "641"
+            landmarkName = "imgSpline3D"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "libtorchInterface/lib/cubic_spline.c"
+            timestampString = "572184290.516696"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "621"
+            endingLineNumber = "621"
+            landmarkName = "imgSpline3D"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
