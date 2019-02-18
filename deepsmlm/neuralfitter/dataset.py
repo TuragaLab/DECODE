@@ -8,11 +8,11 @@ class SMLMDataset(Dataset):
     """
     A SMLMDataset derived from the Dataset class.
     """
-    def __init__(self, binary_loader, input_file):
+    def __init__(self, emitter, extent):
         """
 
-        :param binary_loader: method of interface class to load from a binary
-        :param input_file:
+        :param emitter: set of emitters loaded by binary loader
+        :param extent: extent of the dataset
         """
 
         super().__init__()
@@ -23,8 +23,7 @@ class SMLMDataset(Dataset):
         self.extent = None
         self.upsampling = 8
 
-        em_total, extent, self.frames = binary_loader(input_file)
-        self.em = em_total.split_in_frames()
+        self.em = emitter.split_in_frames()
 
         self.image_shape = tuple(self.frames.shape[2:])
         self.image_shape_hr = (self.image_shape[0] * self.upsampling,
@@ -33,9 +32,14 @@ class SMLMDataset(Dataset):
 
         """Target data generation. Borrowed from psf-kernel."""
         self.target_generator = DeltaPSF(xextent=self.extent[0],
-                                          yextent=self.extent[1],
-                                          zextent=self.extent[2],
-                                          img_shape=self.image_shape_hr)
+                                         yextent=self.extent[1],
+                                         zextent=None,
+                                         img_shape=self.image_shape)
+        # 3D
+        # self.target_generator = DualDelta(xextent=self.extent[0],
+        #                                   yextent=self.extent[1],
+        #                                   zextent=self.extent[2],
+        #                                   img_shape=self.image_shape_hr)
 
         print("Dataset {} loaded. \nN: {} samples.".format(input_file, self.__len__()))
 
@@ -80,7 +84,6 @@ class SMLMDataset(Dataset):
         """
         Representation of the emitters on a grid, where each pixel / voxel is used for one emitter.
         """
-        one_hot_img = self.target_generator.forward(self.em[index].xyz[:, :2],
-                                                    self.em[index].phot)
+        one_hot_img = self.target_generator.forward(self.em[index].xyz[:, :2], self.em[index].phot)
 
         return img, one_hot_img, index

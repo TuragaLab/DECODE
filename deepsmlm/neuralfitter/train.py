@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.generic.io.load_save_model import LoadSaveModel
 from deepsmlm.generic.io.load_save_emitter import MatlabInterface
-from deepsmlm.neuralfitter.losscollection import BumpMSELoss
+from deepsmlm.neuralfitter.losscollection import BumpMSELoss, BumpMSELoss3DzLocal
 
 
 class Args:
@@ -131,7 +131,6 @@ def test(val_loader, model, criterion):
 
     # switch to evaluate mode
     model.eval()
-    end = time.time()
     with torch.no_grad():
         end = time.time()
         for i, (input, target, _) in enumerate(val_loader):
@@ -173,9 +172,9 @@ if __name__ == '__main__':
                      os.pardir, os.pardir)) + '/'
 
     if len(sys.argv) == 1:  # no .ini file specified
-        dataset_file = deepsmlm_root + 'data/2019-02-15 spline easy z/spline_1e4_easy_z_single_emitter_nobg.mat'
-        weight_out = deepsmlm_root + 'network/spline_1e4_easy_z_20190215.pt'
-        weight_in = deepsmlm_root + 'network/spline_1e5_noz_20190215.pt'
+        dataset_file = deepsmlm_root + 'data/2019-02-15 spline easy z/spline_1e4_easy_z_single_emitter_10bg.mat'
+        weight_out = deepsmlm_root + 'network/2019-02-19 Z Prediction/spline_arch_z_no_z_loss.pt'
+        weight_in = deepsmlm_root + 'network/2019-02-19 Z Prediction/spline_arch_z_no_z_loss.pt'
 
     else:
         dataset_file = deepsmlm_root + sys.argv[1]
@@ -192,7 +191,8 @@ if __name__ == '__main__':
                 model_in_path=weight_in)
 
     """Load Data from binary."""
-    data_smlm = SMLMDataset(MatlabInterface().load_binary, dataset_file)
+    emitter, extent = MatlabInterface().load_binary(dataset_file)
+    data_smlm = SMLMDataset(emitter, extent)
 
     """The model load and save interface."""
     model_ls = LoadSaveModel(weight_out,
@@ -206,14 +206,18 @@ if __name__ == '__main__':
     optimiser = Adam(model.parameters(), lr=0.0001)
 
     """Get loss function."""
-    criterion = BumpMSELoss(kernel_sigma=args.sm_sigma, cuda=args.cuda, l1_f=0.1).return_criterion()
+    criterion = BumpMSELoss(kernel_sigma=args.sm_sigma, cuda=args.cuda, l1_f=0.1)
+    # criterion = BumpMSELoss3DzLocal(kernel_sigma_photons=args.sm_sigma,
+    #                                 kernel_sigma_z=5,
+    #                                 cuda=args.cuda,
+    #                                 phot_thres=100, l1_f=0.1, d3_f=1).return_criterion()
 
     train_size = int(0.9 * len(data_smlm))
     test_size = len(data_smlm) - train_size
     train_data, test_data = torch.utils.data.random_split(data_smlm, [train_size, test_size])
 
-    train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=12)
-    test_loader = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=12, pin_memory=True)
+    test_loader = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=2, pin_memory=True)
 
     """Ask if everything is correct before we start."""
     args.print_confirmation()

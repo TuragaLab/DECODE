@@ -331,6 +331,7 @@ def split_emitter_cont(em_mat, img_size):
     emit_mat, cont_mat = em_mat[is_emit, :], em_mat[is_cont, :]
     return emit_mat, cont_mat
 
+
 def random_emitters(emitter_per_frame, frames, lifetime, img_size, cont_radius=3, z_sigma=3):
     """
 
