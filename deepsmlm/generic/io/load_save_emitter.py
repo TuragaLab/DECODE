@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod  # abstract class
 import numpy as np
 import torch
 import scipy.io as sio
+from skimage.io import imread
 
 from deepsmlm.generic.emitter import EmitterSet
 
@@ -23,8 +24,9 @@ class BinaryInterface(ABC):
     Abstract class to specify binary interfaces
     """
 
-    def __init__(self):
+    def __init__(self, unsupevised=False):
         super().__init__()
+        self.unsupervised = unsupevised
 
     @abstractmethod
     def load_binary(self):
@@ -49,8 +51,8 @@ class MatlabInterface(BinaryInterface):
 
     def __init__(self,
                  xyz_key='xyz', phot_key='phot', fix_key='frame_ix',
-                 extent_key='extent', frame_key='frames', id_key='id'):
-        super().__init__()
+                 extent_key='extent', frame_key='frames', id_key='id', unsupervised=False):
+        super().__init__(unsupervised)
 
         self.xyz_key = xyz_key
         self.phot_key = phot_key
@@ -76,18 +78,20 @@ class MatlabInterface(BinaryInterface):
         """
         frames = frames.transpose(-1, -2)
 
+        print("Matlab binary loaded. File: {}".format(mat_file))
+
         return emitter_set, extent, frames
 
     def save_binary(self, emitter_set, mat_file):
-        raise NotImplementedError
+        raise NotImplementedError('Not Implemented.')
 
 
 class NumpyInterface(BinaryInterface):
 
     def __init__(self,
                  xyz_key='xyz', phot_key='phot', fix_key='frame_ix',
-                 extent_key='extent', frame_key='frames', id_key='id'):
-        super().__init__()
+                 extent_key='extent', frame_key='frames', id_key='id', unsupervised=False):
+        super().__init__(unsupervised)
 
         self.xyz_key = xyz_key
         self.phot_key = phot_key
@@ -111,4 +115,19 @@ class NumpyInterface(BinaryInterface):
         return emitter_set, extent, frames
 
     def save_binary(self, emitter_set, mat_file):
-        raise NotImplementedError
+        raise NotImplementedError('Not Implemented.')
+
+
+class TiffInterface(BinaryInterface):
+    def __init__(self, unsupervised=True):
+        super().__init__(unsupervised)
+
+    def load_binary(self, tif_file):
+        img = torch.from_numpy(imread(tif_file).astype(np.int32)).type(torch.FloatTensor).unsqueeze(1)
+        extent = ((-0.5, img.shape[2] - 0.5), (-0.5, img.shape[3] - 0.5), None)
+        emitter_set = [None] * img.shape[0]
+
+        return emitter_set, extent, img
+
+    def save_binary(self, tif_file):
+        raise NotImplementedError('Not Implemented.')

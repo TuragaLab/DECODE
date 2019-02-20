@@ -25,8 +25,8 @@ class EmitterSet:
 
         if self.num_emitter != 0:
             self.xyz = xyz
-            self.phot = phot
-            self.frame_ix = frame_ix
+            self.phot = phot.type(xyz.dtype)
+            self.frame_ix = frame_ix.type(xyz.dtype)
             self.id = id
 
         else:

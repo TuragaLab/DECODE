@@ -15,7 +15,7 @@ class SMAPSplineCoefficient:
         self.calib_mat = sio.loadmat(self.calib_file, struct_as_record=False, squeeze_me=True)['SXY']
 
         self.coeff = torch.from_numpy(self.calib_mat.cspline.coeff)
-        self.ref0 = (self.calib_mat.cspline.x0, self.calib_mat.cspline.x0, self.calib_mat.cspline.z0)
+        self.ref0 = (self.calib_mat.cspline.x0 - 1, self.calib_mat.cspline.x0 - 1, self.calib_mat.cspline.z0)
         self.dz = self.calib_mat.cspline.dz
         self.spline_roi_shape = self.coeff.shape[:3]
 
