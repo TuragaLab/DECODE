@@ -4,6 +4,7 @@ import sys
 import time
 import torch
 from torch.optim import Adam
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
 from deepsmlm.neuralfitter.dataset import SMLMDataset
@@ -58,6 +59,8 @@ class AverageMeter(object):
 
 
 def train(train_loader, model, optimizer, criterion, epoch):
+
+    print('Epoch: [{}] \t lr: {}'.format(epoch, optimizer.defaults['lr']))
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -163,6 +166,7 @@ def test(val_loader, model, criterion):
 
         # print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
         #       .format(top1=top1, top5=top5))
+    return losses.avg
 
 
 if __name__ == '__main__':
@@ -172,9 +176,9 @@ if __name__ == '__main__':
                      os.pardir, os.pardir)) + '/'
 
     if len(sys.argv) == 1:  # no .ini file specified
-        dataset_file = deepsmlm_root + 'data/2019-02-15 spline easy z/spline_1e4_easy_z_single_emitter_10bg.mat'
-        weight_out = deepsmlm_root + 'network/2019-02-19 Z Prediction/spline_arch_z_no_z_loss.pt'
-        weight_in = deepsmlm_root + 'network/2019-02-19 Z Prediction/spline_arch_z_no_z_loss.pt'
+        dataset_file = deepsmlm_root + 'data/2019-02-20 Pores/simulation.mat'
+        weight_out = deepsmlm_root + 'network/2019-02-20 Pores/camera_units.pt'
+        weight_in = None # deepsmlm_root + 'network/2019-02-19 Spline Z Without Z Prediction/spline_1e4_easy_z_10bg_20190215.pt'
 
     else:
         dataset_file = deepsmlm_root + sys.argv[1]
@@ -182,7 +186,7 @@ if __name__ == '__main__':
         weight_in = None if sys.argv[3].__len__() == 0 else deepsmlm_root + sys.argv[3]
 
     args = Args(cuda=True,
-                epochs=1000,
+                epochs=100,
                 num_prints=5,
                 sm_sigma=1,
                 root_folder=deepsmlm_root,
@@ -191,8 +195,8 @@ if __name__ == '__main__':
                 model_in_path=weight_in)
 
     """Load Data from binary."""
-    emitter, extent = MatlabInterface().load_binary(dataset_file)
-    data_smlm = SMLMDataset(emitter, extent)
+    emitter, extent, frames = MatlabInterface().load_binary(dataset_file)
+    data_smlm = SMLMDataset(emitter, extent, frames)
 
     """The model load and save interface."""
     model_ls = LoadSaveModel(weight_out,
@@ -206,11 +210,14 @@ if __name__ == '__main__':
     optimiser = Adam(model.parameters(), lr=0.0001)
 
     """Get loss function."""
-    criterion = BumpMSELoss(kernel_sigma=args.sm_sigma, cuda=args.cuda, l1_f=0.1)
+    criterion = BumpMSELoss(kernel_sigma=args.sm_sigma, cuda=args.cuda, l1_f=0.1).return_criterion()
     # criterion = BumpMSELoss3DzLocal(kernel_sigma_photons=args.sm_sigma,
     #                                 kernel_sigma_z=5,
     #                                 cuda=args.cuda,
     #                                 phot_thres=100, l1_f=0.1, d3_f=1).return_criterion()
+
+    """Learning Rate Scheduling"""
+    scheduler = ReduceLROnPlateau(optimiser, mode='min', patience=4, threshold=0.02)
 
     train_size = int(0.9 * len(data_smlm))
     test_size = len(data_smlm) - train_size
@@ -222,6 +229,10 @@ if __name__ == '__main__':
     """Ask if everything is correct before we start."""
     args.print_confirmation()
     for i in range(args.epochs):
+
         train(train_loader, model, optimiser, criterion, i)
-        test(test_loader, model, criterion)
+        val_loss = test(test_loader, model, criterion)
+        scheduler.step(val_loss)
+
         model_ls.save(model)
+

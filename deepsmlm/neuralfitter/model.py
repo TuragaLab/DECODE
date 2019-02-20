@@ -62,3 +62,84 @@ class DeepSLMN(nn.Module):
         for m in self._modules:
             if isinstance(m, nn.Conv2d):
                 nn.init.xavier_uniform_(m, gain=1)
+
+
+# Based on deep_loco by Boyd
+class DeepLoco(nn.Module):
+    def __init__(self, dim_in=1):
+        self.feature_net = DeepConvNet(dim_in)
+        self.fc_net = ResNet(256*4*4, 2048, 2)
+        self.phot_xyz_net = PhotXYZnet(2048, 256, 2)
+
+    def forward(self, x):
+        return self.phot_xyz_net(self.fc_net(self.feature_net(x)))
+
+
+class DeepConvNet(nn.Module):
+    def __init__(self, dim_in=1):
+        self.conv1 = nn.Conv2d(dim_in, 16, 5, padding=(5-1)//2)
+        self.conv2 = nn.Conv2d(16, 16, 5, padding=(5-1)//2)
+
+        self.conv_d1 = nn.Conv2d(16, 64, 2, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, 3, padding=1)
+        self.conv4 = nn.Conv2d(64, 64, 3, padding=1)
+
+        self.conv_d2 = nn.Conv2d(64, 256, 2, stride=2)
+        self.conv5 = nn.Conv2d(256, 256, 3, padding=1)
+        self.conv6 = nn.Conv2d(256, 256, 3, padding=1)
+
+        self.conv_d3 = nn.Conv2d(256, 256, 2, stride=2)
+
+    def forward(self, x):
+        x = self.conv2(self.conv1(x))
+        x = self.conv4(self.conv3(self.conv_d1(x)))
+        x = self.conv6(self.conv5(self.conv_d2(x)))
+        return self.conv_d3(x)
+
+
+class ResNet(nn.Module):
+    def __init__(self, dim_in, dim_hidden, depth):
+        super().__init__()
+        self.dim_in = dim_in
+        self.dim_out = dim_hidden
+        self.depth = depth
+
+        self.linear_init = nn.Linear(dim_in, dim_hidden)
+        self.residual_blocks = nn.ModuleList([ResidualBlock(dim_hidden)] * depth)
+
+    def forward(self, x):
+        x = x.view(x.shape[0], -1)
+
+        x = self.linear_init(x)
+        for rb in self.residual_blocks:
+            x = rb(x)
+        return x
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+
+        self.l1 = nn.Linear(dim, dim)
+        self.l2 = nn.Linear(dim, dim, bias=False)
+
+    def forward(self, x):
+        return x + self.l2(F.relu(self.l1(x)))
+
+
+class PhotXYZnet(nn.Module):
+    def __init__(self, dim_in, max_num_emitter, emitter_dim=3):
+        super().__init__()
+
+        self.emitter_dim = emitter_dim
+        self.photon_fcnet = nn.Linear(dim_in, max_num_emitter)
+        self.xyz_fcnet = nn.Linear(dim_in, max_num_emitter * emitter_dim)
+
+    def forward(self, x):
+        x = x.view(x.shape[0], -1)
+        xyz = self.xyz_fcnet(x)  # xyz = F.sigmoid(self.xyz_fcnet(x))
+        xyz = xyz.view(x.shape[0], -1, self.emitter_dim)
+
+        phot = F.relu(self.photon_fcnet(x))
+
+        return xyz, phot

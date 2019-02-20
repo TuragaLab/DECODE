@@ -4,6 +4,22 @@ import numpy as np
 import os
 import torch
 
+# https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065
+def expanded_pairwise_distances(x, y=None):  # numerically stable but slow
+    '''
+    Input: x is a Nxd matrix
+           y is an optional Mxd matirx
+    Output: dist is a NxM matrix where dist[i,j] is the square norm between x[i,:] and y[j,:]
+            if y is not given then use 'y=x'.
+    i.e. dist[i,j] = ||x[i,:]-y[j,:]||^2
+    '''
+    if y is not None:
+         differences = x.unsqueeze(1) - y.unsqueeze(0)
+    else:
+        differences = x.unsqueeze(1) - x.unsqueeze(0)
+    distances = torch.sum(differences * differences, -1)
+    return distances
+
 
 def repeat_np(a, repeats, dim):
     """

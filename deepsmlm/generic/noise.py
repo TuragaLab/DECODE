@@ -26,6 +26,17 @@ class NoisePost(ABC):
         return None
 
 
+class IdentityNoise(NoisePost):
+    """Dummy class which does not do anything."""
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, image):
+        """Return unmodified image."""
+        return image
+
+
 class Poisson(NoisePost):
 
     def __init__(self, bg_uniform=0):

@@ -1,8 +1,9 @@
-from abc import ABC, abstractmethod  # abstract class
-import numpy as np
 import math
 import os
 import sys
+from abc import ABC, abstractmethod  # abstract class
+
+import numpy as np
 import torch
 from torch.autograd import Function
 
@@ -219,18 +220,22 @@ class SplineCPP(PSF):
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
 
         self.coeff = coeff
+        self.ref0 = ref0
         self.spline_c = tp.init_spline(self.coeff.type(torch.DoubleTensor),
-                                       list(ref0), list((xextent[0], yextent[0])))
+                                       list(self.ref0), list((xextent[0], yextent[0])))
 
         """Test whether extent corresponds to img shape"""
         if (img_shape[0] != (xextent[1] - xextent[0])) or (img_shape[1] != (yextent[1] - yextent[0])):
             raise ValueError("Unequal size of extent and image shape not supported.")
 
     def forward(self, pos, weight):
-        return tp.img_spline(self.spline_c,
-                             pos.type(torch.DoubleTensor),
-                             weight.type(torch.DoubleTensor),
-                             list(self.img_shape))
+        if pos is not None:
+            return tp.img_spline(self.spline_c,
+                                 pos.type(torch.DoubleTensor),
+                                 weight.type(torch.DoubleTensor),
+                                 list(self.img_shape))
+        else:
+            return torch.zeros((1, self.img_shape[0], self.img_shape[1])).type(torch.DoubleTensor)
 
 
 class SplineExpect(PSF):

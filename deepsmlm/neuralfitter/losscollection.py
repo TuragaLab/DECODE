@@ -24,6 +24,64 @@ class Loss(ABC):
         return dummyLoss
 
 
+class MultiScaleLaplaceLoss(Loss):
+    """From Boyd."""
+    def __init__(self, kernel_sigmas):
+        super().__init__()
+
+        self.kernel_sigmas = kernel_sigmas
+
+    @staticmethod
+    def loss(output, target, kernel_sigmas, pw_l1, kernel_l):
+        """
+
+        :param output: (xyz, phot)
+        :param target: (xyz, phot)
+        :param kernel_sigmas: tuple of sigmas()
+        :param pw_l1: pairwise l1 loss function
+        :param kernel_l: kernel_loss function
+        :return:
+        """
+        xyz_out = output[0]
+        xyz_tar = target[0]
+        phot_out = output[1]
+        phot_tar = target[1]
+
+        D = pw_l1(xyz_out, xyz_tar)
+        losses = [kernel_l(torch.exp(-D / sf), phot_out, phot_tar) for sf in kernel_sigmas]
+        return sum(losses)
+
+    @staticmethod
+    def pairwise_l2_dist(x, y, eps=0):
+        if y is not None:
+            differences = x.unsqueeze(1) - y.unsqueeze(0)
+        else:
+            differences = x.unsqueeze(1) - x.unsqueeze(0)
+        return (torch.sum(differences * differences, -1) + eps).sqrt()
+
+    @staticmethod
+    def pairwise_l1_dist(x, y):
+        if y is not None:
+            differences = x.unsqueeze(1) - y.unsqueeze(0)
+        else:
+            differences = x.unsqueeze(1) - x.unsqueeze(0)
+        return torch.sum(differences.abs(), -1)
+
+    @staticmethod
+    def kernel_loss(kernel, weight_pred, weight_target):
+        weight = torch.cat([weight_pred, -weight_target], 1).unsqueeze(-1)
+        embedding_loss = torch.matmul(weight.transpose(1, 2),
+                                      torch.matmul(kernel, weight))
+        return embedding_loss.squeeze()
+
+    def return_criterion(self):
+
+        def loss_return(output, target):
+            return self.loss(output, target, self.kernel_sigmas, self.pairwise_l1_dist, self.kernel_loss)
+
+        return loss_return
+
+
 class BumpMSELoss(Loss):
     """
     Loss which comprises a L2 loss of heatmap (single one hot output convolved by gaussian)
