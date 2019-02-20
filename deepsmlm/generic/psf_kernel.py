@@ -123,6 +123,18 @@ class DualDelta(DeltaPSF):
         return dual_ch_img
 
 
+class ListPseudoPSF(PSF):
+    def __init__(self, xextent, yextent, zextent):
+        super().__init__()
+        self.xextent = xextent
+        self.yextent = yextent
+        self.zextent = zextent
+
+    def forward(self, pos, weight):
+
+        return pos, weight
+
+
 class GaussianExpect(PSF):
     """
     A gaussian PSF which models the by using the function values of the probability distribution.
