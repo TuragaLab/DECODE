@@ -54,26 +54,11 @@ class SMLMDataset(Dataset):
         :return: a sample, i.e. an input image and a target
         """
 
-        if index == 0:
-
-            img = torch.cat((
-                self.frames[0, :, :, :],
-                self.frames[0, :, :, :],
-                self.frames[1, :, :, :]), dim=0)
-
-        elif index == (self.__len__() - 1):
-
-            img = torch.cat((
-                self.frames[-2, :, :, :],
-                self.frames[-1, :, :, :],
-                self.frames[-1, :, :, :]), dim=0)
-
-        else:
-
-            img = torch.cat((
-                self.frames[index - 1, :, :, :],
-                self.frames[index, :, :, :],
-                self.frames[index + 1, :, :, :]), dim=0)
+        """Get adjacent frames. Pad borders with 'same'. Therefore we use the max(0, ix-1) and min(lastix, index+1)."""
+        img = torch.cat((
+            self.frames[max(0, index - 1), :, :, :],
+            self.frames[index, :, :, :],
+            self.frames[min(self.__len__() - 1, index + 1), :, :, :]), dim=0)
 
         """
         Representation of the emitters on a grid, where each pixel / voxel is used for one emitter.
