@@ -27,10 +27,6 @@ int main() {
     zc = 10;
     
     for (int i = 0; i < 10; i++) {
-        xc = i - xc + 14;
-        yc = i - yc + 14;
-        zc = zc + 150;
-        
         x0 = (int)(floor(xc));
         y0 = (int)(floor(yc));
         z0 = (int)(floor(zc));
@@ -38,10 +34,6 @@ int main() {
         x_delta = xc - (double)x0;
         y_delta = yc - (double)y0;
         z_delta = zc - (double)z0;
-        
-        x_delta = x_delta < 0 ? x_delta + 1 : x_delta;
-        y_delta = y_delta < 0 ? y_delta + 1 : y_delta;
-        z_delta = z_delta < 0 ? z_delta + 1 : z_delta;
     }
 
     
@@ -50,7 +42,7 @@ int main() {
     std::array<double, 2> pu = {-0.5, -0.5};
     torch::Tensor xyz = torch::zeros({1, 3}, torch::kDouble);
     torch::Tensor phot = torch::ones({1}, torch::kDouble);
-    xyz[0][0] = 0.1;
+    xyz[0][0] = 10.1;
     xyz[0][1] = 4.7;
     
     
