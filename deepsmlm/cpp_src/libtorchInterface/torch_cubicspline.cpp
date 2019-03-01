@@ -7,7 +7,13 @@
 //
 
 #include <iostream>
-#include <torch/torch.h>
+
+#ifndef TORCH_DIRECT
+    #include <torch/extension.h>
+#else
+    #include <torch/torch.h>
+#endif
+
 #include "torch_cubicspline.hpp"
 
 /**

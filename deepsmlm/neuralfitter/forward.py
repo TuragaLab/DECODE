@@ -4,8 +4,8 @@ import sys
 import torch
 from torch.utils.data import DataLoader
 
-from deepsmlm.generic.io.load_save_emitter import TiffInterface
-from deepsmlm.generic.io.load_save_model import LoadSaveModel
+from deepsmlm.generic.inout.load_save_emitter import TiffInterface
+from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 from deepsmlm.neuralfitter.dataset import UnsupervisedDataset
 
 

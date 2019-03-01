@@ -60,7 +60,7 @@ class PlotCoordinates:
                      'bx', fillstyle='none', label='Output')
         if self.pos_ini is not None:
             plt.plot(self.pos_ini[:, 0].numpy(), self.pos_ini[:, 1].numpy(),
-                     'rx', fillstyle='none', label='Init')
+                     'gx', fillstyle='none', label='Init')
 
         plt.xlabel('x')
         plt.ylabel('y')

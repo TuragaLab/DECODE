@@ -7,7 +7,13 @@
 //
 
 #include <iostream>
-#include <torch/torch.h>
+
+#ifndef TORCH_DIRECT
+    #include <torch/extension.h>
+#else
+    #include <torch/torch.h>
+#endif
+
 #include "torch_boost.hpp"
 
 
@@ -62,3 +68,4 @@ auto split_tensor(torch::Tensor tensor_, torch::Tensor split_data, int bound_low
     }
     return tensor_split;
 }
+//  ix = x[:, 4] == 5

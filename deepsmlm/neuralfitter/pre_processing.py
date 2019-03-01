@@ -10,10 +10,10 @@ class RemoveOutOfFOV:
 
     def clean_emitter(self, em_mat):
 
-        is_emit = torch.mul((em_mat[:, [0]] >= self.xextent[0]).all(1),
-                            (em_mat[:, [0]] < self.xextent[1]).all(1),
-                            (em_mat[:, [1]] >= self.yextent[0]).all(1),
-                            (em_mat[:, [1]] < self.yextent[1]).all(1))
+        is_emit = (em_mat[:, 0] >= self.xextent[0]) * \
+                  (em_mat[:, 0] < self.xextent[1]) * \
+                  (em_mat[:, 1] >= self.yextent[0]) * \
+                  (em_mat[:, 1] < self.yextent[1])
 
         return is_emit
 
@@ -23,5 +23,5 @@ class RemoveOutOfFOV:
 
         return EmitterSet(xyz=em_set.xyz[is_emit, :],
                           phot=em_set.phot[is_emit],
-                          frame_ix=em_set[is_emit],
-                          id=(None if em_set.id is None else em_set_id[is_emit]))
+                          frame_ix=em_set.frame_ix[is_emit],
+                          id=(None if em_set.id is None else em_set.id[is_emit]))

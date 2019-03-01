@@ -6,8 +6,6 @@ from abc import ABC, abstractmethod  # abstract class
 import numpy as np
 import torch
 from torch.autograd import Function
-
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'cpp_source/libtorchInterface'))
 import torch_cpp as tp
 
 
@@ -124,15 +122,27 @@ class DualDelta(DeltaPSF):
 
 
 class ListPseudoPSF(PSF):
-    def __init__(self, xextent, yextent, zextent):
+    def __init__(self, xextent, yextent, zextent, zero_fill_to_size=256, dim=3):
         super().__init__()
         self.xextent = xextent
         self.yextent = yextent
         self.zextent = zextent
+        self.dim = dim
+        self.zero_fill_to_size = zero_fill_to_size
 
     def forward(self, pos, weight):
+        num_emitters = pos.shape[0]
 
-        return pos, weight
+        weight_fill = torch.zeros((self.zero_fill_to_size), dtype=weight.dtype)
+        pos_fill = torch.zeros((self.zero_fill_to_size, self.dim), dtype=pos.dtype)
+
+        weight_fill[:num_emitters] = 1.
+        if self.dim == 2:
+            pos_fill[:num_emitters, :] = pos[:, :2]
+            return pos_fill, weight_fill
+        else:
+            pos_fill[:num_emitters, :] = pos
+            return pos_fill, weight_fill
 
 
 class GaussianExpect(PSF):
@@ -241,7 +251,7 @@ class SplineCPP(PSF):
             raise ValueError("Unequal size of extent and image shape not supported.")
 
     def forward(self, pos, weight):
-        if pos is not None:
+        if (pos is not None) and (pos.shape[0] != 0):
             return tp.img_spline(self.spline_c,
                                  pos.type(torch.DoubleTensor),
                                  weight.type(torch.DoubleTensor),
@@ -396,24 +406,13 @@ class GaussianSampleBased(PSF):
 
 
 if __name__ == '__main__':
-    import matplotlib.pyplot as plt
+    from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 
-    xextent = (-.5, 31.5)
-    yextent = (-.5, 15.5)
-    zextent = None
-    img_shape = (32, 16)
+    extent = ((-0.5, 31.5), (-0.5, 31.5), None)
+    img_shape = (32, 32)
+    # spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    psf = SMAPSplineCoefficient(spline_file).init_spline(extent[0], extent[1], extent[2], img_shape)
+    img = psf.forward(torch.rand((2, 3)), torch.tensor([1., 1.]))
+    print('Success.')
 
-    delta_psf = DeltaPsf(xextent, yextent, zextent, img_shape)
-    gauss_psf = GaussianExpect(xextent, yextent, zextent, img_shape, sigma_0=(1.5, 1.5))
-
-    xy = torch.rand((3, 2)) * 16
-    xy = torch.tensor([[0., 0], [15, 2], [30, 10]], dtype=torch.float32)
-    phot = torch.randint(0, 5000, (3, ))
-    print(xy, phot)
-
-    plt.subplot(121)
-    plt.imshow(delta_psf.forward(xy, phot).squeeze())
-    plt.subplot(122)
-    plt.imshow(gauss_psf.forward(xy, phot).squeeze())
-
-    plt.show()

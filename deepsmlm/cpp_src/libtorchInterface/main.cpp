@@ -17,32 +17,47 @@ extern "C" {
     
 
 int main() {
+    
+    int x0, y0, z0;
+    double xc, yc, zc;
+    double x_delta, y_delta, z_delta;
+    
+    xc = 14.1;
+    yc = 4.8;
+    zc = 10;
+    
+    for (int i = 0; i < 10; i++) {
+        xc = i - xc + 14;
+        yc = i - yc + 14;
+        zc = zc + 150;
+        
+        x0 = (int)(floor(xc));
+        y0 = (int)(floor(yc));
+        z0 = (int)(floor(zc));
+        
+        x_delta = xc - (double)x0;
+        y_delta = yc - (double)y0;
+        z_delta = zc - (double)z0;
+        
+        x_delta = x_delta < 0 ? x_delta + 1 : x_delta;
+        y_delta = y_delta < 0 ? y_delta + 1 : y_delta;
+        z_delta = z_delta < 0 ? z_delta + 1 : z_delta;
+    }
 
-    torch::Tensor trial_tensor = torch::randint(40, {5, 6});  // does not work because the matrix must be sorted!
-    torch::Tensor frames = torch::ones(5);
-    frames[0] = 3.;
-    frames[1] = 3.;
-    frames[2] = 5.;
-    frames[3] = 7.;
-    frames[4] = 7.;
-    
-    auto x = split_tensor(trial_tensor, frames, 0, -1);
-    
-    //    std::cout << std::get<1>(x) << std::endl;
-    
-    //    auto x = split_tensor(trial_tensor, frames, 0, -1);
-    //    std::cout << trial_tensor << std::endl;
-    //    std::cout << x << std::endl;
     
     std::array<int, 2> img_size = {32, 32};
-    std::array<int, 3> ref0_ix = {14, 14, 150};
-    torch::Tensor xyz = 32 * torch::rand({10000, 3}, torch::kDouble);
-    torch::Tensor phot = torch::rand({10000}, torch::kDouble);
+    std::array<int, 3> ref0_ix = {0, 0, 150};
+    std::array<double, 2> pu = {-0.5, -0.5};
+    torch::Tensor xyz = torch::zeros({1, 3}, torch::kDouble);
+    torch::Tensor phot = torch::ones({1}, torch::kDouble);
+    xyz[0][0] = 0.1;
+    xyz[0][1] = 4.7;
     
-    auto *y = initSplineTorch(torch::randn({26, 26, 300, 64}, torch::kDouble), ref0_ix);
+    
+    auto *y = initSplineTorch(torch::randn({26, 26, 300, 64}, torch::kDouble), ref0_ix, pu);
     auto t = imgSplineTorch(y, xyz, phot, img_size);
     
-//    std::cout << t << std::endl;
+    std::cout << t << std::endl;
     
     return 0;
 }

@@ -2,7 +2,6 @@ import os
 import sys
 import torch
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'cpp_source/libtorchInterface'))
 import torch_cpp
 
 
@@ -30,16 +29,16 @@ class EmitterSet:
             self.id = id
 
         else:
-            self.xyz = None
-            self.phot = None
-            self.frame_ix = None
+            self.xyz = torch.zeros((0, 3), dtype=torch.float)
+            self.phot = torch.zeros((0,), dtype=torch.float)
+            self.frame_ix = torch.zeros((0,), dtype=torch.float)
             self.id = None
 
     @property
     def single_frame(self):
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
-    def split_in_frames(self):
+    def split_in_frames(self, ix_f=0, ix_l=-1):
         """
         Recursive function to split an EmitterSet into list of emitters per frame. This calls torch_cpp for performance.
 
@@ -59,7 +58,7 @@ class EmitterSet:
                                       self.phot[ix].unsqueeze(1),
                                       frame_ix.unsqueeze(1)), dim=1)
 
-        grand_matrix_list = torch_cpp.split_tensor(grand_matrix, frame_ix, 0, -1)
+        grand_matrix_list = torch_cpp.split_tensor(grand_matrix, frame_ix, ix_f, ix_l)
         em_list = []
 
         if self.id is not None:

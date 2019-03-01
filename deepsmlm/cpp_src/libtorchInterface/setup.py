@@ -43,6 +43,7 @@ call:
 
 $ CC=clang CXX=clang++ NO_CUDA=1 python setup.py install
 
+
 Compile cubic_spline and link statically (Linux: gcc, macOS: clang):
 
 $ gcc -fPIC -g -c -Wall lib/cubic_spline.c -o lib/cubic_spline.o

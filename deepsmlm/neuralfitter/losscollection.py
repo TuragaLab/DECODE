@@ -24,47 +24,44 @@ class Loss(ABC):
         return dummyLoss
 
 
-class MultiScaleLaplaceLoss(Loss):
+class MultiScaleLaplaceLoss:
     """From Boyd."""
-    def __init__(self, kernel_sigmas):
+    def __init__(self, kernel_sigmas, pos_mul_f=torch.Tensor([1.0, 1.0, 0.2])):
         super().__init__()
 
         self.kernel_sigmas = kernel_sigmas
+        self.pos_mul =  pos_mul_f
 
     @staticmethod
-    def loss(output, target, kernel_sigmas, pw_l1, kernel_l):
+    def loss(xyz_out, xyz_tar, phot_out, phot_tar, kernel_sigmas, pw_l1, kernel_l):
         """
 
-        :param output: (xyz, phot)
-        :param target: (xyz, phot)
         :param kernel_sigmas: tuple of sigmas()
         :param pw_l1: pairwise l1 loss function
         :param kernel_l: kernel_loss function
         :return:
         """
-        xyz_out = output[0]
-        xyz_tar = target[0]
-        phot_out = output[1]
-        phot_tar = target[1]
 
         D = pw_l1(xyz_out, xyz_tar)
         losses = [kernel_l(torch.exp(-D / sf), phot_out, phot_tar) for sf in kernel_sigmas]
-        return sum(losses)
+        return sum(losses).mean()
 
     @staticmethod
-    def pairwise_l2_dist(x, y, eps=0):
+    def pairwise_l2_dist(x, y, eps=1E-10):
         if y is not None:
-            differences = x.unsqueeze(1) - y.unsqueeze(0)
+            p = torch.cat((x, y), dim=1)
         else:
-            differences = x.unsqueeze(1) - x.unsqueeze(0)
+            p = torch.cat((x, x), dim=1)
+        differences = p.unsqueeze(2) - p.unsqueeze(1)
         return (torch.sum(differences * differences, -1) + eps).sqrt()
 
     @staticmethod
     def pairwise_l1_dist(x, y):
         if y is not None:
-            differences = x.unsqueeze(1) - y.unsqueeze(0)
+            p = torch.cat((x, y), dim=1)
         else:
-            differences = x.unsqueeze(1) - x.unsqueeze(0)
+            p = torch.cat((x, x), dim=1)
+        differences = p.unsqueeze(2) - p.unsqueeze(1)
         return torch.sum(differences.abs(), -1)
 
     @staticmethod
@@ -77,7 +74,13 @@ class MultiScaleLaplaceLoss(Loss):
     def return_criterion(self):
 
         def loss_return(output, target):
-            return self.loss(output, target, self.kernel_sigmas, self.pairwise_l1_dist, self.kernel_loss)
+            xyz_out = output[0] * self.pos_mul.to(output[0].device)
+            xyz_tar = target[0] * self.pos_mul.to(target[0].device)
+            phot_out = output[1]
+            phot_tar = target[1]
+            return self.loss(xyz_out, xyz_tar,
+                             phot_out, phot_tar,
+                             self.kernel_sigmas, self.pairwise_l1_dist, self.kernel_loss)
 
         return loss_return
 

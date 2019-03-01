@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod  # abstract class
+from random import randint
 import torch
 
 from deepsmlm.generic.emitter import EmitterSet
@@ -17,6 +18,40 @@ class EmitterGenerator(ABC):
     @abstractmethod
     def pop_single_frame(self):
         pass
+
+
+class EmitterPopper:
+
+    def __init__(self, xextent, yextent, zextent, density, photon_range):
+        super().__init__()
+        self.xextent = xextent
+        self.yextent = yextent
+        self.zextent = zextent
+        self.density = density
+        self.photon_range = photon_range
+
+        self.scale = torch.tensor([(self.xextent[1] - self.xextent[0]),
+                                   (self.yextent[1] - self.yextent[0]),
+                                   (self.zextent[1] - self.zextent[0])])
+        self.shift = torch.tensor([self.xextent[0],
+                                   self.yextent[0],
+                                   self.zextent[0]])
+
+        self.area = (xextent[1] - xextent[0]) * (yextent[1] - yextent[0])
+        self.emitter_av = self.density * self.area
+        self.emitter_max = round(self.emitter_av * 2)
+
+    def pop(self):
+        n = randint(0, self.emitter_max)
+
+        xyz = torch.rand((n, 3)) * self.scale + self.shift
+        phot = torch.randint(*self.photon_range, (n, ))
+        frame_ix = torch.zeros_like(phot)
+
+        return EmitterSet(xyz=xyz,
+                          phot=phot,
+                          frame_ix=frame_ix,
+                          id=None)
 
 
 class RandomPhysical(EmitterGenerator):

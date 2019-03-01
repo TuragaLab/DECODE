@@ -6,7 +6,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 from deepsmlm.generic.emitter import EmitterSet
 from deepsmlm.generic.noise import Poisson
-from deepsmlm.generic.io.load_calibration import SMAPSplineCoefficient
+from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 
 
 class Simulation:
@@ -42,7 +42,8 @@ class Simulation:
         self.poolsize = poolsize
 
         """Split the Set of Emitters in frames. Outputs list of set of emitters."""
-        self.em_split = self.em.split_in_frames()
+        if self.em is not None:
+            self.em_split = self.em.split_in_frames()
 
     @staticmethod
     def render_single_frame(pos, phot, psf, bg):
@@ -78,6 +79,7 @@ class Simulation:
         Renders all frames.
         :return: toch tensor of frames
         """
+
         pool = ThreadPool(self.poolsize)
         frame_list = pool.starmap(self.render_single_frame_wrapper, zip(self.em_split,
                                                                         iter.repeat(self.psf),

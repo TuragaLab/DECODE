@@ -468,6 +468,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+					TORCH_DIRECT,
+				);
 				GENERATE_MASTER_OBJECT_FILE = NO;
 				HEADER_SEARCH_PATHS = (
 					"\"$(SRCROOT)/libtorchInterface/lib\"",
@@ -484,19 +489,25 @@
 					"'-std=gnu++11'",
 				);
 				OTHER_LDFLAGS = (
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib/libc10.dylib,
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib/libcaffe2.dylib,
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib/libtorch.dylib,
 					"-Wl,-headerpad_max_install_names",
 					"-Wl,-search_paths_first",
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libtorch.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libcaffe2.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libc10.dylib,
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SYSTEM_HEADER_SEARCH_PATHS = (
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/include,
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/include/torch/csrc/api/include,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include/torch/csrc/api/include,
 				);
 				USER_HEADER_SEARCH_PATHS = "\"$(SRCROOT)/libtorchInterface/lib\"";
 				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = (
+					"-Wmost",
+					"-Wno-four-char-constants",
+					"-Wno-unknown-pragmas",
+					"$(inherited)",
+				);
 			};
 			name = Debug;
 		};
@@ -504,6 +515,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				GCC_PREPROCESSOR_DEFINITIONS = TORCH_DIRECT;
 				GENERATE_MASTER_OBJECT_FILE = NO;
 				HEADER_SEARCH_PATHS = (
 					"\"$(SRCROOT)/libtorchInterface/lib\"",
@@ -516,19 +528,25 @@
 				);
 				OTHER_CPLUSPLUSFLAGS = "$(OTHER_CFLAGS)";
 				OTHER_LDFLAGS = (
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib/libc10.dylib,
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib/libcaffe2.dylib,
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib/libtorch.dylib,
 					"-Wl,-headerpad_max_install_names",
 					"-Wl,-search_paths_first",
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libtorch.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libcaffe2.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libc10.dylib,
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SYSTEM_HEADER_SEARCH_PATHS = (
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/include,
-					/Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/include/torch/csrc/api/include,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include/torch/csrc/api/include,
 				);
 				USER_HEADER_SEARCH_PATHS = "\"$(SRCROOT)/libtorchInterface/lib\"";
 				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = (
+					"-Wmost",
+					"-Wno-four-char-constants",
+					"-Wno-unknown-pragmas",
+					"$(inherited)",
+				);
 			};
 			name = Release;
 		};

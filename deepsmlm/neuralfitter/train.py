@@ -8,9 +8,16 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
 from deepsmlm.neuralfitter.dataset import SMLMDataset
-from deepsmlm.generic.io.load_save_model import LoadSaveModel
-from deepsmlm.generic.io.load_save_emitter import MatlabInterface
-from deepsmlm.neuralfitter.losscollection import BumpMSELoss, BumpMSELoss3DzLocal
+from deepsmlm.neuralfitter.model import DeepSLMN, DeepLoco
+from deepsmlm.generic.inout.load_save_model import LoadSaveModel
+from deepsmlm.generic.inout.load_save_emitter import MatlabInterface
+from deepsmlm.neuralfitter.losscollection import BumpMSELoss, BumpMSELoss3DzLocal, MultiScaleLaplaceLoss
+from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
+from deepsmlm.generic.psf_kernel import SplineCPP
+from deepsmlm.generic.noise import IdentityNoise
+from deepsmlm.simulator.simulator import Simulation
+from deepsmlm.simulator.emittergenerator import EmitterPopper
+from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 
 
 class Args:
@@ -86,7 +93,13 @@ def train(train_loader, model, optimizer, criterion, epoch):
         #     plt.show()
 
         if args.cuda:  # model_deep.cuda():
-            input, target = input.cuda(), target.cuda()
+            input = input.cuda()
+            if type(target) is torch.Tensor:
+                target = target.cuda()
+            elif type(target) in (tuple, list):
+                target = (target[0].cuda(), target[1].cuda())
+            else:
+                raise TypeError("Not supported type to push to cuda.")
 
         # compute output
         output = model(input)
@@ -138,9 +151,14 @@ def test(val_loader, model, criterion):
         end = time.time()
         for i, (input, target, _) in enumerate(val_loader):
 
-            if args.cuda:
-                input = input.cuda(non_blocking=True)
-                target = target.cuda(non_blocking=True)
+            if args.cuda:  # model_deep.cuda():
+                input = input.cuda()
+                if type(target) is torch.Tensor:
+                    target = target.cuda()
+                elif type(target) in (tuple, list):
+                    target = (target[0].cuda(), target[1].cuda())
+                else:
+                    raise TypeError("Not supported type to push to cuda.")
 
             # compute output
             output = model(input)
@@ -149,8 +167,6 @@ def test(val_loader, model, criterion):
             # measure accuracy and record loss
             # prec1, prec5 = accuracy(output, target, topk=(1, 5))
             losses.update(loss.item(), input.size(0))
-            # top1.update(prec1[0], input.size(0))
-            # top5.update(prec5[0], input.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -176,9 +192,9 @@ if __name__ == '__main__':
                      os.pardir, os.pardir)) + '/'
 
     if len(sys.argv) == 1:  # no .ini file specified
-        dataset_file = deepsmlm_root + 'data/2019-02-20 Pores/simulation.mat'
-        weight_out = deepsmlm_root + 'network/2019-02-20 Pores/camera_units.pt'
-        weight_in = None # deepsmlm_root + 'network/2019-02-19 Spline Z Without Z Prediction/spline_1e4_easy_z_10bg_20190215.pt'
+        dataset_file = None # deepsmlm_root + 'data/2019-02-22 Pores deeploco/simulation.mat'
+        weight_out = deepsmlm_root + 'network/2019-02-28 Pores deeploco 64x64/camera_units.pt'
+        weight_in = None  # deepsmlm_root + 'network/2019-02-22 Pores deeploco/camera_units.pt'
 
     else:
         dataset_file = deepsmlm_root + sys.argv[1]
@@ -186,7 +202,7 @@ if __name__ == '__main__':
         weight_in = None if sys.argv[3].__len__() == 0 else deepsmlm_root + sys.argv[3]
 
     args = Args(cuda=True,
-                epochs=100,
+                epochs=10000,
                 num_prints=5,
                 sm_sigma=1,
                 root_folder=deepsmlm_root,
@@ -195,11 +211,26 @@ if __name__ == '__main__':
                 model_in_path=weight_in)
 
     """Load Data from binary."""
-    emitter, extent, frames = MatlabInterface().load_binary(dataset_file)
-    data_smlm = SMLMDataset(emitter, extent, frames)
+    # emitter, extent, frames = MatlabInterface().load_binary(dataset_file)
+    # data_smlm = SMLMDataset(emitter, extent, frames, multi_frame_output=False, dimensionality=3)
+    """Load 'Dataset' which is generated on the fly."""
+    extent = ((-0.5, 63.5), (-0.5, 63.5), (-5., 5))
+    img_shape = (64, 64)
+    spline_file = deepsmlm_root + \
+                  'data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+
+    psf = SMAPSplineCoefficient(spline_file).init_spline(extent[0], extent[1], extent[2], img_shape)
+    prior = EmitterPopper(extent[0], extent[1], extent[2], density=0.001, photon_range=(800, 4000))
+    simulator = Simulation(None, extent, img_shape, psf, IdentityNoise(), poolsize=1)
+    train_data_smlm = SMLMDatasetOnFly(extent, prior, simulator, (512 * 128), 3)
+    test_data_smlm = SMLMDatasetOnFly(extent, prior, simulator, 128, 3)
 
     """The model load and save interface."""
-    model_ls = LoadSaveModel(weight_out,
+    model = DeepLoco(extent=extent,
+                     ch_in=1,
+                     dim_out=3)
+    model_ls = LoadSaveModel(model,
+                             weight_out,
                              cuda=args.cuda,
                              input_file=weight_in)
     model = model_ls.load_init()
@@ -207,24 +238,22 @@ if __name__ == '__main__':
     if args.cuda:  # move model to CUDA device
         model = model.cuda()
 
-    optimiser = Adam(model.parameters(), lr=0.0001)
+    optimiser = Adam(model.parameters(), lr=1E-4)
 
     """Get loss function."""
-    criterion = BumpMSELoss(kernel_sigma=args.sm_sigma, cuda=args.cuda, l1_f=0.1).return_criterion()
+    # criterion = MultiScaleLaplaceLoss(kernel_sigmas=(64.0, 320.0, 640.0, 1920.0)).return_criterion()
+    criterion = MultiScaleLaplaceLoss(kernel_sigmas=(0.64, 3.20, 6.4, 19.2)).return_criterion()
+    # criterion = BumpMSELoss(kernel_sigma=args.sm_sigma, cuda=args.cuda, l1_f=0.1).return_criterion()
     # criterion = BumpMSELoss3DzLocal(kernel_sigma_photons=args.sm_sigma,
     #                                 kernel_sigma_z=5,
     #                                 cuda=args.cuda,
     #                                 phot_thres=100, l1_f=0.1, d3_f=1).return_criterion()
 
     """Learning Rate Scheduling"""
-    scheduler = ReduceLROnPlateau(optimiser, mode='min', patience=4, threshold=0.02)
+    scheduler = ReduceLROnPlateau(optimiser, mode='min', patience=4, threshold=0.05, verbose=True)
 
-    train_size = int(0.9 * len(data_smlm))
-    test_size = len(data_smlm) - train_size
-    train_data, test_data = torch.utils.data.random_split(data_smlm, [train_size, test_size])
-
-    train_loader = DataLoader(train_data, batch_size=32, shuffle=True, num_workers=12, pin_memory=True)
-    test_loader = DataLoader(test_data, batch_size=32, shuffle=False, num_workers=2, pin_memory=True)
+    train_loader = DataLoader(train_data_smlm, batch_size=128, shuffle=False, num_workers=48, pin_memory=True)
+    test_loader = DataLoader(test_data_smlm, batch_size=128, shuffle=False, num_workers=24, pin_memory=True)
 
     """Ask if everything is correct before we start."""
     args.print_confirmation()
@@ -235,4 +264,3 @@ if __name__ == '__main__':
         scheduler.step(val_loss)
 
         model_ls.save(model)
-
