@@ -64,13 +64,18 @@ class DeepSLMN(nn.Module):
                 nn.init.xavier_uniform_(m, gain=1)
 
 
+class OnlyDecoder(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+
 # Based on deep_loco by Boyd
 class DeepLoco(nn.Module):
     def __init__(self, extent, ch_in=1, dim_out=2):
         super().__init__()
         self.feature_net = DeepConvNet(ch_in)
-        self.fc_net = ResNet(256 * 4 * 4, 2048, 2)
-        self.phot_xyz_net = PhotXYZnet(2048, 256, extent[0], extent[1], extent[2], dim_out)
+        self.fc_net = ResNet(256 * 4 * 4, 1024, 2)
+        self.phot_xyz_net = PhotXYZnet(1024, 64, extent[0], extent[1], extent[2], dim_out)
 
     def forward(self, x):
         return self.phot_xyz_net(self.fc_net(self.feature_net(x)))
@@ -82,6 +87,8 @@ class DeepLoco(nn.Module):
 class DeepConvNet(nn.Module):
     def __init__(self, dim_in=1):
         super().__init__()
+        self.act = F.relu
+
         self.conv1 = nn.Conv2d(dim_in, 16, 5, padding=(5-1)//2)
         self.conv2 = nn.Conv2d(16, 16, 5, padding=(5-1)//2)
 
@@ -96,9 +103,9 @@ class DeepConvNet(nn.Module):
         self.conv_d3 = nn.Conv2d(256, 256, 4, stride=4)
 
     def forward(self, x):
-        x = self.conv2(self.conv1(x))
-        x = self.conv4(self.conv3(self.conv_d1(x)))
-        x = self.conv6(self.conv5(self.conv_d2(x)))
+        x = self.act(self.conv2(self.act(self.conv1(x))))
+        x = self.act(self.conv4(self.act(self.conv3(self.conv_d1(x)))))
+        x = self.act(self.conv6(self.act(self.conv5(self.conv_d2(x)))))
         x = self.conv_d3(x)
         return x
 
@@ -106,6 +113,7 @@ class DeepConvNet(nn.Module):
 class ResNet(nn.Module):
     def __init__(self, dim_in, dim_hidden, depth):
         super().__init__()
+
         self.dim_in = dim_in
         self.dim_out = dim_hidden
         self.depth = depth
@@ -143,8 +151,8 @@ class PhotXYZnet(nn.Module):
 
         self.scale_tensor = torch.tensor([self.xextent[1] - self.xextent[0],
                                           self.yextent[1] - self.yextent[0],
-                                          self.zextent[1] - self.zextent[0]]).cuda()
-        self.shift_tensor = torch.tensor([self.xextent[0], self.yextent[0], self.zextent[0]]).cuda()
+                                          self.zextent[1] - self.zextent[0]])
+        self.shift_tensor = torch.tensor([self.xextent[0], self.yextent[0], self.zextent[0]])
         self.emitter_dim = emitter_dim
         self.photon_fcnet = nn.Linear(dim_in, max_num_emitter)
         self.xyz_fcnet = nn.Linear(dim_in, max_num_emitter * emitter_dim)
@@ -154,7 +162,7 @@ class PhotXYZnet(nn.Module):
         """Place xyz in apropriate limits. I am unhappy about this."""
         xyz = torch.sigmoid(self.xyz_fcnet(x))
         xyz = xyz.view(x.shape[0], -1, self.emitter_dim)
-        xyz = xyz * self.scale_tensor + self.shift_tensor
+        xyz = xyz * self.scale_tensor.to(xyz.device) + self.shift_tensor.to(xyz.device)
 
         phot = F.relu(self.photon_fcnet(x))
         return xyz, phot
