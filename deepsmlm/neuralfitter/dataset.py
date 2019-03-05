@@ -83,12 +83,13 @@ class SMLMDataset(Dataset):
 
 
 class SMLMDatasetOnFly(Dataset):
-    def __init__(self, extent, prior, simulator, data_set_size, dimensionality=3):
+    def __init__(self, extent, prior, simulator, data_set_size, dimensionality=3, reuse=False):
         super().__init__()
 
         self.extent = extent
         self.dimensionality = dimensionality
         self.data_set_size = data_set_size
+        self.reuse = reuse
 
         self.prior = prior
         self.simulator = simulator
@@ -96,17 +97,37 @@ class SMLMDatasetOnFly(Dataset):
         self.target_generator = ListPseudoPSF(xextent=self.extent[0],
                                               yextent=self.extent[1],
                                               zextent=self.extent[2],
-                                              zero_fill_to_size=10,
+                                              zero_fill_to_size=64,
                                               dim=self.dimensionality)
+
+        """Pre-Calculcate the complete dataset and use the same data as one draws samples. 
+        This is useful for the testset."""
+        if self.reuse:
+            self.frame = [None] * self.__len__()
+            self.target = [None] * self.__len__()
+
+            for i in range(self.__len__()):
+                emitter = self.prior.pop()
+                self.frame[i] = self.simulator.background.forward(
+                    self.simulator.psf.forward(emitter.xyz, emitter.phot)).type(torch.FloatTensor)
+                self.target[i] = self.target_generator.forward(emitter.xyz, emitter.phot)
+
+        else:
+            self.frame = None
+            self.target = None
 
     def __len__(self):
         return self.data_set_size
 
     def __getitem__(self, index):
 
-        emitter = self.prior.pop()
-        frame = self.simulator.background.forward(self.simulator.psf.forward(emitter.xyz, emitter.phot)).type(torch.FloatTensor)
-        target = self.target_generator.forward(emitter.xyz, emitter.phot)
+        if not self.reuse:
+            emitter = self.prior.pop()
+            frame = self.simulator.background.forward(self.simulator.psf.forward(emitter.xyz, emitter.phot)).type(torch.FloatTensor)
+            target = self.target_generator.forward(emitter.xyz, emitter.phot)
+        else:
+            frame = self.frame[index]
+            target = self.target[index]
 
         return frame, target, index
 

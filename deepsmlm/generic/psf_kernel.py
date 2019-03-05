@@ -48,6 +48,12 @@ class PSF(ABC):
         """
         pass
 
+    def print_basic_properties(self):
+        print('PSF: \n xextent: {}\n yextent: {}\n zextent: {}\n img_shape: {}'.format(self.xextent,
+                                                                                       self.yextent,
+                                                                                       self.zextent,
+                                                                                       self.img_shape))
+
 
 class DeltaPSF(PSF):
     """
@@ -213,7 +219,7 @@ class GaussianExpect(PSF):
         xx = xx.unsqueeze(2).repeat(1, 1, num_emitters)
         yy = yy.unsqueeze(2).repeat(1, 1, num_emitters)
 
-        print(xx.shape)
+        # print(xx.shape)
 
         gauss_x = torch.erf((xx[1:, 1:, :] - xpos) / (math.sqrt(2) * sig_x)) \
             - torch.erf((xx[0:-1, 1:, :] - xpos) / (math.sqrt(2) * sig_x))
@@ -224,31 +230,42 @@ class GaussianExpect(PSF):
         gaussCdf = weight.type_as(gauss_x) / 4 * torch.mul(gauss_x, gauss_y)
         gaussCdf = torch.sum(gaussCdf, 2)
 
-        return gaussCdf
+        return gaussCdf.unsqueeze(0)
 
 
 class SplineCPP(PSF):
     """
     Spline Function wrapper for C++ / C
     """
-    def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0):
+    def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0, dz=None):
         """
         (see abstract class constructor
 
         :param coeff: coefficient matrix / tensor of the cubic spline. Hc x Wc x Dc x 64 (Hc, Wc, DC height, width,
                         depth with which spline was fitted)
         :param ref0: index relative to coefficient matrix which gives the "midpoint of the psf"
+        :param dz: distance between z slices. You must provide either zextent or dz. If both, dz will be used.
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
 
         self.coeff = coeff
         self.ref0 = ref0
+        if dz is None:  # if dz is None, zextent must not be None
+            if zextent is None:
+                raise ValueError('Either you must provide zextent or you must provide dz.')
+            dz = (self.zextent[1] - self.zextent[0]) / (self.coeff.shape[2] - 1)
+
         self.spline_c = tp.init_spline(self.coeff.type(torch.DoubleTensor),
-                                       list(self.ref0), list((xextent[0], yextent[0])))
+                                       list(self.ref0),
+                                       list((xextent[0], yextent[0])),
+                                       dz)
 
         """Test whether extent corresponds to img shape"""
         if (img_shape[0] != (xextent[1] - xextent[0])) or (img_shape[1] != (yextent[1] - yextent[0])):
             raise ValueError("Unequal size of extent and image shape not supported.")
+
+    def f(self, x, y, z):
+        return tp.f_spline(self.spline_c, x, y, z)
 
     def forward(self, pos, weight):
         if (pos is not None) and (pos.shape[0] != 0):
@@ -266,7 +283,7 @@ class SplineExpect(PSF):
     https://github.com/ZhuangLab/storm-analysis/blob/master/storm_analysis/spliner/spline3D.py
     """
 
-    def __init__(self, xextent, yextent, zextent, img_shape, coeff=None):
+    def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0):
         """
         (See abstract class constructor.)
 
@@ -275,6 +292,7 @@ class SplineExpect(PSF):
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
 
         self.coeff = coeff
+        self.ref0 = ref0
         self.max_i = torch.as_tensor(coeff.shape, dtype=torch.float32) - 1
 
     def roundAndCheck(self, x, max_x):
@@ -352,7 +370,7 @@ class SplineExpect(PSF):
                         torch.pow(z_diff, k)
         return f
 
-    def forward(self, input, weight):
+    def forward(self, pos, weight):
         raise NotImplementedError
 
 
@@ -410,8 +428,8 @@ if __name__ == '__main__':
 
     extent = ((-0.5, 31.5), (-0.5, 31.5), None)
     img_shape = (32, 32)
-    # spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
-    spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    # spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
     psf = SMAPSplineCoefficient(spline_file).init_spline(extent[0], extent[1], extent[2], img_shape)
     img = psf.forward(torch.rand((2, 3)), torch.tensor([1., 1.]))
     print('Success.')

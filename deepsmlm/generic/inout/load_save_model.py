@@ -1,5 +1,6 @@
 import torch
 
+
 class LoadSaveModel:
     def __init__(self, model_instance, output_file, cuda, input_file=None):
         self.warmstart_file = input_file
@@ -27,3 +28,4 @@ class LoadSaveModel:
     def save(self, model):
         torch.save(model.state_dict(), self.output_file)
         print('Saved model to file: {}'.format(self.output_file))
+

@@ -4,7 +4,7 @@ import sys
 import time
 import torch
 from torch.optim import Adam
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR, MultiStepLR
 from torch.utils.data import DataLoader
 
 from deepsmlm.neuralfitter.dataset import SMLMDataset
@@ -12,9 +12,9 @@ from deepsmlm.neuralfitter.model import DeepSLMN, DeepLoco
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 from deepsmlm.generic.inout.load_save_emitter import MatlabInterface
 from deepsmlm.neuralfitter.losscollection import BumpMSELoss, BumpMSELoss3DzLocal, MultiScaleLaplaceLoss
-from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
-from deepsmlm.generic.psf_kernel import SplineCPP
-from deepsmlm.generic.noise import IdentityNoise
+from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient, StormAnaCoefficient
+from deepsmlm.generic.psf_kernel import SplineCPP, GaussianExpect
+from deepsmlm.generic.noise import IdentityNoise, Poisson
 from deepsmlm.simulator.simulator import Simulation
 from deepsmlm.simulator.emittergenerator import EmitterPopper
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
@@ -44,7 +44,7 @@ class Args:
         print('The configured arguments are:')
         pp = pprint.PrettyPrinter(width=-1)
         pp.pprint(vars(self))
-        input('Press Enter to continue ...')
+        # input('Press Enter to continue ...')
 
 
 class AverageMeter(object):
@@ -67,7 +67,7 @@ class AverageMeter(object):
 
 def train(train_loader, model, optimizer, criterion, epoch):
 
-    print('Epoch: [{}] \t lr: {}'.format(epoch, optimizer.defaults['lr']))
+    # print('Epoch: [{}] \t lr: {}'.format(epoch, optimizer.defaults['lr']))
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -193,8 +193,8 @@ if __name__ == '__main__':
 
     if len(sys.argv) == 1:  # no .ini file specified
         dataset_file = None # deepsmlm_root + 'data/2019-02-22 Pores deeploco/simulation.mat'
-        weight_out = deepsmlm_root + 'network/2019-02-28 Pores deeploco 64x64/camera_units.pt'
-        weight_in = None  # deepsmlm_root + 'network/2019-02-22 Pores deeploco/camera_units.pt'
+        weight_out = deepsmlm_root + 'network/2019-03-05 Spline/with_noise_higher_density.pt'
+        weight_in = deepsmlm_root + 'network/2019-03-05 Spline/with_noise.pt'
 
     else:
         dataset_file = deepsmlm_root + sys.argv[1]
@@ -214,19 +214,23 @@ if __name__ == '__main__':
     # emitter, extent, frames = MatlabInterface().load_binary(dataset_file)
     # data_smlm = SMLMDataset(emitter, extent, frames, multi_frame_output=False, dimensionality=3)
     """Load 'Dataset' which is generated on the fly."""
-    extent = ((-0.5, 63.5), (-0.5, 63.5), (-5., 5))
+    sim_extent = ((-0.5, 63.5), (-0.5, 63.5), (-300, 300))
+    psf_extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
     img_shape = (64, 64)
     spline_file = deepsmlm_root + \
-                  'data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+                  'data/Cubic Spline Coefficients/2019-03-05 SMLM Challenge/storm_ana_psf_coeff.npz'
+    psf = StormAnaCoefficient(spline_file).init_spline(psf_extent[0], psf_extent[1], psf_extent[2], img_shape)
+    noise = Poisson(bg_uniform=15)
 
-    psf = SMAPSplineCoefficient(spline_file).init_spline(extent[0], extent[1], extent[2], img_shape)
-    prior = EmitterPopper(extent[0], extent[1], extent[2], density=0.001, photon_range=(800, 4000))
-    simulator = Simulation(None, extent, img_shape, psf, IdentityNoise(), poolsize=1)
-    train_data_smlm = SMLMDatasetOnFly(extent, prior, simulator, (512 * 128), 3)
-    test_data_smlm = SMLMDatasetOnFly(extent, prior, simulator, 128, 3)
+    # psf = GaussianExpect(xextent=extent[0], yextent=extent[1], zextent=None, img_shape=img_shape,
+    #                      sigma_0=(1.5, 1.5))
+    prior = EmitterPopper(sim_extent[0], sim_extent[1], sim_extent[2], density=0.0015, photon_range=(800, 4000))
+    simulator = Simulation(None, sim_extent, img_shape, psf, noise, poolsize=1)
+    train_data_smlm = SMLMDatasetOnFly(sim_extent, prior, simulator, (256 * 10), 3, reuse=False)
+    test_data_smlm = SMLMDatasetOnFly(sim_extent, prior, simulator, 256, 3, reuse=True)
 
     """The model load and save interface."""
-    model = DeepLoco(extent=extent,
+    model = DeepLoco(extent=sim_extent,
                      ch_in=1,
                      dim_out=3)
     model_ls = LoadSaveModel(model,
@@ -250,10 +254,19 @@ if __name__ == '__main__':
     #                                 phot_thres=100, l1_f=0.1, d3_f=1).return_criterion()
 
     """Learning Rate Scheduling"""
-    scheduler = ReduceLROnPlateau(optimiser, mode='min', patience=4, threshold=0.05, verbose=True)
+    scheduler = ReduceLROnPlateau(optimiser,
+                                  mode='min',
+                                  factor=0.5,
+                                  patience=20,
+                                  threshold=0.01,
+                                  cooldown=10,
+                                  verbose=True)
+
+    # milestones = [300, 500, 600, 700, 800, 900, 1000]
+    #scheduler = MultiStepLR(optimiser, milestones=milestones, gamma=0.5)
 
     train_loader = DataLoader(train_data_smlm, batch_size=128, shuffle=False, num_workers=48, pin_memory=True)
-    test_loader = DataLoader(test_data_smlm, batch_size=128, shuffle=False, num_workers=24, pin_memory=True)
+    test_loader = DataLoader(test_data_smlm, batch_size=256, shuffle=False, num_workers=12, pin_memory=True)
 
     """Ask if everything is correct before we start."""
     args.print_confirmation()
@@ -262,5 +275,5 @@ if __name__ == '__main__':
         train(train_loader, model, optimiser, criterion, i)
         val_loss = test(test_loader, model, criterion)
         scheduler.step(val_loss)
-
-        model_ls.save(model)
+        if i % 50 == 0:
+            model_ls.save(model)
