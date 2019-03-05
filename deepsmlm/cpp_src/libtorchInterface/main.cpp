@@ -45,8 +45,9 @@ int main() {
     xyz[0][0] = 10.1;
     xyz[0][1] = 4.7;
     
+    double dz = 10;
     
-    auto *y = initSplineTorch(torch::randn({26, 26, 300, 64}, torch::kDouble), ref0_ix, pu);
+    auto *y = initSplineTorch(torch::randn({26, 26, 300, 64}, torch::kDouble), ref0_ix, pu, dz);
     auto t = imgSplineTorch(y, xyz, phot, img_size);
     
     std::cout << t << std::endl;

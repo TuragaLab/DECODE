@@ -67,6 +67,7 @@
 		6F4C477B22131D17004EC347 /* libtorch.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libtorch.dylib; sourceTree = "<group>"; };
 		6F4C477F22131D3A004EC347 /* torch.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = torch.h; sourceTree = "<group>"; };
 		6F4C478022131D5C004EC347 /* libtorch */ = {isa = PBXFileReference; lastKnownFileType = folder; name = libtorch; path = ../../../../Documents/Development/cpp/libraries/libtorch; sourceTree = "<group>"; };
+		6F6A18EB222BD5770041BBBA /* simSplinePSF_c_yiming.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = simSplinePSF_c_yiming.cpp; sourceTree = "<group>"; };
 		6FBB48BA22136210006BFE2C /* torch_cubicspline.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = torch_cubicspline.cpp; sourceTree = "<group>"; };
 		6FBB48BB22136210006BFE2C /* torch_cubicspline.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = torch_cubicspline.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -174,6 +175,7 @@
 		6FBB48BD2213630E006BFE2C /* lib */ = {
 			isa = PBXGroup;
 			children = (
+				6F6A18EB222BD5770041BBBA /* simSplinePSF_c_yiming.cpp */,
 				6F02B492220C7B5E00093004 /* cubic_spline.h */,
 				6F02B495220C7B5E00093004 /* cubic_spline.c */,
 			);

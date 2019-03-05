@@ -25,7 +25,7 @@
  
  @return Pointer to struct splineData (i.e. splineData*)
  */
-auto initSplineTorch(torch::Tensor coeff, const std::array<int, 3> ref0_ix, const std::array<double, 2> pos_up_left) -> splineData* {
+auto initSplineTorch(torch::Tensor coeff, const std::array<double, 3> ref0_ix, const std::array<double, 2> pos_up_left, const double dz) -> splineData* {
 
     const int xsize = static_cast<int>(coeff.size(0));
     const int ysize = static_cast<int>(coeff.size(1));
@@ -35,7 +35,7 @@ auto initSplineTorch(torch::Tensor coeff, const std::array<int, 3> ref0_ix, cons
 
     return initSpline3D(coeff_, xsize, ysize, zsize,
                         ref0_ix[0], ref0_ix[1], ref0_ix[2],
-                        pos_up_left[0] + 0.5, pos_up_left[1] + 0.5);
+                        pos_up_left[0] + 0.5, pos_up_left[1] + 0.5, dz);
 
 }
 
@@ -64,4 +64,19 @@ auto imgSplineTorch(splineData *spline_data, torch::Tensor xyz, torch::Tensor ph
     img_tensor = img_tensor.view({1, img_size[0], img_size[1]});
 
     return img_tensor;
+}
+
+
+/**
+ Small pybind wrapper for fSpline. Mainly used for debugging my img function.
+
+ @param spline_data splineData
+ @param x x value
+ @param y y value
+ @param z z value
+ @return f
+ */
+auto fSplineTorch(splineData *spline_data, double x, double y, double z) -> double {
+    
+    return fSpline3D(spline_data, z, y, x);
 }

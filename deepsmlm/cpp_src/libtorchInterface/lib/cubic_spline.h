@@ -22,11 +22,12 @@ typedef struct{
     int xsize;
     int ysize;
     int zsize;
-    int x0_ix;
-    int y0_ix;
-    int z0_ix;
-    double pos_x0;
-    double pos_y0;
+    double x0_ix;
+    double y0_ix;
+    double z0_ix;
+    double img_pos_x0;
+    double img_pos_y0;
+    double dz;
     double *aij;
     double *delta_f;
     double *delta_dxf;
@@ -64,7 +65,7 @@ int getYSize(splineData *);
 int getZSize(splineData *);
 
 splineData* initSpline2D(double *, int, int);
-splineData* initSpline3D(double *, int, int, int, int, int, int, double, double);
+splineData* initSpline3D(double *, int, int, int, int, int, int, double, double, double);
 
 void splineCleanup(splineData *);
 

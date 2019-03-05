@@ -153,6 +153,26 @@ void computeDelta3D(splineData *spline_data, double z_delta, double y_delta, dou
     }
 }
 
+void kernel_computeDelta3D_yim(splineData *spline_data, double z_delta, double y_delta, double x_delta) {
+    
+    int i,j,k;
+    double cx,cy,cz;
+    
+    cz = 1.0;
+    for(i=0;i<4;i++){
+        cy = 1.0;
+        for(j=0;j<4;j++){
+            cx = 1.0;
+            for(k=0;k<4;k++){
+                spline_data->delta_f[i*16+j*4+k] = cz * cy * cx;
+                cx = cx * x_delta;
+            }
+            cy = cy * y_delta;
+        }
+        cz= cz * z_delta;
+    }
+}
+
 /*
  * dot()
  *
@@ -537,6 +557,30 @@ double fAt3D(splineData *spline_data, int zc, int yc, int xc)
     return yv;
 }
 
+double fAt3Dj_yim(splineData *spline_data, int zc, int yc, int xc) {
+    int i;
+    int xsize, ysize, zsize;
+    double temp =0;
+    
+    xsize = spline_data->xsize;
+    ysize = spline_data->ysize;
+    zsize = spline_data->zsize;
+    
+    xc = fmax(xc,0);
+    xc = fmin(xc,spline_data->xsize-1);
+    
+    yc = fmax(yc,0);
+    yc = fmin(yc,spline_data->ysize-1);
+    
+    zc = fmax(zc,0);
+    zc = fmin(zc,spline_data->zsize-1);
+    
+    for (i=0;i<64;i++){
+        temp+=spline_data->delta_f[i]*spline_data->aij[i*(xsize*ysize*zsize)+zc*(xsize*ysize)+yc*xsize+xc];
+    }
+    return temp;
+}
+
 /*
  * fSpline2D()
  *
@@ -603,10 +647,9 @@ double fSpline3D(splineData *spline_data, double z, double y, double x)
 }
 
 
-
 /**
  Compute Image
-
+ 
  @param spline_data spline_data structure
  @param img image
  @param x_size image size in x
@@ -624,9 +667,9 @@ void imgSpline3D(splineData *spline_data, double* img, int x_size, int y_size,
     double x_delta,y_delta,z_delta;
     
     /* Shift query points by 0 reference ix; shift by coordinate of upper left px (usually 0, 0)*/
-    xc = 0 - xc + spline_data->x0_ix - spline_data->pos_x0;
-    yc = 0 - yc + spline_data->y0_ix - spline_data->pos_y0;
-    zc = zc + spline_data->z0_ix;
+    xc = 0 - xc + spline_data->x0_ix - spline_data->img_pos_x0;
+    yc = 0 - yc + spline_data->y0_ix - spline_data->img_pos_y0;
+    zc = zc / spline_data->dz + spline_data->z0_ix;
     
     x0 = (int)(floor(xc));
     y0 = (int)(floor(yc));
@@ -638,10 +681,52 @@ void imgSpline3D(splineData *spline_data, double* img, int x_size, int y_size,
     
     computeDelta3D(spline_data, z_delta, y_delta, x_delta);
     
-//    int c = 0;
+    //    int c = 0;
     for (int i = 0; i < x_size; i++) {
         for (int j = 0; j < y_size; j++){
             img[i * y_size + j] += N * fAt3D(spline_data, z0, y0 + j, x0 + i);
+        }
+    }
+}
+
+
+/**
+ Compute Image -- after yimming.
+ */
+void imgSpline3D_yimming_try(splineData *spline_data, double* img,
+                 int x_size, int y_size,
+                 double zcenter, double ycenter, double xcenter, double N) {
+    
+    /** Query points. Note that the delta is the same for all points on the grid. **/
+    int x0,y0,z0;
+    double xc, yc, zc;
+    double x_delta,y_delta,z_delta;
+    
+    /* Shift query points by 0 reference ix; shift by coordinate of upper left px (usually 0, 0)*/
+//    xc = 0 - xc + spline_data->x0_ix - spline_data->pos_x0;
+//    yc = 0 - yc + spline_data->y0_ix - spline_data->pos_y0;
+//    zc = zc + spline_data->z0_ix;
+    const int Npixels = x_size;
+    const int offset = (int)(floor(((spline_data->xsize + 1) - Npixels) / 2.0));
+    
+    xc = -1.0 * ((xcenter - ((double)Npixels) / 2) + 0.5);
+    yc = -1.0 * ((ycenter - ((double)Npixels) / 2) + 0.5);
+    zc = zcenter + spline_data->z0_ix;
+    
+    x0 = floor(xc);
+    x_delta = xc - x0;
+    
+    y0 = floor(yc);
+    y_delta = yc - y0;
+    
+    z0 = floor(zcenter);
+    z_delta = zc - z0;
+    
+    kernel_computeDelta3D_yim(spline_data, z_delta, y_delta, x_delta);
+    
+    for (int i = 0; i < x_size; i++) {
+        for (int j = 0; j < y_size; j++) {
+            img[y_size * j + i] += N * fAt3Dj_yim(spline_data, z0, y0 + j + offset, x0 + i + offset);
         }
     }
 }
@@ -762,7 +847,7 @@ splineData* initSpline2D(double *new_aij, int new_xsize, int new_ysize)
 splineData* initSpline3D(double *new_aij,
                          int new_xsize, int new_ysize, int new_zsize,
                          const int x0_ix, const int y0_ix, const int z0_ix,
-                         const double pos_x0, const double pos_y0)
+                         const double pos_x0, const double pos_y0, const double dz)
 {
     int i, tsize;
     splineData *spline_data;
@@ -777,14 +862,20 @@ splineData* initSpline3D(double *new_aij,
     spline_data->zsize = new_zsize;
     
     
-    /* Note ix of bright point (reference point). If wrong this induces a constant shift, most likely harmless. */
+    /* Denote ix (x,y) of bright point (reference point). If wrong this induces a constant shift, most likely harmless.
+     * In z, this denotes the focal plane.
+     * Note that we allow for non-integer 'indices' because we might know the ground truth position and want to shift exactly.
+     */
     spline_data->x0_ix = x0_ix;
     spline_data->y0_ix = y0_ix;
     spline_data->z0_ix = z0_ix;
     
     /* Position of upper left px of the image (px center). Useful for psf rendering */
-    spline_data->pos_x0 = pos_x0;
-    spline_data->pos_y0 = pos_y0;
+    spline_data->img_pos_x0 = pos_x0;
+    spline_data->img_pos_y0 = pos_y0;
+    
+    /* Delta z in nm between slices */
+    spline_data->dz = dz;
     
     /* Allocate storage for spline data. */
     spline_data->aij = (double *)malloc(sizeof(double)*tsize);
