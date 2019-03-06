@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod  # abstract class
+import math
+import random
 from random import randint
 import torch
+from torch.distributions.exponential import Exponential
 
-from deepsmlm.generic.emitter import EmitterSet
+from deepsmlm.generic.emitter import EmitterSet, LooseEmitterSet
 
 
 class EmitterGenerator(ABC):
@@ -52,6 +55,33 @@ class EmitterPopper:
                           phot=phot,
                           frame_ix=frame_ix,
                           id=None)
+
+
+class EmitterPopperMultiFrame(EmitterPopper):
+    def __init__(self, xextent, yextent, zextent, density, photon_range, lifetime, num_frames=3):
+        super().__init__(xextent, yextent, zextent, density, photon_range)
+        self.num_frames = num_frames
+        self.lifetime = lifetime
+        self.lifetime_dist = Exponential(self.lifetime)
+
+    def pop(self):
+        """Pop a multi_frame emitter set."""
+
+        """Determine the number of emitters. Depends on lifetime and num_frames. Rough estimate."""
+        emitter_max = math.ceil(self.emitter_max * self.num_frames / (0.5 * self.lifetime + 1))
+        n = random.randint(0, emitter_max)
+        xyz = torch.rand((n, 3)) * self.scale + self.shift
+        phot = torch.randint(*self.photon_range, (n,))
+
+        """Distribute emitters in time. Increase the range a bit."""
+        t0 = torch.rand((n,)) * (self.num_frames + 4 * self.lifetime)
+        ontime = self.lifetime_dist.rsample((n, ))
+
+        frame_range = (math.ceil(2 * self.lifetime), math.ceil(2 * self.lifetime) + self.num_frames - 1)
+        """Return Emitters with frame index. Use subset of the originally increased range of frames because of
+        statistical reasons. Shift index to -1, 0, 1 ..."""
+        return LooseEmitterSet(xyz, phot, None, t0, ontime).\
+            return_emitterset().get_subset_frame(*frame_range, shift_to=-(self.num_frames - 1)/2)
 
 
 class RandomPhysical(EmitterGenerator):

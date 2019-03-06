@@ -1,4 +1,5 @@
 import itertools as iter
+import math
 import numpy as np
 import os, sys
 import torch
@@ -20,22 +21,24 @@ class Simulation:
     (C, D, H, W) in 2D - single image
     (https://pytorch.org/docs/stable/_modules/torch/nn/modules/conv.html#Conv3d)
     """
-    def __init__(self, em, extent, img_shape, psf, background=None, poolsize=4):
+    def __init__(self, em, extent, psf, background=None, poolsize=4, frame_range=None):
         """
 
         :param em: set of emitters. instance of class EmitterSet
         :param extent: extent of the simulation, gives image-shape a meaning. tuple of tuples
-        :param img_shape: image size in px. tuple
         :param psf: instance of class psf
         :param background: instance pf class background / noise
         :param poolsize: how many threads should be open to calculate psf
+        :param frame_range: enforce the frame range of the simulation. None (default) / tuple
+            usually we start with 0 (or the first frame) and end with the last frame, but you might want to have your
+            simulation always contain a specific number of frames.
         """
 
         self.em = em
         self.em_split = None
         self.extent = extent
         self.frames = None
-        self.img_shape = img_shape
+        self.frame_range = frame_range if frame_range is not None else (0, -1)
 
         self.psf = psf
         self.background = background
@@ -43,10 +46,10 @@ class Simulation:
 
         """Split the Set of Emitters in frames. Outputs list of set of emitters."""
         if self.em is not None:
-            self.em_split = self.em.split_in_frames()
+            self.em_split = self.em.split_in_frames(frame_range[0], frame_range[1])
 
     @staticmethod
-    def render_single_frame(pos, phot, psf, bg):
+    def forward_single_frame(pos, phot, psf, bg):
         """
         Render a single frame. Consist of psf forward and therafter bg forward.
 
@@ -60,7 +63,7 @@ class Simulation:
         frame = bg.forward(frame)
         return frame
 
-    def render_single_frame_wrapper(self, emitter, psf, bg):
+    def forward_single_frame_wrapper(self, emitter, psf, bg):
         """
         Simple wrapper to unpack attributes of emitter set class.
 
@@ -72,22 +75,37 @@ class Simulation:
         pos = emitter.xyz
         phot = emitter.phot
         # id = emitter.id
-        return self.render_single_frame(pos, phot, psf, bg)
+        return self.forward_single_frame(pos, phot, psf, bg)
 
-    def render_frames(self):
+    def forward(self, em_new=None):
         """
         Renders all frames.
+        :param em_new: new set of emitters. Useful when forwarding a new emitter set every time you call this.
         :return: toch tensor of frames
         """
 
-        pool = ThreadPool(self.poolsize)
-        frame_list = pool.starmap(self.render_single_frame_wrapper, zip(self.em_split,
-                                                                        iter.repeat(self.psf),
-                                                                        iter.repeat(self.background)))
+        if em_new is not None:
+            self.em = em_new
+            self.em_split = self.em.split_in_frames(self.frame_range[0], self.frame_range[1])
+
+        if self.poolsize != 0:
+            pool = ThreadPool(self.poolsize)
+            frame_list = pool.starmap(self.forward_single_frame_wrapper, zip(self.em_split,
+                                                                             iter.repeat(self.psf),
+                                                                             iter.repeat(self.background)))
+        elif self.poolsize == 0:
+            em_sets = self.em_split.__len__()
+            frame_list = [None] * em_sets
+            for i in range(em_sets):
+                frame_list[i] = self.forward_single_frame_wrapper(self.em_split[i],
+                                                                  self.psf,
+                                                                  self.background)
+
         self.frames = torch.stack(frame_list, dim=0).type(torch.int16)
         return self.frames
 
-    def write_to_binary(self, outfile):
+
+def write_to_binary(self, outfile):
         """
         Writes frames and emitters to binary.
         :param outfile: output file
@@ -136,11 +154,6 @@ if __name__ == '__main__':
     #                 phot=torch.tensor([2000]),
     #                 frame_ix=torch.tensor([0]))
 
-    sim = Simulation(em=em,
-                     extent=args.extent,
-                     img_shape=args.img_shape,
-                     psf=psf,
-                     background=bg,
-                     poolsize=6)
-    sim.render_frames()
+    sim = Simulation(em=em, extent=args.extent, psf=psf, background=bg, poolsize=6)
+    sim.render_frames_wrapper()
     sim.write_to_binary(args.binary_path)

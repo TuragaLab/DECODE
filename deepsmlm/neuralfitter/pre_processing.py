@@ -1,6 +1,27 @@
+from abc import ABC, abstractmethod
 import torch
 
 from deepsmlm.generic.emitter import EmitterSet
+
+
+class Preprocessing(ABC):
+    def __init__(self):
+        super().__init__()
+
+    @abstractmethod
+    def forward(self, in_tensor):
+        return in_tensor.type(torch.FloatTensor)
+
+
+class N2C(Preprocessing):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, in_tensor):
+        in_tensor = super().forward(in_tensor)
+        if in_tensor.shape[1] != 1:
+            raise ValueError("Shape is wrong.")
+        return in_tensor.transpose(0, 1).view(-1, in_tensor.shape[-2], in_tensor.shape[-1])
 
 
 class RemoveOutOfFOV:

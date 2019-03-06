@@ -81,7 +81,7 @@ class DeepLoco(nn.Module):
         return self.phot_xyz_net(self.fc_net(self.feature_net(x)))
 
     def weight_init(self):
-        print('Not implemented.')
+        print('Implement a weight init you fucker!')
 
 
 class DeepConvNet(nn.Module):

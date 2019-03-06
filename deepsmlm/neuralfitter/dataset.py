@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import Dataset
 
 from deepsmlm.generic.psf_kernel import DeltaPSF, DualDelta, ListPseudoPSF
-from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV
+from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV, N2C
 
 
 class SMLMDataset(Dataset):
@@ -94,6 +94,7 @@ class SMLMDatasetOnFly(Dataset):
         self.prior = prior
         self.simulator = simulator
 
+        self.input_preperator = N2C()
         self.target_generator = ListPseudoPSF(xextent=self.extent[0],
                                               yextent=self.extent[1],
                                               zextent=self.extent[2],
@@ -107,14 +108,19 @@ class SMLMDatasetOnFly(Dataset):
             self.target = [None] * self.__len__()
 
             for i in range(self.__len__()):
-                emitter = self.prior.pop()
-                self.frame[i] = self.simulator.background.forward(
-                    self.simulator.psf.forward(emitter.xyz, emitter.phot)).type(torch.FloatTensor)
-                self.target[i] = self.target_generator.forward(emitter.xyz, emitter.phot)
-
+                _, frame, target = self.pop_new()
+                self.frame[i] = frame
+                self.target[i] = target
         else:
             self.frame = None
             self.target = None
+
+    def pop_new(self):
+        emitter = self.prior.pop()
+        sim_out = self.simulator.forward(emitter).type(torch.FloatTensor)
+        frame = self.input_preperator.forward(sim_out)
+        target = self.target_generator.forward(emitter.get_subset_frame(0, 0))
+        return emitter, frame, target
 
     def __len__(self):
         return self.data_set_size
@@ -122,9 +128,7 @@ class SMLMDatasetOnFly(Dataset):
     def __getitem__(self, index):
 
         if not self.reuse:
-            emitter = self.prior.pop()
-            frame = self.simulator.background.forward(self.simulator.psf.forward(emitter.xyz, emitter.phot)).type(torch.FloatTensor)
-            target = self.target_generator.forward(emitter.xyz, emitter.phot)
+            emitter, frame, target = self.pop_new()
         else:
             frame = self.frame[index]
             target = self.target[index]

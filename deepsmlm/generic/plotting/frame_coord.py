@@ -31,6 +31,7 @@ class PlotFrame:
                                                                                   self.extent[0][1],
                                                                                   self.extent[1][1],
                                                                                   self.extent[1][0]))
+        plt.axis('equal')
         plt.xlabel('x')
         plt.ylabel('y')
 
@@ -60,8 +61,9 @@ class PlotCoordinates:
                      'bx', fillstyle='none', label='Output')
         if self.pos_ini is not None:
             plt.plot(self.pos_ini[:, 0].numpy(), self.pos_ini[:, 1].numpy(),
-                     'gx', fillstyle='none', label='Init')
+                     'g+', fillstyle='none', label='Init')
 
+        plt.axis('equal')
         plt.xlabel('x')
         plt.ylabel('y')
         if self.extent_limit is not None:

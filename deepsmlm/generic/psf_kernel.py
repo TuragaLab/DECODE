@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod  # abstract class
 import numpy as np
 import torch
 from torch.autograd import Function
+from deepsmlm.generic.emitter import EmitterSet
 import torch_cpp as tp
 
 
@@ -136,7 +137,8 @@ class ListPseudoPSF(PSF):
         self.dim = dim
         self.zero_fill_to_size = zero_fill_to_size
 
-    def forward(self, pos, weight):
+    def forward(self, emitter):
+        pos, weight = emitter.xyz, emitter.phot
         num_emitters = pos.shape[0]
 
         weight_fill = torch.zeros((self.zero_fill_to_size), dtype=weight.dtype)

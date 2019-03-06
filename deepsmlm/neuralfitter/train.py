@@ -1,3 +1,4 @@
+import numpy as np
 import os
 import pprint
 import sys
@@ -16,8 +17,14 @@ from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient, Storm
 from deepsmlm.generic.psf_kernel import SplineCPP, GaussianExpect
 from deepsmlm.generic.noise import IdentityNoise, Poisson
 from deepsmlm.simulator.simulator import Simulation
-from deepsmlm.simulator.emittergenerator import EmitterPopper
+from deepsmlm.simulator.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
+
+"""Several global variables useful for debugging."""
+deepsmlm_root = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     os.pardir, os.pardir)) + '/'
+DEBUG = True
 
 
 class Args:
@@ -79,6 +86,12 @@ def train(train_loader, model, optimizer, criterion, epoch):
     model.train()
     end = time.time()
     for i, (input, target, _) in enumerate(train_loader):
+
+        if DEBUG:
+            if i == 0:
+                """Save a batch to see what we input into the network."""
+                debug_file = deepsmlm_root + 'data/debug.pt'
+                torch.save((input, target), debug_file)
 
         # measure data loading time
         data_time.update(time.time() - end)
@@ -187,14 +200,10 @@ def test(val_loader, model, criterion):
 
 if __name__ == '__main__':
 
-    deepsmlm_root = os.path.abspath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     os.pardir, os.pardir)) + '/'
-
     if len(sys.argv) == 1:  # no .ini file specified
         dataset_file = None # deepsmlm_root + 'data/2019-02-22 Pores deeploco/simulation.mat'
-        weight_out = deepsmlm_root + 'network/2019-03-05 Spline/with_noise_higher_density.pt'
-        weight_in = deepsmlm_root + 'network/2019-03-05 Spline/with_noise.pt'
+        weight_out = deepsmlm_root + 'network/2019-03-06 SplineMultiframe/multiframe.pt'
+        weight_in = None # deepsmlm_root + 'network/2019-03-05 Spline/with_noise.pt'
 
     else:
         dataset_file = deepsmlm_root + sys.argv[1]
@@ -224,14 +233,19 @@ if __name__ == '__main__':
 
     # psf = GaussianExpect(xextent=extent[0], yextent=extent[1], zextent=None, img_shape=img_shape,
     #                      sigma_0=(1.5, 1.5))
-    prior = EmitterPopper(sim_extent[0], sim_extent[1], sim_extent[2], density=0.0015, photon_range=(800, 4000))
-    simulator = Simulation(None, sim_extent, img_shape, psf, noise, poolsize=1)
+    # prior = EmitterPopper(sim_extent[0], sim_extent[1], sim_extent[2], density=0.005, photon_range=(1000, 4000))
+    prior = EmitterPopperMultiFrame(sim_extent[0], sim_extent[1], sim_extent[2],
+                                    density=0.005,
+                                    photon_range=(1000, 4000),
+                                    lifetime=1,
+                                    num_frames=3)
+    simulator = Simulation(None, sim_extent, psf, noise, poolsize=0, frame_range=(-1, 1))
     train_data_smlm = SMLMDatasetOnFly(sim_extent, prior, simulator, (256 * 10), 3, reuse=False)
     test_data_smlm = SMLMDatasetOnFly(sim_extent, prior, simulator, 256, 3, reuse=True)
 
     """The model load and save interface."""
     model = DeepLoco(extent=sim_extent,
-                     ch_in=1,
+                     ch_in=3,
                      dim_out=3)
     model_ls = LoadSaveModel(model,
                              weight_out,
