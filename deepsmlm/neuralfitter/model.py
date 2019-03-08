@@ -3,17 +3,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class DeepSLMN(nn.Module):
+class DeepSMLN(nn.Module):
     """
     Architecture Nehme, E. - Deep-STORM - https://www.osapublishing.org/abstract.cfm?URI=optica-5-4-458
     """
-    def __init__(self):
+    def __init__(self, in_ch=3):
         super().__init__()
 
         self.upsampling = 8  # as parameter? or constant here?
         self.act = F.relu
 
-        in_ch = 3
         # encode
         self.conv1 = nn.Conv2d(in_ch, 32, (3, 3), 1, padding=1)
         self.conv1_bn = nn.BatchNorm2d(32)
@@ -31,6 +30,12 @@ class DeepSLMN(nn.Module):
         self.conv7 = nn.Conv2d(64 + in_ch, 32, (3, 3), 1, padding=1)
         self.conv7_bn = nn.BatchNorm2d(32)
         self.conv8 = nn.Conv2d(32, 1, (1, 1), 1, bias=False)
+
+    def encode(self, x0):
+        x1 = F.max_pool2d(self.act(self.conv1_bn(self.conv1(x0))), 2, 2)
+        x2 = F.max_pool2d(self.act(self.conv2_bn(self.conv2(x1))), 2, 2)
+        x3 = F.max_pool2d(self.act(self.conv3_bn(self.conv3(x2))), 2, 2)
+        return x3
 
     def forward(self, x0):
         """
@@ -62,11 +67,6 @@ class DeepSLMN(nn.Module):
         for m in self._modules:
             if isinstance(m, nn.Conv2d):
                 nn.init.xavier_uniform_(m, gain=1)
-
-
-class OnlyDecoder(nn.Module):
-    def __init__(self):
-        super().__init__()
 
 
 # Based on deep_loco by Boyd
@@ -166,3 +166,13 @@ class PhotXYZnet(nn.Module):
 
         phot = F.relu(self.photon_fcnet(x))
         return xyz, phot
+
+
+if __name__ == '__main__':
+    model = DeepSMLN(in_ch=1)
+    x = torch.rand((32, 1, 16, 16), requires_grad=True)
+    out = model.encode(x)
+    loss = torch.sum(out)
+    loss.backward()
+
+    print("Sucess.")
