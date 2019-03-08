@@ -14,41 +14,51 @@
 extern "C" {
     #include "cubic_spline.h"  // this shall be replaced by a better path specification
 }
-    
+
+void dummy_function(torch::Tensor x) {
+    x[0] = 1;
+}
 
 int main() {
     
-    int x0, y0, z0;
-    double xc, yc, zc;
-    double x_delta, y_delta, z_delta;
+//    torch::Tensor t = torch::zeros({5});
+//    dummy_function(t);
+//    std::cout << t << std::endl;
     
-    xc = 14.1;
-    yc = 4.8;
-    zc = 10;
-    
-    for (int i = 0; i < 10; i++) {
-        x0 = (int)(floor(xc));
-        y0 = (int)(floor(yc));
-        z0 = (int)(floor(zc));
-        
-        x_delta = xc - (double)x0;
-        y_delta = yc - (double)y0;
-        z_delta = zc - (double)z0;
-    }
+//    int x0, y0, z0;
+//    double xc, yc, zc;
+//    double x_delta, y_delta, z_delta;
+//
+//    xc = 14.1;
+//    yc = 4.8;
+//    zc = 10;
+//
+//    for (int i = 0; i < 10; i++) {
+//        x0 = (int)(floor(xc));
+//        y0 = (int)(floor(yc));
+//        z0 = (int)(floor(zc));
+//
+//        x_delta = xc - (double)x0;
+//        y_delta = yc - (double)y0;
+//        z_delta = zc - (double)z0;
+//    }
 
-    
+
     std::array<int, 2> img_size = {32, 32};
-    std::array<int, 3> ref0_ix = {0, 0, 150};
+    std::array<double, 3> ref0_ix = {0, 0, 150};
     std::array<double, 2> pu = {-0.5, -0.5};
     torch::Tensor xyz = torch::zeros({1, 3}, torch::kDouble);
     torch::Tensor phot = torch::ones({1}, torch::kDouble);
     xyz[0][0] = 10.1;
     xyz[0][1] = 4.7;
-    
+
     double dz = 10;
-    
-    auto *y = initSplineTorch(torch::randn({26, 26, 300, 64}, torch::kDouble), ref0_ix, pu, dz);
-    auto t = imgSplineTorch(y, xyz, phot, img_size);
+
+    splineData* spline_data = initSplineTorch(torch::randn({26, 26, 300, 64}, torch::kDouble), ref0_ix, pu, dz);
+    torch::Tensor t;
+    for (int i = 0; i < 128; i++){
+        t = imgSplineTorch(spline_data, xyz, phot, img_size);
+    }
     
     std::cout << t << std::endl;
     

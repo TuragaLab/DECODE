@@ -26,17 +26,17 @@
  @return Pointer to struct splineData (i.e. splineData*)
  */
 auto initSplineTorch(torch::Tensor coeff, const std::array<double, 3> ref0_ix, const std::array<double, 2> pos_up_left, const double dz) -> splineData* {
-
+    
     const int xsize = static_cast<int>(coeff.size(0));
     const int ysize = static_cast<int>(coeff.size(1));
     const int zsize = static_cast<int>(coeff.size(2));
-
+    
     double* coeff_ = coeff.data<double>();
-
+    
     return initSpline3D(coeff_, xsize, ysize, zsize,
                         ref0_ix[0], ref0_ix[1], ref0_ix[2],
                         pos_up_left[0] + 0.5, pos_up_left[1] + 0.5, dz);
-
+    
 }
 
 /**
