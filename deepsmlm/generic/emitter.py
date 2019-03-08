@@ -26,7 +26,7 @@ class EmitterSet:
             self.xyz = xyz
             self.phot = phot.type(xyz.dtype)
             self.frame_ix = frame_ix.type(xyz.dtype)
-            self.id = id if id is not None else -torch.ones_like(frame_ix)
+            self.id = id if id is not None else -torch.ones_like(frame_ix).type(xyz.dtype)
 
         else:
             self.xyz = torch.zeros((0, 3), dtype=torch.float)
@@ -131,6 +131,14 @@ class LooseEmitterSet:
         return EmitterSet(xyz_, phot_, frame_ix_, id_)
 
     def distribute_framewise(self):
+        _xyz, _phot, _frame_ix, _id = torch_cpp.distribute_frames(self.t0,
+                                                                  self.ontime,
+                                                                  self.xyz,
+                                                                  self.phot,
+                                                                  self.id)
+        return _xyz, _phot, _frame_ix, _id
+
+    def distribute_framewise_py(self):
         frame_start = torch.floor(self.t0)
         self.te = self.t0 + self.ontime  # endpoint
         frame_last = torch.ceil(self.te)
@@ -159,11 +167,11 @@ class LooseEmitterSet:
 
 
 if __name__ == '__main__':
-    num_emitter = 25
-    xyz = torch.rand((25, 3))
+    num_emitter = 25000
+    xyz = torch.rand((num_emitter, 3))
     phot = torch.ones_like(xyz[:, 0])
-    t0 = torch.rand((25,)) * 10 - 1
-    ontime = torch.rand((25,)) * 1.5
+    t0 = torch.rand((num_emitter,)) * 10 - 1
+    ontime = torch.rand((num_emitter,)) * 1.5
 
     LE = LooseEmitterSet(xyz, phot, None, t0, ontime)
     E = LE.return_emitterset()

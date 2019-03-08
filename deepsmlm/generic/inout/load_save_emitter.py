@@ -71,6 +71,10 @@ class MatlabInterface(BinaryInterface):
                                  id=torch.from_numpy(bin[self.id_key]).squeeze())
 
         extent = totuple(bin[self.extent_key])
+        if extent.__len__() == 2:
+            print("WARNING: Extent does not specify whether we have a 3rd dimension.")
+            extent = (extent[0], extent[1], None)
+
         frames = torch.from_numpy(bin[self.frame_key].astype(np.int64)).type(torch.FloatTensor)
         """
         Note that we need to transpose the input coming from matlab because there we don't have the issue with regard 

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import torch
 
 from deepsmlm.generic.emitter import EmitterSet
+from deepsmlm.generic.psf_kernel import ListPseudoPSF
 
 
 class Preprocessing(ABC):
@@ -13,6 +14,14 @@ class Preprocessing(ABC):
         return in_tensor.type(torch.FloatTensor)
 
 
+class Identity(Preprocessing):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, in_tensor):
+        return super().forward(in_tensor)
+
+
 class N2C(Preprocessing):
     def __init__(self):
         super().__init__()
@@ -22,6 +31,24 @@ class N2C(Preprocessing):
         if in_tensor.shape[1] != 1:
             raise ValueError("Shape is wrong.")
         return in_tensor.transpose(0, 1).view(-1, in_tensor.shape[-2], in_tensor.shape[-1])
+
+
+class TargetGenerator(ABC):
+    def __init__(self):
+        super().__init__()
+
+    @abstractmethod
+    def forward(self, x):
+        return x
+
+
+class SingleEmitterOnlyZ(ListPseudoPSF):
+    def __init__(self, xextent, yextent, zextent, zero_fill_to_size=256, dim=3):
+        super().__init__(xextent, yextent, zextent, zero_fill_to_size=256, dim=3)
+
+    def forward(self, x):
+        pos, phot = super().forward(x)
+        return pos[0, 2]
 
 
 class RemoveOutOfFOV:

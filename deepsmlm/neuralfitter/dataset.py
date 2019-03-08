@@ -2,14 +2,14 @@ import torch
 from torch.utils.data import Dataset
 
 from deepsmlm.generic.psf_kernel import DeltaPSF, DualDelta, ListPseudoPSF
-from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV, N2C
+from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV, N2C, Identity
 
 
 class SMLMDataset(Dataset):
     """
     A SMLMDataset derived from the Dataset class.
     """
-    def __init__(self, emitter, extent, frames, multi_frame_output=True, dimensionality=3):
+    def __init__(self, emitter, extent, frames, tar_gen, multi_frame_output=True, dimensionality=3):
         """
 
         :param emitter: set of emitters loaded by binary loader
@@ -21,8 +21,8 @@ class SMLMDataset(Dataset):
         self.frames = frames
         self.image_shape = None
         self.em = None
-        self.extent = (extent[0], extent[1], None)
-        self.upsampling = 8
+        self.extent = extent
+        self.upsampling = 1
         self.multi_frame_output = multi_frame_output
         self.dimensionality = dimensionality
 
@@ -35,11 +35,12 @@ class SMLMDataset(Dataset):
                                self.image_shape[1] * self.upsampling)
 
         """Target data generation. Borrowed from psf-kernel."""
-        self.target_generator = ListPseudoPSF(xextent=self.extent[0],
-                                              yextent=self.extent[1],
-                                              zextent=None,
-                                              zero_fill_to_size=20,
-                                              dim=self.dimensionality)
+        self.target_generator = tar_gen
+            # ListPseudoPSF(xextent=self.extent[0],
+            #                                   yextent=self.extent[1],
+            #                                   zextent=self.extent[2],
+            #                                   zero_fill_to_size=64,
+            #                                   dim=self.dimensionality)
         # self.target_generator = DeltaPSF(xextent=self.extent[0],
         #                                  yextent=self.extent[1],
         #                                  zextent=None,
@@ -73,17 +74,13 @@ class SMLMDataset(Dataset):
         else:
             img = self.frames[index, :, :, :]
 
-        # """
-        # Representation of the emitters on a grid, where each pixel / voxel is used for one emitter.
-        # """
-        """List of Emitters. 2D"""
-        pos_tar, phot_tar = self.target_generator.forward(self.em[index].xyz, self.em[index].phot)
-        target = (pos_tar, phot_tar)
+        """Forward Emitters thorugh target generator."""
+        target = self.target_generator.forward(self.em[index])
         return img, target, index
 
 
 class SMLMDatasetOnFly(Dataset):
-    def __init__(self, extent, prior, simulator, data_set_size, dimensionality=3, reuse=False):
+    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, dimensionality=3, reuse=False):
         super().__init__()
 
         self.extent = extent
@@ -94,12 +91,14 @@ class SMLMDatasetOnFly(Dataset):
         self.prior = prior
         self.simulator = simulator
 
-        self.input_preperator = N2C()
-        self.target_generator = ListPseudoPSF(xextent=self.extent[0],
-                                              yextent=self.extent[1],
-                                              zextent=self.extent[2],
-                                              zero_fill_to_size=64,
-                                              dim=self.dimensionality)
+        self.input_preperator = in_prep  # N2C()
+        self.target_generator = tar_gen
+
+            # ListPseudoPSF(xextent=self.extent[0],
+            #                                   yextent=self.extent[1],
+            #                                   zextent=self.extent[2],
+            #                                   zero_fill_to_size=64,
+            #                                   dim=self.dimensionality)
 
         """Pre-Calculcate the complete dataset and use the same data as one draws samples. 
         This is useful for the testset."""
@@ -111,11 +110,14 @@ class SMLMDatasetOnFly(Dataset):
                 _, frame, target = self.pop_new()
                 self.frame[i] = frame
                 self.target[i] = target
+
+            print("Pre-calculation done.")
+
         else:
             self.frame = None
             self.target = None
 
-    def pop_new(self):
+    def pop_new(self, dummy=None):
         emitter = self.prior.pop()
         sim_out = self.simulator.forward(emitter).type(torch.FloatTensor)
         frame = self.input_preperator.forward(sim_out)
