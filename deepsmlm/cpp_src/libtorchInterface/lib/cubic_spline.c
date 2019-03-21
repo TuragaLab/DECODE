@@ -153,26 +153,6 @@ void computeDelta3D(splineData *spline_data, double z_delta, double y_delta, dou
     }
 }
 
-void kernel_computeDelta3D_yim(splineData *spline_data, double z_delta, double y_delta, double x_delta) {
-    
-    int i,j,k;
-    double cx,cy,cz;
-    
-    cz = 1.0;
-    for(i=0;i<4;i++){
-        cy = 1.0;
-        for(j=0;j<4;j++){
-            cx = 1.0;
-            for(k=0;k<4;k++){
-                spline_data->delta_f[i*16+j*4+k] = cz * cy * cx;
-                cx = cx * x_delta;
-            }
-            cy = cy * y_delta;
-        }
-        cz= cz * z_delta;
-    }
-}
-
 /*
  * dot()
  *
@@ -557,29 +537,7 @@ double fAt3D(splineData *spline_data, int zc, int yc, int xc)
     return yv;
 }
 
-double fAt3Dj_yim(splineData *spline_data, int zc, int yc, int xc) {
-    int i;
-    int xsize, ysize, zsize;
-    double temp =0;
-    
-    xsize = spline_data->xsize;
-    ysize = spline_data->ysize;
-    zsize = spline_data->zsize;
-    
-    xc = fmax(xc,0);
-    xc = fmin(xc,spline_data->xsize-1);
-    
-    yc = fmax(yc,0);
-    yc = fmin(yc,spline_data->ysize-1);
-    
-    zc = fmax(zc,0);
-    zc = fmin(zc,spline_data->zsize-1);
-    
-    for (i=0;i<64;i++){
-        temp+=spline_data->delta_f[i]*spline_data->aij[i*(xsize*ysize*zsize)+zc*(xsize*ysize)+yc*xsize+xc];
-    }
-    return temp;
-}
+
 
 /*
  * fSpline2D()
@@ -689,11 +647,72 @@ void imgSpline3D(splineData *spline_data, double* img, int x_size, int y_size,
     }
 }
 
+void kernel_computeDelta3D_yim(float x_delta, float y_delta, float z_delta, float *delta_f) {
+    
+    int i,j,k;
+    float cx,cy,cz;
+    
+    cz = 1.0;
+    for(i=0;i<4;i++){
+        cy = 1.0;
+        for(j=0;j<4;j++){
+            cx = 1.0;
+            for(k=0;k<4;k++){
+                delta_f[i*16+j*4+k] = cz * cy * cx;
+                cx = cx * x_delta;
+            }
+            cy = cy * y_delta;
+        }
+        cz= cz * z_delta;
+    }
+}
+
+float fAt3Dj_yim2(int xc, int yc, int zc, int xsize, int ysize, int zsize, float*delta_f, float *coeff) {
+    int i;
+    float temp =0;
+    
+    xc = fmax(xc,0);
+    xc = fmin(xc,xsize-1);
+    
+    yc = fmax(yc,0);
+    yc = fmin(yc,ysize-1);
+    
+    zc = fmax(zc,0);
+    zc = fmin(zc,zsize-1);
+    
+    
+    
+    for (i=0;i<64;i++){
+        temp+=delta_f[i]*coeff[i*(xsize*ysize*zsize)+zc*(xsize*ysize)+yc*xsize+xc];
+    }
+    return temp;
+}
+
+float fSpline3D(float xc, float yc, float zc, float *coeff) {
+    
+    /** Query points. Note that the delta is the same for all points on the grid. **/
+    int x0,y0,z0;
+    float x_delta,y_delta,z_delta;
+    float delta_f[64] = {0};
+    
+    x0 = (int)floor(xc);
+    x_delta = xc - x0;
+    
+    y0 = (int)floor(yc);
+    y_delta = yc - y0;
+    
+    z0 = (int)floor(zc);
+    z_delta = zc - z0;
+    
+    kernel_computeDelta3D_yim(x_delta, y_delta, z_delta, delta_f);
+    float f = fAt3Dj_yim2(x0, y0, z0, 26, 26, 30, delta_f, coeff);
+    return f;
+}
 
 /**
  Compute Image -- after yimming.
  */
-void imgSpline3D_yimming_try(splineData *spline_data, double* img,
+void imgSpline3D_yim(splineData *spline_data, double* img,
                  int x_size, int y_size,
                  double zcenter, double ycenter, double xcenter, double N) {
     
@@ -701,32 +720,32 @@ void imgSpline3D_yimming_try(splineData *spline_data, double* img,
     int x0,y0,z0;
     double xc, yc, zc;
     double x_delta,y_delta,z_delta;
-    
+
     /* Shift query points by 0 reference ix; shift by coordinate of upper left px (usually 0, 0)*/
 //    xc = 0 - xc + spline_data->x0_ix - spline_data->pos_x0;
 //    yc = 0 - yc + spline_data->y0_ix - spline_data->pos_y0;
 //    zc = zc + spline_data->z0_ix;
     const int Npixels = x_size;
     const int offset = (int)(floor(((spline_data->xsize + 1) - Npixels) / 2.0));
-    
+
     xc = -1.0 * ((xcenter - ((double)Npixels) / 2) + 0.5);
     yc = -1.0 * ((ycenter - ((double)Npixels) / 2) + 0.5);
     zc = zcenter + spline_data->z0_ix;
-    
+
     x0 = floor(xc);
     x_delta = xc - x0;
-    
+
     y0 = floor(yc);
     y_delta = yc - y0;
-    
+
     z0 = floor(zcenter);
     z_delta = zc - z0;
-    
-    kernel_computeDelta3D_yim(spline_data, z_delta, y_delta, x_delta);
-    
+
+    kernel_computeDelta3D_yim(x_delta, y_delta, z_delta, spline_data->delta_f);
+
     for (int i = 0; i < x_size; i++) {
         for (int j = 0; j < y_size; j++) {
-            img[y_size * j + i] += N * fAt3Dj_yim(spline_data, z0, y0 + j + offset, x0 + i + offset);
+            img[y_size * j + i] += N * fAt3Dj_yim(x0 + i + offset, y0 + j + offset, z0, spline_data, spline_data->delta_f, spline_data->aij);
         }
     }
 }

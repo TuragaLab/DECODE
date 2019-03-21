@@ -3,7 +3,7 @@ import sys
 from distutils.core import setup, Extension
 from torch.utils.cpp_extension import CppExtension, BuildExtension
 
-static_libraries = ['cubic_spline']
+static_libraries = ['spline_psf']
 static_lib_dir = 'lib'
 libraries = ['']
 library_dirs = ['']
@@ -46,10 +46,10 @@ $ CC=clang CXX=clang++ NO_CUDA=1 python setup.py clean --all install
 
 Compile cubic_spline and link statically (Linux: gcc, macOS: clang):
 
-$ gcc -fPIC -g -c -Wall lib/cubic_spline.c -o lib/cubic_spline.o
-$ ar rcs lib/libcubic_spline.a lib/cubic_spline.o
+$ gcc -fPIC -g -c -Wall lib/spline_psf.c -o lib/spline_psf.o
+$ ar rcs lib/libspline_psf.a lib/spline_psf.o
 
-$ clang -o lib/cubic_spline.o -c -O3 -Wall -I/usr/local/include -fPIC lib/cubic_spline.c
-$ ar rcs lib/libcubic_spline.a lib/cubic_spline.o
+$ clang -o lib/spline_psf.o -c -O3 -Wall -I/usr/local/include -fPIC lib/spline_psf.c
+$ ar rcs lib/libspline_psf.a lib/spline_psf.o
 
 """

@@ -60,6 +60,10 @@ void imgSpline3D(splineData *, double*, int , int, double, double, double, doubl
 void gradSpline3D(splineData *, double *, double *, double *, int, double, double, double,
                   double *, double *);
 
+void kernel_computeDelta3D_yim(float x_delta, float y_delta, float z_delta, float *delta_f);
+float fAt3Dj_yim(int xc, int yc, int zc, int xsize, int ysize, int zsize, float*delta_f, float *coeff);
+void imgSpline3D_yim(splineData *, double*, int , int, double, double, double, double);
+
 int getXSize(splineData *);
 int getYSize(splineData *);
 int getZSize(splineData *);

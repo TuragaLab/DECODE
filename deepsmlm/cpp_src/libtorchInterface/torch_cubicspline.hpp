@@ -9,14 +9,13 @@
 #ifndef torch_cubicspline_hpp
 #define torch_cubicspline_hpp
 
-#include <stdio.h>
-
 extern "C" {
-    #include "lib/cubic_spline.h"
+    #include "lib/spline_psf.h"
 }
 
-auto initSplineTorch(torch::Tensor coeff, std::array<double, 3>, std::array<double, 2>, double) -> splineData*;
-auto imgSplineTorch(splineData *spline_data, torch::Tensor xyz, torch::Tensor phot, std::array<int, 2> img_size) -> torch::Tensor;
-auto fSplineTorch(splineData *spline_data, double x, double y, double z) -> double;
+auto init_spline_bind(torch::Tensor coeff, std::array<float, 3> ref0_ix, float dz)->spline*;
+auto fPSF_bind(spline *sp, torch::Tensor xyz, torch::Tensor phot, int img_size, std::array<float, 2> corner_coord)->torch::Tensor;
+auto fSpline_bind(spline *sp, float x, float y, float z) -> float;
+
 
 #endif /* torch_cubicspline_hpp */

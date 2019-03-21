@@ -6,13 +6,18 @@
 //  Copyright © 2019 Lucas-Raphael Müller. All rights reserved.
 //
 
+//#include <fenv.h>  // DEBUGGING
+//#pragma STDC FENV_ACCESS ON
+
 #include <iostream>
 #include <torch/torch.h>
+
 #include "torch_boost.hpp"
 #include "torch_cubicspline.hpp"
 
 extern "C" {
-    #include "cubic_spline.h"  // this shall be replaced by a better path specification
+//    #include "cubic_spline.h"  // this shall be replaced by a better path specification
+    #include "lib/spline_psf.h"
 }
 
 void dummy_function(torch::Tensor x) {
@@ -20,48 +25,27 @@ void dummy_function(torch::Tensor x) {
 }
 
 int main() {
-    
-//    torch::Tensor t = torch::zeros({5});
-//    dummy_function(t);
-//    std::cout << t << std::endl;
-    
-//    int x0, y0, z0;
-//    double xc, yc, zc;
-//    double x_delta, y_delta, z_delta;
-//
-//    xc = 14.1;
-//    yc = 4.8;
-//    zc = 10;
-//
-//    for (int i = 0; i < 10; i++) {
-//        x0 = (int)(floor(xc));
-//        y0 = (int)(floor(yc));
-//        z0 = (int)(floor(zc));
-//
-//        x_delta = xc - (double)x0;
-//        y_delta = yc - (double)y0;
-//        z_delta = zc - (double)z0;
-//    }
-
 
     std::array<int, 2> img_size = {32, 32};
-    std::array<double, 3> ref0_ix = {0, 0, 150};
-    std::array<double, 2> pu = {-0.5, -0.5};
-    torch::Tensor xyz = torch::zeros({1, 3}, torch::kDouble);
-    torch::Tensor phot = torch::ones({1}, torch::kDouble);
+    std::array<float, 3> ref0_ix = {0, 0, 150};
+    std::array<float, 2> pu = {-0.5, -0.5};
+    torch::Tensor xyz = torch::zeros({10000, 3}, torch::kFloat);
+    torch::Tensor phot = torch::ones({10000}, torch::kFloat);
     xyz[0][0] = 10.1;
     xyz[0][1] = 4.7;
 
-    double dz = 10;
-
-    splineData* spline_data = initSplineTorch(torch::randn({26, 26, 300, 64}, torch::kDouble), ref0_ix, pu, dz);
-    torch::Tensor t;
-    for (int i = 0; i < 128; i++){
-        t = imgSplineTorch(spline_data, xyz, phot, img_size);
-    }
     
-    std::cout << t << std::endl;
+//    auto coeff_t = torch::arange(1297920, torch::kDouble).view({26, 26, 30, 64}) / 1e6;
+    auto coeff_t = torch::arange(1297920, torch::kFloat);
+    float *coeff = coeff_t.data<float>();
+
+    spline *sp = initSpline(coeff, 26, 26, 30, 0, 0, 0, 1);
+    float f = fSpline3D(sp, 10.2, 11.4, 12.6);
+    
+    std::cout << f << std::endl;
+    auto x = fPSF_bind(sp, xyz, phot, 32, pu);
+    
+    std::cout << x << std::endl;
     
     return 0;
 }
-
