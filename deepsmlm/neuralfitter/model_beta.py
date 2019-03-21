@@ -6,6 +6,7 @@ from collections import OrderedDict
 from torch.nn import init
 import numpy as np
 
+from deepsmlm.neuralfitter.model_densenet import DenseNet
 from deepsmlm.neuralfitter.model import DeepSMLN, ResNet
 
 
@@ -13,16 +14,40 @@ class EncoderFC(DeepSMLN):
     def __init__(self, limits):
         super().__init__(1)
         self.limits = limits
-        self.FCnet = ResNet(512, 256, 3)
-        self.fc_out = nn.Linear(256, 1)
+        self.fc_net = ResNet(512, 512, 3)
+        self.fc_out = nn.Linear(512, 1)
 
     def forward(self, x):
         x = super().encode(x)
         x = x.view(x.shape[0], -1)
-        x = self.FCnet.forward(x)
-        x = torch.sigmoid(self.fc_out(x)) * (self.limits[1] - self.limits[0]) + self.limits[0]
+        x = self.fc_net.forward(x)
+        # x = torch.sigmoid(self.fc_out(x)) * (self.limits[1] - self.limits[0]) + self.limits[0]
+        x = self.fc_out(x)
         return x
 
+    def weight_init(self):
+        # for m in self.modules():
+        #     m.weight_init()
+        super().weight_init()
+        self.fc_net.weight_init()
+        nn.init.xavier_uniform_(self.fc_out.weight, gain=1000)
+
+
+class DenseNetResNet(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.densnet_features = 64
+        self.conv_net = DenseNet(num_classes=self.densnet_features, num_channels=1)
+        self.fc_net = SuperDumbFCNet(self.densnet_features, None)
+        # self.fc_net = ResNet(self.densnet_features, self.densnet_features, 2)
+        self.fc_out = nn.Linear(self.densnet_features, 1)
+
+    def forward(self, x):
+        x = self.conv_net.forward(x)
+        x = self.fc_net.forward(x)
+        x = self.fc_out.forward(x)
+        return x
 
 
 class SuperDumbFCNet(nn.Module):
@@ -53,7 +78,8 @@ class SuperDumbFCNet(nn.Module):
         x = self.bn4(self.act(self.fc4(x)))
         x = self.bn5(self.act(self.fc5(x)))
         x = self.bn6(self.act(self.fc6(x)))
-        x = torch.sigmoid(self.fc_out(x)) * (self.limits[1] - self.limits[0]) + self.limits[0]
+        # x = self.fc_out(x)
+        # x = torch.sigmoid(self.fc_out(x)) * (self.limits[1] - self.limits[0]) + self.limits[0]
         return x
 
     def weight_init(self):
@@ -343,9 +369,19 @@ if __name__ == "__main__":
     loss.backward()
 
     model = EncoderFC((-500., 500.))
-    x = torch.rand((32, 1, 16, 16), requires_grad=True)
+    x = torch.rand((32, 1, 26, 26), requires_grad=True)
     out = model(x)
     loss = torch.sum(out)
     loss.backward()
+
+    model = DenseNetResNet()
+    x = torch.rand((32, 1, 26, 26), requires_grad=True)
+    out = model(x)
+    loss = torch.sum(out)
+    loss.backward()
+
+    model = DenseNet(num_channels=1)
+    x = torch.rand((32, 1, 26, 26), requires_grad=True)
+    out = model(x)
 
     print("Sucess.")

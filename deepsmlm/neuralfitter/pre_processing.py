@@ -43,12 +43,44 @@ class TargetGenerator(ABC):
 
 
 class SingleEmitterOnlyZ(ListPseudoPSF):
-    def __init__(self, xextent, yextent, zextent, zero_fill_to_size=256, dim=3):
-        super().__init__(xextent, yextent, zextent, zero_fill_to_size=256, dim=3)
+    def __init__(self):
+        super().__init__(None, None, None, dim=3)
 
     def forward(self, x):
         pos, phot = super().forward(x)
         return pos[0, 2]
+
+
+class ZasSimpleRegression(SingleEmitterOnlyZ):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        # output
+        z = super().forward(x)
+        if z > 200:
+            out = torch.tensor([1.])
+        elif z < - 200:
+            out = torch.tensor([-1.])
+        else:
+            out = torch.tensor([0.])
+
+        return out.type(torch.FloatTensor)
+
+
+class ZasClassification(SingleEmitterOnlyZ):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        # output
+        z = super().forward(x)
+        if z > 0:
+            out = torch.tensor([0])
+        else:
+            out = torch.tensor([1])
+
+        return out.type(torch.LongTensor)
 
 
 class RemoveOutOfFOV:

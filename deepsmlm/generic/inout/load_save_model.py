@@ -10,10 +10,10 @@ class LoadSaveModel:
 
     def load_init(self, cuda=torch.cuda.is_available()):
         model = self.model
-
+        print('Model instantiated.')
         if self.warmstart_file is None:
-            model.weight_init()
-            print('Model initialised randomly.')
+            # model.weight_init()
+            print('Model initialised randomly as specified in the constructor.')
         else:
 
             if cuda:

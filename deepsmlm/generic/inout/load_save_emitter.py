@@ -114,7 +114,7 @@ class NumpyInterface(BinaryInterface):
                                  id=torch.from_numpy(bin[self.id_key]))
 
         extent = totuple(bin[self.extent_key])
-        frames = torch.from_numpy(bin[self.frame_key])
+        frames = torch.from_numpy(bin[self.frame_key]).type(torch.FloatTensor)
 
         return emitter_set, extent, frames
 

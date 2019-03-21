@@ -1,4 +1,7 @@
 import matplotlib.pyplot as plt
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+from tensorboardX import SummaryWriter
 import torch
 
 """
@@ -37,7 +40,11 @@ class PlotFrame:
 
 
 class PlotCoordinates:
-    def __init__(self, pos_tar=None, pos_out=None, pos_ini=None, extent_limit=None):
+    def __init__(self,
+                 pos_tar=None, phot_tar = None,
+                 pos_out=None, phot_out=None,
+                 pos_ini=None, phot_ini=None,
+                 extent_limit=None):
         """
         :param pos_tar: torch tensor of target values
         :param pos_pred: torch tensor of outputted pos
@@ -46,22 +53,48 @@ class PlotCoordinates:
 
         self.extent_limit = extent_limit
         self.pos_tar = pos_tar
+        self.phot_tar = phot_tar
         self.pos_out = pos_out
+        self.phot_out = phot_out
         self.pos_ini = pos_ini
+        self.phot_ini = phot_ini
+
+        self.tar_marker = 'ro'
+        self.tar_cmap = 'winter'
+        self.out_marker = 'bx'
+        self.out_cmap = 'viridis'
+        self.ini_marker = 'g+'
+        self.ini_cmap = 'copper'
 
     def plot(self):
         """
         Plot the coordinates.
         """
+        def plot_xyz(pos, marker, color, label):
+            plt.scatter(pos[:, 0].numpy(), pos[:, 1].numpy(),
+                        marker=marker, edgecolors=color, facecolors='none', label=label)
+
+        def plot_xyz_phot(pos, phot, marker, cmap, label):
+            plt.scatter(pos[:, 0].numpy(), pos[:, 1].numpy(), c=phot.numpy(),
+                     marker=marker, facecolors='none', cmap=cmap ,label=label)
+
         if self.pos_tar is not None:
-            plt.plot(self.pos_tar[:, 0].numpy(), self.pos_tar[:, 1].numpy(),
-                     'ro', fillstyle='none', label='Target')
+            if self.phot_tar is not None:
+                plot_xyz_phot(self.pos_tar, self.phot_tar, self.tar_marker[1], self.tar_cmap, 'Target')
+            else:
+                plot_xyz(self.pos_tar, self.tar_marker[1], self.tar_marker[0], 'Target')
+
         if self.pos_out is not None:
-            plt.plot(self.pos_out[:, 0].numpy(), self.pos_out[:, 1].numpy(),
-                     'bx', fillstyle='none', label='Output')
+            if self.phot_out is not None:
+                plot_xyz_phot(self.pos_out, self.phot_out, self.out_marker[1], self.out_cmap, 'Output')
+            else:
+                plot_xyz(self.pos_out, self.out_marker[1], self.out_marker[0], 'Output')
+
         if self.pos_ini is not None:
-            plt.plot(self.pos_ini[:, 0].numpy(), self.pos_ini[:, 1].numpy(),
-                     'g+', fillstyle='none', label='Init')
+            if self.phot_ini is not None:
+                plot_xyz_phot(self.pos_ini, self.phot_ini, self.ini_marker[1], self.ini_cmap, 'Init')
+            else:
+                plot_xyz(self.pos_ini, self.ini_marker[1], self.ini_marker[0], 'Init')
 
         plt.axis('equal')
         plt.xlabel('x')
@@ -70,11 +103,41 @@ class PlotCoordinates:
             plt.xlim(*self.extent_limit[0])
             plt.ylim(*self.extent_limit[1][::-1])  # reverse tuple order
 
+class PlotCoordinates3D:
+    def __init__(self, pos_tar=None, pos_out=None, phot_out=None):
+
+        self.pos_tar = pos_tar
+        self.pos_out = pos_out
+        self.phot_out = phot_out
+
+        self.fig = plt.gcf()
+        self.ax = self.fig.add_subplot(111, projection='3d')
+
+    def plot(self):
+        if self.pos_tar is not None:
+            xyz = self.pos_tar
+            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], c='r', marker='o')
+
+        if self.pos_out is not None:
+            xyz = self.pos_out
+            phot = self.phot_out
+
+            rgba_colors = torch.zeros((xyz.shape[0], 4))
+            rgba_colors[:, 2] = 1.0
+            rgba_colors[:, 3] = phot / phot.max()
+            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], marker='^', color=rgba_colors)
+            plt.xlabel('x')
+            plt.ylabel('y')
+
 
 class PlotFrameCoord(PlotCoordinates, PlotFrame):
     """Combination of Frame and Coord"""
 
-    def __init__(self, frame, pos_tar=None, pos_out=None, pos_ini=None, extent=None, coord_limit=None):
+    def __init__(self, frame,
+                 pos_tar=None, phot_tar = None,
+                 pos_out=None, phot_out=None,
+                 pos_ini=None, phot_ini=None,
+                 extent=None, coord_limit=None):
         """
         (see base classes)
         :param frame:
@@ -82,8 +145,16 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
         :param pos_out:
         :param pos_ini:
         """
-        PlotCoordinates.__init__(self, pos_tar=pos_tar, pos_out=pos_out, pos_ini=pos_ini,
+
+        PlotCoordinates.__init__(self,
+                                 pos_tar=pos_tar,
+                                 phot_tar=phot_tar,
+                                 pos_out=pos_out,
+                                 phot_out=phot_out,
+                                 pos_ini=pos_ini,
+                                 phot_ini=phot_ini,
                                  extent_limit=coord_limit)
+
         PlotFrame.__init__(self, frame, extent)
 
     def plot(self):
@@ -93,5 +164,30 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
         them wenn we limit the extent first.
         :return: None
         """
+
         PlotFrame.plot(self)
         PlotCoordinates.plot(self)
+
+if __name__ == '__main__':
+    extent = ((-0.5, 31.5), (-0.5, 31.5), None)
+    img_shape = (32, 32)
+
+    img = torch.rand((img_shape[0], img_shape[1]))
+    # PlotFrame(frame=img, extent=extent).plot()
+    # plt.show()
+
+    xyz = torch.rand((5, 3)) * img_shape[0]
+    phot = torch.rand((5,)) * 1000
+
+    xyz_out = torch.cat((xyz, xyz), 0)
+    xyz_out += 5 * torch.randn_like(xyz_out)
+    phot_out = torch.cat((phot, phot), dim=0)
+
+    PlotCoordinates(pos_ini=xyz, phot_ini=phot).plot()
+    plt.show()
+
+    PlotFrameCoord(frame=img, pos_out=xyz, phot_out=phot).plot()
+    plt.show()
+
+    PlotCoordinates3D(pos_tar=xyz, pos_out=xyz_out, phot_out=phot_out).plot()
+    plt.show()

@@ -129,20 +129,39 @@ class DualDelta(DeltaPSF):
 
 
 class ListPseudoPSF(PSF):
-    def __init__(self, xextent, yextent, zextent, zero_fill_to_size=256, dim=3):
-        super().__init__()
-        self.xextent = xextent
-        self.yextent = yextent
-        self.zextent = zextent
+    def __init__(self, xextent, yextent, zextent, dim=3):
+        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=None)
         self.dim = dim
-        self.zero_fill_to_size = zero_fill_to_size
 
     def forward(self, emitter):
         pos, weight = emitter.xyz, emitter.phot
-        num_emitters = pos.shape[0]
+        if self.dim == 3:
+            return pos[:, :3], weight
+        elif self.dim == 2:
+            return pos[:, :2], weight
+        else:
+            raise ValueError("Wrong dimension.")
 
-        weight_fill = torch.zeros((self.zero_fill_to_size), dtype=weight.dtype)
-        pos_fill = torch.zeros((self.zero_fill_to_size, self.dim), dtype=pos.dtype)
+
+class ListPseudoPSFInSize(ListPseudoPSF):
+    def __init__(self, xextent, yextent, zextent, zts=256, dim=3):
+        """
+
+        :param xextent:
+        :param yextent:
+        :param zextent:
+        :param zts: zeros fill to size. I.e. construct 0 photon emitters until the emitter set is of size zts.
+        :param dim:
+        """
+        super().__init__(xextent, yextent, zextent, dim=dim)
+        self.zts = zts
+
+    def forward(self, emitter):
+        pos, weight = super().forward(emitter)
+
+        num_emitters = pos.shape[0]
+        weight_fill = torch.zeros((self.zts), dtype=weight.dtype)
+        pos_fill = torch.zeros((self.zts, self.dim), dtype=pos.dtype)
 
         weight_fill[:num_emitters] = 1.
         if self.dim == 2:
@@ -249,6 +268,10 @@ class SplineCPP(PSF):
         :param dz: distance between z slices. You must provide either zextent or dz. If both, dz will be used.
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
+        if img_shape[0] != img_shape[1]:
+            raise ValueError("Image must be of equal size in x and y.")
+        self.npx = img_shape[0]
+
 
         self.coeff = coeff
         self.ref0 = ref0
@@ -257,10 +280,11 @@ class SplineCPP(PSF):
                 raise ValueError('Either you must provide zextent or you must provide dz.')
             dz = (self.zextent[1] - self.zextent[0]) / (self.coeff.shape[2] - 1)
 
-        self.spline_c = tp.init_spline(self.coeff.type(torch.DoubleTensor),
+        self.dz = dz
+
+        self.spline_c = tp.init_spline(self.coeff.type(torch.FloatTensor),
                                        list(self.ref0),
-                                       list((xextent[0], yextent[0])),
-                                       dz)
+                                       self.dz)
 
         """Test whether extent corresponds to img shape"""
         if (img_shape[0] != (xextent[1] - xextent[0])) or (img_shape[1] != (yextent[1] - yextent[0])):
@@ -271,10 +295,11 @@ class SplineCPP(PSF):
 
     def forward(self, pos, weight):
         if (pos is not None) and (pos.shape[0] != 0):
-            return tp.img_spline(self.spline_c,
-                                 pos.type(torch.DoubleTensor),
-                                 weight.type(torch.DoubleTensor),
-                                 list(self.img_shape))
+            return tp.fPSF(self.spline_c,
+                           pos.type(torch.FloatTensor),
+                           weight.type(torch.FloatTensor),
+                           self.npx,
+                           list((self.xextent[0], self.yextent[0])))
         else:
             return torch.zeros((1, self.img_shape[0], self.img_shape[1])).type(torch.DoubleTensor)
 
@@ -428,11 +453,11 @@ class GaussianSampleBased(PSF):
 if __name__ == '__main__':
     from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 
-    extent = ((-0.5, 31.5), (-0.5, 31.5), None)
-    img_shape = (32, 32)
-    spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
-    # spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
-    psf = SMAPSplineCoefficient(spline_file).init_spline(extent[0], extent[1], extent[2], img_shape)
-    img = psf.forward(torch.rand((2, 3)), torch.tensor([1., 1.]))
+    extent = ((-0.5, 25.5), (-0.5, 25.5), None)
+    img_shape = (26, 26)
+    #spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    psf = SMAPSplineCoefficient(spline_file).init_spline(extent[0], extent[1], img_shape)
+    img = psf.forward(torch.rand((10000, 3)), torch.rand((10000)))
     print('Success.')
 

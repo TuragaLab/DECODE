@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from deepsmlm.neuralfitter.model_densenet import DenseNet
+
 
 class DeepSMLN(nn.Module):
     """
@@ -35,7 +37,8 @@ class DeepSMLN(nn.Module):
         x1 = F.max_pool2d(self.act(self.conv1_bn(self.conv1(x0))), 2, 2)
         x2 = F.max_pool2d(self.act(self.conv2_bn(self.conv2(x1))), 2, 2)
         x3 = F.max_pool2d(self.act(self.conv3_bn(self.conv3(x2))), 2, 2)
-        return x3
+        x4 = F.max_pool2d(self.act(self.conv4_bn(self.conv4(x3))), 2, 2)
+        return x4
 
     def forward(self, x0):
         """
@@ -71,17 +74,27 @@ class DeepSMLN(nn.Module):
 
 # Based on deep_loco by Boyd
 class DeepLoco(nn.Module):
-    def __init__(self, extent, ch_in=1, dim_out=2):
+    def __init__(self, extent, ch_in=1, dim_out=3):
         super().__init__()
         self.feature_net = DeepConvNet(ch_in)
         self.fc_net = ResNet(256 * 4 * 4, 1024, 2)
         self.phot_xyz_net = PhotXYZnet(1024, 64, extent[0], extent[1], extent[2], dim_out)
 
+        print("No weight initialisation implemented.")
+
     def forward(self, x):
         return self.phot_xyz_net(self.fc_net(self.feature_net(x)))
 
-    def weight_init(self):
-        print('Implement a weight init you fucker!')
+
+class DenseLoco(DeepLoco):
+    def __init__(self, extent, ch_in=1, dim_out=3):
+        super().__init__(extent=extent, ch_in=ch_in, dim_out=dim_out)
+        self.feature_net = DenseNet(num_channels=ch_in, num_classes=1024)
+        self.fc_net = ResNet(1024, 256, 2)
+        self.phot_xyz_net = PhotXYZnet(256, 64, extent[0], extent[1], extent[2], dim_out, True)
+
+    def forward(self, x):
+        return super().forward(x)
 
 
 class DeepConvNet(nn.Module):
@@ -129,6 +142,9 @@ class ResNet(nn.Module):
             x = rb(x)
         return x
 
+    def weight_init(self):
+        print("Not yet implemented.")
+
 
 class ResidualBlock(nn.Module):
     def __init__(self, dim):
@@ -140,14 +156,19 @@ class ResidualBlock(nn.Module):
     def forward(self, x):
         return x + self.l2(F.relu(self.l1(x)))
 
+    def weight_init(self):
+        nn.init.constant_(self.l1.weight, 0)
+        nn.init.constant_(self.l2.weight, 0)
+
 
 class PhotXYZnet(nn.Module):
-    def __init__(self, dim_in, max_num_emitter, xextent, yextent, zextent, emitter_dim=3):
+    def __init__(self, dim_in, max_num_emitter, xextent, yextent, zextent, emitter_dim=3, range_enforce=True):
         super().__init__()
 
-        self.xextent = xextent
-        self.yextent = yextent
-        self.zextent = zextent
+        self.xextent = (xextent[0] - 5, xextent[1] + 5)
+        self.yextent = (yextent[0] - 5, yextent[1] + 5)
+        self.zextent = (zextent[0] - 5, zextent[1] + 5)
+        self.range_enforce = range_enforce
 
         self.scale_tensor = torch.tensor([self.xextent[1] - self.xextent[0],
                                           self.yextent[1] - self.yextent[0],
@@ -159,10 +180,15 @@ class PhotXYZnet(nn.Module):
 
     def forward(self, x):
         x = x.view(x.shape[0], -1)
+
         """Place xyz in apropriate limits. I am unhappy about this."""
-        xyz = torch.sigmoid(self.xyz_fcnet(x))
-        xyz = xyz.view(x.shape[0], -1, self.emitter_dim)
-        xyz = xyz * self.scale_tensor.to(xyz.device) + self.shift_tensor.to(xyz.device)
+        if self.range_enforce:
+            xyz = torch.sigmoid(self.xyz_fcnet(x))
+            xyz = xyz.view(x.shape[0], -1, self.emitter_dim)
+            xyz = xyz * self.scale_tensor.to(xyz.device) + self.shift_tensor.to(xyz.device)
+        else:
+            xyz = self.xyz_fcnet(x)
+            xyz = xyz.view(x.shape[0], -1, self.emitter_dim)
 
         phot = F.relu(self.photon_fcnet(x))
         return xyz, phot
@@ -172,6 +198,18 @@ if __name__ == '__main__':
     model = DeepSMLN(in_ch=1)
     x = torch.rand((32, 1, 16, 16), requires_grad=True)
     out = model.encode(x)
+    loss = torch.sum(out)
+    loss.backward()
+
+    model = DeepLoco(((0., 1),(0., 1), (0., 1.)), 1, 3)
+    x = torch.rand((32, 1, 64, 64), requires_grad=True)
+    out = model(x)
+    # loss = torch.sum(out)
+    # loss.backward()
+
+    model = DenseLoco(((0., 1),(0., 1), (0., 1.)), 1, 3)
+    x = torch.rand((32, 1, 32, 32), requires_grad=True)
+    out = model(x)
     loss = torch.sum(out)
     loss.backward()
 

@@ -3,6 +3,7 @@ import math
 import numpy as np
 import os, sys
 import torch
+import multiprocessing
 from multiprocessing.dummy import Pool as ThreadPool
 
 from deepsmlm.generic.emitter import EmitterSet
@@ -46,7 +47,7 @@ class Simulation:
 
         """Split the Set of Emitters in frames. Outputs list of set of emitters."""
         if self.em is not None:
-            self.em_split = self.em.split_in_frames(frame_range[0], frame_range[1])
+            self.em_split = self.em.split_in_frames(self.frame_range[0], self.frame_range[1])
 
     @staticmethod
     def forward_single_frame(pos, phot, psf, bg):
@@ -89,10 +90,13 @@ class Simulation:
             self.em_split = self.em.split_in_frames(self.frame_range[0], self.frame_range[1])
 
         if self.poolsize != 0:
-            pool = ThreadPool(self.poolsize)
-            frame_list = pool.starmap(self.forward_single_frame_wrapper, zip(self.em_split,
-                                                                             iter.repeat(self.psf),
-                                                                             iter.repeat(self.background)))
+            raise NotImplementedError("Does not work at the moment.")
+            with multiprocessing.Pool(processes=self.poolsize) as pool:
+                # pool = ThreadPool(self.poolsize)
+                frame_list = pool.starmap(self.forward_single_frame_wrapper, zip(self.em_split,
+                                                                                 iter.repeat(self.psf),
+                                                                                 iter.repeat(self.background)))
+
         elif self.poolsize == 0:
             em_sets = self.em_split.__len__()
             frame_list = [None] * em_sets
@@ -105,20 +109,20 @@ class Simulation:
         return self.frames
 
 
-def write_to_binary(self, outfile):
-        """
-        Writes frames and emitters to binary.
-        :param outfile: output file
-        :return: void
-        """
-        np.savez_compressed(outfile,
-                            frames=self.frames.numpy(),
-                            xyz=self.em.xyz,
-                            phot=self.em.phot,
-                            id=self.em.id,
-                            frame_ix=self.em.frame_ix,
-                            extent=self.extent)
-        print("Saving simulation to {}.".format(outfile))
+    def write_to_binary(self, outfile):
+            """
+            Writes frames and emitters to binary.
+            :param outfile: output file
+            :return: void
+            """
+            np.savez_compressed(outfile,
+                                frames=self.frames.numpy(),
+                                xyz=self.em.xyz,
+                                phot=self.em.phot,
+                                id=self.em.id,
+                                frame_ix=self.em.frame_ix,
+                                extent=self.extent)
+            print("Saving simulation to {}.".format(outfile))
 
 
 class SimulationArgs:
@@ -134,7 +138,7 @@ if __name__ == '__main__':
         os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      os.pardir, os.pardir)) + '/'
 
-    args = SimulationArgs(extent=((-0.5, 25.5), (-0.5, 25.5), None),
+    args = SimulationArgs(extent=((-0.5, 25.5), (-0.5, 25.5), (-200, 200)),
                           img_shape=(26, 26),
                           bg_value=None)
     args.csp_calib = deepsmlm_root + \
@@ -146,14 +150,15 @@ if __name__ == '__main__':
                          img_shape=args.img_shape)
     bg = Poisson(bg_uniform=15)
 
-    em = EmitterSet(xyz=torch.rand((100, 3)) * torch.tensor([30., 30, 5]),
-                    phot=torch.randint(800, 4000, (100,)),
-                    frame_ix=torch.randint(0, 10, (100,)))
+    num_emitters = 100000
+    em = EmitterSet(xyz=torch.rand((num_emitters, 3)) * torch.tensor([30., 30, 5]),
+                    phot=torch.randint(800, 4000, (num_emitters,)),
+                    frame_ix=torch.randint(0, 10000, (num_emitters,)))
 
     # em = EmitterSet(xyz=torch.tensor([[15., 15, -200]]),
     #                 phot=torch.tensor([2000]),
     #                 frame_ix=torch.tensor([0]))
 
-    sim = Simulation(em=em, extent=args.extent, psf=psf, background=bg, poolsize=6)
-    sim.render_frames_wrapper()
+    sim = Simulation(em=em, extent=args.extent, psf=psf, background=bg, poolsize=0)
+    sim.forward()
     sim.write_to_binary(args.binary_path)
