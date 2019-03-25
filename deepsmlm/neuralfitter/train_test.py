@@ -104,11 +104,11 @@ def train(train_loader, model, optimizer, criterion, epoch, args, logger):
             loss_values.clear()
 
         if (epoch == 0) and (i == 0):
-            num_plot = 10
+            num_plot = 5
             figures = []
             for p in range(num_plot):
                 ix_in_batch = random.randint(0, input.shape[0] - 1)
-                channel = 0
+                channel = 0 if (input.shape[1] == 1) else 1
                 img = input[ix_in_batch, channel, :, :].detach().cpu()
                 xyz_tar = target[0][ix_in_batch, :].detach().cpu()
                 xyz_out = (output[0][ix_in_batch, :]).detach().cpu()
@@ -119,6 +119,12 @@ def train(train_loader, model, optimizer, criterion, epoch, args, logger):
                 figures.append(fig)
                 fig_str = 'training/fig_{}'.format(p)
                 logger.add_figure(fig_str, fig, epoch)
+
+        if i == 0:
+            for name, param in model.named_parameters():
+                if 'bn' not in name:
+                    logger.add_histogram(name, param, epoch)
+                    logger.add_histogram(name + '.grad', param.grad, epoch)
 
         step_batch += 1
 
@@ -165,10 +171,10 @@ def test(val_loader, model, criterion, epoch, args, logger):
 
             """Log first 3 and a random subset to tensorboard"""
             if i == 0:
-                num_plot = 3
+                num_plot = 5
                 for p in range(num_plot):
                     ix_in_batch = p  # random.randint(0, input.shape[0] - 1)
-                    channel = 0
+                    channel = 0 if (input.shape[1] == 1) else 1
                     img = input[ix_in_batch, channel, :, :].cpu()
                     xyz_tar = target[0][ix_in_batch, :].cpu()
                     xyz_out = (output[0][ix_in_batch, :]).cpu()
@@ -186,7 +192,4 @@ def test(val_loader, model, criterion, epoch, args, logger):
                     logger.add_figure(fig_str, fig, epoch)
 
     logger.add_scalar('learning/test_loss', losses.val, epoch)
-    for name, param in model.named_parameters():
-        if 'bn' not in name:
-            logger.add_histogram(name, param, epoch)
     return losses.val
