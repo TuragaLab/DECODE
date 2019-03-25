@@ -301,7 +301,7 @@ class SplineCPP(PSF):
                            self.npx,
                            list((self.xextent[0], self.yextent[0])))
         else:
-            return torch.zeros((1, self.img_shape[0], self.img_shape[1])).type(torch.DoubleTensor)
+            return torch.zeros((1, self.img_shape[0], self.img_shape[1])).type(torch.FloatTensor)
 
 
 class SplineExpect(PSF):
