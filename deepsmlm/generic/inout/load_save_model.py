@@ -2,10 +2,9 @@ import torch
 
 
 class LoadSaveModel:
-    def __init__(self, model_instance, output_file, cuda, input_file=None):
+    def __init__(self, model_instance, output_file, input_file=None):
         self.warmstart_file = input_file
         self.output_file = output_file
-        self.cuda = cuda
         self.model = model_instance
 
     def load_init(self, cuda=torch.cuda.is_available()):

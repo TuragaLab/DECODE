@@ -128,6 +128,7 @@ class PlotCoordinates3D:
             self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], marker='^', color=rgba_colors)
             plt.xlabel('x')
             plt.ylabel('y')
+            plt.gca().invert_yaxis()
 
 
 class PlotFrameCoord(PlotCoordinates, PlotFrame):

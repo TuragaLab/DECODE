@@ -22,7 +22,11 @@ TENSORBOARD = True
 LOG = True if DEBUG else LOG
 
 
-def train(train_loader, model, optimizer, criterion, epoch, args, logger):
+def plot_io_model(input, output, target, ix):
+    pass
+
+
+def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, experiment):
     last_print_time = 0
     loss_values = []
     step_batch = epoch * train_loader.__len__()
@@ -35,44 +39,28 @@ def train(train_loader, model, optimizer, criterion, epoch, args, logger):
     end = time.time()
     for i, (input, target, _) in enumerate(train_loader):
 
-        if LOG:
-            if (epoch == 0) and (i == 0):
-                """Save a batch to see what we input into the network."""
-                debug_file = deepsmlm_root + 'data/debug.pt'
-                torch.save((input, target), debug_file)
-                print("LOG: I saved a batch for you. Look what the network sees for verification purpose.")
-
-        if DEBUG:
-            if (epoch == 0) and (i == 0):
-                num_plot = 3
-
-                for p in range(num_plot):
-                    ix_in_batch = random.randint(0, input.shape[0] - 1)
-                    for channel in range(input.shape[1]):
-                        img = input[ix_in_batch, channel, :, :]
-                        xyz_tar = target[0][ix_in_batch, :]
-                        phot_tar = target[1][ix_in_batch]
-                        PlotFrameCoord(frame=img, pos_tar=xyz_tar).plot()
-                        plt.title('Sample in Batch: {} - Channel: {}'.format(ix_in_batch, channel))
-                        plt.show()
+        if (epoch == 0) and (i == 0) and LOG:
+            """Save a batch to see what we input into the network."""
+            debug_file = deepsmlm_root + 'data/debug.pt'
+            torch.save((input, target), debug_file)
+            print("LOG: I saved a batch for you. Look what the network sees for verification purpose.")
 
         # measure data loading time
         data_time.update(time.time() - end)
 
-        if args.cuda:  # model_deep.cuda():
-            input = input.cuda()
-            if type(target) is torch.Tensor:
-                target = target.cuda()
-            elif type(target) in (tuple, list):
-                target = (target[0].cuda(), target[1].cuda())
-            else:
-                raise TypeError("Not supported type to push to cuda.")
+        input = input.to(hy_par.device)
+        if type(target) is torch.Tensor:
+            target = target.to(hy_par.device)
+        elif type(target) in (tuple, list):
+            target = (target[0].to(hy_par.device), target[1].to(hy_par.device))
+        else:
+            raise TypeError("Not supported type to push to cuda.")
 
         # compute output
         output = model(input)
         loss = criterion(output, target)
 
-        # measure accuracy and record loss
+        # record loss
         losses.update(loss.item(), input.size(0))
         loss_values.append(loss.item())
 
@@ -87,7 +75,7 @@ def train(train_loader, model, optimizer, criterion, epoch, args, logger):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if (i in [0, 1, 2, 10]) or (time.time() > last_print_time + 1):
+        if (i in [0, 1, 2, 10]) or (time.time() > last_print_time + 1):  # print the first few batches plus after 1s
             last_print_time = time.time()
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -98,6 +86,8 @@ def train(train_loader, model, optimizer, criterion, epoch, args, logger):
 
         """Log Learning Rate, Benchmarks etc."""
         if i % 10 == 0:
+            experiment.log_metric('learning/train_10_batch_loss', np.mean(loss_values), step=step_batch)
+
             logger.add_scalar('learning/train_loss', np.mean(loss_values), step_batch)
             logger.add_scalar('data/eval_time', batch_time.val, step_batch)
             logger.add_scalar('data/data_time', data_time.val, step_batch)
@@ -118,6 +108,8 @@ def train(train_loader, model, optimizer, criterion, epoch, args, logger):
                 plt.title('Sample in Batch: {} - Channel: {}'.format(ix_in_batch, channel))
                 figures.append(fig)
                 fig_str = 'training/fig_{}'.format(p)
+                plt.show()
+                experiment.log_figure(fig_str, fig)
                 logger.add_figure(fig_str, fig, epoch)
 
         if i == 0:
@@ -129,10 +121,11 @@ def train(train_loader, model, optimizer, criterion, epoch, args, logger):
         step_batch += 1
 
 
-def test(val_loader, model, criterion, epoch, args, logger):
+def test(val_loader, model, criterion, epoch, hy_par, logger, experiment):
     """
     Taken from: https://pytorch.org/tutorials/beginner/aws_distributed_training_tutorial.html
     """
+    experiment.set_step(epoch)
 
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -143,14 +136,13 @@ def test(val_loader, model, criterion, epoch, args, logger):
         end = time.time()
         for i, (input, target, _) in enumerate(val_loader):
 
-            if args.cuda:  # model_deep.cuda():
-                input = input.cuda()
-                if type(target) is torch.Tensor:
-                    target = target.cuda()
-                elif type(target) in (tuple, list):
-                    target = (target[0].cuda(), target[1].cuda())
-                else:
-                    raise TypeError("Not supported type to push to cuda.")
+            input = input.to(hy_par.device)
+            if type(target) is torch.Tensor:
+                target = target.to(hy_par.device)
+            elif type(target) in (tuple, list):
+                target = (target[0].to(hy_par.device), target[1].to(hy_par.device))
+            else:
+                raise TypeError("Not supported type to push to cuda.")
 
             # compute output
             output = model(input)
@@ -189,7 +181,9 @@ def test(val_loader, model, criterion, epoch, args, logger):
                     fig = plt.figure()
                     PlotCoordinates3D(pos_tar=xyz_tar, pos_out=xyz_out, phot_out=phot_out).plot()
                     fig_str = 'testset/fig_{}_3d'.format(p)
+                    experiment.log_figure(fig_str, fig)
                     logger.add_figure(fig_str, fig, epoch)
 
+    experiment.log_metric('learning/test_loss', losses.val, epoch)
     logger.add_scalar('learning/test_loss', losses.val, epoch)
     return losses.val

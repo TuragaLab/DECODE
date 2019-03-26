@@ -87,11 +87,14 @@ class DeepLoco(nn.Module):
 
 
 class DenseLoco(DeepLoco):
-    def __init__(self, extent, ch_in=1, dim_out=3):
+    def __init__(self, extent, ch_in=1, dim_out=3, max_num_emitter=64):
         super().__init__(extent=extent, ch_in=ch_in, dim_out=dim_out)
+        fc_neurons = max_num_emitter * 4  # x, y, z, photons
+
         self.feature_net = DenseNet(num_channels=ch_in, num_classes=1024)
-        self.fc_net = ResNet(1024, 256, 2)
-        self.phot_xyz_net = PhotXYZnet(256, 64, extent[0], extent[1], extent[2], dim_out, True)
+        self.fc_net = ResNet(1024, fc_neurons, 2)
+        self.phot_xyz_net = PhotXYZnet(fc_neurons, max_num_emitter,
+                                       extent[0], extent[1], extent[2], dim_out, True)
 
     def forward(self, x):
         return super().forward(x)

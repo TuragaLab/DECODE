@@ -1,5 +1,35 @@
+from collections import namedtuple
 import torch
 import pprint
+
+InOutParameter = namedtuple('InOutParameter',
+                             ['root',
+                              'log_comment',
+                              'data_mode',
+                              'data_set',
+                              'model_out',
+                              'model_init'])
+
+HyperParamter = namedtuple('HyperParameter',
+                           ['dimensions',
+                            'channels',
+                            'max_emitters',
+                            'batch_size',
+                            'test_size',
+                            'num_epochs',
+                            'lr',
+                            'device'])  # I know that is not a hyper parameter ...
+
+SimulationParam = namedtuple("SimulationParam",
+                             ['pseudo_data_size',
+                              'emitter_extent',
+                              'psf_extent',
+                              'img_size',
+                              'density',
+                              'photon_range',
+                              'bg_pois',
+                              'calibration'])
+
 
 
 class Args:
