@@ -1,34 +1,61 @@
-from collections import namedtuple
-import torch
 import pprint
+from collections import namedtuple
+
+import torch
 
 InOutParameter = namedtuple('InOutParameter',
-                             ['root',
-                              'log_comment',
-                              'data_mode',
-                              'data_set',
-                              'model_out',
-                              'model_init'])
+                            [
+                                'root',
+                                'log_comment',
+                                'data_mode',
+                                'data_set',
+                                'model_out',
+                                'model_init'])
+
+LoggerParameter = namedtuple('LoggerParamter',
+                             [
+                                 'tags'
+                             ])
+
+SchedulerParameter = namedtuple('SchedulerParameter',
+                                [
+                                    'lr_factor',
+                                    'lr_patience',
+                                    'lr_threshold',
+                                    'lr_cooldown',
+                                    'lr_verbose',
+                                    'sim_factor',
+                                    'sim_patience',
+                                    'sim_threshold',
+                                    'sim_cooldown',
+                                    'sim_verbose',
+                                    'sim_max_value',
+                                ])
 
 HyperParamter = namedtuple('HyperParameter',
-                           ['dimensions',
-                            'channels',
-                            'max_emitters',
-                            'batch_size',
-                            'test_size',
-                            'num_epochs',
-                            'lr',
-                            'device'])  # I know that is not a hyper parameter ...
+                           [
+                               'dimensions',
+                               'channels',
+                               'max_emitters',
+                               'min_phot',
+                               'data_lifetime',
+                               'batch_size',
+                               'test_size',
+                               'num_epochs',
+                               'lr',
+                               'device'])  # I know that is not a hyper parameter ...
 
 SimulationParam = namedtuple("SimulationParam",
-                             ['pseudo_data_size',
-                              'emitter_extent',
-                              'psf_extent',
-                              'img_size',
-                              'density',
-                              'photon_range',
-                              'bg_pois',
-                              'calibration'])
+                             [
+                                 'pseudo_data_size',
+                                 'emitter_extent',
+                                 'psf_extent',
+                                 'img_size',
+                                 'density',
+                                 'emitter_av',
+                                 'photon_range',
+                                 'bg_pois',
+                                 'calibration'])
 
 
 

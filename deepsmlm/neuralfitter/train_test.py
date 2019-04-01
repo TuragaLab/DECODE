@@ -18,15 +18,55 @@ deepsmlm_root = os.path.abspath(
 DEBUG = True
 LOG = True
 TENSORBOARD = True
+LOG_FIGURES = True
 
 LOG = True if DEBUG else LOG
 
 
-def plot_io_model(input, output, target, ix):
-    pass
+def plot_io_model(frame, output, target, indices, fig_str, comet_log, board_log, step, D3=False):
+    channel = 0 if (frame.shape[1] == 1) else 1
+    figures = []
+    figures_3d = []
+    for i, ix in enumerate(indices):
+        img = frame[ix, channel, :, :].detach().cpu()
+        xyz_tar = target[0][ix, :].detach().cpu()
+        xyz_out = (output[0][ix, :]).detach().cpu()
+        phot_tar = target[1][ix].detach().cpu()
+        phot_out = output[1][ix].detach().cpu()
+        fig = plt.figure()
+        PlotFrameCoord(frame=img,
+                       pos_tar=xyz_tar,
+                       phot_tar=None,  # phot_tar,
+                       pos_out=xyz_out,
+                       phot_out=phot_out).plot()
+        plt.title('Epoch {} | SampleIx {} | Channel: {}'.format(step, ix, channel))
+        plt.legend()
+        plt.show()
+        figures.append(fig)
+
+        fig_str_ = fig_str + str(i)
+        comet_log.log_figure(fig_str_, fig)
+        board_log.add_figure(fig_str_, fig, step)
+
+        if D3:
+            fig = plt.figure()
+            PlotCoordinates3D(pos_tar=xyz_tar,
+                              pos_out=xyz_out,
+                              phot_out=phot_out).plot()
+            plt.title('Epoch {} | Sampleix {} | Channel: {}'.format(step, ix, channel))
+            plt.legend()
+            plt.show()
+            figures_3d.append(fig)
+
+            fig_str_ = fig_str + str(i) + '_3D'
+            comet_log.log_figure(fig_str_, fig)
+            board_log.add_figure(fig_str_, fig, step)
 
 
-def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, experiment):
+    return figures, figures_3d
+
+
+def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, experiment, calc_new):
     last_print_time = 0
     loss_values = []
     step_batch = epoch * train_loader.__len__()
@@ -93,24 +133,15 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
             logger.add_scalar('data/data_time', data_time.val, step_batch)
             loss_values.clear()
 
-        if (epoch == 0) and (i == 0):
-            num_plot = 5
-            figures = []
-            for p in range(num_plot):
-                ix_in_batch = random.randint(0, input.shape[0] - 1)
-                channel = 0 if (input.shape[1] == 1) else 1
-                img = input[ix_in_batch, channel, :, :].detach().cpu()
-                xyz_tar = target[0][ix_in_batch, :].detach().cpu()
-                xyz_out = (output[0][ix_in_batch, :]).detach().cpu()
-                phot_tar = target[1][ix_in_batch].detach().cpu()
-                fig = plt.figure()
-                PlotFrameCoord(frame=img, pos_tar=xyz_tar, phot_tar=phot_tar).plot()
-                plt.title('Sample in Batch: {} - Channel: {}'.format(ix_in_batch, channel))
-                figures.append(fig)
-                fig_str = 'training/fig_{}'.format(p)
-                plt.show()
-                experiment.log_figure(fig_str, fig)
-                logger.add_figure(fig_str, fig, epoch)
+        if LOG_FIGURES and ((epoch == 0 and i == 0) or (i == 0 and calc_new)):
+            num_plot = 2
+            ix = np.random.randint(0, input.shape[0], num_plot)
+            plot_io_model(input, output, target, ix,
+                          fig_str='training/fig_',
+                          comet_log=experiment,
+                          board_log=logger,
+                          step=epoch,
+                          D3=True)
 
         if i == 0:
             for name, param in model.named_parameters():
@@ -162,27 +193,14 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment):
                     i, len(val_loader), batch_time=batch_time, loss=losses))
 
             """Log first 3 and a random subset to tensorboard"""
-            if i == 0:
-                num_plot = 5
-                for p in range(num_plot):
-                    ix_in_batch = p  # random.randint(0, input.shape[0] - 1)
-                    channel = 0 if (input.shape[1] == 1) else 1
-                    img = input[ix_in_batch, channel, :, :].cpu()
-                    xyz_tar = target[0][ix_in_batch, :].cpu()
-                    xyz_out = (output[0][ix_in_batch, :]).cpu()
-                    phot_tar = target[1][ix_in_batch].cpu()
-                    phot_out = output[1][ix_in_batch].cpu()
-                    fig = plt.figure()
-                    PlotFrameCoord(frame=img, pos_tar=xyz_tar, pos_out=xyz_out, phot_out=phot_out).plot()
-                    plt.title('Sample in Batch: {} - Channel: {}'.format(ix_in_batch, channel))
-                    fig_str = 'testset/fig_{}'.format(p)
-                    logger.add_figure(fig_str, fig, epoch)
-
-                    fig = plt.figure()
-                    PlotCoordinates3D(pos_tar=xyz_tar, pos_out=xyz_out, phot_out=phot_out).plot()
-                    fig_str = 'testset/fig_{}_3d'.format(p)
-                    experiment.log_figure(fig_str, fig)
-                    logger.add_figure(fig_str, fig, epoch)
+            if LOG_FIGURES and i == 0:
+                ix = [0, 1, 2, 3, 4, 5]
+                plot_io_model(input, output, target, ix,
+                              fig_str='testset/fig_',
+                              comet_log=experiment,
+                              board_log=logger,
+                              step=epoch,
+                              D3=True)
 
     experiment.log_metric('learning/test_loss', losses.val, epoch)
     logger.add_scalar('learning/test_loss', losses.val, epoch)

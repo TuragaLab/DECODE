@@ -36,15 +36,6 @@ class SMLMDataset(Dataset):
 
         """Target data generation. Borrowed from psf-kernel."""
         self.target_generator = tar_gen
-            # ListPseudoPSF(xextent=self.extent[0],
-            #                                   yextent=self.extent[1],
-            #                                   zextent=self.extent[2],
-            #                                   zero_fill_to_size=64,
-            #                                   dim=self.dimensionality)
-        # self.target_generator = DeltaPSF(xextent=self.extent[0],
-        #                                  yextent=self.extent[1],
-        #                                  zextent=None,
-        #                                  img_shape=self.image_shape_hr)
 
         print("Dataset loaded. N: {} samples.".format(self.__len__()))
 
@@ -80,13 +71,18 @@ class SMLMDataset(Dataset):
 
 
 class SMLMDatasetOnFly(Dataset):
-    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, dimensionality=3, reuse=False):
+    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen,
+                 dimensionality=3, static=False, lifetime=1):
         super().__init__()
 
         self.extent = extent
         self.dimensionality = dimensionality
         self.data_set_size = data_set_size
-        self.reuse = reuse
+        self.static_data = static
+        self.lifetime = lifetime
+        self.time_til_death = lifetime
+
+        self.calc_new_flag = True if (not static) else False
 
         self.prior = prior
         self.simulator = simulator
@@ -94,30 +90,51 @@ class SMLMDatasetOnFly(Dataset):
         self.input_preperator = in_prep  # N2C()
         self.target_generator = tar_gen
 
-            # ListPseudoPSF(xextent=self.extent[0],
-            #                                   yextent=self.extent[1],
-            #                                   zextent=self.extent[2],
-            #                                   zero_fill_to_size=64,
-            #                                   dim=self.dimensionality)
+        """Initialise Frame and Target. Call drop method to create list."""
+        self.frame = None
+        self.target = None
+        self.data_complete = True
 
+        self.drop_data_set(verbose=False)
         """Pre-Calculcate the complete dataset and use the same data as one draws samples. 
-        This is useful for the testset."""
-        if self.reuse:
-            self.frame = [None] * self.__len__()
-            self.target = [None] * self.__len__()
-
+        This is useful for the testset or the classical deep learning feeling of not limited training data."""
+        if self.static_data:
             for i in range(self.__len__()):
                 _, frame, target = self.pop_new()
                 self.frame[i] = frame
                 self.target[i] = target
 
-            print("Pre-calculation done.")
+            self.check_completeness(warning=True)
+            self.calc_new_flag = False
+            print("Pre-calculation of dataset done.")
 
+    def step(self):
+        self.time_til_death -= 1
+        if self.time_til_death <= 0:
+            self.drop_data_set()
+            self.time_til_death = self.lifetime
+
+    def check_completeness(self, warning=False):
+        frame_complete = not any(v is None for v in self.frame)
+        target_complete = not any(v is None for v in self.target)
+        if frame_complete and target_complete:
+            self.data_complete = True
+            self.calc_new_flag = False
         else:
-            self.frame = None
-            self.target = None
+            self.data_complete = False
+            self.calc_new_flag = True
+            if warning:
+                print("WARNING: The dataset is not complete.")
 
-    def pop_new(self, dummy=None):
+    def drop_data_set(self, verbose=True):
+        self.frame = [None] * self.__len__()
+        self.target = [None] * self.__len__()
+        self.check_completeness()
+
+        if verbose:
+            print("Dataset dropped. Will calculate a new one in next epoch.")
+
+    def pop_new(self):
         emitter = self.prior.pop()
         sim_out = self.simulator.forward(emitter).type(torch.FloatTensor)
         frame = self.input_preperator.forward(sim_out)
@@ -129,12 +146,15 @@ class SMLMDatasetOnFly(Dataset):
 
     def __getitem__(self, index):
 
-        if not self.reuse:
+        if self.calc_new_flag or self.lifetime == 0:
             emitter, frame, target = self.pop_new()
+            self.frame[index] = frame
+            self.target[index] = target
         else:
             frame = self.frame[index]
             target = self.target[index]
 
+        self.check_completeness(False)
         return frame, target, index
 
 

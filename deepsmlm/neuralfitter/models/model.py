@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from deepsmlm.neuralfitter.models.unet_model import UNet
-from deepsmlm.neuralfitter.model_densenet import DenseNet
+from deepsmlm.neuralfitter.models.model_densenet import DenseNet
 
 
 class DeepSMLN(nn.Module):

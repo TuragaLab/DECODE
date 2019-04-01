@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod  # abstract class
 import math
+import numpy as np
 import random
 from random import randint
 import torch
@@ -25,7 +26,7 @@ class EmitterGenerator(ABC):
 
 class EmitterPopper:
 
-    def __init__(self, xextent, yextent, zextent, density, photon_range):
+    def __init__(self, xextent, yextent, zextent, density, photon_range, emitter_av=None):
         super().__init__()
         self.xextent = xextent
         self.yextent = yextent
@@ -42,10 +43,12 @@ class EmitterPopper:
 
         self.area = (xextent[1] - xextent[0]) * (yextent[1] - yextent[0])
         self.emitter_av = self.density * self.area
-        self.emitter_max = round(self.emitter_av * 2)
+        """Manually override emitter_maximum."""
+        if emitter_av is not None:
+            self.emitter_av = emitter_av
 
     def pop(self):
-        n = randint(0, self.emitter_max)
+        n = np.random.poisson(lam=self.emitter_av)
 
         xyz = torch.rand((n, 3)) * self.scale + self.shift
         phot = torch.randint(*self.photon_range, (n, ))
@@ -58,18 +61,18 @@ class EmitterPopper:
 
 
 class EmitterPopperMultiFrame(EmitterPopper):
-    def __init__(self, xextent, yextent, zextent, density, photon_range, lifetime, num_frames=3):
-        super().__init__(xextent, yextent, zextent, density, photon_range)
+    def __init__(self, xextent, yextent, zextent, density, photon_range, lifetime, num_frames=3, emitter_av=None):
+        super().__init__(xextent, yextent, zextent, density, photon_range, emitter_av)
         self.num_frames = num_frames
         self.lifetime = lifetime
         self.lifetime_dist = Exponential(self.lifetime)
 
+        """Determine the number of emitters. Depends on lifetime and num_frames. Rough estimate."""
+        self.emitter_av = math.ceil(self.emitter_av * 1.8 * self.num_frames / (0.5 * self.lifetime + 1))
+
     def pop(self):
         """Pop a multi_frame emitter set."""
-
-        """Determine the number of emitters. Depends on lifetime and num_frames. Rough estimate."""
-        emitter_max = math.ceil(self.emitter_max * self.num_frames / (0.5 * self.lifetime + 1))
-        n = random.randint(0, emitter_max)
+        n = np.random.poisson(lam=self.emitter_av)
         xyz = torch.rand((n, 3)) * self.scale + self.shift
         phot = torch.randint(*self.photon_range, (n,))
 
@@ -190,10 +193,21 @@ def pairwise_distances(x, y=None):  # not numerically stable but fast
 
 if __name__ == '__main__':
     extent = ((-0.5, 31.5), (-0.5, 31.5), (-5, 5))
-    density = 100
+    density = 0.001
     photon_range = (800, 4000)
 
-    # em1 = EmitterPopper(extent[0], extent[1], extent[2], density, photon_range).pop()
-    em2 = EmitterPopperMultiFrame(extent[0], extent[1], extent[2], density, photon_range, lifetime=1, num_frames=3).pop()
+    runs = torch.zeros(1000)
+    for i in range(1000):
+        # em = EmitterPopper(extent[0], extent[1], extent[2], density, photon_range, 5).pop()
+        em = EmitterPopperMultiFrame(extent[0], extent[1], extent[2], density, photon_range,
+                                      lifetime=1, num_frames=3, emitter_av=1).pop()
+        em_on_0 = em.split_in_frames(-1, 1)
+        em = em_on_0[1]
+        runs[i] = em.num_emitter
+
+    import matplotlib.pyplot as plt
+    plt.hist(runs)
+    plt.show()
+    print(runs.mean())
 
     print("Sucess.")

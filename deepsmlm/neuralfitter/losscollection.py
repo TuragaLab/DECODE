@@ -85,6 +85,47 @@ class MultiScaleLaplaceLoss:
         return loss_return
 
 
+class RepulsiveLoss:
+
+    def __init__(self, scale_factor):
+        self.scale_factor = scale_factor
+        self.metric_kernel = MultiScaleLaplaceLoss.pairwise_l2_dist
+
+    @staticmethod
+    def loss(pos_out, sf, metric_kernel):
+        D = metric_kernel(pos_out)
+        loss = torch.exp(-D / (sf * 5))
+        return loss.mean()
+
+    def return_criterion(self):
+
+        def loss_return(xyz_out):
+            return self.loss(xyz_out, self.scale_factor, self.metric_kernel)
+
+        return loss_return
+
+
+class MultiSLLRedClus(MultiScaleLaplaceLoss):
+    """From Boyd."""
+    def __init__(self, kernel_sigmas, pos_mul_f=torch.Tensor([1.0, 1.0, 0.2]), phot_loss_sc=1, loc=0.2, scale=0.05):
+        self.boyd = MultiScaleLaplaceLoss(kernel_sigmas, pos_mul_f).return_criterion()
+        self.phot_loss_sc = phot_loss_sc
+        norm = torch.distributions.normal.Normal(loc, scale)
+        norm.maxv = torch.exp(norm.log_prob(loc))
+        norm.pdf_norm = lambda x: torch.exp(norm.log_prob(x)) / norm.maxv
+
+        self.phot_loss_sc = phot_loss_sc
+        self.phot_loss = norm.pdf_norm
+
+    def return_criterion(self):
+
+        def loss_comp(output, target):
+            phot_out = output[1]
+            return self.boyd(output, target) + self.phot_loss_sc * (self.phot_loss(phot_out).sum(1).mean())
+
+        return loss_comp
+
+
 class BumpMSELoss(Loss):
     """
     Loss which comprises a L2 loss of heatmap (single one hot output convolved by gaussian)
@@ -239,3 +280,26 @@ class BumpMSELoss3DzLocal(Loss):
             return total_loss
 
         return loss_compositum
+
+def combine_msc_repulsive(kernel, repulsive_loc, repulsive_sc):
+    pass
+
+if __name__ == '__main__':
+    xyz = torch.tensor([[0., 0., 0], [0., 0., 0.], [0., 0., 0.]])
+    phot = torch.tensor([1., 0., 0.])
+
+    xyz_out = torch.tensor([[0., 0., 0], [0., 0., 0.], [0., 0., 0.]])
+    phot_out = torch.tensor([0.3, 0.3, 0.3])
+
+    xyz_out = torch.cat((xyz_out.unsqueeze(0), xyz.unsqueeze(0)), 0)
+    phot_out = torch.cat((phot_out.unsqueeze(0), phot.unsqueeze(0)), 0)
+
+    xyz = torch.cat((xyz.unsqueeze(0), xyz.unsqueeze(0)), 0)
+    phot = torch.cat((phot.unsqueeze(0), phot.unsqueeze(0)), 0)
+
+    target = (xyz, phot)
+    output = (xyz_out, phot_out)
+    loss = MultiSLLRedClus((0.64, 3.20, 6.4, 19.2), loc=0.15, scale=0.03, phot_loss_sc=1).return_criterion()
+    l = loss(output, target)
+    print(l)
+    print("Success.")

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from deepsmlm.neuralfitter.model_densenet import DenseNet
+from deepsmlm.neuralfitter.models.model_densenet import DenseNet
 from deepsmlm.neuralfitter.models.model import DeepSMLN, ResNet
 
 

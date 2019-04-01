@@ -34,7 +34,7 @@ class PlotFrame:
                                                                                   self.extent[0][1],
                                                                                   self.extent[1][1],
                                                                                   self.extent[1][0]))
-        plt.axis('equal')
+        plt.gca().set_aspect('equal', adjustable='box')
         plt.xlabel('x')
         plt.ylabel('y')
 
@@ -96,7 +96,7 @@ class PlotCoordinates:
             else:
                 plot_xyz(self.pos_ini, self.ini_marker[1], self.ini_marker[0], 'Init')
 
-        plt.axis('equal')
+        plt.gca().set_aspect('equal', adjustable='box')
         plt.xlabel('x')
         plt.ylabel('y')
         if self.extent_limit is not None:
@@ -116,7 +116,7 @@ class PlotCoordinates3D:
     def plot(self):
         if self.pos_tar is not None:
             xyz = self.pos_tar
-            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], c='r', marker='o')
+            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], c='r', marker='o', label='Target')
 
         if self.pos_out is not None:
             xyz = self.pos_out
@@ -125,7 +125,7 @@ class PlotCoordinates3D:
             rgba_colors = torch.zeros((xyz.shape[0], 4))
             rgba_colors[:, 2] = 1.0
             rgba_colors[:, 3] = phot / phot.max()
-            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], marker='^', color=rgba_colors)
+            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], marker='^', color=rgba_colors, label='Output')
             plt.xlabel('x')
             plt.ylabel('y')
             plt.gca().invert_yaxis()

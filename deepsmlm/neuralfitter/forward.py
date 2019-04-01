@@ -1,11 +1,9 @@
 import os
-import sys
 
 import torch
 from torch.utils.data import DataLoader
 
-from deepsmlm.neuralfitter.model import DeepLoco
-from deepsmlm.generic.inout.load_save_emitter import TiffInterface
+from deepsmlm.neuralfitter.models.model import DeepLoco
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 from deepsmlm.neuralfitter.dataset import UnsupervisedDataset
 

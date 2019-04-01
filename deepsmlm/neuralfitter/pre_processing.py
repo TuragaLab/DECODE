@@ -43,16 +43,16 @@ class TargetGenerator(ABC):
 
 
 class SingleEmitterOnlyZ(ListPseudoPSF):
-    def __init__(self):
+    def __init__(self=3):
         super().__init__(None, None, None, dim=3)
 
     def forward(self, x):
         pos, phot = super().forward(x)
-        return pos[0, 2]
+        return pos[[0], :], phot[[0]]
 
 
 class ZasSimpleRegression(SingleEmitterOnlyZ):
-    def __init__(self):
+    def __init__(self=3):
         super().__init__()
 
     def forward(self, x):
@@ -69,7 +69,7 @@ class ZasSimpleRegression(SingleEmitterOnlyZ):
 
 
 class ZasClassification(SingleEmitterOnlyZ):
-    def __init__(self):
+    def __init__(self=3):
         super().__init__()
 
     def forward(self, x):
