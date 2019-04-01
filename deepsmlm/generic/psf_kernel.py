@@ -129,12 +129,19 @@ class DualDelta(DeltaPSF):
 
 
 class ListPseudoPSF(PSF):
-    def __init__(self, xextent, yextent, zextent, dim=3):
+    def __init__(self, xextent, yextent, zextent, dim=3, photon_threshold=0):
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=None)
         self.dim = dim
+        self.photon_threshold = photon_threshold
 
     def forward(self, emitter):
         pos, weight = emitter.xyz, emitter.phot
+
+        """Threshold the photons."""
+        ix = weight > self.photon_threshold
+        pos = pos[ix, :]
+        weight = weight[ix]
+
         if self.dim == 3:
             return pos[:, :3], weight
         elif self.dim == 2:
@@ -144,16 +151,16 @@ class ListPseudoPSF(PSF):
 
 
 class ListPseudoPSFInSize(ListPseudoPSF):
-    def __init__(self, xextent, yextent, zextent, zts=256, dim=3):
+    def __init__(self, xextent, yextent, zextent, dim=3, zts=64, photon_threshold=0):
         """
 
+        :param photon_threshold:
         :param xextent:
         :param yextent:
         :param zextent:
-        :param zts: zeros fill to size. I.e. construct 0 photon emitters until the emitter set is of size zts.
         :param dim:
         """
-        super().__init__(xextent, yextent, zextent, dim=dim)
+        super().__init__(xextent, yextent, zextent, dim=dim, photon_threshold=photon_threshold)
         self.zts = zts
 
     def forward(self, emitter):
@@ -282,7 +289,7 @@ class SplineCPP(PSF):
 
         self.dz = dz
 
-        self.spline_c = tp.init_spline(self.coeff.type(torch.FloatTensor),
+        self.spline_c = tp.initSpline(self.coeff.type(torch.FloatTensor),
                                        list(self.ref0),
                                        self.dz)
 
@@ -455,9 +462,13 @@ if __name__ == '__main__':
 
     extent = ((-0.5, 25.5), (-0.5, 25.5), None)
     img_shape = (26, 26)
-    #spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    # spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
     spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
-    psf = SMAPSplineCoefficient(spline_file).init_spline(extent[0], extent[1], img_shape)
-    img = psf.forward(torch.rand((10000, 3)), torch.rand((10000)))
+    psf = SMAPSplineCoefficient(spline_file).initSpline(extent[0], extent[1], img_shape)
+    img = psf.forward(torch.rand((1, 3)) * 10, torch.rand((5)) * 500)
+    import matplotlib.pyplot as plt
+    plt.imshow(img.squeeze().numpy())
+    plt.colorbar()
+    plt.show()
     print('Success.')
 

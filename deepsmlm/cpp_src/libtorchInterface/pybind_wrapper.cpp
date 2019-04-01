@@ -20,7 +20,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("split_tensor", &split_tensor, "Function to split tensor as described by another tensor.");
     m.def("distribute_frames", &distribute_frames, "Function to distribute real valued emitters over the frames.");
 
-    m.def("init_spline", &init_spline_bind, "Torch wrapper function to init a cubic spline library in C.");
+    m.def("initSpline", &init_spline_bind, "Torch wrapper function to init a cubic spline library in C.");
     m.def("fPSF", &fPSF_bind, "Function to generate cubic spline psf image.");
 
     m.def("f_spline", &fSpline_bind, "Function to debug img_spline_function" );
