@@ -1,13 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
-from collections import OrderedDict
-from torch.nn import init
-import numpy as np
 
 from deepsmlm.neuralfitter.model_densenet import DenseNet
-from deepsmlm.neuralfitter.model import DeepSMLN, ResNet
+from deepsmlm.neuralfitter.models.model import DeepSMLN, ResNet
 
 
 class EncoderFC(DeepSMLN):
@@ -78,12 +74,15 @@ class SuperDumbFCNet(nn.Module):
         x = self.bn4(self.act(self.fc4(x)))
         x = self.bn5(self.act(self.fc5(x)))
         x = self.bn6(self.act(self.fc6(x)))
-        # x = self.fc_out(x)
+        z = self.fc_out(x) * self.limits[1]
         # x = torch.sigmoid(self.fc_out(x)) * (self.limits[1] - self.limits[0]) + self.limits[0]
-        return x
+        xy = (torch.ones((z.shape[0], 2)) * torch.tensor([8., 8.])).to(z.device)
+        xyz = torch.cat((xy, z), dim=1).unsqueeze(1)
+        return xyz, torch.ones_like(xyz[:, :, 0])
 
     def weight_init(self):
         print("Not implemented.")
+
 
 """From https://github.com/kuangliu/pytorch-cifar/blob/master/models/lenet.py"""
 class LeNetModified(nn.Module):

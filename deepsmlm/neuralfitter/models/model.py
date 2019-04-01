@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from deepsmlm.neuralfitter.models.unet_model import UNet
 from deepsmlm.neuralfitter.model_densenet import DenseNet
 
 
@@ -72,6 +73,18 @@ class DeepSMLN(nn.Module):
                 nn.init.xavier_uniform_(m, gain=1)
 
 
+class USMLM(nn.Module):
+    def __init__(self, in_ch=3, upsampling=8):
+        self.in_ch = in_ch
+        self.upsampling = upsampling
+        self.unet = UNet(self.in_ch, 1)
+
+    def forward(self, x):
+        x = F.interpolate(x, scale_factor=self.upsampling, mode='nearest')
+        x = self.unet(x)
+
+
+
 # Based on deep_loco by Boyd
 class DeepLoco(nn.Module):
     def __init__(self, extent, ch_in=1, dim_out=3):
@@ -91,8 +104,8 @@ class DenseLoco(DeepLoco):
         super().__init__(extent=extent, ch_in=ch_in, dim_out=dim_out)
         fc_neurons = max_num_emitter * 4  # x, y, z, photons
 
-        self.feature_net = DenseNet(num_channels=ch_in, num_classes=1024)
-        self.fc_net = ResNet(1024, fc_neurons, 2)
+        self.feature_net = DenseNet(num_channels=ch_in, num_classes=4096)
+        self.fc_net = ResNet(4096, fc_neurons, 2)
         self.phot_xyz_net = PhotXYZnet(fc_neurons, max_num_emitter,
                                        extent[0], extent[1], extent[2], dim_out, True)
 
