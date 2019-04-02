@@ -4,7 +4,8 @@ from skimage.feature import peak_local_max
 from sklearn.cluster import DBSCAN
 import torch
 
-from deepsmlm.generic.coordinate_trafo import UpsamplingTransformation as trafo
+from deepsmlm.generic.coordinate_trafo import UpsamplingTransformation as ScaleTrafo
+from deepsmlm.generic.coordinate_trafo import A2BTransform
 from deepsmlm.generic.psf_kernel import DeltaPSF
 
 
@@ -20,7 +21,7 @@ class PeakFinder:
         self.extent = extent
         self.upsampling_factor = upsampling_factor
 
-        self.transformation = trafo(self.extent, self.upsampling_factor)
+        self.transformation = ScaleTrafo(self.extent, self.upsampling_factor)
 
     def forward(self, img):
         cord = np.ascontiguousarray(peak_local_max(img.detach().numpy(),
@@ -97,43 +98,23 @@ class CoordScan:
 
 
 class ConnectedComponents:
-    def __init__(self, mode, distance_threshold, photon_threshold, extent, clusterer=label):
-        self.mode = mode
-        self.dist_thres = distance_threshold
+    def __init__(self, photon_threshold, extent, clusterer=label, single_value_threshold=0):
         self.phot_thres = photon_threshold
+        self.single_val_threshold = single_value_threshold
         self.extent = extent
         self.dim = 2 if (extent[2] is None) else 3
         self.clusterer = clusterer
+        self.matrix_extent = None
 
-        """Bin according to specification."""
-        shape_x = (self.extent[0][1] - self.extent[0][0]) / self.dist_thres
-        shape_y = (self.extent[1][1] - self.extent[1][0]) / self.dist_thres
-        if self.dim == 2:
-            self.corner = (self.extent[0][0], self.extent[1][0])
-            image_shape = (shape_x, shape_y)
-            self.kernel = np.ones((3, 3))
-        else:
-            self.corner = (self.extent[0][0], self.extent[1][0], self.extent[2][0])
-            shape_z = (self.extent[2][1] - self.extent[2][0]) / self.dist_thres
-            image_shape = (shape_x, shape_y, shape_z)
-            self.kernel = np.ones((3, 3, 3))
+        self.kernel = np.ones((3, 3))
 
-        self.psf = DeltaPSF(self.extent[0], self.extent[1], self.extent[2], image_shape)
+    def forward(self, x):
+        """
+        Forward a single frame (currently not batchised).
 
-    def forward(self, x, phot=None):
-        def round2base(v, base, mode=np.floor):
-            return base * mode(v / base)
-
-        def coord_2_cluster_ix(coords, corner, bin_width, clusters):
-            # floor ccoords to bin_edges
-            coords_ = coords - np.array(corner)
-            coords_floored = round2base(coords_, bin_width, np.floor)
-
-            # find bin ix
-            bin_ix = (coords_floored / bin_width).astype(int)
-
-            # return cluster_ix per coord
-            return clusters[bin_ix[:, 0], bin_ix[:, 1]]
+        :param x: 2D frame 1 channel
+        :return: cluster centres
+        """
 
         def cluster_average(coords, photons, cluster_ix_p_coord):
             num_clusters = cluster_ix_p_coord.max()
@@ -153,25 +134,28 @@ class ConnectedComponents:
                 phot_sum[i] = np.sum(photons[ix], axis=0)
             return pos_av, phot_sum
 
-        if self.mode == 'coords':
-            assert phot is not None
+        """Threshold single px values"""
+        x_ = x.numpy()
+        self.matrix_extent = ((-0.5, x_.shape[0] - 0.5), (-0.5, x_.shape[1] - 0.5))
+        x_[x_ < self.single_val_threshold] = 0
 
-            frame = self.psf.forward(x, phot).squeeze().numpy()
-            cluster_frame, _ = label(frame, self.kernel)
+        cluster_frame, num_clusters = label(x_, self.kernel)
+        # get the coordinates of the cluster members
+        clus_bool = cluster_frame >= 1
+        clus_ix = cluster_frame[clus_bool]
+        phot_in_clus = x_[clus_bool]
+        clus_mat_coord = np.asarray(np.asarray(clus_bool).nonzero()).transpose()
 
-            clusix = coord_2_cluster_ix(x.numpy(), self.corner, self.dist_thres, cluster_frame)
-            pos_clus, phot_clus = cluster_average(x.numpy(), phot.numpy(), clusix)
-            pos_clus, phot_clus = torch.from_numpy(pos_clus), torch.from_numpy(phot_clus)
+        pos_clus, phot_clus = cluster_average(clus_mat_coord, phot_in_clus, clus_ix)
+        pos_clus, phot_clus = torch.from_numpy(pos_clus), torch.from_numpy(phot_clus)
 
-            """Filter by photon threshold"""
-            ix_above_thres = phot_clus > self.phot_thres
-            return pos_clus[ix_above_thres, :], phot_clus[ix_above_thres]
+        # Transform coordinates
+        pos_clus = A2BTransform(a_extent=self.matrix_extent, b_extent=self.extent).a2b(pos_clus)
 
-        elif self.mode == 'frame':
-            raise NotImplementedError("Not implemented.")
+        """Filter by photon threshold"""
+        ix_above_thres = phot_clus > self.phot_thres
+        return pos_clus[ix_above_thres, :], phot_clus[ix_above_thres]
 
-        else:
-            raise ValueError("Wrong switch for mode of connected components.")
 
 
 if __name__ == '__main__':
@@ -187,13 +171,23 @@ if __name__ == '__main__':
     # xyz_clus, phot_clus = cn.forward(xyz, phot)
     # print(xyz_clus, phot_clus)
 
-    centers = [[1, 1], [-1, -1], [1, -1]]
-    X, labels_true = make_blobs(n_samples=750, centers=centers, cluster_std=0.4,
-                                random_state=0)
-    X = torch.from_numpy(X).unsqueeze(0)
-    photons = torch.ones_like(X[:, :, 0])
+    frame = torch.zeros((50, 50))
+    frame[5, 5] = 0.3
+    frame[5, 6] = 0.5
+    frame[4, 5] = 0.2
 
-    clusterer = CoordScan(2, 0.5, 5)
-    clus_means, clus_photons = clusterer.forward(X, photons)
+    cn = ConnectedComponents(photon_threshold=0.6,
+                             extent=((-0.5, 24.5), (-0.5, 24.5), None))
+    xyz_clus, phot_clus = cn.forward(frame)
+    print(xyz_clus, phot_clus)
+
+    # centers = [[1, 1], [-1, -1], [1, -1]]
+    # X, labels_true = make_blobs(n_samples=750, centers=centers, cluster_std=0.4,
+    #                             random_state=0)
+    # X = torch.from_numpy(X).unsqueeze(0)
+    # photons = torch.ones_like(X[:, :, 0])
+    #
+    # clusterer = CoordScan(2, 0.5, 5)
+    # clus_means, clus_photons = clusterer.forward(X, photons)
 
     print("Success.")
