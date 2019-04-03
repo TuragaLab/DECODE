@@ -92,12 +92,13 @@ class GaussianSmoothing(nn.Module):
     output = smoothing(input)
     """
 
-    def __init__(self, channels, kernel_size, sigma, dim=2, cuda=False, padding=lambda x: x):
+    def __init__(self, channels, kernel_size, sigma, dim=2, cuda=False, padding=lambda x: x, kernel_f='gaussian'):
         super().__init__()
         if isinstance(kernel_size, numbers.Number):
             kernel_size = [kernel_size] * dim
         if isinstance(sigma, numbers.Number):
             sigma = [sigma] * dim
+        self.kernel_f = kernel_f
 
         # The gaussian kernel is the product of the
         # gaussian function of each dimension.
@@ -108,10 +109,17 @@ class GaussianSmoothing(nn.Module):
                 for size in kernel_size
             ]
         )
-        for size, std, mgrid in zip(kernel_size, sigma, meshgrids):
-            mean = (size - 1) / 2
-            kernel *= 1 / (std * math.sqrt(2 * math.pi)) * \
-                      torch.exp(-((mgrid - mean) / (2 * std)) ** 2)
+        if self.kernel_f == 'gaussian':
+            for size, std, mgrid in zip(kernel_size, sigma, meshgrids):
+                mean = (size - 1) / 2
+                kernel *= 1 / (std * math.sqrt(2 * math.pi)) * \
+                          torch.exp(-((mgrid - mean) / (2 * std)) ** 2)
+        elif self.kernel_f == 'laplacian':
+            for size, std, mgrid in zip(kernel_size, sigma, meshgrids):
+                mean = (size - 1) / 2
+                kernel *= 1 / (2 * std) * torch.exp(-torch.abs((mgrid - mean)) / std)
+        else:
+            raise ValueError("Mode must either be gaussian or laplacian.")
 
         # Make sure sum of values in gaussian kernel equals 1.
         kernel = kernel / torch.sum(kernel)
@@ -149,3 +157,7 @@ class GaussianSmoothing(nn.Module):
         """
 
         return self.conv(self.padding(input), weight=self.weight, groups=self.groups)
+
+
+if __name__ == '__main__':
+    smoothener = GaussianSmoothing

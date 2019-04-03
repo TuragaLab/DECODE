@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 
-from deepsmlm.generic.psf_kernel import DeltaPSF, DualDelta, ListPseudoPSF
+from deepsmlm.generic.psf_kernel import DeltaPSF, DualDelta, ListPseudoPSF, ListPseudoPSFInSize
 from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV, N2C, Identity
 
 
@@ -36,26 +36,23 @@ class SMLMDataset(Dataset):
 
         """Target data generation. Borrowed from psf-kernel."""
         self.target_generator = tar_gen
+        self.target_generator_gt = ListPseudoPSFInSize(None,
+                                                       None,
+                                                       None)
 
         print("Dataset loaded. N: {} samples.".format(self.__len__()))
 
     def __len__(self):
         """
-        Get the length of the dataset.
-
         :return:    length of the dataset.
         """
-
         return self.frames.shape[0]
 
     def __getitem__(self, index):
         """
-        Method to retrieve a sample.
-
         :param index: index of the sample.
         :return: a sample, i.e. an input image and a target
         """
-
         """Get adjacent frames. Pad borders with 'same'. Therefore we use the max(0, ix-1) and min(lastix, index+1)."""
         if self.multi_frame_output:
             img = torch.cat((
@@ -66,8 +63,10 @@ class SMLMDataset(Dataset):
             img = self.frames[index, :, :, :]
 
         """Forward Emitters thorugh target generator."""
-        target = self.target_generator.forward(self.em[index])
-        return img, target, index
+        em_tar = self.em[index]
+        target = self.target_generator.forward(em_tar)
+        em_tar, _ = self.target_generator_gt.forward(em_tar)
+        return img, target, em_tar, index
 
 
 class SMLMDatasetOnFly(Dataset):
@@ -89,10 +88,14 @@ class SMLMDatasetOnFly(Dataset):
 
         self.input_preperator = in_prep  # N2C()
         self.target_generator = tar_gen
+        self.target_generator_gt = ListPseudoPSFInSize(None,
+                                                       None,
+                                                       None)
 
         """Initialise Frame and Target. Call drop method to create list."""
         self.frame = None
         self.target = None
+        self.em_tar = None
         self.data_complete = True
 
         self.drop_data_set(verbose=False)
@@ -100,9 +103,10 @@ class SMLMDatasetOnFly(Dataset):
         This is useful for the testset or the classical deep learning feeling of not limited training data."""
         if self.static_data:
             for i in range(self.__len__()):
-                _, frame, target = self.pop_new()
+                _, frame, target, em_tar = self.pop_new()
                 self.frame[i] = frame
                 self.target[i] = target
+                self.em_tar[i] = em_tar
 
             self.check_completeness(warning=True)
             self.calc_new_flag = False
@@ -117,7 +121,8 @@ class SMLMDatasetOnFly(Dataset):
     def check_completeness(self, warning=False):
         frame_complete = not any(v is None for v in self.frame)
         target_complete = not any(v is None for v in self.target)
-        if frame_complete and target_complete:
+        em_tar_complete = not any(v is None for v in self.em_tar)
+        if frame_complete and target_complete and em_tar_complete:
             self.data_complete = True
             self.calc_new_flag = False
         else:
@@ -129,6 +134,7 @@ class SMLMDatasetOnFly(Dataset):
     def drop_data_set(self, verbose=True):
         self.frame = [None] * self.__len__()
         self.target = [None] * self.__len__()
+        self.em_tar = [None] * self.__len__()
         self.check_completeness()
 
         if verbose:
@@ -138,8 +144,9 @@ class SMLMDatasetOnFly(Dataset):
         emitter = self.prior.pop()
         sim_out = self.simulator.forward(emitter).type(torch.FloatTensor)
         frame = self.input_preperator.forward(sim_out)
-        target = self.target_generator.forward(emitter.get_subset_frame(0, 0))
-        return emitter, frame, target
+        emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
+        target = self.target_generator.forward(emitter_on_tar_frame)
+        return emitter, frame, target, emitter_on_tar_frame
 
     def __len__(self):
         return self.data_set_size
@@ -147,15 +154,18 @@ class SMLMDatasetOnFly(Dataset):
     def __getitem__(self, index):
 
         if self.calc_new_flag or self.lifetime == 0:
-            emitter, frame, target = self.pop_new()
+            emitter, frame, target, em_tar = self.pop_new()
             self.frame[index] = frame
             self.target[index] = target
+            self.em_tar[index] = em_tar
         else:
             frame = self.frame[index]
             target = self.target[index]
+            em_tar = self.em_tar[index]
 
         self.check_completeness(False)
-        return frame, target, index
+        em_tar, _ = self.target_generator_gt.forward(em_tar)
+        return frame, target, em_tar, index
 
 
 class UnsupervisedDataset(Dataset):

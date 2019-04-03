@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod  # abstract class
+import math
 import torch
 from torch.nn import functional
 
@@ -132,7 +133,7 @@ class BumpMSELoss(Loss):
     plus L1 loss (output, 0)
     """
 
-    def __init__(self, kernel_sigma, cuda, l1_f=1):
+    def __init__(self, kernel_sigma, cuda, l1_f=1, kernel_size=16, kernel_mode='gaussian'):
         """
 
         :param kernel_sigma: sigma value of gaussian kernel
@@ -142,14 +143,25 @@ class BumpMSELoss(Loss):
         super().__init__()
 
         self.l1_f = l1_f
+        self.kernel_size = kernel_size
+        self.kernel_mode = kernel_mode
+        self.padding_same_v = math.ceil((self.kernel_size - 1) / 2)
 
-        def padding(x): return functional.pad(x, [3, 3, 3, 3], mode='reflect')
+        def padding(x): return functional.pad(x, [self.padding_same_v,
+                                                  self.padding_same_v,
+                                                  self.padding_same_v,
+                                                  self.padding_same_v], mode='reflect')
+
         self.hm_kernel = GaussianSmoothing(channels=1,
-                                           kernel_size=[7, 7],
+                                           kernel_size=[
+                                               self.kernel_size,
+                                               self.kernel_size],
                                            sigma=kernel_sigma,
                                            dim=2,
                                            cuda=cuda,
-                                           padding=padding)
+                                           padding=padding,
+                                           kernel_f=self.kernel_mode)
+
         self.l1 = torch.nn.L1Loss()
         self.l2 = torch.nn.MSELoss()
 

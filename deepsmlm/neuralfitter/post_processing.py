@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.ndimage.measurements import label
+# from skimage.measure import label
 from skimage.feature import peak_local_max
 from sklearn.cluster import DBSCAN
 import torch
@@ -98,15 +99,18 @@ class CoordScan:
 
 
 class ConnectedComponents:
-    def __init__(self, photon_threshold, extent, clusterer=label, single_value_threshold=0):
+    def __init__(self, photon_threshold, extent, clusterer=label, single_value_threshold=0, connectivity=2):
         self.phot_thres = photon_threshold
         self.single_val_threshold = single_value_threshold
         self.extent = extent
         self.dim = 2 if (extent[2] is None) else 3
         self.clusterer = clusterer
         self.matrix_extent = None
-
-        self.kernel = np.ones((3, 3))
+        self.connectivity = connectivity
+        if connectivity == 2:
+            self.kernel = np.ones((3, 3))
+        elif connectivity == 1:
+            self.kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
 
     def forward(self, x):
         """
@@ -157,7 +161,6 @@ class ConnectedComponents:
         return pos_clus[ix_above_thres, :], phot_clus[ix_above_thres]
 
 
-
 if __name__ == '__main__':
     from sklearn.datasets.samples_generator import make_blobs
 
@@ -172,12 +175,12 @@ if __name__ == '__main__':
     # print(xyz_clus, phot_clus)
 
     frame = torch.zeros((50, 50))
-    frame[5, 5] = 0.3
-    frame[5, 6] = 0.5
-    frame[4, 5] = 0.2
+    frame[0, 0] = 0.3
+    frame[1, 1] = 0.5
+    frame[2, 2] = 0.2
 
     cn = ConnectedComponents(photon_threshold=0.6,
-                             extent=((-0.5, 24.5), (-0.5, 24.5), None))
+                             extent=((-0.5, 24.5), (-0.5, 24.5), None), connectivity=1)
     xyz_clus, phot_clus = cn.forward(frame)
     print(xyz_clus, phot_clus)
 

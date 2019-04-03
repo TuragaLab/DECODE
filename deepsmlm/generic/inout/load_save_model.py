@@ -5,6 +5,7 @@ class LoadSaveModel:
     def __init__(self, model_instance, output_file, input_file=None):
         self.warmstart_file = input_file
         self.output_file = output_file
+        self.output_file_suffix = 0
         self.model = model_instance
 
     def load_init(self, cuda=torch.cuda.is_available()):
@@ -24,7 +25,12 @@ class LoadSaveModel:
         model.eval()
         return model
 
-    def save(self, model):
-        torch.save(model.state_dict(), self.output_file)
-        print('Saved model to file: {}'.format(self.output_file))
+    def save(self, model, trigger_new_name=False):
+        if trigger_new_name:
+            self.output_file_suffix += 1
+
+        # a bit hacky
+        fname = self.output_file[:-3] + '_' + str(self.output_file_suffix) + '.pt'
+        torch.save(model.state_dict(), fname)
+        print('Saved model to file: {}'.format(fname))
 

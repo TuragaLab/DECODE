@@ -74,14 +74,17 @@ class DeepSMLN(nn.Module):
 
 
 class USMLM(nn.Module):
-    def __init__(self, in_ch=3, upsampling=8):
+    def __init__(self, in_ch=3, upsampling=8, upsampling_mode='nearest'):
+        super().__init__()
         self.in_ch = in_ch
         self.upsampling = upsampling
+        self.upsampling_mode = upsampling_mode
         self.unet = UNet(self.in_ch, 1)
 
     def forward(self, x):
-        x = F.interpolate(x, scale_factor=self.upsampling, mode='nearest')
+        x = F.interpolate(x, scale_factor=self.upsampling, mode=self.upsampling_mode)
         x = self.unet(x)
+        return x
 
 
 
@@ -224,6 +227,12 @@ if __name__ == '__main__':
     # loss.backward()
 
     model = DenseLoco(((0., 1),(0., 1), (0., 1.)), 1, 3)
+    x = torch.rand((32, 1, 32, 32), requires_grad=True)
+    out = model(x)
+    # loss = torch.sum(out)
+    # loss.backward()
+
+    model = USMLM(1, 8)
     x = torch.rand((32, 1, 32, 32), requires_grad=True)
     out = model(x)
     loss = torch.sum(out)
