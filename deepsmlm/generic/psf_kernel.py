@@ -62,12 +62,12 @@ class DeltaPSF(PSF):
     psf forwards an image where a single non-zero px corresponds to an emitter.
     """
 
-    def __init__(self, xextent, yextent, zextent, img_shape):
+    def __init__(self, xextent, yextent, zextent, img_shape, photon_threshold=0):
         """
         (See abstract class constructor.)
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
-
+        self.photon_threshold = photon_threshold
         """
         Binning in numpy: binning is (left Bin, right Bin]
         (open left edge, including right edge)
@@ -81,7 +81,7 @@ class DeltaPSF(PSF):
             self.bin_z = np.linspace(zextent[0], zextent[1],
                                      img_shape[2] + 1, endpoint=True)
 
-    def forward(self, pos, weight):
+    def forward(self, pos, weight=None):
         """
 
         :param pos:  position of the emitter in 2 or 3D
@@ -89,6 +89,11 @@ class DeltaPSF(PSF):
 
         :return:  torch tensor of size 1 x H x W
         """
+        if weight is None:
+            ix_phot_threshold = pos.phot >= self.photon_threshold
+
+            weight = pos.phot[ix_phot_threshold]
+            pos = pos.xyz[ix_phot_threshold, :]
 
         if self.zextent is None:
             camera, _, _ = np.histogram2d(pos[:, 0].numpy(), pos[:, 1].numpy(),  # reverse order
@@ -458,17 +463,29 @@ class GaussianSampleBased(PSF):
 
 
 if __name__ == '__main__':
-    from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
-
-    extent = ((-0.5, 25.5), (-0.5, 25.5), None)
-    img_shape = (26, 26)
-    # spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
-    spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
-    psf = SMAPSplineCoefficient(spline_file).initSpline(extent[0], extent[1], img_shape)
-    img = psf.forward(torch.rand((1, 3)) * 10, torch.rand((5)) * 500)
     import matplotlib.pyplot as plt
-    plt.imshow(img.squeeze().numpy())
-    plt.colorbar()
+    # from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
+    #
+    # extent = ((-0.5, 25.5), (-0.5, 25.5), None)
+    # img_shape = (26, 26)
+    # # spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    # spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    # psf = SMAPSplineCoefficient(spline_file).initSpline(extent[0], extent[1], img_shape)
+    # img = psf.forward(torch.rand((1, 3)) * 10, torch.rand((5)) * 500)
+    #
+    # plt.imshow(img.squeeze().numpy())
+    # plt.colorbar()
+    # plt.show()
+
+    img_shape = (32, 32)
+    psf = DeltaPSF((-0.5, 31.5), (-0.5, 31.5), None, img_shape, 1000)
+
+    xyz = torch.tensor([[1., 1.], [15., 15.]])
+    phot = torch.tensor([1000., 1001])
+    frame_ix = torch.tensor([0, 0])
+    em = EmitterSet(xyz, phot, frame_ix)
+    img = psf.forward(em)
+    plt.imshow(img.squeeze())
     plt.show()
     print('Success.')
 
