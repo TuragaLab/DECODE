@@ -23,7 +23,31 @@ LOG_FIGURES = True
 LOG = True if DEBUG else LOG
 
 
-def plot_io_model(frame, output, target, indices, fig_str, comet_log, board_log, step, D3=False):
+def plot_io_frame_model(frame, output, target, em_tar, indices, fig_str, comet_log, board_log, step):
+    channel = 0 if (frame.shape[1] == 1) else 1
+    figures = []
+
+    for i, ix in enumerate(indices):
+        img = frame[ix, channel, :, :].detach().cpu()
+        img_out = output[ix, 0, :, :].detach().cpu()
+        xyz_target = em_tar[ix, :].detach().cpu()
+        fig = plt.figure()
+        plt.subplot(121)
+        PlotFrameCoord(frame=img, pos_tar=xyz_target).plot()
+        plt.title('Epoch {} | SampleIx {} | Channel: {}'.format(step, ix, channel))
+        plt.subplot(122)
+        # TODO: Extent should not be determined by img-shape but rather by specification.
+        PlotFrameCoord(frame=img_out, pos_tar=xyz_target,
+                       extent=((-0.5, img.shape[0] - 0.5), (-0.5, img.shape[1] - 0.5))).plot()
+        figures.append(fig)
+        plt.show()
+
+        fig_str_ = fig_str + str(i)
+        comet_log.log_figure(fig_str_, fig)
+        board_log.add_figure(fig_str_, fig, step)
+
+
+def plot_io_coord_model(frame, output, target, em_tar, indices, fig_str, comet_log, board_log, step, D3=False):
     channel = 0 if (frame.shape[1] == 1) else 1
     figures = []
     figures_3d = []
@@ -41,12 +65,13 @@ def plot_io_model(frame, output, target, indices, fig_str, comet_log, board_log,
                        phot_out=phot_out).plot()
         plt.title('Epoch {} | SampleIx {} | Channel: {}'.format(step, ix, channel))
         plt.legend()
-        plt.show()
         figures.append(fig)
+        plt.show()
 
         fig_str_ = fig_str + str(i)
         comet_log.log_figure(fig_str_, fig)
         board_log.add_figure(fig_str_, fig, step)
+
 
         if D3:
             fig = plt.figure()
@@ -55,13 +80,12 @@ def plot_io_model(frame, output, target, indices, fig_str, comet_log, board_log,
                               phot_out=phot_out).plot()
             plt.title('Epoch {} | Sampleix {} | Channel: {}'.format(step, ix, channel))
             plt.legend()
-            plt.show()
             figures_3d.append(fig)
+            plt.show()
 
             fig_str_ = fig_str + str(i) + '_3D'
             comet_log.log_figure(fig_str_, fig)
             board_log.add_figure(fig_str_, fig, step)
-
 
     return figures, figures_3d
 
@@ -77,7 +101,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
 
     model.train()
     end = time.time()
-    for i, (input, target, _) in enumerate(train_loader):
+    for i, (input, target, em_tar, _) in enumerate(train_loader):
 
         if (epoch == 0) and (i == 0) and LOG:
             """Save a batch to see what we input into the network."""
@@ -136,12 +160,18 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         if LOG_FIGURES and ((epoch == 0 and i == 0) or (i == 0 and calc_new)):
             num_plot = 2
             ix = np.random.randint(0, input.shape[0], num_plot)
-            plot_io_model(input, output, target, ix,
-                          fig_str='training/fig_',
-                          comet_log=experiment,
-                          board_log=logger,
-                          step=epoch,
-                          D3=True)
+            plot_io_frame_model(input, output, target, em_tar, ix,
+                                fig_str='training/fig_',
+                                comet_log=experiment,
+                                board_log=logger,
+                                step=epoch)
+            # plot_io_coord_model(input, output, target, ix,
+            #                     fig_str='training/fig_',
+            #                     comet_log=experiment,
+            #                     board_log=logger,
+            #                     step=epoch,
+            #                     D3=True)
+            plt.show()
 
         if i == 0:
             for name, param in model.named_parameters():
@@ -165,7 +195,7 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment):
     model.eval()
     with torch.no_grad():
         end = time.time()
-        for i, (input, target, _) in enumerate(val_loader):
+        for i, (input, target, em_tar, _) in enumerate(val_loader):
 
             input = input.to(hy_par.device)
             if type(target) is torch.Tensor:
@@ -195,13 +225,19 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment):
             """Log first 3 and a random subset to tensorboard"""
             if LOG_FIGURES and i == 0:
                 ix = [0, 1, 2, 3, 4, 5]
-                plot_io_model(input, output, target, ix,
-                              fig_str='testset/fig_',
-                              comet_log=experiment,
-                              board_log=logger,
-                              step=epoch,
-                              D3=True)
+                plot_io_frame_model(input, output, target, em_tar, ix,
+                                    fig_str='testset/fig_',
+                                    comet_log=experiment,
+                                    board_log=logger,
+                                    step=epoch)
+                # plot_io_coord_model(input, output, target, ix,
+                #                     fig_str='testset/fig_',
+                #                     comet_log=experiment,
+                #                     board_log=logger,
+                #                     step=epoch,
+                #                     D3=True)
+                plt.show()
 
     experiment.log_metric('learning/test_loss', losses.val, epoch)
     logger.add_scalar('learning/test_loss', losses.val, epoch)
-    return losses.val
+    return losses.avg
