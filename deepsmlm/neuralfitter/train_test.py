@@ -182,7 +182,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         step_batch += 1
 
 
-def test(val_loader, model, criterion, epoch, hy_par, logger, experiment):
+def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_processor):
     """
     Taken from: https://pytorch.org/tutorials/beginner/aws_distributed_training_tutorial.html
     """
@@ -211,6 +211,9 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment):
 
             # measure accuracy and record loss
             losses.update(loss.item(), input.size(0))
+
+            # do evaluation
+            pred = post_processor(output)
 
             # measure elapsed time
             batch_time.update(time.time() - end)

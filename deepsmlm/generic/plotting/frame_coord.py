@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
-from tensorboardX import SummaryWriter
 import torch
 
 """
@@ -15,26 +15,32 @@ v
 
 
 class PlotFrame:
-    def __init__(self, frame, extent=None):
+    def __init__(self, frame, extent=None, norm=None, clim=None):
         """
         :param frame: torch tensor.
         """
 
         self.frame = frame.detach().squeeze()
         self.extent = extent
+        self.norm = LogNorm() if norm is 'log' else None
+        self.clim = clim
 
     def plot(self):
         """
         Plot the frame. Note that according to convention we need to transpose the last two axis.
         """
         if self.extent is None:
-            plt.imshow(self.frame.transpose(-1, -2).numpy(), cmap='gray')
+            plt.imshow(self.frame.transpose(-1, -2).numpy(), cmap='gray', norm=self.norm)
         else:
-            plt.imshow(self.frame.transpose(-1, -2).numpy(), cmap='gray', extent=(self.extent[0][0],
-                                                                                  self.extent[0][1],
-                                                                                  self.extent[1][1],
-                                                                                  self.extent[1][0]))
+            plt.imshow(self.frame.transpose(-1, -2).numpy(), cmap='gray', norm=self.norm, extent=(self.extent[0][0],
+                                                                                                  self.extent[0][1],
+                                                                                                  self.extent[1][1],
+                                                                                                  self.extent[1][0]))
         plt.gca().set_aspect('equal', adjustable='box')
+        if self.clim is not None:
+            plt.clim(self.clim[0], self.clim[1])
+            # safety measure
+            plt.colorbar()
         plt.xlabel('x')
         plt.ylabel('y')
 
@@ -138,7 +144,8 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
                  pos_tar=None, phot_tar = None,
                  pos_out=None, phot_out=None,
                  pos_ini=None, phot_ini=None,
-                 extent=None, coord_limit=None):
+                 extent=None, coord_limit=None,
+                 norm=None, clim=None):
         """
         (see base classes)
         :param frame:
@@ -156,7 +163,7 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
                                  phot_ini=phot_ini,
                                  extent_limit=coord_limit)
 
-        PlotFrame.__init__(self, frame, extent)
+        PlotFrame.__init__(self, frame, extent, norm, clim)
 
     def plot(self):
         """
@@ -191,4 +198,11 @@ if __name__ == '__main__':
     plt.show()
 
     PlotCoordinates3D(pos_tar=xyz, pos_out=xyz_out, phot_out=phot_out).plot()
+    plt.show()
+
+    img = torch.zeros((25, 25)) + 0.0001
+    img[10, 10] = 1
+    img[15, 15] = 10
+    img[20, 20] = 100
+    PlotFrame(img, norm='log', clim=(0.01, 100)).plot()
     plt.show()

@@ -242,7 +242,7 @@ if __name__ == '__main__':
 
         train(train_loader, model, optimiser, criterion, i, hy_par, logger, experiment, train_data_smlm.calc_new_flag)
 
-        val_loss = test(test_loader, model, criterion, i, hy_par, logger, experiment)
+        val_loss = test(test_loader, model, criterion, i, hy_par, logger, experiment, None)
         lr_scheduler.step(val_loss)
         sim_scheduler.step(val_loss)
 

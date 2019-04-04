@@ -17,25 +17,52 @@ class PeakFinder:
     """
 
     def __init__(self, threshold, min_distance, extent, upsampling_factor):
+        """
+        Documentation from http://scikit-image.org/docs/dev/api/skimage.feature.html#skimage.feature.peak_local_max if
+        parameters applicable to peak_local_max
+
+        :param threshold: Minimum intensity of peaks. By default, the absolute threshold is the minimum intensity of the image.
+        :param min_distance: Minimum number of pixels separating peaks in a region of 2 * min_distance + 1 (i.e. peaks
+         are separated by at least min_distance). To find the maximum number of peaks, use min_distance=1.
+        :param extent: extent of the input image
+        :param upsampling_factor: factor by which input image is upsampled
+        """
         self.threshold = threshold
         self.min_distance = min_distance
         self.extent = extent
         self.upsampling_factor = upsampling_factor
-
         self.transformation = ScaleTrafo(self.extent, self.upsampling_factor)
 
     def forward(self, img):
-        cord = np.ascontiguousarray(peak_local_max(img.detach().numpy(),
-                                                         min_distance=self.min_distance,
-                                                         threshold_abs=self.threshold,
-                                                         exclude_border=False))
+        """
+        Forward img to find the peaks (a way of declustering).
+        :param img: batchised image --> N x C x H x W
+        :return: list of tensors of prediction
+        """
+        if img.dim() != 4:
+            raise ValueError("Wrong dimension of input image. Must be N x C x H x W.")
 
-        cord = torch.from_numpy(cord)
-        return self.transformation.up2coord(cord)
+        n_batch = img.shape[0]
+        coord_batch = [None] * n_batch
+        img_ = img.detach.numpy()
+        for i in range(n_batch):
+            cord = np.ascontiguousarray(peak_local_max(img_[i, :, :, :],
+                                                       min_distance=self.min_distance,
+                                                       threshold_abs=self.threshold,
+                                                       exclude_border=False))
+
+            cord = torch.from_numpy(cord)
+
+            # Transform cord based on image to cord based on extent
+            cord = self.transformation.up2coord(cord)
+            coord_batch[i] = cord
+
+        return coord_batch
 
 
 class CoordScan:
     """Cluster to coordinate midpoint post processor"""
+
     def __init__(self, cluster_dims, eps=0.5, phot_threshold=0.8, clusterer=None):
 
         self.cluster_dims = cluster_dims
