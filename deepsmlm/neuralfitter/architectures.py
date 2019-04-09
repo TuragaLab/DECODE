@@ -1,6 +1,6 @@
 from torch.nn.
 
-class DecodeFC:
+class EncodeFc:
     def __init__(self):
         pass
 
