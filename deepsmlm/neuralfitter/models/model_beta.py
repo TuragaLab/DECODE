@@ -6,6 +6,89 @@ from deepsmlm.neuralfitter.models.model_densenet import DenseNet
 from deepsmlm.neuralfitter.models.model import DeepSMLN, ResNet
 
 
+class ResidualPP(nn.Module):
+
+    def __init__(self, p):
+        super().__init__()
+        self.bn1 = nn.BatchNorm2d(p // 4)
+        self.bn2 = nn.BatchNorm2d(p // 2)
+        self.bn3 = nn.BatchNorm2d(p)
+        self.res_internals = nn.ModuleList([
+            nn.Conv2d(p, p // 4, 3, padding=1),
+            nn.Conv2d(p // 4, p // 2, 3, padding=1),
+            nn.Conv2d(p // 2, p, 3, padding=1)
+        ])
+        self.prelu = nn.PReLU()
+
+    def forward(self, x0):
+        x = self.bn3(self.res_internals[2](self.bn2(self.res_internals[1](self.bn1(self.res_internals[0](x0)))))) + x0
+        return self.prelu(x)
+
+
+class ResidualPQ(nn.Module):
+
+    def __init__(self, p, q):
+        super().__init__()
+        self.bn1 = nn.BatchNorm2d(q // 4)
+        self.bn2 = nn.BatchNorm2d(q // 2)
+        self.bn3 = nn.BatchNorm2d(q)
+        self.in_res = nn.Conv2d(p, q, 3, padding=1)
+        self.res_internals = nn.ModuleList([
+            nn.Conv2d(p, q // 4, 3, padding=1),
+            nn.Conv2d(q // 4, q // 2, 3, padding=1),
+            nn.Conv2d(q // 2, q, 3, padding=1)
+        ])
+        self.prelu = nn.PReLU()
+
+    def forward(self, x0):
+        x = self.bn3(self.res_internals[2](self.bn2(self.res_internals[1](self.bn1(self.res_internals[0](x0)))))) \
+            + self.in_res(x0)
+        return self.prelu(x)
+
+
+class SMNET(nn.Module):
+
+    def __init__(self, in_ch, N):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_ch, 64, 7, padding=3)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.prelu1 = nn.PReLU()
+        self.conv2 = nn.Conv2d(64, 128, 5, padding=2)
+        self.bn2 = nn.BatchNorm2d(128)
+        self.prelu2 = nn.PReLU()
+        self.r1 = ResidualPP(128)
+        self.r2 = ResidualPP(128)
+        self.r3 = ResidualPP(128)
+        self.r4 = ResidualPQ(128, 256)
+        self.r5 = ResidualPP(256)
+        self.r6 = ResidualPP(256)
+        self.r7 = ResidualPP(256)
+        self.convm3 = nn.Conv2d(256, 128, 1)
+        self.convm2 = nn.Conv2d(128, 64, 1)
+        self.convm1 = nn.Conv2d(64, 1, 1)
+        self.fc1 = nn.Linear(N**2, 10)
+        self.fc2 = nn.Linear(10, 1)
+
+    def forward(self, x):
+        x = self.prelu1(self.bn1(self.conv1(x)))
+        x = self.prelu2(self.bn2(self.conv2(x)))
+        x = self.r1(x)
+        x = self.r2(x)
+        x = self.r3(x)
+        x = self.r4(x)
+        x = self.r5(x)
+        x = self.r6(x)
+        x = self.r7(x)
+        x = self.convm3(x)
+        x = self.convm2(x)
+        x = self.convm1(x)
+        x = x.view(x.shape[0], -1)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = F.hardtanh(x)
+        return x
+
+
 class FcZPrediction(nn.Module):
     def __init__(self, depth, input_dim, hidden_dim, num_classes):
         super().__init__()
@@ -418,8 +501,13 @@ if __name__ == "__main__":
     # x = torch.rand((32, 1, 26, 26), requires_grad=True)
     # out = model(x)
 
-    model = DenseNetZPrediction(1, (-750., 750), 15)
+    # model = DenseNetZPrediction(1, (-750., 750), 15)
+    # x = torch.rand((32, 1, 32, 32))
+    # out = model(x)
+
+    model = SMNET(1, 32)
     x = torch.rand((32, 1, 32, 32))
     out = model(x)
+
 
     print("Sucess.")
