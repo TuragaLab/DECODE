@@ -62,12 +62,13 @@ class DeltaPSF(PSF):
     psf forwards an image where a single non-zero px corresponds to an emitter.
     """
 
-    def __init__(self, xextent, yextent, zextent, img_shape, photon_threshold=0):
+    def __init__(self, xextent, yextent, zextent, img_shape, photon_threshold=0, photon_normalise=False):
         """
         (See abstract class constructor.)
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
         self.photon_threshold = photon_threshold
+        self.photon_normalise = photon_normalise
         """
         Binning in numpy: binning is (left Bin, right Bin]
         (open left edge, including right edge)
@@ -94,6 +95,9 @@ class DeltaPSF(PSF):
 
             weight = pos.phot[ix_phot_threshold]
             pos = pos.xyz[ix_phot_threshold, :]
+
+            if self.photon_normalise:
+                weight = torch.ones_like(weight)
 
         if self.zextent is None:
             camera, _, _ = np.histogram2d(pos[:, 0].numpy(), pos[:, 1].numpy(),  # reverse order
@@ -478,7 +482,7 @@ if __name__ == '__main__':
     # plt.show()
 
     img_shape = (32, 32)
-    psf = DeltaPSF((-0.5, 31.5), (-0.5, 31.5), None, img_shape, 1000)
+    psf = DeltaPSF((-0.5, 31.5), (-0.5, 31.5), None, img_shape, 1000, True)
 
     xyz = torch.tensor([[1., 1.], [15., 15.]])
     phot = torch.tensor([1000., 1001])
