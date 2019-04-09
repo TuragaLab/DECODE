@@ -119,7 +119,7 @@ class USMLMLoco(nn.Module):
     def __init__(self, usmlm_model, in_ch, extent, dim_out=3, max_num_emitter=128, densenet_out=2048):
         super().__init__()
         self.usmlm = usmlm_model
-        self.denseloco = DenseLoco(extent, in_ch + 1, dim_out, max_num_emitter, densenet_out)
+        self.denseloco = DenseLoco(extent, 1 + 1, dim_out, max_num_emitter, densenet_out)
 
         # fix the weights of usmlm
         for param in self.usmlm.parameters():
@@ -128,7 +128,7 @@ class USMLMLoco(nn.Module):
     def forward(self, input):
         x = self.usmlm.forward(input)
         input_denseloco = F.interpolate(input, scale_factor=self.usmlm.upsampling, mode=self.usmlm.upsampling_mode)
-        input_denseloco = torch.cat((input_denseloco, x), 1)
+        input_denseloco = torch.cat((input_denseloco[:, [1], :, :], x), 1)
         output = self.denseloco.forward(input_denseloco)
         return output
 
