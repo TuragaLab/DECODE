@@ -108,7 +108,6 @@ class Simulation:
         self.frames = torch.stack(frame_list, dim=0).type(torch.int16)
         return self.frames
 
-
     def write_to_binary(self, outfile):
             """
             Writes frames and emitters to binary.
@@ -146,8 +145,7 @@ if __name__ == '__main__':
     args.binary_path = deepsmlm_root + 'data/temp.npz'
 
     sp = SMAPSplineCoefficient(args.csp_calib)
-    psf = sp.init_spline(args.extent[0], args.extent[1], args.extent[2],
-                         img_shape=args.img_shape)
+    psf = sp.init_spline(args.extent[0], args.extent[1], img_shape=args.img_shape)
     bg = Poisson(bg_uniform=15)
 
     num_emitters = 100000
@@ -155,10 +153,10 @@ if __name__ == '__main__':
                     phot=torch.randint(800, 4000, (num_emitters,)),
                     frame_ix=torch.randint(0, 10000, (num_emitters,)))
 
-    # em = EmitterSet(xyz=torch.tensor([[15., 15, -200]]),
-    #                 phot=torch.tensor([2000]),
-    #                 frame_ix=torch.tensor([0]))
+    em = EmitterSet(xyz=torch.tensor([[15., 15, -200], [15., 15, -200]]),
+                    phot=torch.tensor([2000, 1000.]),
+                    frame_ix=torch.tensor([0., 0.]))
 
-    sim = Simulation(em=em, extent=args.extent, psf=psf, background=bg, poolsize=0)
-    sim.forward()
+    sim = Simulation(em=em, extent=args.extent, psf=psf, background=bg, poolsize=0, frame_range=(0, 0))
+    sim.forward(em)
     sim.write_to_binary(args.binary_path)
