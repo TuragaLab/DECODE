@@ -87,7 +87,6 @@ class USMLM(nn.Module):
         return x
 
 
-
 # Based on deep_loco by Boyd
 class DeepLoco(nn.Module):
     def __init__(self, extent, ch_in=1, dim_out=3):
@@ -103,7 +102,7 @@ class DeepLoco(nn.Module):
 
 
 class DenseLoco(DeepLoco):
-    def __init__(self, extent, ch_in=1, dim_out=3, max_num_emitter=64):
+    def __init__(self, extent, ch_in=1, dim_out=3, max_num_emitter=64, densenet_out=4096):
         super().__init__(extent=extent, ch_in=ch_in, dim_out=dim_out)
         fc_neurons = max_num_emitter * 4  # x, y, z, photons
 
@@ -114,6 +113,24 @@ class DenseLoco(DeepLoco):
 
     def forward(self, x):
         return super().forward(x)
+
+
+class USMLMLoco(nn.Module):
+    def __init__(self, usmlm_model, in_ch, extent, dim_out=3, max_num_emitter=128, densenet_out=2048):
+        super().__init__()
+        self.usmlm = usmlm_model
+        self.denseloco = DenseLoco(extent, in_ch + 1, dim_out, max_num_emitter, densenet_out)
+
+        # fix the weights of usmlm
+        for param in self.usmlm.parameters():
+            param.requires_grad = False
+
+    def forward(self, input):
+        x = self.usmlm.forward(input)
+        input_denseloco = F.interpolate(input, scale_factor=self.usmlm.upsampling, mode=self.usmlm.upsampling_mode)
+        input_denseloco = torch.cat((input_denseloco, x), 1)
+        output = self.denseloco.forward(input_denseloco)
+        return output
 
 
 class DeepConvNet(nn.Module):
@@ -214,28 +231,34 @@ class PhotXYZnet(nn.Module):
 
 
 if __name__ == '__main__':
-    model = DeepSMLN(in_ch=1)
-    x = torch.rand((32, 1, 16, 16), requires_grad=True)
-    out = model.encode(x)
-    loss = torch.sum(out)
-    loss.backward()
-
-    model = DeepLoco(((0., 1),(0., 1), (0., 1.)), 1, 3)
-    x = torch.rand((32, 1, 64, 64), requires_grad=True)
-    out = model(x)
+    # model = DeepSMLN(in_ch=1)
+    # x = torch.rand((32, 1, 16, 16), requires_grad=True)
+    # out = model.encode(x)
+    # loss = torch.sum(out)
+    # loss.backward()
+    #
+    # model = DeepLoco(((0., 1), (0., 1), (0., 1.)), 1, 3)
+    # x = torch.rand((32, 1, 64, 64), requires_grad=True)
+    # out = model(x)
+    # # loss = torch.sum(out)
+    # # loss.backward()
+    #
+    # model = DenseLoco(((0., 1), (0., 1), (0., 1.)), 1, 3)
+    # x = torch.rand((2, 1, 256, 256), requires_grad=True)
+    # out = model(x)
+    # # loss = torch.sum(out)
+    # # loss.backward()
+    #
+    # model = USMLM(1, 8)
+    # x = torch.rand((32, 1, 32, 32), requires_grad=True)
+    # out = model(x)
     # loss = torch.sum(out)
     # loss.backward()
 
-    model = DenseLoco(((0., 1),(0., 1), (0., 1.)), 1, 3)
-    x = torch.rand((32, 1, 32, 32), requires_grad=True)
+    psf_extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
+    model = USMLMLoco(3, 8, 'nearest', psf_extent, 3, 128, 2048)
+    model = model.cuda()
+    x = torch.rand((12, 3, 32, 32), requires_grad=True).cuda()
     out = model(x)
-    # loss = torch.sum(out)
-    # loss.backward()
-
-    model = USMLM(1, 8)
-    x = torch.rand((32, 1, 32, 32), requires_grad=True)
-    out = model(x)
-    loss = torch.sum(out)
-    loss.backward()
 
     print("Sucess.")
