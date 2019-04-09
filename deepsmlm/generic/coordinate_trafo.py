@@ -6,7 +6,7 @@ class UpsamplingTransformation:
     Simple class to calculate transformation from
     uspampled coordinates to original extent or vice versa
     """
-    def __init__(self, extent, up_factor):
+    def __init__(self, extent, up_factor=None):
         """
 
         :param extent: extent of image
