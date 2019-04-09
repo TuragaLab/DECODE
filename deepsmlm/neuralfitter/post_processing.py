@@ -40,13 +40,13 @@ class PeakFinder:
         :return: list of tensors of prediction
         """
         if img.dim() != 4:
-            raise ValueError("Wrong dimension of input image. Must be N x C x H x W.")
+            raise ValueError("Wrong dimension of input image. Must be N x C=1 x H x W.")
 
         n_batch = img.shape[0]
         coord_batch = [None] * n_batch
-        img_ = img.detach.numpy()
+        img_ = img.detach().numpy()
         for i in range(n_batch):
-            cord = np.ascontiguousarray(peak_local_max(img_[i, :, :, :],
+            cord = np.ascontiguousarray(peak_local_max(img_[i, 0, :, :],
                                                        min_distance=self.min_distance,
                                                        threshold_abs=self.threshold,
                                                        exclude_border=False))
