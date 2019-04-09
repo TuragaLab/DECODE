@@ -26,31 +26,31 @@ class EmitterGenerator(ABC):
 
 class EmitterPopper:
 
-    def __init__(self, xextent, yextent, zextent, density, photon_range, emitter_av=None):
-        super().__init__()
-        self.xextent = xextent
-        self.yextent = yextent
-        self.zextent = zextent
+    def __init__(self, structure, density, photon_range, emitter_av=None):
+        self.structure = structure
         self.density = density
         self.photon_range = photon_range
 
-        self.scale = torch.tensor([(self.xextent[1] - self.xextent[0]),
-                                   (self.yextent[1] - self.yextent[0]),
-                                   (self.zextent[1] - self.zextent[0])])
-        self.shift = torch.tensor([self.xextent[0],
-                                   self.yextent[0],
-                                   self.zextent[0]])
-
-        self.area = (xextent[1] - xextent[0]) * (yextent[1] - yextent[0])
-        self.emitter_av = self.density * self.area
-        """Manually override emitter_maximum."""
+        """Manually override emitter number when provided. Area is not needed then."""
         if emitter_av is not None:
+            self.area = self.structure.get_area
             self.emitter_av = emitter_av
+        else:
+            self.area = self.structure.get_area
+            self.emitter_av = self.density * self.area
 
     def pop(self):
-        n = np.random.poisson(lam=self.emitter_av)
+        """
+        Pop a new sample.
+        :return: emitter set
+        """
+        """If emitter average is set to 0, always pop exactly one single emitter."""
+        if self.emitter_av == 0:
+            n = 1
+        else:
+            n = np.random.poisson(lam=self.emitter_av)
 
-        xyz = torch.rand((n, 3)) * self.scale + self.shift
+        xyz = self.structure.draw(n, 3)
         phot = torch.randint(*self.photon_range, (n, ))
         frame_ix = torch.zeros_like(phot)
 
@@ -61,8 +61,8 @@ class EmitterPopper:
 
 
 class EmitterPopperMultiFrame(EmitterPopper):
-    def __init__(self, xextent, yextent, zextent, density, photon_range, lifetime, num_frames=3, emitter_av=None):
-        super().__init__(xextent, yextent, zextent, density, photon_range, emitter_av)
+    def __init__(self, structure, density, photon_range, lifetime, num_frames=3, emitter_av=None):
+        super().__init__(structure, density, photon_range, emitter_av)
         self.num_frames = num_frames
         self.lifetime = lifetime
         self.lifetime_dist = Exponential(self.lifetime)
@@ -73,7 +73,7 @@ class EmitterPopperMultiFrame(EmitterPopper):
     def pop(self):
         """Pop a multi_frame emitter set."""
         n = np.random.poisson(lam=self.emitter_av)
-        xyz = torch.rand((n, 3)) * self.scale + self.shift
+        xyz = self.structure.draw(n, 3)
         phot = torch.randint(*self.photon_range, (n,))
 
         """Distribute emitters in time. Increase the range a bit."""
@@ -156,6 +156,7 @@ def emitters_from_csv(csv_file, img_size, cont_radius=3):
 
 def split_emitter_cont(em_mat, img_size):
     """
+    Split emitter set into a matrix of emitters and "contaminators". The latter are the ones which are outside the FOV.
 
     :param em_mat: matrix of all emitters
     :param img_size: img_size in px (not upscaled)

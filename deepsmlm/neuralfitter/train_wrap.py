@@ -20,10 +20,11 @@ from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, Simul
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss
-from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM
+from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
 from deepsmlm.neuralfitter.train_test import train, test
 from deepsmlm.simulator.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
+from deepsmlm.simulator.structure_prior import RandomStructure
 from deepsmlm.simulator.simulator import Simulation
 
 """Root folder"""
@@ -40,11 +41,11 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-04-03/model_multiframe_unet_photon_threshold.pt',
-        model_init=deepsmlm_root + 'network/2019-04-03/model_multiframe_unet_3.pt')
+        model_out=deepsmlm_root + 'network/2019-04-09/combined_net_corrected_sigmas.pt',
+        model_init=None)
 
     log_par = LoggerParameter(
-        tags=['3D', 'Frame', 'UNet'])
+        tags=['3D', 'Coords', 'DenseNet'])
 
     sched_par = SchedulerParameter(
         lr_factor=0.1,
@@ -57,27 +58,28 @@ if __name__ == '__main__':
         sim_threshold=0,
         sim_cooldown=10,
         sim_verbose=True,
+        sim_disabled=True,
         sim_max_value=50,
     )
 
     hy_par = HyperParamter(
         dimensions=3,
-        channels=1,
-        max_emitters=256,
+        channels=3,
+        max_emitters=128,
         min_phot=600.,
         data_lifetime=10,
         upscaling=8,
         upscaling_mode='nearest',
-        batch_size=16,
+        batch_size=32,
         test_size=256,
         num_epochs=10000,
         lr=1E-4,
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(256*16 + 256),  # (256*256 + 512),
+        pseudo_data_size=(256*32 + 256),  # (256*256 + 512),
         emitter_extent=((-0.5, 31.5), (-0.5, 31.5), (-500, 500)),
-        psf_extent=((-0.5, 31.5), (-0.5, 31.5), None),
+        psf_extent=((-0.5, 31.5), (-0.5, 31.5), (-750., 750.)),
         img_size=(32, 32),
         density=0,
         emitter_av=15,
@@ -109,17 +111,17 @@ if __name__ == '__main__':
     logger.add_text('comet_ml_key', experiment.get_key())
 
     """Set target for the Neural Network."""
-    # target_generator = ListPseudoPSFInSize(sim_par.emitter_extent[0], sim_par.emitter_extent[1],
-    #                                        sim_par.emitter_extent[2], zts=hy_par.max_emitters, dim=3,
-    #                                        photon_threshold=hy_par.min_phot)
+    target_generator = ListPseudoPSFInSize(sim_par.emitter_extent[0], sim_par.emitter_extent[1],
+                                           sim_par.emitter_extent[2], zts=hy_par.max_emitters, dim=3,
+                                           photon_threshold=hy_par.min_phot)
 
-    target_generator = DeltaPSF(xextent=sim_par.psf_extent[0],
-                                yextent=sim_par.psf_extent[1],
-                                zextent=sim_par.psf_extent[2],
-                                img_shape=(sim_par.img_size[0] * hy_par.upscaling,
-                                           sim_par.img_size[1] * hy_par.upscaling),
-                                photon_threshold=hy_par.min_phot)
-    # target_generator = SingleEmitterOnlyZ()
+    # target_generator = DeltaPSF(xextent=sim_par.psf_extent[0],
+    #                             yextent=sim_par.psf_extent[1],
+    #                             zextent=None,
+    #                             img_shape=(sim_par.img_size[0] * hy_par.upscaling,
+    #                                        sim_par.img_size[1] * hy_par.upscaling),
+    #                             photon_threshold=hy_par.min_phot,
+    #                             photon_normalise=True)
 
     if io_par.data_mode == 'precomputed':
         """Load Data from binary."""
@@ -144,25 +146,35 @@ if __name__ == '__main__':
         psf = smap_psf.init_spline(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size)
         noise = Poisson(bg_uniform=sim_par.bg_pois)
 
-        # prior = EmitterPopper(sim_par.emitter_extent[0],
-        #                       sim_par.emitter_extent[1],
-        #                       sim_par.emitter_extent[2],
-        #                       density=sim_par.density, photon_range=sim_par.photon_range, emitter_av=sim_par.emitter_av)
+        structure_prior = RandomStructure(sim_par.emitter_extent[0],
+                                          sim_par.emitter_extent[1],
+                                          sim_par.emitter_extent[2])
 
-        prior = EmitterPopperMultiFrame(sim_par.emitter_extent[0],
-                                        sim_par.emitter_extent[1],
-                                        sim_par.emitter_extent[2],
+        # prior = EmitterPopper(structure_prior,
+        #                       density=sim_par.density,
+        #                       photon_range=sim_par.photon_range,
+        #                       emitter_av=sim_par.emitter_av)
+
+        prior = EmitterPopperMultiFrame(structure_prior,
                                         density=sim_par.density,
                                         photon_range=sim_par.photon_range,
                                         lifetime=1,
                                         num_frames=3,
                                         emitter_av=sim_par.emitter_av)
+
+        if hy_par.channels == 3:
+            frame_range = (-1, 1)
+        elif hy_par.channels == 1:
+            frame_range = (0, 0)
+        else:
+            raise ValueError("Channels must be 1 (for only target frame) or 3 for one adjacent frame.")
+
         simulator = Simulation(None,
                                sim_par.emitter_extent,
                                psf,
                                noise,
                                poolsize=0,
-                               frame_range=(-1, 1))
+                               frame_range=frame_range)
 
         input_preparation = N2C()
 
@@ -188,8 +200,23 @@ if __name__ == '__main__':
     #                   ch_in=hy_par.channels,
     #                   dim_out=hy_par.dimensions,
     #                   max_num_emitter=hy_par.max_emitters)
-    model = USMLM(in_ch=3, upsampling=8, upsampling_mode='nearest')
+    # model = USMLM(in_ch=hy_par.channels, upsampling=hy_par.upscaling, upsampling_mode=hy_par.upscaling_mode)
     # model = SuperDumbFCNet(289, (-750., 750.))
+
+    model_usmlm = USMLM(in_ch=hy_par.channels,
+                        upsampling=hy_par.upscaling,
+                        upsampling_mode=hy_par.upscaling_mode)
+
+    # TODO: bit hacky. Reduce hard coded stuff here.
+    usmlm_file = deepsmlm_root + 'network/2019-04-07/model_multi_frame_13.pt'
+    model_usmlm = LoadSaveModel(model_usmlm, output_file=None, input_file=usmlm_file).load_init()
+
+    model = USMLMLoco(model_usmlm,
+                      in_ch=hy_par.channels,
+                      extent=sim_par.psf_extent,
+                      dim_out=hy_par.dimensions,
+                      max_num_emitter=hy_par.max_emitters,
+                      densenet_out=2048)
 
     """Log the model"""
     try:
@@ -200,16 +227,16 @@ if __name__ == '__main__':
 
     model_ls = LoadSaveModel(model, output_file=io_par.model_out, input_file=io_par.model_init)
     model = model_ls.load_init()
-
     model = model.to(hy_par.device)
 
     optimiser = Adam(model.parameters(), lr=hy_par.lr)
 
     """Loss function."""
     # kernel_sigmas = (0.64, 3.20, 6.4, 19.2)
-    # experiment.log_parameter('Loss/kernel_sigmas', kernel_sigmas)
-    # criterion = MultiScaleLaplaceLoss(kernel_sigmas=kernel_sigmas).return_criterion()
-    criterion = BumpMSELoss(kernel_sigma=1.5, cuda=True).return_criterion()
+    kernel_sigmas_upscaled = (5.12, 25.6, 51.2, 153.6)
+    experiment.log_parameter('Loss/kernel_sigmas', kernel_sigmas_upscaled)
+    criterion = MultiScaleLaplaceLoss(kernel_sigmas=kernel_sigmas_upscaled).return_criterion()
+    # criterion = BumpMSELoss(kernel_sigma=1.5, cuda=True, l1_f=0).return_criterion()
 
     # sc_cluster=0.5
     # experiment.log_parameter('Loss/scale_cluster_reduce', sc_cluster)

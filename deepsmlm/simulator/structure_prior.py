@@ -63,6 +63,13 @@ class RandomStructure(StructurePrior):
 class DiscreteZStructure(StructurePrior):
 
     def __init__(self, xy_pos, z_abs_max, eps=10):
+        """
+        Read abstractmethod.
+
+        :param xy_pos: (torch.tensor, 2 elements). x,y, position
+        :param z_abs_max: (float) max abs z value
+        :param eps: how much wiggling around the z peaks.
+        """
         super().__init__()
         self.xy_pos = xy_pos
         self.z_abs_max = z_abs_max
@@ -81,6 +88,10 @@ class DiscreteZStructure(StructurePrior):
 
 
 if __name__ == '__main__':
+    xyz_random = RandomStructure((-0.5, 31.5), (-0.5, 31.5), (-500., 500.))
+    xyz = xyz_random.draw(10, 3)
+    print(xyz)
+
     zs = DiscreteZStructure(torch.tensor([15., 15.]), 500, eps=10)
     xyz = zs.draw(10, 3)
     print(xyz)

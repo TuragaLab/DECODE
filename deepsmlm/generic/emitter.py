@@ -111,9 +111,17 @@ class EmitterSet:
 
 
 class LooseEmitterSet:
-    """A where we don't specify the frame_ix of an emitter but rather it's (real) time when
+    """An emitterset where we don't specify the frame_ix of an emitter but rather it's (real) time when
     it's starts to blink and it's ontime and then construct the EmitterSet (framewise) out of it."""
     def __init__(self, xyz, phot, id=None, t0=None, ontime=None):
+        """
+
+        :param xyz: Coordinates
+        :param phot: Photons
+        :param id: ID
+        :param t0: Timepoint of first occurences
+        :param ontime: Duration in frames how long the emitter is on.
+        """
 
         """If no ID specified, give them one."""
         if id is None:
@@ -127,10 +135,21 @@ class LooseEmitterSet:
         self.ontime = ontime
 
     def return_emitterset(self):
+        """
+        Returns an emitter set
+
+        :return: Instance of EmitterSet class.
+        """
         xyz_, phot_, frame_ix_, id_ = self.distribute_framewise()
         return EmitterSet(xyz_, phot_, frame_ix_, id_)
 
     def distribute_framewise(self):
+        """
+        Wrapper to call C++ function to distribute the stuff over the frames.
+        Unfortunately this does not seem to be way faster than the Py version ...
+
+        :return: coordinates, photons, frame_ix, _id where for every frame-ix
+        """
         _xyz, _phot, _frame_ix, _id = torch_cpp.distribute_frames(self.t0,
                                                                   self.ontime,
                                                                   self.xyz,
@@ -176,4 +195,8 @@ if __name__ == '__main__':
     LE = LooseEmitterSet(xyz, phot, None, t0, ontime)
     E = LE.return_emitterset()
 
-    print("Done.")
+    frame_ix = torch.zeros_like(xyz[:,0])
+    em = EmitterSet(xyz, phot, frame_ix)
+    em_splitted = em.split_in_frames(0, 0)
+
+    print("Pseudo-Test successfull.")
