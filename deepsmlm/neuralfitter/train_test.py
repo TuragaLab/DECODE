@@ -139,7 +139,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if (i in [0, 1, 2, 10]) or (time.time() > last_print_time + 1):  # print the first few batches plus after 1s
+        if (i in [0, 1, 2, 10]) or (time.time() > last_print_time + 5):  # print the first few batches plus after 5s
             last_print_time = time.time()
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -160,24 +160,25 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         if LOG_FIGURES and ((epoch == 0 and i == 0) or (i == 0 and calc_new)):
             num_plot = 2
             ix = np.random.randint(0, input.shape[0], num_plot)
-            plot_io_frame_model(input, output, target, em_tar, ix,
-                                fig_str='training/fig_',
-                                comet_log=experiment,
-                                board_log=logger,
-                                step=epoch)
-            # plot_io_coord_model(input, output, target, ix,
+            # plot_io_frame_model(input, output, target, em_tar, ix,
             #                     fig_str='training/fig_',
             #                     comet_log=experiment,
             #                     board_log=logger,
-            #                     step=epoch,
-            #                     D3=True)
+            #                     step=epoch)
+            plot_io_coord_model(input, output, target, em_tar, ix,
+                                fig_str='training/fig_',
+                                comet_log=experiment,
+                                board_log=logger,
+                                step=epoch,
+                                D3=True)
             plt.show()
 
         if i == 0:
             for name, param in model.named_parameters():
                 if 'bn' not in name:
                     logger.add_histogram(name, param, epoch)
-                    logger.add_histogram(name + '.grad', param.grad, epoch)
+                    if param.grad is not None:
+                        logger.add_histogram(name + '.grad', param.grad, epoch)
 
         step_batch += 1
 
@@ -213,7 +214,7 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
             losses.update(loss.item(), input.size(0))
 
             # do evaluation
-            pred = post_processor(output)
+            # pred = post_processor(output)
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -228,17 +229,17 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
             """Log first 3 and a random subset to tensorboard"""
             if LOG_FIGURES and i == 0:
                 ix = [0, 1, 2, 3, 4, 5]
-                plot_io_frame_model(input, output, target, em_tar, ix,
-                                    fig_str='testset/fig_',
-                                    comet_log=experiment,
-                                    board_log=logger,
-                                    step=epoch)
-                # plot_io_coord_model(input, output, target, ix,
+                # plot_io_frame_model(input, output, target, em_tar, ix,
                 #                     fig_str='testset/fig_',
                 #                     comet_log=experiment,
                 #                     board_log=logger,
-                #                     step=epoch,
-                #                     D3=True)
+                #                     step=epoch)
+                plot_io_coord_model(input, output, target, em_tar, ix,
+                                    fig_str='testset/fig_',
+                                    comet_log=experiment,
+                                    board_log=logger,
+                                    step=epoch,
+                                    D3=True)
                 plt.show()
 
     experiment.log_metric('learning/test_loss', losses.val, epoch)
