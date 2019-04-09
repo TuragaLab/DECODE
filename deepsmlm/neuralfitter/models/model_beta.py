@@ -6,6 +6,41 @@ from deepsmlm.neuralfitter.models.model_densenet import DenseNet
 from deepsmlm.neuralfitter.models.model import DeepSMLN, ResNet
 
 
+class FcZPrediction(nn.Module):
+    def __init__(self, depth, input_dim, hidden_dim, num_classes):
+        super().__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc_hidden = []
+        self.fc_out = nn.Linear(hidden_dim, num_classes)
+
+        # construct hidden layers
+        for i in range(depth):
+            self.fc_hidden.append(nn.Linear(hidden_dim, hidden_dim))
+
+        self.fc_hidden = nn.ModuleList(self.fc_hidden)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        for module in self.fc_hidden:
+            x = module(x)
+        x = self.fc_out(x)
+        return x
+
+
+class DenseNetZPrediction(DenseNet):
+    def __init__(self, in_ch, z_range, z_steps=10):
+        super().__init__(num_channels=in_ch, num_classes=z_steps)
+        self.output_fc = nn.Softmax(1)
+        self.output_bias = torch.linspace(z_range[0], z_range[1], z_steps)
+
+    def forward(self, x):
+        x = super().forward(x)
+        x = self.output_fc(x)
+        # scale * classifier by output_bias, sum along output nodes
+        z_value = (x * self.output_bias.to(x.device)).sum(1)
+        return z_value
+
+
 class EncoderFC(DeepSMLN):
     def __init__(self, limits):
         super().__init__(1)
@@ -364,23 +399,27 @@ if __name__ == "__main__":
     model = SuperDumbFCNet(256, (-1., 1.))
     x = torch.rand((32, 1, 16, 16), requires_grad=True)
     out = model(x)
-    loss = torch.sum(out)
-    loss.backward()
+    # loss = torch.sum(out)
+    # loss.backward()
 
-    model = EncoderFC((-500., 500.))
-    x = torch.rand((32, 1, 26, 26), requires_grad=True)
-    out = model(x)
-    loss = torch.sum(out)
-    loss.backward()
+    # model = EncoderFC((-500., 500.))
+    # x = torch.rand((32, 1, 26, 26), requires_grad=True)
+    # out = model(x)
+    # loss = torch.sum(out)
+    # loss.backward()
+    #
+    # model = DenseNetResNet()
+    # x = torch.rand((32, 1, 26, 26), requires_grad=True)
+    # out = model(x)
+    # loss = torch.sum(out)
+    # loss.backward()
+    #
+    # model = DenseNet(num_channels=1)
+    # x = torch.rand((32, 1, 26, 26), requires_grad=True)
+    # out = model(x)
 
-    model = DenseNetResNet()
-    x = torch.rand((32, 1, 26, 26), requires_grad=True)
-    out = model(x)
-    loss = torch.sum(out)
-    loss.backward()
-
-    model = DenseNet(num_channels=1)
-    x = torch.rand((32, 1, 26, 26), requires_grad=True)
+    model = DenseNetZPrediction(1, (-750., 750), 15)
+    x = torch.rand((32, 1, 32, 32))
     out = model(x)
 
     print("Sucess.")
