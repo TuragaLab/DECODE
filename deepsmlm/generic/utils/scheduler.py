@@ -95,7 +95,7 @@ class GenericScheduler(object):
 
 class ScheduleSimulation(GenericScheduler):
     def __init__(self, prior, datasets, optimiser, threshold, step_size, max_emitter,
-                 mode='min', patience=10, threshold_mode='rel', cooldown=0, verbose=True):
+                 mode='min', patience=10, threshold_mode='rel', cooldown=0, verbose=True, disabled=False):
         super().__init__(threshold,
                          mode=mode,
                          patience=patience,
@@ -110,10 +110,14 @@ class ScheduleSimulation(GenericScheduler):
         self.max_emitter_av = max_emitter
         self.step_size = step_size
         self.verbose = verbose
+        self.disabled = disabled
 
         self.init_lr = optimiser.param_groups[0]['lr']
 
     def _do_step(self, epoch):
+
+        if self.disabled:
+            return
 
         if self.prior.emitter_av < self.max_emitter_av:
             self.prior.emitter_av *= self.step_size

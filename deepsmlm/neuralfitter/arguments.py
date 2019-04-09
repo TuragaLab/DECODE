@@ -29,6 +29,7 @@ SchedulerParameter = namedtuple('SchedulerParameter',
                                     'sim_threshold',
                                     'sim_cooldown',
                                     'sim_verbose',
+                                    'sim_disabled',
                                     'sim_max_value',
                                 ])
 
