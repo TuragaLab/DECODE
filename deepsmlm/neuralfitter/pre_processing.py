@@ -42,6 +42,15 @@ class TargetGenerator(ABC):
         return x
 
 
+class ZPrediction(ListPseudoPSF):
+    def __init__(self):
+        super().__init__(None, None, None, dim=3)
+
+    def forward(self, x):
+        pos, _ = super().forward(x)
+        return pos[[0], 2]
+
+
 class SingleEmitterOnlyZ(ListPseudoPSF):
     def __init__(self=3):
         super().__init__(None, None, None, dim=3)
