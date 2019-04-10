@@ -48,7 +48,7 @@ class ResidualPQ(nn.Module):
 
 class SMNET(nn.Module):
 
-    def __init__(self, in_ch, N):
+    def __init__(self, in_ch, N, output_range):
         super().__init__()
         self.conv1 = nn.Conv2d(in_ch, 64, 7, padding=3)
         self.bn1 = nn.BatchNorm2d(64)
@@ -68,6 +68,7 @@ class SMNET(nn.Module):
         self.convm1 = nn.Conv2d(64, 1, 1)
         self.fc1 = nn.Linear(N**2, 10)
         self.fc2 = nn.Linear(10, 1)
+        self.hardh = nn.Hardtanh(output_range[0], output_range[1])
 
     def forward(self, x):
         x = self.prelu1(self.bn1(self.conv1(x)))
@@ -85,7 +86,7 @@ class SMNET(nn.Module):
         x = x.view(x.shape[0], -1)
         x = self.fc1(x)
         x = self.fc2(x)
-        x = F.hardtanh(x)
+        x = self.hardh(x)
         return x
 
 
