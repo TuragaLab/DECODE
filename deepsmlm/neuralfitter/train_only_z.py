@@ -24,10 +24,10 @@ from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco
-from deepsmlm.neuralfitter.models.model_beta import DenseNetZPrediction
+from deepsmlm.neuralfitter.models.model_beta import DenseNetZPrediction, SMNET
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ, ZPrediction
 from deepsmlm.simulator.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
-from deepsmlm.simulator.structure_prior import DiscreteZStructure
+from deepsmlm.simulator.structure_prior import DiscreteZStructure, RandomStructure
 from deepsmlm.simulator.simulator import Simulation
 from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord, PlotCoordinates3D
 from deepsmlm.evaluation.evaluation import AverageMeter
@@ -168,6 +168,7 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
     logger.add_scalar('learning/test_loss', losses.val, epoch)
     return losses.avg
 
+
 if __name__ == '__main__':
 
     """Set ur basic parameters"""
@@ -176,14 +177,14 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,
-        model_out=deepsmlm_root + 'network/2019-04-09/only_z.pt',
-        model_init=None)
+        model_out=deepsmlm_root + 'network/2019-04-10/only_z_wigglexy.pt',
+        model_init=deepsmlm_root + 'network/2019-04-10/only_z_2.pt')
 
     log_par = LoggerParameter(
         tags=['Z', 'Coord', 'DenseNet'])
 
     sched_par = SchedulerParameter(
-        lr_factor=0.1,
+        lr_factor=0.999999999999,
         lr_patience=10,
         lr_threshold=0.0025,
         lr_cooldown=10,
@@ -205,15 +206,15 @@ if __name__ == '__main__':
         data_lifetime=10,
         upscaling=8,
         upscaling_mode='nearest',
-        batch_size=256,
+        batch_size=64,
         test_size=256,
         num_epochs=10000,
-        lr=1E-4,
-        device=torch.device('cpu'))
+        lr=1E-5,
+        device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(5096 * 32 + 256),  # (256*256 + 512),
-        emitter_extent=((15., 15), (15., 15), (-500, 500)),
+        pseudo_data_size=(1024 * 64 + 256),  # (256*256 + 512),
+        emitter_extent=((14., 16), (14., 16), (-500, 500)),
         psf_extent=((-0.5, 31.5), (-0.5, 31.5), (-750., 750.)),
         img_size=(32, 32),
         density=0,
@@ -247,7 +248,8 @@ if __name__ == '__main__':
     psf = smap_psf.init_spline(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size)
     noise = Poisson(bg_uniform=sim_par.bg_pois)
 
-    structure_prior = DiscreteZStructure(torch.tensor([16., 16.]), 500., 10.)
+    # structure_prior = DiscreteZStructure(torch.tensor([16., 16.]), 500., 10.)
+    structure_prior = RandomStructure((15., 15.), (15., 15.), sim_par.emitter_extent[2])
 
     prior = EmitterPopper(structure_prior,
                           density=sim_par.density,
@@ -278,7 +280,7 @@ if __name__ == '__main__':
     test_loader = DataLoader(test_data_smlm,
                              batch_size=hy_par.batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
-    model = DenseNetZPrediction(1, (-500, 500), 3)
+    model = SMNET(1, 32, output_range=(sim_par.psf_extent[2]))
     model_ls = LoadSaveModel(model, output_file=io_par.model_out, input_file=io_par.model_init)
     model = model_ls.load_init()
     model = model.to(hy_par.device)
@@ -312,3 +314,4 @@ if __name__ == '__main__':
             trigger_new_name = False
 
         model_ls.save(model, trigger_new_name)
+
