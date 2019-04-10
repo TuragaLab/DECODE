@@ -41,7 +41,7 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-04-09/combined_net_corrected_sigmas.pt',
+        model_out=deepsmlm_root + 'network/2019-04-09/combined_net_corrected_sigmas_singleframefordenseloco.pt',
         model_init=None)
 
     log_par = LoggerParameter(
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     hy_par = HyperParamter(
         dimensions=3,
         channels=3,
-        max_emitters=128,
+        max_emitters=64,
         min_phot=600.,
         data_lifetime=10,
         upscaling=8,
