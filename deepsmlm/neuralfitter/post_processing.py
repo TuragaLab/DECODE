@@ -127,6 +127,14 @@ class CoordScan:
 
 class ConnectedComponents:
     def __init__(self, photon_threshold, extent, clusterer=label, single_value_threshold=0, connectivity=2):
+        """
+
+        :param photon_threshold: minimum total value of summmed output
+        :param extent:
+        :param clusterer:
+        :param single_value_threshold:
+        :param connectivity:
+        """
         self.phot_thres = photon_threshold
         self.single_val_threshold = single_value_threshold
         self.extent = extent

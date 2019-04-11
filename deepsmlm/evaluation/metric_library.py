@@ -1,6 +1,5 @@
 import torch
 from torch import nn as nn
-from math import sqrt
 
 
 def expanded_pairwise_distances(x, y=None, sqd=False):
@@ -21,21 +20,6 @@ def expanded_pairwise_distances(x, y=None, sqd=False):
     if sqd is False:
         distances = distances.sqrt()
     return distances
-
-
-def test_expanded_pairwise_distances():
-    passed = True
-    try:
-        x = torch.tensor([[0., 0., 0.]])
-        y = torch.tensor([[0., 0., 0.], [1., 1., 1.]])
-
-        dist_mat = expanded_pairwise_distances(x, y)
-        passed *= (dist_mat == torch.tensor([[0., sqrt(3)]])).all()
-    except:
-        passed = False
-
-    print("Test passed [expanded_pairwise_distance]: {}".format(passed))
-    return
 
 
 def min_pair_distances(x, y, threshold=float('inf')):
@@ -128,24 +112,30 @@ def pos_neg_emitters(output, target, distance_threshold=1.):
     return tp, fp, fn, ix_pred2gt, ix_gt, ix_gt2pred, ix_pred
 
 
-def precision_recall(tp, fp, fn):
-    """
-    Calculates precision and recall.
-    :param tp: (int) number of true positives
-    :param fp: (int) number of false positives
-    :param fn: (int) number of false negatives
-    :return: precision (float), recall (float)
-    """
+class PrecisionRecallJacquard:
+    def __init__(self):
+        pass
 
-    # convert to float, because otherwise torch division is integer based ...
-    tp = tp.to(dtype=torch.float)
-    fp = fp.to(dtype=torch.float)
-    fn = fn.to(dtype=torch.float)
+    @staticmethod
+    def forward(tp, fp, fn):
+        """
+        Calculates precision and recall.
+        :param tp: (int, float) number of true positives
+        :param fp: (int, float) number of false positives
+        :param fn: (int, float) number of false negatives
+        :return: precision (float), recall (float)
+        """
 
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
+        # convert to float, because otherwise torch division is integer based ...
+        tp = float(tp)
+        fp = float(fp)
+        fn = float(fn)
 
-    return precision, recall
+        precision = tp / (tp + fp)
+        recall = tp / (tp + fn)
+        jacquard = tp / (tp + fp + fn)
+
+        return precision, recall, jacquard
 
 
 def interpoint_loss(output, target, reduction='mean'):
@@ -165,35 +155,40 @@ def interpoint_loss(output, target, reduction='mean'):
         raise ValueError('Reduction type unsupported.')
 
 
-def rmse_mad(tp, r):
-    """
-    Calculate RMSE values and mad.
+class RMSEMAD:
+    def __init__(self):
+        pass
 
-    :param tp: (emitterset) true positives
-    :param r:  (emitterset) reference
-    :return: various rmse values
-    """
-    num_tp = tp.num_emitter
-    # convenience to get the coordinates
-    tp_ = tp.xyz
-    r_ = r.xyz
+    @staticmethod
+    def forward(tp, ref):
+        """
+        Calculate RMSE values and mad.
 
-    mse_loss = nn.MSELoss(reduction='sum')
+        :param tp: (emitterset) true positives
+        :param ref:  (emitterset) reference
+        :return: various rmse values
+        """
+        num_tp = tp.num_emitter
+        # convenience to get the coordinates
+        tp_ = tp.xyz
+        r_ = ref.xyz
 
-    rmse_vol = (mse_loss(tp_, r_) / num_tp).sqrt()
-    rmse_lat = ((mse_loss(tp_[:, 0], r_[:, 0]) +
-                 mse_loss(tp_[:, 1], r_[:, 1])) / num_tp).sqrt()
+        mse_loss = nn.MSELoss(reduction='sum')
 
-    rmse_axial = (mse_loss(tp_[:, 2], r_[:, 2]) / num_tp).sqrt()
+        rmse_vol = (mse_loss(tp_, r_) / num_tp).sqrt()
+        rmse_lat = ((mse_loss(tp_[:, 0], r_[:, 0]) +
+                     mse_loss(tp_[:, 1], r_[:, 1])) / num_tp).sqrt()
 
-    mad_loss = nn.L1Loss(reduction='sum')
+        rmse_axial = (mse_loss(tp_[:, 2], r_[:, 2]) / num_tp).sqrt()
 
-    mad_vol = mad_loss(tp_, r_) / num_tp
-    mad_lat = (mad_loss(tp_[:, 0], r_[:, 0]) + mad_loss(tp_[:, 0], r_[:, 0])) / num_tp
-    mad_axial = mad_loss(tp_[:, 2], r_[:, 2]) / num_tp
+        mad_loss = nn.L1Loss(reduction='sum')
 
-    return rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial
+        mad_vol = mad_loss(tp_, r_) / num_tp
+        mad_lat = (mad_loss(tp_[:, 0], r_[:, 0]) + mad_loss(tp_[:, 0], r_[:, 0])) / num_tp
+        mad_axial = mad_loss(tp_[:, 2], r_[:, 2]) / num_tp
+
+        return rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial
 
 
 if __name__ == '__main__':
-    test_expanded_pairwise_distances()
+    pass
