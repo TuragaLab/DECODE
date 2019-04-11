@@ -177,8 +177,8 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,
-        model_out=deepsmlm_root + 'network/2019-04-10/only_z_wigglexy.pt',
-        model_init=deepsmlm_root + 'network/2019-04-10/only_z_2.pt')
+        model_out=deepsmlm_root + 'network/2019-04-11/only_z_strong_wiggle.pt',
+        model_init=deepsmlm_root + 'network/2019-04-10/only_z_wigglexy_14.pt')
 
     log_par = LoggerParameter(
         tags=['Z', 'Coord', 'DenseNet'])
@@ -214,12 +214,12 @@ if __name__ == '__main__':
 
     sim_par = SimulationParam(
         pseudo_data_size=(1024 * 64 + 256),  # (256*256 + 512),
-        emitter_extent=((14., 16), (14., 16), (-500, 500)),
+        emitter_extent=((6., 25), (6., 25), (-750., 750.)),
         psf_extent=((-0.5, 31.5), (-0.5, 31.5), (-750., 750.)),
         img_size=(32, 32),
         density=0,
         emitter_av=0,
-        photon_range=(4000, 8000),
+        photon_range=(2000, 8000),
         bg_pois=15,
         calibration=deepsmlm_root +
                     'data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat')
