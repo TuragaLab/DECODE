@@ -36,9 +36,6 @@ class SMLMDataset(Dataset):
 
         """Target data generation. Borrowed from psf-kernel."""
         self.target_generator = tar_gen
-        # self.target_generator_gt = ListPseudoPSFInSize(None,
-        #                                                None,
-        #                                                None)
 
         print("Dataset loaded. N: {} samples.".format(self.__len__()))
 
@@ -65,7 +62,6 @@ class SMLMDataset(Dataset):
         """Forward Emitters thorugh target generator."""
         em_tar = self.em[index]
         target = self.target_generator.forward(em_tar)
-        # em_tar, _ = self.target_generator_gt.forward(em_tar)
         return img, target, em_tar, index
 
 
@@ -88,10 +84,6 @@ class SMLMDatasetOnFly(Dataset):
 
         self.input_preperator = in_prep  # N2C()
         self.target_generator = tar_gen
-        # self.target_generator_gt = ListPseudoPSFInSize(None,
-        #                                                None,
-        #                                                None,
-        #                                                zts=zts)
 
         """Initialise Frame and Target. Call drop method to create list."""
         self.frame = None
@@ -165,7 +157,6 @@ class SMLMDatasetOnFly(Dataset):
             em_tar = self.em_tar[index]
 
         self.check_completeness(False)
-        # em_tar, _ = self.target_generator_gt.forward(em_tar)
         return frame, target, em_tar, index
 
 
