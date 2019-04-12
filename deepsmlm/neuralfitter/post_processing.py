@@ -8,6 +8,7 @@ import torch
 from deepsmlm.generic.coordinate_trafo import UpsamplingTransformation as ScaleTrafo
 from deepsmlm.generic.coordinate_trafo import A2BTransform
 from deepsmlm.generic.psf_kernel import DeltaPSF
+from deepsmlm.generic.emitter import EmitterSet
 
 
 class PeakFinder:
@@ -37,13 +38,13 @@ class PeakFinder:
         """
         Forward img to find the peaks (a way of declustering).
         :param img: batchised image --> N x C x H x W
-        :return: list of tensors of prediction
+        :return: emitterset
         """
         if img.dim() != 4:
             raise ValueError("Wrong dimension of input image. Must be N x C=1 x H x W.")
 
         n_batch = img.shape[0]
-        coord_batch = [None] * n_batch
+        coord_batch = []
         img_ = img.detach().numpy()
         for i in range(n_batch):
             cord = np.ascontiguousarray(peak_local_max(img_[i, 0, :, :],
@@ -55,7 +56,9 @@ class PeakFinder:
 
             # Transform cord based on image to cord based on extent
             cord = self.transformation.up2coord(cord)
-            coord_batch[i] = cord
+            coord_batch.append(EmitterSet(cord,
+                                        (torch.ones(cord.shape[0]) * (-1)),
+                                        frame_ix=torch.zeros(cord.shape[0])))
 
         return coord_batch
 
@@ -142,6 +145,7 @@ class ConnectedComponents:
         self.clusterer = clusterer
         self.matrix_extent = None
         self.connectivity = connectivity
+
         if connectivity == 2:
             self.kernel = np.ones((3, 3))
         elif connectivity == 1:
@@ -149,10 +153,10 @@ class ConnectedComponents:
 
     def forward(self, x):
         """
-        Forward a single frame (currently not batchised).
+        Forward a batch of frames through connected components. Must only contain one channel.
 
-        :param x: 2D frame 1 channel
-        :return: cluster centres
+        :param x: 2D frame, or 4D batch of 1 channel frames.
+        :return: (instance of emitterset)
         """
 
         def cluster_average(coords, photons, cluster_ix_p_coord):
@@ -173,27 +177,40 @@ class ConnectedComponents:
                 phot_sum[i] = np.sum(photons[ix], axis=0)
             return pos_av, phot_sum
 
-        """Threshold single px values"""
-        x_ = x.numpy()
-        self.matrix_extent = ((-0.5, x_.shape[0] - 0.5), (-0.5, x_.shape[1] - 0.5))
-        x_[x_ < self.single_val_threshold] = 0
+        # loop over all batch elements
+        if x.dim() == 2:
+            x_ = x.unsqueeze(0).unsqueeze(0)
 
-        cluster_frame, num_clusters = label(x_, self.kernel)
-        # get the coordinates of the cluster members
-        clus_bool = cluster_frame >= 1
-        clus_ix = cluster_frame[clus_bool]
-        phot_in_clus = x_[clus_bool]
-        clus_mat_coord = np.asarray(np.asarray(clus_bool).nonzero()).transpose()
+        clusters = []
 
-        pos_clus, phot_clus = cluster_average(clus_mat_coord, phot_in_clus, clus_ix)
-        pos_clus, phot_clus = torch.from_numpy(pos_clus), torch.from_numpy(phot_clus)
+        for i in range(x_.shape[0]):
 
-        # Transform coordinates
-        pos_clus = A2BTransform(a_extent=self.matrix_extent, b_extent=self.extent).a2b(pos_clus)
+            """Threshold single px values"""
+            x_ = x_[i, 0, :, :].numpy()
+            self.matrix_extent = ((-0.5, x_.shape[0] - 0.5), (-0.5, x_.shape[1] - 0.5))
+            x_[x_ < self.single_val_threshold] = 0
 
-        """Filter by photon threshold"""
-        ix_above_thres = phot_clus > self.phot_thres
-        return pos_clus[ix_above_thres, :], phot_clus[ix_above_thres]
+            cluster_frame, num_clusters = label(x_, self.kernel)
+            # get the coordinates of the cluster members
+            clus_bool = cluster_frame >= 1
+            clus_ix = cluster_frame[clus_bool]
+            phot_in_clus = x_[clus_bool]
+            clus_mat_coord = np.asarray(np.asarray(clus_bool).nonzero()).transpose()
+
+            pos_clus, phot_clus = cluster_average(clus_mat_coord, phot_in_clus, clus_ix)
+            pos_clus, phot_clus = torch.from_numpy(pos_clus), torch.from_numpy(phot_clus)
+
+            # Transform coordinates
+            pos_clus = A2BTransform(a_extent=self.matrix_extent, b_extent=self.extent).a2b(pos_clus)
+
+            """Filter by photon threshold"""
+            ix_above_thres = phot_clus > self.phot_thres
+
+            clusters.append(EmitterSet(xyz=pos_clus[ix_above_thres, :],
+                                       phot=phot_clus[ix_above_thres],
+                                       frame_ix=(torch.ones_like(phot_clus[ix_above_thres]) * (-1))))
+
+        return clusters
 
 
 if __name__ == '__main__':
