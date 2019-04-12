@@ -14,6 +14,7 @@ from deepsmlm.generic.inout.load_save_emitter import NumpyInterface
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 from deepsmlm.generic.noise import Poisson
 from deepsmlm.generic.psf_kernel import ListPseudoPSFInSize, DeltaPSF
+from deepsmlm.generic.utils.data_utils import smlm_collate
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, SimulationParam, LoggerParameter, \
     SchedulerParameter
@@ -91,12 +92,12 @@ if __name__ == '__main__':
     """Log System"""
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
 
-    # experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
-    #                         auto_metric_logging=False, disabled=False)
-    experiment = OfflineExperiment(project_name='deepsmlm',
-                                   workspace='haydnspass',
-                                   auto_metric_logging=False,
-                                   offline_directory=deepsmlm_root + 'log/')
+    experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
+                            auto_metric_logging=False, disabled=True)
+    # experiment = OfflineExperiment(project_name='deepsmlm',
+    #                                workspace='haydnspass',
+    #                                auto_metric_logging=False,
+    #                                offline_directory=deepsmlm_root + 'log/')
     experiment.log_parameters(hy_par._asdict(), prefix='Hyp')
     experiment.log_parameters(sim_par._asdict(), prefix='Sim')
     experiment.log_parameters(sched_par._asdict(), prefix='Sched')
@@ -188,9 +189,18 @@ if __name__ == '__main__':
                                           input_preparation, target_generator, None, static=True)
 
         train_loader = DataLoader(train_data_smlm,
-                                  batch_size=hy_par.batch_size, shuffle=True, num_workers=12, pin_memory=True)
+                                  batch_size=hy_par.batch_size,
+                                  shuffle=True,
+                                  num_workers=0,
+                                  pin_memory=True,
+                                  collate_fn=smlm_collate)
+
         test_loader = DataLoader(test_data_smlm,
-                                 batch_size=hy_par.batch_size, shuffle=False, num_workers=8, pin_memory=True)
+                                 batch_size=hy_par.batch_size,
+                                 shuffle=False,
+                                 num_workers=0,
+                                 pin_memory=True,
+                                 collate_fn=smlm_collate)
 
     else:
         raise NameError("You used the wrong switch of how to get the training data.")
