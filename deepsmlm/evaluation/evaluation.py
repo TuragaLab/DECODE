@@ -121,7 +121,7 @@ class SegmentationEvaluation:
         prec, rec, jac = PrecisionRecallJacquard.forward(tp.num_emitter, fp.num_emitter, fn.num_emitter)
 
         if self.print_mode:
-            print("Number of true / predicted emitters: {} - {}".format(tp.num_emitter + fn.num_emitter,
+            print("Number of actual/predicted emitters: {} - {}".format(tp.num_emitter + fn.num_emitter,
                                                                         tp.num_emitter + fp.num_emitter))
             print("Number of TP: {} FP: {} FN: {}".format(tp.num_emitter,
                                                           fp.num_emitter,
@@ -135,7 +135,6 @@ class DistanceEvaluation:
     """
     Evaluate performance on how precise we are.
     """
-
     def __init__(self, print_mode=True):
         """
         """
