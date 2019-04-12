@@ -23,7 +23,7 @@ class EmitterSet:
         self.num_emitter = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
 
         if self.num_emitter != 0:
-            self.xyz = xyz
+            self.xyz = xyz if xyz.shape[1] == 3 else torch.cat((xyz, torch.zeros_like(xyz[:, [0]])), 1)
             self.phot = phot.type(xyz.dtype)
             self.frame_ix = frame_ix.type(xyz.dtype)
             self.id = id if id is not None else -torch.ones_like(frame_ix).type(xyz.dtype)
