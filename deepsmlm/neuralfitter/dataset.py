@@ -71,7 +71,7 @@ class SMLMDataset(Dataset):
 
 class SMLMDatasetOnFly(Dataset):
     def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen,
-                 dimensionality=3, static=False, lifetime=1):
+                 dimensionality=3, static=False, lifetime=1, zts=64):
         super().__init__()
 
         self.extent = extent
@@ -90,7 +90,8 @@ class SMLMDatasetOnFly(Dataset):
         self.target_generator = tar_gen
         self.target_generator_gt = ListPseudoPSFInSize(None,
                                                        None,
-                                                       None)
+                                                       None,
+                                                       zts=zts)
 
         """Initialise Frame and Target. Call drop method to create list."""
         self.frame = None
