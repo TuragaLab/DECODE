@@ -7,18 +7,19 @@ import torch_cpp
 
 class EmitterSet:
     """
-    Struct-like class, storing a set of emitters. Each attribute is a torch.Tensor.
-    It can be constructed from a binary.
+    Class, storing a set of emitters. Each attribute is a torch.Tensor.
     """
     def __init__(self, xyz, phot, frame_ix, id=None):
         """
-        Constructor
+        Constructor. Coordinates, photons, frame_ix must be provided. Id is optional.
 
-        :param xyz: torch.Tensor of size N x 3. x, y are in px units; z in units of nm (hence the name).
+        :param xyz: torch.Tensor of size N x 3 (2). x, y, z are in arbitrary units.
+        often [x] in px, [y] in px, [z] in nm.
         :param phot: torch.Tensor of size N. number of photons.
-        :param frame_ix: integer or torch.Tensor. If it's one element, the whole set belongs to the frame,
-            if it's a tensor, it must be of length N.
-        :param id: torch.Tensor of size N. id of an emitter. -1 is an arbitrary non uniquely used fallback id.
+        :param frame_ix: integer or torch.Tensor. If it's one element, the whole set belongs to
+        the frame, if it's a tensor, it must be of length N.
+        :param id: torch.Tensor of size N. id of an emitter. -1 is an arbitrary non uniquely used
+         fallback id.
         """
         self.num_emitter = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
 
@@ -36,6 +37,18 @@ class EmitterSet:
 
         self._sorted = False
 
+        self._sanity_check()
+
+    def _sanity_check(self):
+        """
+        Tests the integrity of the EmitterSet
+        :return: None
+        """
+        if not ((self.xyz.shape[0] == self.phot.shape[0])
+                and (self.phot.shape[0] == self.frame_ix.shape[0])
+                and (self.frame_ix.shape[0] == self.id.shape[0])):
+            raise ValueError("Coordinates, photons, frame ix and id are not of equal shape in 0th dimension.")
+
     def sort_by_frame(self):
         self.frame_ix, ix = self.frame_ix.sort()
         self.xyz = self.xyz[ix, :]
@@ -48,7 +61,14 @@ class EmitterSet:
         return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix])
 
     def get_subset_frame(self, frame_start, frame_end, shift_to=None):
-        """Inclusive frame_end subset getter. Should I change to standard python behaviour?"""
+        """
+        Get Emitterset for a certain frame range.
+        Inclusive behaviour, so start and end are included.
+
+        :param frame_start: (int)
+        :param frame_end: (int)
+        :shift_to: shift frame indices to a certain start value
+        """
 
         ix = (self.frame_ix >= frame_start) * (self.frame_ix <= frame_end)
         em = self.get_subset(ix)
@@ -63,10 +83,17 @@ class EmitterSet:
     def single_frame(self):
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
-    def split_in_frames(self, ix_f=0, ix_l=-1):
+    def split_in_frames(self, ix_low=0, ix_up=None):
         """
-        Recursive function to split an EmitterSet into list of emitters per frame. This calls torch_cpp for performance.
+        plit an EmitterSet into list of emitters (framewise).
+        This calls C++ implementation torch_cpp for performance.
+        If neither lower nor upper are inferred (via None values),
+        output size will be a list of length (ix_up - ix_low + 1).
+        If we have an empty set of emitters which we want to split, we get a one-element empty
+        emitter 
 
+        :param ix_low: (int) lower index, if None, use min value
+        :param ix_up: (int) upper index, if None, use max value
         :return: list of instances of this class.
         """
 
@@ -82,37 +109,35 @@ class EmitterSet:
             raise ValueError("No Id is not supported any more.")
 
         """The first frame is assumed to be 0. If it's negative go to the lowest negative."""
-        if frame_ix.numel() != 0:
-            ix_f = min(0, frame_ix.min())
-
         if self.num_emitter != 0:
-            grand_matrix_list = torch_cpp.split_tensor(grand_matrix, frame_ix, ix_f, ix_l)
+            ix_low_ = ix_low if ix_low is not None else frame_ix.min()
+            ix_up_ = ix_up if ix_up is not None else frame_ix.max()
+
+            grand_matrix_list = torch_cpp.split_tensor(grand_matrix, frame_ix, ix_low_, ix_up_)
 
         else:
-            """If there is absolutelty nothing to split we may want to have a list of empty sets of emitters.
-                    This only applies if ix_l is not inferred (i.e. -1). 
-                    Otherwise we will have a one element list with an empty emitter set."""
-            if ix_l == -1:
+            """
+            If there is absolutelty nothing to split (i.e. empty emitterset) we may want to have a list of
+            empty sets of emitters. This only applies if ix_l is not inferred (i.e. -1).
+            Otherwise we will have a one element list with an empty emitter set.
+            """
+            if ix_low is None:
                 grand_matrix_list = [grand_matrix]
             else:
                 grand_matrix_list = [grand_matrix] * (ix_l - ix_f + 1)
         em_list = []
 
-        if self.id is not None:
-            for i, em in enumerate(grand_matrix_list):
-                em_list.append(EmitterSet(xyz=em[:, :3],
-                                        phot=em[:, 3],
-                                        frame_ix=em[:, 4],
-                                        id=em[:, 5]))
-        else:
-            raise ValueError("Deprecated.")
+        for i, em in enumerate(grand_matrix_list):
+            em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5]))
 
         return em_list
 
 
 class LooseEmitterSet:
-    """An emitterset where we don't specify the frame_ix of an emitter but rather it's (real) time when
-    it's starts to blink and it's ontime and then construct the EmitterSet (framewise) out of it."""
+    """
+    An emitterset where we don't specify the frame_ix of an emitter but rather it's (real) time when
+    it's starts to blink and it's ontime and then construct the EmitterSet (framewise) out of it.
+    """
     def __init__(self, xyz, phot, id=None, t0=None, ontime=None):
         """
 

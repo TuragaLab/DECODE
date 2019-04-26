@@ -7,10 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		6F02B47C220C765B00093004 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F02B47B220C765B00093004 /* main.cpp */; };
-		6F02B489220C77CF00093004 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 6F02B488220C77CF00093004 /* main.c */; };
-		6F02B48F220C783100093004 /* dummy_lib.c in Sources */ = {isa = PBXBuildFile; fileRef = 6F02B48E220C783100093004 /* dummy_lib.c */; };
-		6F02B491220C794E00093004 /* dummy_lib.h in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F02B48D220C783100093004 /* dummy_lib.h */; settings = {ATTRIBUTES = (Required, ); }; };
+		6F323D1D2271B0BB0021A75E /* catch.hpp in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F323D1A2271B0400021A75E /* catch.hpp */; };
+		6F323D292271B2490021A75E /* catch.hpp in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F323D1A2271B0400021A75E /* catch.hpp */; };
+		6F323D2A2271B2620021A75E /* test_torchcppboost.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F323D182271B0360021A75E /* test_torchcppboost.cpp */; };
+		6F323D2C2271B3E30021A75E /* catch_main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F323D2B2271B3E30021A75E /* catch_main.cpp */; };
+		6F323D2D2271B9060021A75E /* libtorch.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F4C477B22131D17004EC347 /* libtorch.dylib */; };
+		6F323D302271C1240021A75E /* torch_boost.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F4C47752213099E004EC347 /* torch_boost.cpp */; };
 		6F4C477D22131D17004EC347 /* libtorch.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F4C477B22131D17004EC347 /* libtorch.dylib */; };
 		6FBADEB3223BE083007E3109 /* spline_psf.c in Sources */ = {isa = PBXBuildFile; fileRef = 6FBADEB2223BE083007E3109 /* spline_psf.c */; };
 		6FBADEB4223BEDE4007E3109 /* spline_psf.h in Frameworks */ = {isa = PBXBuildFile; fileRef = 6FBADEB1223BE083007E3109 /* spline_psf.h */; };
@@ -19,6 +21,16 @@
 		6FBB48C122141D11006BFE2C /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F02B4A4220C87AA00093004 /* main.cpp */; };
 		6FBB48C222172428006BFE2C /* torch_boost.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F4C47752213099E004EC347 /* torch_boost.cpp */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		6F323D2E2271BA740021A75E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6F02B470220C765B00093004 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6F02B4A1220C87AA00093004;
+			remoteInfo = libtorchInterface;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		6F02B476220C765B00093004 /* CopyFiles */ = {
@@ -48,26 +60,35 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
+		6F323D202271B2410021A75E /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		6F02B478220C765B00093004 /* torch_cpp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = torch_cpp; sourceTree = BUILT_PRODUCTS_DIR; };
-		6F02B47B220C765B00093004 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		6F02B486220C77CF00093004 /* torch_cppLibrary */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = torch_cppLibrary; sourceTree = BUILT_PRODUCTS_DIR; };
-		6F02B488220C77CF00093004 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
-		6F02B48D220C783100093004 /* dummy_lib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dummy_lib.h; sourceTree = "<group>"; };
-		6F02B48E220C783100093004 /* dummy_lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = dummy_lib.c; sourceTree = "<group>"; };
-		6F02B492220C7B5E00093004 /* cubic_spline.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cubic_spline.h; sourceTree = "<group>"; };
-		6F02B495220C7B5E00093004 /* cubic_spline.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cubic_spline.c; sourceTree = "<group>"; };
+		6F02B492220C7B5E00093004 /* cubic_spline_hazen.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cubic_spline_hazen.h; sourceTree = "<group>"; };
+		6F02B495220C7B5E00093004 /* cubic_spline_hazen.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = cubic_spline_hazen.c; sourceTree = "<group>"; };
 		6F02B4A2220C87AA00093004 /* libtorchInterface */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = libtorchInterface; sourceTree = BUILT_PRODUCTS_DIR; };
 		6F02B4A4220C87AA00093004 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		6F323D182271B0360021A75E /* test_torchcppboost.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = test_torchcppboost.cpp; sourceTree = "<group>"; };
+		6F323D1A2271B0400021A75E /* catch.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = catch.hpp; sourceTree = "<group>"; };
+		6F323D222271B2410021A75E /* testing */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = testing; sourceTree = BUILT_PRODUCTS_DIR; };
+		6F323D2B2271B3E30021A75E /* catch_main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = catch_main.cpp; sourceTree = "<group>"; };
 		6F4C47752213099E004EC347 /* torch_boost.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = torch_boost.cpp; sourceTree = "<group>"; };
 		6F4C47762213099E004EC347 /* torch_boost.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = torch_boost.hpp; sourceTree = "<group>"; };
 		6F4C47792213196F004EC347 /* pybind_wrapper.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = pybind_wrapper.cpp; sourceTree = "<group>"; };
 		6F4C477B22131D17004EC347 /* libtorch.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libtorch.dylib; sourceTree = "<group>"; };
 		6F4C477F22131D3A004EC347 /* torch.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = torch.h; sourceTree = "<group>"; };
 		6F4C478022131D5C004EC347 /* libtorch */ = {isa = PBXFileReference; lastKnownFileType = folder; name = libtorch; path = ../../../../Documents/Development/cpp/libraries/libtorch; sourceTree = "<group>"; };
-		6F6A18EB222BD5770041BBBA /* simSplinePSF_c_yiming.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = simSplinePSF_c_yiming.cpp; sourceTree = "<group>"; };
+		6F6A18EB222BD5770041BBBA /* simSplinePSF_c_yiming_matlab_binding.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = simSplinePSF_c_yiming_matlab_binding.cpp; sourceTree = "<group>"; };
 		6FBADEB1223BE083007E3109 /* spline_psf.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spline_psf.h; sourceTree = "<group>"; };
 		6FBADEB2223BE083007E3109 /* spline_psf.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = spline_psf.c; sourceTree = "<group>"; };
 		6FBB48BA22136210006BFE2C /* torch_cubicspline.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = torch_cubicspline.cpp; sourceTree = "<group>"; };
@@ -86,7 +107,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6F02B491220C794E00093004 /* dummy_lib.h in Frameworks */,
 				6F4C477D22131D17004EC347 /* libtorch.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -97,6 +117,16 @@
 			files = (
 				6FBB48BE22136359006BFE2C /* libtorch.dylib in Frameworks */,
 				6FBADEB4223BEDE4007E3109 /* spline_psf.h in Frameworks */,
+				6F323D1D2271B0BB0021A75E /* catch.hpp in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6F323D1F2271B2410021A75E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6F323D292271B2490021A75E /* catch.hpp in Frameworks */,
+				6F323D2D2271B9060021A75E /* libtorch.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -106,9 +136,10 @@
 		6F02B46F220C765B00093004 = {
 			isa = PBXGroup;
 			children = (
-				6F02B47A220C765B00093004 /* cubicSpline */,
-				6F02B487220C77CF00093004 /* dummyLibrary */,
+				6F323D1C2271B0640021A75E /* lib */,
+				6F323D1B2271B05A0021A75E /* tests */,
 				6F02B4A3220C87AA00093004 /* libtorchInterface */,
+				6F323D232271B2410021A75E /* testing */,
 				6F02B479220C765B00093004 /* Products */,
 				6F02B490220C794E00093004 /* Frameworks */,
 			);
@@ -120,27 +151,9 @@
 				6F02B478220C765B00093004 /* torch_cpp */,
 				6F02B486220C77CF00093004 /* torch_cppLibrary */,
 				6F02B4A2220C87AA00093004 /* libtorchInterface */,
+				6F323D222271B2410021A75E /* testing */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		6F02B47A220C765B00093004 /* cubicSpline */ = {
-			isa = PBXGroup;
-			children = (
-				6F02B49D220C876500093004 /* cubicSplineLibrary */,
-				6F02B47B220C765B00093004 /* main.cpp */,
-			);
-			path = cubicSpline;
-			sourceTree = "<group>";
-		};
-		6F02B487220C77CF00093004 /* dummyLibrary */ = {
-			isa = PBXGroup;
-			children = (
-				6F02B488220C77CF00093004 /* main.c */,
-				6F02B48D220C783100093004 /* dummy_lib.h */,
-				6F02B48E220C783100093004 /* dummy_lib.c */,
-			);
-			path = dummyLibrary;
 			sourceTree = "<group>";
 		};
 		6F02B490220C794E00093004 /* Frameworks */ = {
@@ -151,13 +164,6 @@
 				6F4C478022131D5C004EC347 /* libtorch */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		6F02B49D220C876500093004 /* cubicSplineLibrary */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = cubicSplineLibrary;
 			sourceTree = "<group>";
 		};
 		6F02B4A3220C87AA00093004 /* libtorchInterface */ = {
@@ -174,12 +180,36 @@
 			path = libtorchInterface;
 			sourceTree = "<group>";
 		};
+		6F323D1B2271B05A0021A75E /* tests */ = {
+			isa = PBXGroup;
+			children = (
+				6F323D2B2271B3E30021A75E /* catch_main.cpp */,
+				6F323D182271B0360021A75E /* test_torchcppboost.cpp */,
+			);
+			path = tests;
+			sourceTree = "<group>";
+		};
+		6F323D1C2271B0640021A75E /* lib */ = {
+			isa = PBXGroup;
+			children = (
+				6F323D1A2271B0400021A75E /* catch.hpp */,
+			);
+			path = lib;
+			sourceTree = "<group>";
+		};
+		6F323D232271B2410021A75E /* testing */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = testing;
+			sourceTree = "<group>";
+		};
 		6FBB48BD2213630E006BFE2C /* lib */ = {
 			isa = PBXGroup;
 			children = (
-				6F6A18EB222BD5770041BBBA /* simSplinePSF_c_yiming.cpp */,
-				6F02B492220C7B5E00093004 /* cubic_spline.h */,
-				6F02B495220C7B5E00093004 /* cubic_spline.c */,
+				6F6A18EB222BD5770041BBBA /* simSplinePSF_c_yiming_matlab_binding.cpp */,
+				6F02B492220C7B5E00093004 /* cubic_spline_hazen.h */,
+				6F02B495220C7B5E00093004 /* cubic_spline_hazen.c */,
 				6FBADEB1223BE083007E3109 /* spline_psf.h */,
 				6FBADEB2223BE083007E3109 /* spline_psf.c */,
 			);
@@ -240,6 +270,24 @@
 			productReference = 6F02B4A2220C87AA00093004 /* libtorchInterface */;
 			productType = "com.apple.product-type.tool";
 		};
+		6F323D212271B2410021A75E /* testing */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6F323D262271B2410021A75E /* Build configuration list for PBXNativeTarget "testing" */;
+			buildPhases = (
+				6F323D1E2271B2410021A75E /* Sources */,
+				6F323D1F2271B2410021A75E /* Frameworks */,
+				6F323D202271B2410021A75E /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6F323D2F2271BA740021A75E /* PBXTargetDependency */,
+			);
+			name = testing;
+			productName = testing;
+			productReference = 6F323D222271B2410021A75E /* testing */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -258,6 +306,9 @@
 					6F02B4A1220C87AA00093004 = {
 						CreatedOnToolsVersion = 10.1;
 					};
+					6F323D212271B2410021A75E = {
+						CreatedOnToolsVersion = 10.2.1;
+					};
 				};
 			};
 			buildConfigurationList = 6F02B473220C765B00093004 /* Build configuration list for PBXProject "torch_cpp" */;
@@ -266,6 +317,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				Base,
 			);
 			mainGroup = 6F02B46F220C765B00093004;
 			productRefGroup = 6F02B479220C765B00093004 /* Products */;
@@ -275,6 +327,7 @@
 				6F02B477220C765B00093004 /* torch_cpp */,
 				6F02B485220C77CF00093004 /* torch_cppLibrary */,
 				6F02B4A1220C87AA00093004 /* libtorchInterface */,
+				6F323D212271B2410021A75E /* testing */,
 			);
 		};
 /* End PBXProject section */
@@ -284,7 +337,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6F02B47C220C765B00093004 /* main.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -292,8 +344,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6F02B48F220C783100093004 /* dummy_lib.c in Sources */,
-				6F02B489220C77CF00093004 /* main.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -308,7 +358,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		6F323D1E2271B2410021A75E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6F323D302271C1240021A75E /* torch_boost.cpp in Sources */,
+				6F323D2C2271B3E30021A75E /* catch_main.cpp in Sources */,
+				6F323D2A2271B2620021A75E /* test_torchcppboost.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		6F323D2F2271BA740021A75E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6F02B4A1220C87AA00093004 /* libtorchInterface */;
+			targetProxy = 6F323D2E2271BA740021A75E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		6F02B47D220C765B00093004 /* Debug */ = {
@@ -483,6 +551,7 @@
 				HEADER_SEARCH_PATHS = (
 					"\"$(SRCROOT)/libtorchInterface/lib\"",
 					"\"$(SRCROOT)/cubicSpline/cubicSplineLibrary\"",
+					"\"$(SRCROOT)/lib\"",
 				);
 				LD_RUNPATH_SEARCH_PATHS = /Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib;
 				LIBRARY_SEARCH_PATHS = (
@@ -526,6 +595,7 @@
 				HEADER_SEARCH_PATHS = (
 					"\"$(SRCROOT)/libtorchInterface/lib\"",
 					"\"$(SRCROOT)/cubicSpline/cubicSplineLibrary\"",
+					"\"$(SRCROOT)/lib\"",
 				);
 				LD_RUNPATH_SEARCH_PATHS = /Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib;
 				LIBRARY_SEARCH_PATHS = (
@@ -553,6 +623,60 @@
 					"-Wno-unknown-pragmas",
 					"$(inherited)",
 				);
+			};
+			name = Release;
+		};
+		6F323D272271B2410021A75E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					TORCH_DIRECT,
+					"$(inherited)",
+				);
+				LD_RUNPATH_SEARCH_PATHS = /Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
+				OTHER_LDFLAGS = (
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libtorch.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libcaffe2.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libc10.dylib,
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_HEADER_SEARCH_PATHS = (
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include/torch/csrc/api/include,
+				);
+				USE_HEADERMAP = YES;
+			};
+			name = Debug;
+		};
+		6F323D282271B2410021A75E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					TORCH_DIRECT,
+					"$(inherited)",
+				);
+				LD_RUNPATH_SEARCH_PATHS = /Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
+				OTHER_LDFLAGS = (
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libtorch.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libcaffe2.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libc10.dylib,
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_HEADER_SEARCH_PATHS = (
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include/torch/csrc/api/include,
+				);
+				USE_HEADERMAP = YES;
 			};
 			name = Release;
 		};
@@ -591,6 +715,15 @@
 			buildConfigurations = (
 				6F02B4A7220C87AA00093004 /* Debug */,
 				6F02B4A8220C87AA00093004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6F323D262271B2410021A75E /* Build configuration list for PBXNativeTarget "testing" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6F323D272271B2410021A75E /* Debug */,
+				6F323D282271B2410021A75E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
