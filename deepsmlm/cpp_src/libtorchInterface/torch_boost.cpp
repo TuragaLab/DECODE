@@ -22,26 +22,12 @@
 
  @param tensor_ tensor of size N x D  which should be splitted in rows, must be sorted(!)
  @param split_data tensor of size N
- @param bound_low first value of splitting (e.g. 0). if (-1) then it is the min value of split_data
- @param bound_high last value of splitting. if (-1) then it is the max value of split_data
+ @param bound_low first value of splitting (e.g. 0)
+ @param bound_high last value of splitting
  
  @return vector of splitted tensor_
  */
 auto split_tensor(torch::Tensor tensor_, torch::Tensor split_data, int bound_low, int bound_high) -> std::vector<torch::Tensor> {
-    
-//    auto sort_ = torch::sort(split_data);
-//    split_data = std::get<0>(sort_);
-
-    
-    if (bound_low == -1){
-        bound_low = static_cast<int>(*(split_data.min()).data<float>());
-    }
-    if (bound_high == -1){
-        bound_high = static_cast<int>(*(split_data.max()).data<float>());
-    }
-    
-    //    int num_frames = bound_low - bound_high + 1;
-    //    std::cout << emitter << std::endl;
     
     std::vector<torch::Tensor> tensor_split;
     
@@ -63,7 +49,6 @@ auto split_tensor(torch::Tensor tensor_, torch::Tensor split_data, int bound_low
             tensor_split.push_back(torch::zeros({0, 6}));
         }
         
-        //        std::cout << em_p_frame.back() << std::endl;
         ix_start_frame = ix_end_frame;
     }
     return tensor_split;
