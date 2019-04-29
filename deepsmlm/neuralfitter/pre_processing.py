@@ -21,7 +21,13 @@ class Identity(Preprocessing):
     def __init__(self):
         super().__init__()
 
-    def forward(self, in_tensor):
+    def forward(self, in_tensor, em_target=None):
+        """
+
+        :param in_tensor: input tensor
+        :param em_target: (instance of emittersset)
+        :return:
+        """
         return super().forward(in_tensor)
 
 
@@ -34,6 +40,24 @@ class N2C(Preprocessing):
         if in_tensor.shape[1] != 1:
             raise ValueError("Shape is wrong.")
         return in_tensor.transpose(0, 1).view(-1, in_tensor.shape[-2], in_tensor.shape[-1])
+
+
+class EasyZ(Preprocessing):
+    """
+    A preprocessor class which includes the input image as well as the target for xy. This is useful when we want to
+    test whether we can get other features or not.
+    """
+    def __init__(self, delta_psf):
+        """
+        :param delta_psf: psf to generate the xy tar helper
+        """
+        super().__init__()
+        self.delta_psf = delta_psf
+
+    def forward(self, in_tensor, em_target):
+        input_ch = N2C().forward(in_tensor)
+        xy_ch = self.delta_psf.forward(em_target, weight=None)
+        return torch.cat((input_ch, xy_ch), 0)
 
 
 class TargetGenerator(ABC):
@@ -51,7 +75,7 @@ class TargetGenerator(ABC):
 
 
 class ZasOneHot(TargetGenerator):
-    def __init__(self, delta_psf, kernel_size, sigma):
+    def __init__(self, delta_psf, kernel_size=5, sigma=0.8):
         super().__init__()
         self.delta_psf = delta_psf
         self.padding_same_v = math.ceil((kernel_size - 1) / 2)
