@@ -33,6 +33,7 @@ deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
                  os.pardir, os.pardir)) + '/'
 
+WRITE_TO_LOG = True
 
 if __name__ == '__main__':
 
@@ -93,7 +94,7 @@ if __name__ == '__main__':
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
 
     experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
-                            auto_metric_logging=False, disabled=True)
+                            auto_metric_logging=False, disabled=(not WRITE_TO_LOG))
     # experiment = OfflineExperiment(project_name='deepsmlm',
     #                                workspace='haydnspass',
     #                                auto_metric_logging=False,
@@ -108,7 +109,7 @@ if __name__ == '__main__':
     for tag in log_par.tags:
         experiment.add_tag(tag)
 
-    logger = SummaryWriter(log_dir, comment=io_par.log_comment)
+    logger = SummaryWriter(log_dir, comment=io_par.log_comment, write_to_disk=WRITE_TO_LOG)
     logger.add_text('comet_ml_key', experiment.get_key())
 
     """Set target for the Neural Network."""
