@@ -22,10 +22,10 @@ from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, Simul
     SchedulerParameter
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
-from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss
+from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, MaskedOnlyZLoss
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco
 from deepsmlm.neuralfitter.models.model_beta import DenseNetZPrediction, SMNET
-from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ, ZPrediction
+from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ, ZPrediction, ZasOneHot, EasyZ
 from deepsmlm.simulator.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
 from deepsmlm.simulator.structure_prior import DiscreteZStructure, RandomStructure
 from deepsmlm.simulator.simulator import Simulation
@@ -38,6 +38,7 @@ TENSORBOARD = True
 LOG_FIGURES = True
 
 LOG = True if DEBUG else LOG
+WRITE_TO_LOG = False
 
 """Root folder"""
 deepsmlm_root = os.path.abspath(
@@ -77,7 +78,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
 
         # compute output
         output = model(input)
-        loss = criterion(output, target)
+        loss = criterion(output, target, input[:, 1, :, :])
 
         # record loss
         losses.update(loss.item(), input.size(0))
@@ -209,18 +210,18 @@ if __name__ == '__main__':
         batch_size=64,
         test_size=256,
         num_epochs=10000,
-        lr=1E-5,
+        lr=1E-4,
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
         pseudo_data_size=(1024 * 64 + 256),  # (256*256 + 512),
-        emitter_extent=((6., 25), (6., 25), (-750., 750.)),
+        emitter_extent=((-0.5, 31.5), (-0.5, 31.5), (200., 750.)),
         psf_extent=((-0.5, 31.5), (-0.5, 31.5), (-750., 750.)),
         img_size=(32, 32),
         density=0,
-        emitter_av=0,
-        photon_range=(2000, 8000),
-        bg_pois=15,
+        emitter_av=15,
+        photon_range=(4000, 10000),
+        bg_pois=10,
         calibration=deepsmlm_root +
                     'data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat')
 
@@ -228,7 +229,7 @@ if __name__ == '__main__':
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
 
     experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
-                            auto_metric_logging=False, disabled=False)
+                            auto_metric_logging=False, disabled=(not WRITE_TO_LOG))
     # experiment = OfflineExperiment(project_name='deepsmlm',
     #                                workspace='haydnspass',
     #                                auto_metric_logging=False,
@@ -239,17 +240,27 @@ if __name__ == '__main__':
     experiment.log_parameters(io_par._asdict(), prefix='IO')
     experiment.log_parameters(log_par._asdict(), prefix='Log')
 
-    logger = SummaryWriter(log_dir, comment=io_par.log_comment)
+    logger = SummaryWriter(log_dir, comment=io_par.log_comment, write_to_disk=WRITE_TO_LOG)
     logger.add_text('comet_ml_key', experiment.get_key())
 
-    target_generator = ZPrediction()
+    z_delta = DeltaPSF(xextent=sim_par.psf_extent[0],
+                       yextent=sim_par.psf_extent[1],
+                       zextent=None,
+                       img_shape=(sim_par.img_size[0] * hy_par.upscaling,
+                                  sim_par.img_size[1] * hy_par.upscaling),
+                       photon_threshold=0,
+                       photon_normalise=True,
+                       dark_value=0.)
+    target_generator = ZasOneHot(z_delta)
 
     smap_psf = SMAPSplineCoefficient(sim_par.calibration)
     psf = smap_psf.init_spline(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size)
     noise = Poisson(bg_uniform=sim_par.bg_pois)
 
     # structure_prior = DiscreteZStructure(torch.tensor([16., 16.]), 500., 10.)
-    structure_prior = RandomStructure((15., 15.), (15., 15.), sim_par.emitter_extent[2])
+    structure_prior = RandomStructure(sim_par.emitter_extent[0],
+                                      sim_par.emitter_extent[1],
+                                      sim_par.emitter_extent[2])
 
     prior = EmitterPopper(structure_prior,
                           density=sim_par.density,
@@ -264,7 +275,15 @@ if __name__ == '__main__':
                            poolsize=0,
                            frame_range=frame_range)
 
-    input_preparation = N2C()
+    xy_helper_and_mask = DeltaPSF(xextent=sim_par.psf_extent[0],
+                                  yextent=sim_par.psf_extent[1],
+                                  zextent=None,
+                                  img_shape=(sim_par.img_size[0] * hy_par.upscaling,
+                                             sim_par.img_size[1] * hy_par.upscaling),
+                                  photon_threshold=0,
+                                  photon_normalise=True,
+                                  dark_value=1 / 20)
+    input_preparation = EasyZ(xy_helper_and_mask)
 
     train_size = sim_par.pseudo_data_size - hy_par.test_size
 
@@ -280,14 +299,14 @@ if __name__ == '__main__':
     test_loader = DataLoader(test_data_smlm,
                              batch_size=hy_par.batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
-    model = SMNET(1, 32, output_range=(sim_par.psf_extent[2]))
+    model = USMLM(2, 8, 'nearest')
     model_ls = LoadSaveModel(model, output_file=io_par.model_out, input_file=io_par.model_init)
     model = model_ls.load_init()
     model = model.to(hy_par.device)
 
     optimiser = Adam(model.parameters(), lr=hy_par.lr)
 
-    criterion = torch.nn.L1Loss()
+    criterion = MaskedOnlyZLoss()
 
     lr_scheduler = ReduceLROnPlateau(optimiser,
                                      mode='min',
