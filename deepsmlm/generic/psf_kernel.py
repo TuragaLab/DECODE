@@ -68,6 +68,7 @@ class DeltaPSF(PSF):
                  dark_value=0.):
         """
         (See abstract class constructor.)
+        :param photon_normalise: normalised photon count, i.e. probabilities
         :param dark_value: Value where there is no emitter. Usually 0, but might be non-zero if used for a mask.
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
