@@ -131,6 +131,7 @@ class GaussianSmoothing(nn.Module):
         if cuda:
             kernel = kernel.cuda()
 
+        self._kernel = kernel
         self.register_buffer('weight', kernel)
         self.groups = channels
 
@@ -146,6 +147,15 @@ class GaussianSmoothing(nn.Module):
             )
 
         self.padding = padding  # padding function
+
+    @property
+    def kernel(self):
+        return self._kernel
+
+    @kernel.setter
+    def kernel(self, value):
+        self.register_buffer('weight', value)
+        self._kernel = value
 
     def forward(self, input, padding=None):
         """

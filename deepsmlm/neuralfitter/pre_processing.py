@@ -1,8 +1,11 @@
+import math
 from abc import ABC, abstractmethod
 import torch
+from torch.nn import functional
 
 from deepsmlm.generic.emitter import EmitterSet
-from deepsmlm.generic.psf_kernel import ListPseudoPSF
+from deepsmlm.generic.noise import GaussianSmoothing
+from deepsmlm.generic.psf_kernel import ListPseudoPSF, DeltaPSF
 
 
 class Preprocessing(ABC):
@@ -39,7 +42,39 @@ class TargetGenerator(ABC):
 
     @abstractmethod
     def forward(self, x):
+        """
+
+        :param x: input. Will be usually instance of emitterset.
+        :return: target
+        """
         return x
+
+
+class ZasOneHot(TargetGenerator):
+    def __init__(self, delta_psf, kernel_size, sigma):
+        super().__init__()
+        self.delta_psf = delta_psf
+        self.padding_same_v = math.ceil((kernel_size - 1) / 2)
+
+        def padding(x): return functional.pad(x, [self.padding_same_v,
+                                                  self.padding_same_v,
+                                                  self.padding_same_v,
+                                                  self.padding_same_v], mode='reflect')
+
+        self.gaussian_kernel = GaussianSmoothing(channels=1,
+                                                 kernel_size=[kernel_size, kernel_size],
+                                                 sigma=sigma,
+                                                 dim=2,
+                                                 cuda=False,
+                                                 padding=padding,
+                                                 kernel_f='gaussian')
+
+        self.gaussian_kernel.kernel = self.gaussian_kernel.kernel / 13.0954
+
+    def forward(self, x):
+        z = self.delta_psf.forward(x.xyz, x.xyz[:, 2])
+        z = self.gaussian_kernel.forward(z.unsqueeze(0)).squeeze(0)
+        return z
 
 
 class ZPrediction(ListPseudoPSF):

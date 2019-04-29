@@ -62,13 +62,18 @@ class DeltaPSF(PSF):
     psf forwards an image where a single non-zero px corresponds to an emitter.
     """
 
-    def __init__(self, xextent, yextent, zextent, img_shape, photon_threshold=0, photon_normalise=False):
+    def __init__(self, xextent, yextent, zextent, img_shape,
+                 photon_threshold=0,
+                 photon_normalise=False,
+                 dark_value=0.):
         """
         (See abstract class constructor.)
+        :param dark_value: Value where there is no emitter. Usually 0, but might be non-zero if used for a mask.
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
         self.photon_threshold = photon_threshold
         self.photon_normalise = photon_normalise
+        self.dark_value = dark_value
         """
         Binning in numpy: binning is (left Bin, right Bin]
         (open left edge, including right edge)
@@ -108,7 +113,10 @@ class DeltaPSF(PSF):
                                        bins=(self.bin_x, self.bin_z, self.bin_z),
                                        weights=weight.numpy())
 
-        return torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
+        camera = torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
+        camera[camera == 0.] = self.dark_value
+
+        return camera
 
 
 class DualDelta(DeltaPSF):
