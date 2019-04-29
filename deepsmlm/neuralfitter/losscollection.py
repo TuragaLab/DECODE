@@ -25,6 +25,30 @@ class Loss(ABC):
         return dummyLoss
 
 
+class MaskedOnlyZLoss:
+    def __init__(self):
+        self.l1 = torch.nn.L1Loss()
+        self.l2 = torch.nn.MSELoss()
+
+    @staticmethod
+    def loss(z_out, z_tar, mask, loss_kernel):
+        """
+
+        :param z_out: z-output (N x C x H x W)
+        :param z_tar: z-target (N x C x H x W)
+        :param mask: (torch.Tensor 2D) mask to weight the loss dependened on region
+        :return: (float)
+        """
+        return loss_kernel(z_out * mask, z_tar * mask)
+
+    def return_criterion(self):
+
+        def loss_return(output, target, mask):
+            return self.loss(output, target, mask, self.l1)
+
+        return loss_return
+
+
 class MultiScaleLaplaceLoss:
     """From Boyd."""
     def __init__(self, kernel_sigmas, pos_mul_f=torch.Tensor([1.0, 1.0, 0.2])):
