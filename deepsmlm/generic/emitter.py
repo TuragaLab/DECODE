@@ -124,7 +124,7 @@ class EmitterSet:
             if ix_low is None:
                 grand_matrix_list = [grand_matrix]
             else:
-                grand_matrix_list = [grand_matrix] * (ix_l - ix_f + 1)
+                grand_matrix_list = [grand_matrix] * (ix_up - ix_low + 1)
         em_list = []
 
         for i, em in enumerate(grand_matrix_list):

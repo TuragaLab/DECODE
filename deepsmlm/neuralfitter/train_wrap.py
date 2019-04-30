@@ -215,7 +215,7 @@ if __name__ == '__main__':
     # model = SuperDumbFCNet(289, (-750., 750.))
 
     model_usmlm = USMLM(in_ch=hy_par.channels,
-                        upsampling=hy_par.upscaling,
+                        upscaling=hy_par.upscaling,
                         upsampling_mode=hy_par.upscaling_mode)
 
     # TODO: bit hacky. Reduce hard coded stuff here.
