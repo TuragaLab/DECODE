@@ -1,0 +1,28 @@
+name: deepsmlm
+channels:
+  - anaconda
+  - soumith
+  - conda-forge
+  - anaconda-fusion
+  - defaults
+
+dependencies:
+  - intel-openmp
+  - jupyter_contrib_nbextensions
+  - jupyterlab
+  - nb_conda
+  - matplotlib
+  - numpy
+  - opencv
+  - pillow
+  - python=3.6
+  - pytorch=1.0.0
+  - pywavelets
+  - scikit-image
+  - scipy
+  - seaborn
+  - setuptools
+  - snakeviz
+  - sqlite
+  - torchvision
+  - tqdm
