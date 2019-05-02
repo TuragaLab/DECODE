@@ -5,7 +5,7 @@ from torch.nn import functional
 
 from deepsmlm.generic.emitter import EmitterSet
 from deepsmlm.generic.noise import GaussianSmoothing
-from deepsmlm.generic.psf_kernel import ListPseudoPSF, DeltaPSF
+from deepsmlm.generic.psf_kernel import ListPseudoPSF, DeltaPSF, OffsetPSF
 
 
 class Preprocessing(ABC):
@@ -56,6 +56,7 @@ class EasyZ(Preprocessing):
 
     def forward(self, in_tensor, em_target):
         input_ch = N2C().forward(in_tensor)
+        input_ch = functional.interpolate(input_ch.unsqueeze(0), scale_factor=8, mode='nearest').squeeze(0)
         xy_ch = self.delta_psf.forward(em_target, weight=None)
         return torch.cat((input_ch, xy_ch), 0)
 
@@ -74,11 +75,40 @@ class TargetGenerator(ABC):
         return x
 
 
+class DecodeRepresentation(TargetGenerator):
+    def __init__(self, xextent, yextent, zextent, img_shape):
+        super().__init__()
+        self.delta = DeltaPSF(xextent,
+                              yextent,
+                              zextent,
+                              img_shape,
+                              photon_normalise=False)
+
+        self.offset = OffsetPSF(xextent, yextent, img_shape)
+
+    def forward(self, x):
+        """
+        Create 5 channel output, decode_like
+        :param x:
+        :return: concatenated maps, or single maps with 1 x H x W each
+        """
+        p_map = self.delta.forward(x, torch.ones_like(x.phot))
+        I_map = self.delta.forward(x, x.phot)
+        xy_map = self.offset.forward(x)
+        z_map = self.delta.forward(x, x.xyz[:, 2])
+
+        # concat all
+        cat_map = torch.cat((p_map, I_map, xy_map, z_map), 0)
+
+        return cat_map, p_map, I_map, xy_map[[0]], xy_map[[1]], z_map
+
+
 class ZasOneHot(TargetGenerator):
-    def __init__(self, delta_psf, kernel_size=5, sigma=0.8):
+    def __init__(self, delta_psf, kernel_size=5, sigma=0.8, scale_z=1/750.):
         super().__init__()
         self.delta_psf = delta_psf
         self.padding_same_v = math.ceil((kernel_size - 1) / 2)
+        self.scale_z = scale_z
 
         def padding(x): return functional.pad(x, [self.padding_same_v,
                                                   self.padding_same_v,
@@ -93,10 +123,10 @@ class ZasOneHot(TargetGenerator):
                                                  padding=padding,
                                                  kernel_f='gaussian')
 
-        self.gaussian_kernel.kernel = self.gaussian_kernel.kernel / 13.0954
+        self.gaussian_kernel.kernel = self.gaussian_kernel.kernel * 57.6502
 
     def forward(self, x):
-        z = self.delta_psf.forward(x.xyz, x.xyz[:, 2])
+        z = self.delta_psf.forward(x, x.xyz[:, 2] * self.scale_z)
         z = self.gaussian_kernel.forward(z.unsqueeze(0)).squeeze(0)
         return z
 

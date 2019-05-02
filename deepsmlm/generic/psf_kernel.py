@@ -88,29 +88,30 @@ class DeltaPSF(PSF):
             self.bin_z = np.linspace(zextent[0], zextent[1],
                                      img_shape[2] + 1, endpoint=True)
 
-    def forward(self, pos, weight=None):
+    def forward(self, em, weight=None):
         """
 
-        :param pos:  position of the emitter in 2 or 3D
+        :param em:  position of the emitter in 2 or 3D
         :param weight:  number of photons or any other 1:1 connection to an emitter
 
         :return:  torch tensor of size 1 x H x W
         """
         if weight is None:
-            ix_phot_threshold = pos.phot >= self.photon_threshold
+            weight = em.phot
 
-            weight = pos.phot[ix_phot_threshold]
-            pos = pos.xyz[ix_phot_threshold, :]
+        ix_phot_threshold = weight >= self.photon_threshold
+        weight = weight[ix_phot_threshold]
+        if self.photon_normalise:
+            weight = torch.ones_like(weight)
 
-            if self.photon_normalise:
-                weight = torch.ones_like(weight)
+        xyz = em.xyz[ix_phot_threshold, :]
 
         if self.zextent is None:
-            camera, _, _ = np.histogram2d(pos[:, 0].numpy(), pos[:, 1].numpy(),  # reverse order
+            camera, _, _ = np.histogram2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(),  # reverse order
                                           bins=(self.bin_x, self.bin_y),
                                           weights=weight.numpy())
         else:
-            camera, _ = np.histogramdd((pos[:, 0].numpy(), pos[:, 1].numpy(), pos[:, 2].numpy()),
+            camera, _ = np.histogramdd((xyz[:, 0].numpy(), xyz[:, 1].numpy(), xyz[:, 2].numpy()),
                                        bins=(self.bin_x, self.bin_z, self.bin_z),
                                        weights=weight.numpy())
 
@@ -118,6 +119,49 @@ class DeltaPSF(PSF):
         camera[camera == 0.] = self.dark_value
 
         return camera
+
+
+class OffsetPSF(DeltaPSF):
+    """
+    Coordinate to px-offset class.
+    """
+    def __init__(self, xextent, yextent, img_shape):
+        super().__init__(xextent, yextent, None, img_shape,
+                         photon_threshold=0,
+                         photon_normalise=False,
+                         dark_value=0.)
+
+        """Setup the bin centers x and y"""
+        self.bin_x = torch.from_numpy(self.bin_x).type(torch.float)
+        self.bin_y = torch.from_numpy(self.bin_y).type(torch.float)
+        self.bin_ctr_x = 0.5 * (self.bin_x[1] + self.bin_x[0]) - self.bin_x[0] + self.bin_x
+        self.bin_ctr_y = 0.5 * (self.bin_y[1] + self.bin_y[0]) - self.bin_y[0] + self.bin_y
+
+    def forward(self, em):
+        """
+        :param em: list of coordinates
+        :return: (torch.tensor), dim: 2 x img_shape[0] x img_shape[1] ("C x H x W"),
+        where C=0 is the x offset and C=1 is the y offset.
+        """
+        xy_offset_map = torch.zeros((2, *self.img_shape))
+        # loop over all emitter positions
+        for i in range(em.num_emitter):
+            xy = em.xyz[i, :2]
+            """
+            If position is outside the FoV, skip.
+            Find ix of px in bin. bins must be sorted. Remember that in numpy bins are (a, b].
+            (from inner to outer). 1. get logical index of bins, 2. get nonzero where condition applies, 
+            3. use the min value
+            """
+            if xy[0] > self.bin_x.max() or xy[1] > self.bin_y.max():
+                continue
+
+            x_ix = (xy[0].item() > self.bin_x).nonzero().max(0)[0].item()
+            y_ix = (xy[1].item() > self.bin_y).nonzero().max(0)[0].item()
+            xy_offset_map[0, x_ix, y_ix] = xy[0] - self.bin_ctr_x[x_ix]  # coordinate - midpoint
+            xy_offset_map[1, x_ix, y_ix] = xy[1] - self.bin_ctr_y[y_ix]  # coordinate - midpoint
+
+        return xy_offset_map
 
 
 class DualDelta(DeltaPSF):
@@ -129,18 +173,18 @@ class DualDelta(DeltaPSF):
     def __init__(self, xextent, yextent, zextent, img_shape):
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
 
-    def forward(self, pos, weight, weight2):
+    def forward(self, em, weight, weight2):
         """
 
-        :param pos: position of the emitter in 2 or 3D
+        :param em: position of the emitter in 2 or 3D
         :param weight:  number of photons or any other 1:1 connection to an emitter
         :param weight2: z position or any other 1:1 connection to an emitter
 
         :return: torch tensor of size 2 x H x W
         """
         dual_ch_img = torch.cat((
-            super(DualDelta, self).forward(pos, weight),
-            super(DualDelta, self).forward(pos, weight2)),
+            super(DualDelta, self).forward(em, weight),
+            super(DualDelta, self).forward(em, weight2)),
             dim=0)
 
         return dual_ch_img

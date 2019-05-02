@@ -92,7 +92,7 @@ class SMLMDatasetOnFly(Dataset):
         self.data_complete = True
 
         self.drop_data_set(verbose=False)
-        """Pre-Calculcate the complete dataset and use the same data as one draws samples. 
+        """Pre-Calculcate the complete dataset and use the same data as one draws samples.
         This is useful for the testset or the classical deep learning feeling of not limited training data."""
         if self.static_data:
             for i in range(self.__len__()):
