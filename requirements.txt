@@ -3,13 +3,12 @@ matplotlib
 numpy
 opencv-python
 pillow
-pytorch==1.0
+pytorch
 pywavelets
 scikit-image
 scipy
 seaborn
 setuptools
 snakeviz
-sqlite
 torchvision
 tqdm
