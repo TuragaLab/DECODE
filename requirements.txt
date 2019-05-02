@@ -1,7 +1,7 @@
 intel-openmp
 matplotlib
 numpy
-opencv
+opencv-python
 pillow
 pytorch==1.0
 pywavelets
