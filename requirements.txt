@@ -1,4 +1,3 @@
-deepsmlm
 intel-openmp
 jupyter_contrib_nbextensions
 jupyterlab
