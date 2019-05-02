@@ -1,7 +1,4 @@
 intel-openmp
-jupyter_contrib_nbextensions
-jupyterlab
-nb_conda
 matplotlib
 numpy
 opencv
