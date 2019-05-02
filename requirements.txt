@@ -3,7 +3,7 @@ matplotlib
 numpy
 opencv-python
 pillow
-pytorch
+torch
 pywavelets
 scikit-image
 scipy
