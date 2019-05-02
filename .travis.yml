@@ -28,4 +28,4 @@ install::
   - source activate deepsmlm
 
 script:
-  - python -m deepsmlm.all_tests -v
+  - python -m deepsmlm.all_tests
