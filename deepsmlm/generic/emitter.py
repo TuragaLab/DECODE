@@ -133,6 +133,19 @@ class EmitterSet:
         return em_list
 
 
+class CoordinateOnlyEmitter(EmitterSet):
+    """
+    A helper class when we only want to provide xyz, but not photons and frame_ix.
+    Useful for testing. Photons will be tensor of 1, frame_ix tensor of 0.
+    """
+    def __init__(self, xyz):
+        """
+
+        :param xyz: (torch.tensor) N x 2, N x 3
+        """
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]))
+
+
 class LooseEmitterSet:
     """
     An emitterset where we don't specify the frame_ix of an emitter but rather it's (real) time when
