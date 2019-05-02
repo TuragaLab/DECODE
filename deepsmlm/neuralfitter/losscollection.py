@@ -25,6 +25,23 @@ class Loss(ABC):
         return dummyLoss
 
 
+class SpeiserLoss:
+    def __init__(self):
+        self.ce = torch.nn.CrossEntropyLoss()
+        self.l2 = torch.nn.MSELoss()
+
+    @staticmethod
+    def loss(output, target, ce, l2):
+        return ce(output[:, [0], :, :], target[:, [0], :, :]) + l2(output[:, 1:, :, :], target[:, 1:, :, :])
+
+    def return_criterion(self):
+
+        def loss_return(output, target):
+            return self.loss(output, target, self.ce, self.l2)
+
+        return loss_return
+
+
 class MaskedOnlyZLoss:
     def __init__(self):
         self.l1 = torch.nn.L1Loss()
