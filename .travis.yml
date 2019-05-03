@@ -18,5 +18,12 @@ install:
   - conda env create -q -f environment.yml
   - source activate deepsmlm
 
+  # build the C and C++ libraries
+  - cd $TRAVIS_BUILD_DIR/deepsmlm/cpp_src/libtorchInterface
+  - gcc -fPIC -g -c -Wall lib/spline_psf.c -o lib/spline_psf.o
+  - ar rcs lib/libspline_psf.a lib/spline_psf.o
+  
+  - cd $TRAVIS_BUILD_DIR
+
 script:
   - pytest deepsmlm/test
