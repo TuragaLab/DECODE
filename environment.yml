@@ -17,6 +17,7 @@ dependencies:
   - pillow
   - python=3.6
   - pytorch=1.0.0
+  - pytest
   - pywavelets
   - scikit-image
   - scipy

@@ -42,6 +42,13 @@ class TestOffsetPSF(TestCase):
         self.assertEqual(-0.25, self.psf_bin_halfpx.bin_ctr_x[0])
         self.assertEqual(-0.25, self.psf_bin_halfpx.bin_ctr_y[0])
 
+    def test_offset_range(self):
+
+        self.assertEqual(0.5, self.psf_bin_1px.offset_max_x)
+        self.assertEqual(0.5, self.psf_bin_1px.offset_max_x)
+        self.assertEqual(0.25, self.psf_bin_halfpx.offset_max_y)
+        self.assertEqual(0.25, self.psf_bin_halfpx.offset_max_y)
+
     def test_foward_range(self):
 
         xyz = CoordinateOnlyEmitter(torch.rand((1000, 3)) * 40)

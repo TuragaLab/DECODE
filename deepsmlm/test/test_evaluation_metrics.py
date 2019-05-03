@@ -36,7 +36,7 @@ class TestNNMatching(TestCase):
                             phot=torch.tensor([1.]),
                             frame_ix=torch.tensor([0]))
 
-        tp, fp, fn = self.test_object.forward(out, target)
+        tp, fp, fn, _ = self.test_object.forward(out, target)
         self.assertEqual(tp.num_emitter, 1)
         self.assertEqual(fp.num_emitter, 0)
         self.assertEqual(fn.num_emitter, 0)
@@ -50,7 +50,7 @@ class TestNNMatching(TestCase):
                             phot=torch.tensor([1.]),
                             frame_ix=torch.tensor([0]))
 
-        tp, fp, fn = self.test_object.forward(out, target)
+        tp, fp, fn, _ = self.test_object.forward(out, target)
         self.assertEqual(tp.num_emitter, 0)
         self.assertEqual(fp.num_emitter, 1)
         self.assertEqual(fn.num_emitter, 1)
@@ -64,7 +64,7 @@ class TestNNMatching(TestCase):
                             phot=torch.tensor([1.]),
                             frame_ix=torch.tensor([0]))
 
-        tp, fp, fn = self.test_object.forward(out, target)
+        tp, fp, fn, _ = self.test_object.forward(out, target)
         self.assertEqual(tp.num_emitter, 0)
         self.assertEqual(fp.num_emitter, 1)
         self.assertEqual(fn.num_emitter, 1)

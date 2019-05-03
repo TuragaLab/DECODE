@@ -3,7 +3,7 @@ import torch
 
 from deepsmlm.generic.emitter import EmitterSet
 from deepsmlm.generic.psf_kernel import DeltaPSF
-from deepsmlm.neuralfitter.pre_processing import ZasOneHot, DecodeRepresentation
+from deepsmlm.neuralfitter.pre_processing import ZasOneHot, OffsetRep
 
 
 def equal_nonzero(*a):
@@ -44,11 +44,11 @@ class TestDecodeRepresentation(TestCase):
                              torch.rand(num_emitter),
                              torch.zeros(num_emitter))
 
-        self.dc = DecodeRepresentation((-0.5, 31.5), (-0.5, 31.5), None, (32, 32))
+        self.dc = OffsetRep((-0.5, 31.5), (-0.5, 31.5), None, (32, 32), cat_output=False)
 
     def test_forward_shape(self):
 
-        _, p, I, x, y, z = self.dc.forward(self.em)
+        p, I, x, y, z = self.dc.forward(self.em)
         self.assertEqual(p.shape, I.shape, "Maps of Decode Rep. must have equal dimension.")
         self.assertEqual(I.shape, x.shape, "Maps of Decode Rep. must have equal dimension.")
         self.assertEqual(x.shape, y.shape, "Maps of Decode Rep. must have equal dimension.")
@@ -60,6 +60,6 @@ class TestDecodeRepresentation(TestCase):
         Note that this in principle stochastic but the chance of having random float exactly == 0 is super small.
         :return:
         """
-        _, p, I, x, y, z = self.dc.forward(self.em)
+        p, I, x, y, z = self.dc.forward(self.em)
         self.assertTrue(equal_nonzero(p, I, x, y, z))
 
