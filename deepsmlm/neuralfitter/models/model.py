@@ -74,15 +74,16 @@ class DeepSMLN(nn.Module):
 
 
 class USMLM(nn.Module):
-    def __init__(self, in_ch=3, upsampling=8, upsampling_mode='nearest'):
+    def __init__(self, in_ch=3, upscaling=8, upsampling_mode='nearest'):
         super().__init__()
         self.in_ch = in_ch
-        self.upsampling = upsampling
+        self.upscaling = upscaling
         self.upsampling_mode = upsampling_mode
         self.unet = UNet(self.in_ch, 1)
 
     def forward(self, x):
-        x = F.interpolate(x, scale_factor=self.upsampling, mode=self.upsampling_mode)
+        if self.upscaling != 1.:
+            x = F.interpolate(x, scale_factor=self.upscaling, mode=self.upsampling_mode)
         x = self.unet(x)
         return x
 

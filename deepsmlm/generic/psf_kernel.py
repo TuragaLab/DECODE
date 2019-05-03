@@ -137,6 +137,9 @@ class OffsetPSF(DeltaPSF):
         self.bin_ctr_x = 0.5 * (self.bin_x[1] + self.bin_x[0]) - self.bin_x[0] + self.bin_x
         self.bin_ctr_y = 0.5 * (self.bin_y[1] + self.bin_y[0]) - self.bin_y[0] + self.bin_y
 
+        self.offset_max_x = self.bin_x[1] - self.bin_ctr_x[0]
+        self.offset_max_y = self.bin_y[1] - self.bin_ctr_y[0]
+
     def forward(self, em):
         """
         :param em: list of coordinates
@@ -153,7 +156,8 @@ class OffsetPSF(DeltaPSF):
             (from inner to outer). 1. get logical index of bins, 2. get nonzero where condition applies, 
             3. use the min value
             """
-            if xy[0] > self.bin_x.max() or xy[1] > self.bin_y.max():
+            if xy[0] > self.bin_x.max() or xy[0] <= self.bin_x.min() \
+                    or xy[1] > self.bin_y.max() or xy[1] <= self.bin_y.min():
                 continue
 
             x_ix = (xy[0].item() > self.bin_x).nonzero().max(0)[0].item()

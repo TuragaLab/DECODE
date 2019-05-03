@@ -75,8 +75,8 @@ class TargetGenerator(ABC):
         return x
 
 
-class DecodeRepresentation(TargetGenerator):
-    def __init__(self, xextent, yextent, zextent, img_shape):
+class OffsetRep(TargetGenerator):
+    def __init__(self, xextent, yextent, zextent, img_shape, cat_output=True):
         super().__init__()
         self.delta = DeltaPSF(xextent,
                               yextent,
@@ -85,22 +85,27 @@ class DecodeRepresentation(TargetGenerator):
                               photon_normalise=False)
 
         self.offset = OffsetPSF(xextent, yextent, img_shape)
+        self.cat_out = cat_output
 
     def forward(self, x):
         """
         Create 5 channel output, decode_like
         :param x:
-        :return: concatenated maps, or single maps with 1 x H x W each
+        :return: concatenated maps, or single maps with 1 x H x W each (channel order: p, I, x  y, z)
         """
         p_map = self.delta.forward(x, torch.ones_like(x.phot))
+        """It might happen that we see that two emitters are in the same px. p_map will then be 2 or greater. 
+        As the offset map allows for only one emitter, set the greater than 1 px to 1."""
+        p_map[p_map > 1] = 1
+
         I_map = self.delta.forward(x, x.phot)
         xy_map = self.offset.forward(x)
         z_map = self.delta.forward(x, x.xyz[:, 2])
 
-        # concat all
-        cat_map = torch.cat((p_map, I_map, xy_map, z_map), 0)
-
-        return cat_map, p_map, I_map, xy_map[[0]], xy_map[[1]], z_map
+        if self.cat_out:
+            return torch.cat((p_map, I_map, xy_map, z_map), 0)
+        else:
+            return p_map, I_map, xy_map[[0]], xy_map[[1]], z_map
 
 
 class ZasOneHot(TargetGenerator):

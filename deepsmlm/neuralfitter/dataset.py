@@ -68,6 +68,19 @@ class SMLMDataset(Dataset):
 class SMLMDatasetOnFly(Dataset):
     def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen,
                  dimensionality=3, static=False, lifetime=1, zts=64):
+        """
+
+        :param extent:
+        :param prior:
+        :param simulator:
+        :param data_set_size:
+        :param in_prep: Prepare input to NN. Any instance with forwrard method
+        :param tar_gen: Generate target for learning.
+        :param dimensionality:
+        :param static:
+        :param lifetime:
+        :param zts:
+        """
         super().__init__()
 
         self.extent = extent
@@ -157,7 +170,7 @@ class SMLMDatasetOnFly(Dataset):
             em_tar = self.em_tar[index]
 
         self.check_completeness(False)
-        return frame, target, em_tar, index
+        return frame, target, index
 
 
 class UnsupervisedDataset(Dataset):
