@@ -23,6 +23,8 @@ install:
   - gcc -fPIC -g -c -std=c99 -Wall lib/spline_psf.c -o lib/spline_psf.o
   - ar rcs lib/libspline_psf.a lib/spline_psf.o
 
+  - NO_CUDA=1 python setup.py clean --all install
+
   - cd $TRAVIS_BUILD_DIR
 
 script:

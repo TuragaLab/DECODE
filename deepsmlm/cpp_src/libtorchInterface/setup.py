@@ -48,6 +48,9 @@ $ CFLAGS='-stdlib=libc++' CC=clang CXX=clang++ NO_CUDA=1 python setup.py clean -
 Linux:
 $ python setup.py clean --all install
 
+Linux without CUDA:
+$ NO_CUDA=1 python setup.py clean --all install
+
 
 Compile cubic_spline and link statically (Linux: gcc, macOS: clang):
 
