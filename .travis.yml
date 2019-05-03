@@ -20,9 +20,9 @@ install:
 
   # build the C and C++ libraries
   - cd $TRAVIS_BUILD_DIR/deepsmlm/cpp_src/libtorchInterface
-  - gcc -fPIC -g -c -Wall lib/spline_psf.c -o lib/spline_psf.o
+  - gcc -fPIC -g -c -std=c99 -Wall lib/spline_psf.c -o lib/spline_psf.o
   - ar rcs lib/libspline_psf.a lib/spline_psf.o
-  
+
   - cd $TRAVIS_BUILD_DIR
 
 script:
