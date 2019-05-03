@@ -14,26 +14,34 @@ from deepsmlm.generic.inout.load_save_emitter import NumpyInterface
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 from deepsmlm.generic.noise import Poisson
 from deepsmlm.generic.psf_kernel import ListPseudoPSFInSize, DeltaPSF
+from deepsmlm.neuralfitter.pre_processing import OffsetRep
 from deepsmlm.generic.utils.data_utils import smlm_collate
+from deepsmlm.generic.utils.processing import TransformSequence
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, SimulationParam, LoggerParameter, \
     SchedulerParameter
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
-from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss
-from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco
+from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss
+from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
+from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
+from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale
 from deepsmlm.neuralfitter.train_test import train, test
 from deepsmlm.simulator.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
 from deepsmlm.simulator.structure_prior import RandomStructure
 from deepsmlm.simulator.simulator import Simulation
+
+import resource
+rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
 """Root folder"""
 deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
                  os.pardir, os.pardir)) + '/'
 
-WRITE_TO_LOG = True
+WRITE_TO_LOG = False
 
 if __name__ == '__main__':
 
@@ -43,8 +51,8 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-04-09/combined_net_corrected_sigmas_singleframefordenseloco.pt',
-        model_init=None)
+        model_out=deepsmlm_root + 'network/2019-05-03/speiser_firsttry_c.pt',
+        model_init=deepsmlm_root + 'network/2019-05-03/speiser_firsttry_b_3.pt')
 
     log_par = LoggerParameter(
         tags=['3D', 'Coords', 'DenseNet'])
@@ -79,13 +87,13 @@ if __name__ == '__main__':
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(256*32 + 256),  # (256*256 + 512),
-        emitter_extent=((-0.5, 31.5), (-0.5, 31.5), (-500, 500)),
-        psf_extent=((-0.5, 31.5), (-0.5, 31.5), (-750., 750.)),
-        img_size=(32, 32),
+        pseudo_data_size=(512 * 32 + 256),  # (256*256 + 512),
+        emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-500, 500)),
+        psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
+        img_size=(64, 64),
         density=0,
-        emitter_av=15,
-        photon_range=(4000, 8000),
+        emitter_av=60,
+        photon_range=(3000, 8000),
         bg_pois=15,
         calibration=deepsmlm_root +
                     'data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat')
@@ -113,17 +121,19 @@ if __name__ == '__main__':
     logger.add_text('comet_ml_key', experiment.get_key())
 
     """Set target for the Neural Network."""
-    target_generator = ListPseudoPSFInSize(sim_par.emitter_extent[0], sim_par.emitter_extent[1],
-                                           sim_par.emitter_extent[2], zts=hy_par.max_emitters, dim=3,
-                                           photon_threshold=hy_par.min_phot)
+    offsetRep = OffsetRep(xextent=sim_par.psf_extent[0],
+                          yextent=sim_par.psf_extent[1],
+                          zextent=None,
+                          img_shape=(sim_par.img_size[0], sim_par.img_size[1]))
+    tar_seq = []
+    tar_seq.append(offsetRep)
+    tar_seq.append(InverseOffsetRescale(offsetRep.offset.offset_max_x,
+                                        offsetRep.offset.offset_max_y,
+                                        sim_par.psf_extent[2][1],
+                                        10000,
+                                        1.2))
 
-    # target_generator = DeltaPSF(xextent=sim_par.psf_extent[0],
-    #                             yextent=sim_par.psf_extent[1],
-    #                             zextent=None,
-    #                             img_shape=(sim_par.img_size[0] * hy_par.upscaling,
-    #                                        sim_par.img_size[1] * hy_par.upscaling),
-    #                             photon_threshold=hy_par.min_phot,
-    #                             photon_normalise=True)
+    target_generator = TransformSequence(tar_seq)
 
     if io_par.data_mode == 'precomputed':
         """Load Data from binary."""
@@ -151,11 +161,6 @@ if __name__ == '__main__':
         structure_prior = RandomStructure(sim_par.emitter_extent[0],
                                           sim_par.emitter_extent[1],
                                           sim_par.emitter_extent[2])
-
-        # prior = EmitterPopper(structure_prior,
-        #                       density=sim_par.density,
-        #                       photon_range=sim_par.photon_range,
-        #                       emitter_av=sim_par.emitter_av)
 
         prior = EmitterPopperMultiFrame(structure_prior,
                                         density=sim_par.density,
@@ -192,42 +197,22 @@ if __name__ == '__main__':
         train_loader = DataLoader(train_data_smlm,
                                   batch_size=hy_par.batch_size,
                                   shuffle=True,
-                                  num_workers=0,
-                                  pin_memory=True,
+                                  num_workers=12,
+                                  pin_memory=False,
                                   collate_fn=smlm_collate)
 
         test_loader = DataLoader(test_data_smlm,
                                  batch_size=hy_par.batch_size,
                                  shuffle=False,
-                                 num_workers=0,
-                                 pin_memory=True,
+                                 num_workers=8,
+                                 pin_memory=False,
                                  collate_fn=smlm_collate)
 
     else:
         raise NameError("You used the wrong switch of how to get the training data.")
 
     """Model load and save interface."""
-    # model = DenseLoco(extent=sim_par.psf_extent,
-    #                   ch_in=hy_par.channels,
-    #                   dim_out=hy_par.dimensions,
-    #                   max_num_emitter=hy_par.max_emitters)
-    # model = USMLM(in_ch=hy_par.channels, upsampling=hy_par.upscaling, upsampling_mode=hy_par.upscaling_mode)
-    # model = SuperDumbFCNet(289, (-750., 750.))
-
-    model_usmlm = USMLM(in_ch=hy_par.channels,
-                        upscaling=hy_par.upscaling,
-                        upsampling_mode=hy_par.upscaling_mode)
-
-    # TODO: bit hacky. Reduce hard coded stuff here.
-    usmlm_file = deepsmlm_root + 'network/2019-04-07/model_multi_frame_13.pt'
-    model_usmlm = LoadSaveModel(model_usmlm, output_file=None, input_file=usmlm_file).load_init()
-
-    model = USMLMLoco(model_usmlm,
-                      in_ch=hy_par.channels,
-                      extent=sim_par.psf_extent,
-                      dim_out=hy_par.dimensions,
-                      max_num_emitter=hy_par.max_emitters,
-                      densenet_out=2048)
+    model = OffsetUnet(hy_par.channels)
 
     """Log the model"""
     try:
@@ -243,15 +228,8 @@ if __name__ == '__main__':
     optimiser = Adam(model.parameters(), lr=hy_par.lr)
 
     """Loss function."""
-    # kernel_sigmas = (0.64, 3.20, 6.4, 19.2)
-    kernel_sigmas_upscaled = (5.12, 25.6, 51.2, 153.6)
-    experiment.log_parameter('Loss/kernel_sigmas', kernel_sigmas_upscaled)
-    criterion = MultiScaleLaplaceLoss(kernel_sigmas=kernel_sigmas_upscaled).return_criterion()
-    # criterion = BumpMSELoss(kernel_sigma=1.5, cuda=True, l1_f=0).return_criterion()
-
-    # sc_cluster=0.5
-    # experiment.log_parameter('Loss/scale_cluster_reduce', sc_cluster)
-    # criterion = MultiSLLRedClus(kernel_sigmas=kernel_sigmas, loc=0.15, scale=0.03, phot_loss_sc=sc_cluster).return_criterion()
+    # criterion
+    criterion = SpeiserLoss().return_criterion()
 
     """Learning Rate Scheduling"""
     lr_scheduler = ReduceLROnPlateau(optimiser,
@@ -280,7 +258,7 @@ if __name__ == '__main__':
 
         train(train_loader, model, optimiser, criterion, i, hy_par, logger, experiment, train_data_smlm.calc_new_flag)
 
-        val_loss = test(test_loader, model, criterion, i, hy_par, logger, experiment, None)
+        val_loss = test(test_loader, model, criterion, i, hy_par, logger, experiment, None, None)
         lr_scheduler.step(val_loss)
         sim_scheduler.step(val_loss)
 
@@ -289,7 +267,7 @@ if __name__ == '__main__':
             train_data_smlm.step()
 
         """Give the output file a new suffix every hour (i.e. _0, _1, _2 ...)"""
-        if time.time() > last_new_model_name_time + 60*60:
+        if time.time() > last_new_model_name_time + 60 * 60:
             trigger_new_name = True
             last_new_model_name_time = time.time()
         else:

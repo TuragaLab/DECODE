@@ -18,7 +18,7 @@ deepsmlm_root = os.path.abspath(
 DEBUG = True
 LOG = True
 TENSORBOARD = True
-LOG_FIGURES = True
+LOG_FIGURES = False
 
 LOG = True if DEBUG else LOG
 
@@ -101,18 +101,19 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
 
     model.train()
     end = time.time()
-    for i, (input, target, em_tar, _) in enumerate(train_loader):
+    for i, (x_in, target, _) in enumerate(train_loader):
+        em_tar = None
 
         if (epoch == 0) and (i == 0) and LOG:
             """Save a batch to see what we input into the network."""
             debug_file = deepsmlm_root + 'data/debug.pt'
-            torch.save((input, target), debug_file)
+            torch.save((x_in, target), debug_file)
             print("LOG: I saved a batch for you. Look what the network sees for verification purpose.")
 
         # measure data loading time
         data_time.update(time.time() - end)
 
-        input = input.to(hy_par.device)
+        x_in = x_in.to(hy_par.device)
         if type(target) is torch.Tensor:
             target = target.to(hy_par.device)
         elif type(target) in (tuple, list):
@@ -121,11 +122,11 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
             raise TypeError("Not supported type to push to cuda.")
 
         # compute output
-        output = model(input)
+        output = model(x_in)
         loss = criterion(output, target)
 
         # record loss
-        losses.update(loss.item(), input.size(0))
+        losses.update(loss.item(), x_in.size(0))
         loss_values.append(loss.item())
 
         # compute gradients in a backward pass
@@ -159,13 +160,13 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
 
         if LOG_FIGURES and ((epoch == 0 and i == 0) or (i == 0 and calc_new)):
             num_plot = 2
-            ix = np.random.randint(0, input.shape[0], num_plot)
+            ix = np.random.randint(0, x_in.shape[0], num_plot)
             # plot_io_frame_model(input, output, target, em_tar, ix,
             #                     fig_str='training/fig_',
             #                     comet_log=experiment,
             #                     board_log=logger,
             #                     step=epoch)
-            plot_io_coord_model(input, output, target, em_tar, ix,
+            plot_io_coord_model(x_in, output, target, em_tar, ix,
                                 fig_str='training/fig_',
                                 comet_log=experiment,
                                 board_log=logger,
@@ -196,9 +197,10 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
     model.eval()
     with torch.no_grad():
         end = time.time()
-        for i, (input, target, em_tar, _) in enumerate(val_loader):
+        for i, (x_in, target, _) in enumerate(val_loader):
+            em_tar = None
 
-            input = input.to(hy_par.device)
+            x_in = x_in.to(hy_par.device)
             if type(target) is torch.Tensor:
                 target = target.to(hy_par.device)
             elif type(target) in (tuple, list):
@@ -207,14 +209,14 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
                 raise TypeError("Not supported type to push to cuda.")
 
             # compute output
-            output = model(input)
+            output = model(x_in)
             loss = criterion(output, target)
 
             # measure accuracy and record loss
-            losses.update(loss.item(), input.size(0))
+            losses.update(loss.item(), x_in.size(0))
 
             # do evaluation
-            pred = post_processor.forward(output)
+            # pred = post_processor.forward(output)
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -234,7 +236,7 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
                 #                     comet_log=experiment,
                 #                     board_log=logger,
                 #                     step=epoch)
-                plot_io_coord_model(input, output, target, em_tar, ix,
+                plot_io_coord_model(x_in, output, target, em_tar, ix,
                                     fig_str='testset/fig_',
                                     comet_log=experiment,
                                     board_log=logger,

@@ -21,6 +21,7 @@ from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, SimulationParam, LoggerParameter, \
     SchedulerParameter
 from deepsmlm.neuralfitter.dataset import SMLMDataset
+from deepsmlm.generic.utils.data_utils import smlm_collate
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, MaskedOnlyZLoss
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco
@@ -100,7 +101,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
+                  'Loss {loss.val:.4e} ({loss.avg:.4e})\t'.format(
                 epoch, i, len(train_loader), batch_time=batch_time,
                 data_time=data_time, loss=losses))
 
@@ -148,7 +149,7 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
 
             # compute output
             output = model(input)
-            loss = criterion(output, target)
+            loss = criterion(output, target, input[:, 1, :, :])
 
             # measure accuracy and record loss
             losses.update(loss.item(), input.size(0))
@@ -163,7 +164,7 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
             if (i in [0, 1, 2, 10]) or (i % 200 == 0):
                 print('Test: [{0}/{1}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
+                      'Loss {loss.val:.4e} ({loss.avg:.4e})\t'.format(
                     i, len(val_loader), batch_time=batch_time, loss=losses))
                 experiment.log_metric('learning/test_loss', losses.val, epoch)
     logger.add_scalar('learning/test_loss', losses.val, epoch)
@@ -178,8 +179,8 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,
-        model_out=deepsmlm_root + 'network/2019-04-11/only_z_strong_wiggle.pt',
-        model_init=deepsmlm_root + 'network/2019-04-10/only_z_wigglexy_14.pt')
+        model_out=deepsmlm_root + 'network/2019-04-29/z_only_xymask.pt',
+        model_init=None)
 
     log_par = LoggerParameter(
         tags=['Z', 'Coord', 'DenseNet'])
@@ -205,21 +206,21 @@ if __name__ == '__main__':
         max_emitters=128,
         min_phot=600.,
         data_lifetime=10,
-        upscaling=8,
+        upscaling=1,
         upscaling_mode='nearest',
-        batch_size=64,
+        batch_size=16,
         test_size=256,
         num_epochs=10000,
-        lr=1E-4,
+        lr=1E-5,
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(1024 * 64 + 256),  # (256*256 + 512),
-        emitter_extent=((-0.5, 31.5), (-0.5, 31.5), (200., 750.)),
+        pseudo_data_size=(256*16 + 256),  # (256*256 + 512),
+        emitter_extent=((2.5, 28.5), (2.5, 28.5), (200., 750.)),
         psf_extent=((-0.5, 31.5), (-0.5, 31.5), (-750., 750.)),
         img_size=(32, 32),
         density=0,
-        emitter_av=15,
+        emitter_av=5,
         photon_range=(4000, 10000),
         bg_pois=10,
         calibration=deepsmlm_root +
@@ -246,8 +247,8 @@ if __name__ == '__main__':
     z_delta = DeltaPSF(xextent=sim_par.psf_extent[0],
                        yextent=sim_par.psf_extent[1],
                        zextent=None,
-                       img_shape=(sim_par.img_size[0] * hy_par.upscaling,
-                                  sim_par.img_size[1] * hy_par.upscaling),
+                       img_shape=(sim_par.img_size[0] * 8,
+                                  sim_par.img_size[1] * 8),
                        photon_threshold=0,
                        photon_normalise=True,
                        dark_value=0.)
@@ -275,11 +276,12 @@ if __name__ == '__main__':
                            poolsize=0,
                            frame_range=frame_range)
 
+
     xy_helper_and_mask = DeltaPSF(xextent=sim_par.psf_extent[0],
                                   yextent=sim_par.psf_extent[1],
                                   zextent=None,
-                                  img_shape=(sim_par.img_size[0] * hy_par.upscaling,
-                                             sim_par.img_size[1] * hy_par.upscaling),
+                                  img_shape=(sim_par.img_size[0] * 8,
+                                             sim_par.img_size[1] * 8),
                                   photon_threshold=0,
                                   photon_normalise=True,
                                   dark_value=1 / 20)
@@ -295,18 +297,27 @@ if __name__ == '__main__':
                                       input_preparation, target_generator, None, static=True)
 
     train_loader = DataLoader(train_data_smlm,
-                              batch_size=hy_par.batch_size, shuffle=True, num_workers=12, pin_memory=True)
-    test_loader = DataLoader(test_data_smlm,
-                             batch_size=hy_par.batch_size, shuffle=False, num_workers=8, pin_memory=True)
+                              batch_size=hy_par.batch_size,
+                              shuffle=True,
+                              num_workers=0,
+                              pin_memory=False,
+                              collate_fn=smlm_collate)
 
-    model = USMLM(2, 8, 'nearest')
+    test_loader = DataLoader(test_data_smlm,
+                             batch_size=hy_par.batch_size,
+                             shuffle=False,
+                             num_workers=0,
+                             pin_memory=False,
+                             collate_fn=smlm_collate)
+
+    model = USMLM(2, 1, 'nearest')
     model_ls = LoadSaveModel(model, output_file=io_par.model_out, input_file=io_par.model_init)
     model = model_ls.load_init()
     model = model.to(hy_par.device)
 
     optimiser = Adam(model.parameters(), lr=hy_par.lr)
 
-    criterion = MaskedOnlyZLoss()
+    criterion = MaskedOnlyZLoss().return_criterion()
 
     lr_scheduler = ReduceLROnPlateau(optimiser,
                                      mode='min',
