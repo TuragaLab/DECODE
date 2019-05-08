@@ -41,7 +41,7 @@ deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
                  os.pardir, os.pardir)) + '/'
 
-WRITE_TO_LOG = False
+WRITE_TO_LOG = True
 
 if __name__ == '__main__':
 
