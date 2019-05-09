@@ -63,9 +63,9 @@ class DeltaPSF(PSF):
     """
 
     def __init__(self, xextent, yextent, zextent, img_shape,
-                 photon_threshold=0,
+                 photon_threshold=None,
                  photon_normalise=False,
-                 dark_value=0.):
+                 dark_value=None):
         """
         (See abstract class constructor.)
         :param photon_normalise: normalised photon count, i.e. probabilities
@@ -99,12 +99,15 @@ class DeltaPSF(PSF):
         if weight is None:
             weight = em.phot
 
-        ix_phot_threshold = weight >= self.photon_threshold
-        weight = weight[ix_phot_threshold]
+        if self.photon_threshold is not None:
+            ix_phot_threshold = weight >= self.photon_threshold
+            weight = weight[ix_phot_threshold]
+            xyz = em.xyz[ix_phot_threshold, :]
+        else:
+            xyz = em.xyz
+
         if self.photon_normalise:
             weight = torch.ones_like(weight)
-
-        xyz = em.xyz[ix_phot_threshold, :]
 
         if self.zextent is None:
             camera, _, _ = np.histogram2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(),  # reverse order
@@ -116,7 +119,8 @@ class DeltaPSF(PSF):
                                        weights=weight.numpy())
 
         camera = torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
-        camera[camera == 0.] = self.dark_value
+        if self.dark_value is not None:
+            camera[camera == 0.] = self.dark_value
 
         return camera
 
@@ -134,8 +138,8 @@ class OffsetPSF(DeltaPSF):
         """Setup the bin centers x and y"""
         self.bin_x = torch.from_numpy(self.bin_x).type(torch.float)
         self.bin_y = torch.from_numpy(self.bin_y).type(torch.float)
-        self.bin_ctr_x = 0.5 * (self.bin_x[1] + self.bin_x[0]) - self.bin_x[0] + self.bin_x
-        self.bin_ctr_y = 0.5 * (self.bin_y[1] + self.bin_y[0]) - self.bin_y[0] + self.bin_y
+        self.bin_ctr_x = (0.5 * (self.bin_x[1] + self.bin_x[0]) - self.bin_x[0] + self.bin_x)[:-1]
+        self.bin_ctr_y = (0.5 * (self.bin_y[1] + self.bin_y[0]) - self.bin_y[0] + self.bin_y)[:-1]
 
         self.offset_max_x = self.bin_x[1] - self.bin_ctr_x[0]
         self.offset_max_y = self.bin_y[1] - self.bin_ctr_y[0]
