@@ -7,7 +7,7 @@ import torch
 
 from deepsmlm.generic.coordinate_trafo import UpsamplingTransformation as ScaleTrafo
 from deepsmlm.generic.coordinate_trafo import A2BTransform
-from deepsmlm.generic.psf_kernel import DeltaPSF
+from deepsmlm.generic.psf_kernel import DeltaPSF, OffsetPSF
 from deepsmlm.generic.emitter import EmitterSet
 
 
@@ -164,7 +164,8 @@ class ConnectedComponents:
             return cluster_ix
 
 
-class ConnectedComponentsOffset(ConnectedComponents):
+class CC5ChModel(ConnectedComponents):
+    """Connected components on 5 channel model."""
     def __init__(self, prob_th, svalue_th=0, connectivity=2):
         super().__init__(prob_th, svalue_th, connectivity)
 
@@ -217,6 +218,8 @@ class ConnectedComponentsOffset(ConnectedComponents):
                     np.average(feat_flat[i, :, ix].numpy(), axis=1, weights=w_flat[i, ix].numpy()))
                 p_i = feat_flat[i, 0, ix].sum()
 
+            #TODO: What if there are no clusters?
+
             feat_av.append(feat_i)
             p.append(p_i)
 
@@ -224,6 +227,93 @@ class ConnectedComponentsOffset(ConnectedComponents):
             return feat_av[0], p[0]
         else:
             return feat_av, p
+
+    def forward(self, ch5_input):
+        """
+        Forward a batch of output of 5ch model.
+        :param ch5_input: N x C=5 x H x W
+        :return: emitterset
+        """
+
+        if ch5_input.dim() == 3:
+            red_batch = True  # squeeze out batch dimension in the end
+            ch5_input = ch5_input.unsqueeze(0)
+        else:
+            red_batch = False
+
+        batch_size = ch5_input.size(0)
+
+        """Compute connected components based on prob map."""
+        p_map = ch5_input[:, 0]
+        clusters = self.compute_cix(p_map)
+
+        """Average the within cluster features"""
+        feature_av, prob = self.average_features(ch5_input, clusters, p_map)  # returns list tensors of averaged feat.
+
+        """Return list of emittersets"""
+        emitter_sets = [None] * batch_size
+
+        for i in range(batch_size):
+            pi = prob[i]
+            feat_i = feature_av[i]
+
+            # get list of emitters:
+            p_red = pi
+            phot_red = feat_i[1]
+            xyz = torch.cat((
+                feat_i[2].unsqueeze(1),
+                feat_i[3].unsqueeze(1),
+                feat_i[4].unsqueeze(1)), 1)
+
+            em = EmitterSet(xyz, phot_red, frame_ix=(i * torch.ones_like(phot_red)))
+
+            em_list.append(em)
+
+
+
+class Offset2Coordinate:
+    """Postprocesses the offset model to return a list of emitters."""
+    def __init__(self, xextent, yextent, img_shape):
+
+        off_psf = OffsetPSF(xextent=xextent,
+                            yextent=yextent,
+                            img_shape=img_shape)
+
+        xv, yv = torch.meshgrid([off_psf.bin_ctr_x, off_psf.bin_ctr_y])
+        self.x_mesh = xv.unsqueeze(0)
+        self.y_mesh = yv.unsqueeze(0)
+
+    def _convert_xy_offset(self, x_offset, y_offset):
+        batch_size = x_offset.size(0)
+        x_coord = self.x_mesh.repeat(batch_size, 1, 1) + x_offset
+        y_coord = self.y_mesh.repeat(batch_size, 1, 1) + y_offset
+        return x_coord, y_coord
+
+    def forward(self, output):
+        """
+        Forwards a batch of 5ch offset model and convert the offsets to coordinates
+        :param output:
+        :return:
+        """
+
+        """Convert to batch if not already is one"""
+        if output.dim() == 3:
+            squeeze_batch_dim = True
+            output = output.unsqueeze(0)
+        else:
+            squeeze_batch_dim = False
+
+        """Convert the channel values to coordinates"""
+        x_coord, y_coord = self._convert_xy_offset(output[:, 2], output[:, 3])
+
+        output_converted = output.clone()
+        output_converted[:, 2] = x_coord
+        output_converted[:, 3] = y_coord
+
+        if squeeze_batch_dim:
+            return output_converted.squeeze(0)
+        else:
+            return output_converted
 
 
 class ConnectedComponentsOld:
