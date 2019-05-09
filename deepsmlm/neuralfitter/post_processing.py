@@ -129,6 +129,94 @@ class CoordScan:
 
 
 class ConnectedComponents:
+    def __init__(self, prob_th, svalue_th=0, connectivity=2):
+        self.prob_th = prob_th
+        self.svalue_th = svalue_th
+        self.clusterer = label
+
+        if connectivity == 2:
+            self.kernel = np.ones((3, 3))
+        elif connectivity == 1:
+            self.kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+
+    def compute_cix(self, p_map):
+        """Computes cluster ix, based on a prob-map.
+
+        :param p_map: either N x H x W or H x W
+        :return: cluster indices (NHW or HW)
+        """
+        if p_map.dim() == 2:
+            out_hw = True  # output in hw format, i.e. without N
+            p = p_map.clone().unsqueeze(0)
+        else:
+            out_hw = False  # output in NHW format
+            p = p_map.clone()
+
+        cluster_ix = torch.zeros_like(p)
+
+        for i in range(p.size(0)):
+            c_ix, _ = label(p[i].numpy(), self.kernel)
+            cluster_ix[i] = torch.from_numpy(c_ix)
+
+        if out_hw:
+            return cluster_ix.squeeze(0)
+        else:
+            return cluster_ix
+
+    @staticmethod
+    def average_features(features, cluster_ix, weight):
+        """
+        Averages the features per cluster weighted by the probability.
+
+        :param features: tensor (N)CHW
+        :param cluster_ix: (N)HW
+        :param weight: (N)HW
+        :return: list of tensors of size number of clusters x features
+        """
+        if features.dim() == 3:
+            red2hw = True
+            features = features.unsqueeze(0)
+            cluster_ix = cluster_ix.unsqueeze(0)
+            weight = weight.unsqueeze(0)
+        else:
+            red2hw = False
+
+        batch_size = features.size(0)
+
+        """Flatten features, weights and cluster_ix in image space"""
+        feat_flat = features.view(features.size(0), features.size(1), -1)
+        clusix_flat = cluster_ix(cluster_ix.size(0), -1)
+        w_flat = weight(weight.size(0), -1)
+
+        feat_av = []  # list of feature average tensors
+        p = []  # list of cumulative probabilites
+        for i in range(batch_size):
+            ccix = clusix_flat[i]
+            num_clusters = ccix.max()
+
+            feat_i = torch.zeros((num_clusters, ccix.size(0)))
+            p_i = torch.zeros(num_clusters)
+
+            for j in range(num_clusters):
+                # ix in current cluster
+                ix = (ccix == i + 1)
+
+                if ix.sum() == 0:
+                    continue
+
+                feat_i[j, :] = torch.from_numpy(np.average(feat_flat[i, :, ix].numpy(), axis=1, weights=w_flat.numpy()))
+                p_i = feat_flat[i, 0, ix].sum()
+
+            feat_av.append(feat_i)
+            p.append(p_i)
+
+        if red2hw:
+            return feat_av[0], p[0]
+        else:
+            return feat_av, p
+
+
+class ConnectedComponentsOld:
     def __init__(self, photon_threshold, extent, clusterer=label, single_value_threshold=0, connectivity=2):
         """
 
@@ -151,6 +239,43 @@ class ConnectedComponents:
         elif connectivity == 1:
             self.kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
 
+    @staticmethod
+    def _generate_coordinate_mesh(mat_shape):
+        """
+        Helper method to generate coordinates when the mask for connected labels is at the same time the positions.
+        :return:
+        """
+        """Generate a meshgrid where the first component is x, 
+        the second is y. concat them as channels to feed it into the averager.
+        """
+        xv, yv = torch.meshgrid([torch.arange(0, mat_shape[0]), torch.arange(0, mat_shape[1])])
+        return torch.cat((xv.unsqueeze(0), yv.unsqueeze(0)), 0)
+
+    @staticmethod
+    def channeled_average(cmpt_ix, ch_input, weight):
+
+        # flatten features, weights and mask (C x H x W to C x HW)
+        mask_flat = cmpt_ix.view(-1)
+        w_flat = weight.view(-1)
+        ch_flat = ch_input.view(ch_input.size(0), -1)
+
+        num_clusters = cmpt_ix.max()
+        feat_av = torch.zeros((num_clusters, ch_input.size(0)))
+        p_sum = torch.zeros(num_clusters)
+
+        for i in range(num_clusters):
+            # ix in current cluster
+            ix = (cmpt_ix == i + 1)
+
+            if ix.sum() == 0:
+                continue
+
+            # calculate the average over all features
+            feat_av[i, :] = torch.from_numpy(np.average(ch_input[:, ix].numpy(), axis=1, weights=w_flat.numpy()))
+            p_sum[i] = ch_input[0, ix].sum()
+
+        return feat_av, p_sum
+
     def forward(self, x):
         """
         Forward a batch of frames through connected components. Must only contain one channel.
@@ -159,56 +284,43 @@ class ConnectedComponents:
         :return: (instance of emitterset)
         """
 
-        def cluster_average(coords, photons, cluster_ix_p_coord):
-            num_clusters = cluster_ix_p_coord.max()
-            print("Number of cluster: {}".format(num_clusters))
-            pos_av = np.zeros((num_clusters, coords.shape[1]))
-            phot_sum = np.zeros((num_clusters,))
-            for i in range(num_clusters):
-                # ix in current cluster
-                ix = (cluster_ix_p_coord == i + 1)
-
-                if ix.sum() == 0:
-                    print("No coordinates found. Skipping. {}.".format(i))
-                    continue
-
-                """Calculate position average."""
-                pos_av[i, :] = np.average(coords[ix, :], axis=0, weights=photons[ix])
-                phot_sum[i] = np.sum(photons[ix], axis=0)
-            return pos_av, phot_sum
-
         # loop over all batch elements
-        if x.dim() == 2:
-            x_ = x.unsqueeze(0).unsqueeze(0)
+        if not(x.dim() == 3 or x.dim() == 4):
+            raise ValueError("Input must be C x H x W or N x C x H x W.")
+        elif x.dim() == 3:
+            x_ = x.unsquueze(0)
+        else:
+            x_ = x
 
         clusters = []
 
         for i in range(x_.shape[0]):
 
             """Threshold single px values"""
-            x_ = x_[i, 0, :, :].numpy()
-            self.matrix_extent = ((-0.5, x_.shape[0] - 0.5), (-0.5, x_.shape[1] - 0.5))
-            x_[x_ < self.single_val_threshold] = 0
+            mask = x_[i, 0, :, :]
+            x_ = x_[i, :, :, :]
+            prob = x_[0]
 
-            cluster_frame, num_clusters = label(x_, self.kernel)
-            # get the coordinates of the cluster members
-            clus_bool = cluster_frame >= 1
-            clus_ix = cluster_frame[clus_bool]
-            phot_in_clus = x_[clus_bool]
-            clus_mat_coord = np.asarray(np.asarray(clus_bool).nonzero()).transpose()
+            # self.matrix_extent = ((-0.5, mask.shape[0] - 0.5), (-0.5, mask.shape[1] - 0.5))
+            mask[x_ < self.single_val_threshold] = 0
 
-            pos_clus, phot_clus = cluster_average(clus_mat_coord, phot_in_clus, clus_ix)
-            pos_clus, phot_clus = torch.from_numpy(pos_clus), torch.from_numpy(phot_clus)
+            cmpt_ix, num_clusters = label(mask.numpy(), self.kernel)
+            cmpt_ix = torch.from_numpy(cmpt_ix)
 
-            # Transform coordinates
-            pos_clus = A2BTransform(a_extent=self.matrix_extent, b_extent=self.extent).a2b(pos_clus)
+            feat_av, p_sum = self.channeled_average(cmpt_ix, x_, prob)
 
-            """Filter by photon threshold"""
-            ix_above_thres = phot_clus > self.phot_thres
+            """Filter by prob threshold"""
+            ix_above_thres = p_sum > self.phot_thres
+            # p_sum = p_sum[ix_above_thres]
 
-            clusters.append(EmitterSet(xyz=pos_clus[ix_above_thres, :],
-                                       phot=phot_clus[ix_above_thres],
-                                       frame_ix=(torch.ones_like(phot_clus[ix_above_thres]) * (-1))))
+            """Calc xyz"""
+            feat_av = feat_av[ix_above_thres, :]
+            xyz = torch.cat((feat_av[:, [2]], feat_av[:, [3]], feat_av[:, [4]]), 1)
+            phot = feat_av[:, 1]
+
+            clusters.append(EmitterSet(xyz=xyz,
+                                       phot=phot,
+                                       frame_ix=(torch.ones_like(phot) * (-1))))
 
         return clusters
 
