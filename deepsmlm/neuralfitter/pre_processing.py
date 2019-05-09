@@ -76,13 +76,22 @@ class TargetGenerator(ABC):
 
 
 class OffsetRep(TargetGenerator):
-    def __init__(self, xextent, yextent, zextent, img_shape, cat_output=True):
+    def __init__(self, xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=None):
         super().__init__()
         self.delta = DeltaPSF(xextent,
                               yextent,
                               zextent,
                               img_shape,
-                              photon_normalise=False)
+                              photon_normalise=False,
+                              photon_threshold=photon_threshold)
+
+        # this might seem as a duplicate, but we need to make sure not to use a photon threshold for generating the z map.
+        self.delta_z = DeltaPSF(xextent,
+                              yextent,
+                              zextent,
+                              img_shape,
+                              photon_normalise=False,
+                              photon_threshold=None)
 
         self.offset = OffsetPSF(xextent, yextent, img_shape)
         self.cat_out = cat_output
@@ -98,14 +107,14 @@ class OffsetRep(TargetGenerator):
         As the offset map allows for only one emitter, set the greater than 1 px to 1."""
         p_map[p_map > 1] = 1
 
-        I_map = self.delta.forward(x, x.phot)
+        phot_map = self.delta.forward(x, x.phot)
         xy_map = self.offset.forward(x)
-        z_map = self.delta.forward(x, x.xyz[:, 2])
+        z_map = self.delta_z.forward(x, x.xyz[:, 2])
 
         if self.cat_out:
-            return torch.cat((p_map, I_map, xy_map, z_map), 0)
+            return torch.cat((p_map, phot_map, xy_map, z_map), 0)
         else:
-            return p_map, I_map, xy_map[[0]], xy_map[[1]], z_map
+            return p_map, phot_map, xy_map[[0]], xy_map[[1]], z_map
 
 
 class ZasOneHot(TargetGenerator):
