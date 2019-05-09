@@ -1,5 +1,7 @@
 import datetime
 import os
+os.environ['COMET_LOGGING_FILE'] = 'comet.log'
+os.environ['COMET_LOGGING_FILE_LEVEL'] = 'DEBUG'
 import time
 from comet_ml import Experiment, OfflineExperiment
 
@@ -51,8 +53,8 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-05-03/speiser_firsttry_c.pt',
-        model_init=deepsmlm_root + 'network/2019-05-03/speiser_firsttry_b_3.pt')
+        model_out=deepsmlm_root + 'network/2019-05-08/model_offset.pt',
+        model_init=None)
 
     log_par = LoggerParameter(
         tags=['3D', 'Coords', 'DenseNet'])
@@ -81,13 +83,13 @@ if __name__ == '__main__':
         upscaling=8,
         upscaling_mode='nearest',
         batch_size=32,
-        test_size=256,
+        test_size=128,
         num_epochs=10000,
         lr=1E-4,
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(512 * 32 + 256),  # (256*256 + 512),
+        pseudo_data_size=(128 * 32 + 128),  # (256*256 + 512),
         emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-500, 500)),
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
@@ -147,10 +149,10 @@ if __name__ == '__main__':
         train_data_smlm, test_data_smlm = torch.utils.data.random_split(data_smlm, [train_size, hy_par.test_size])
 
         train_loader = DataLoader(train_data_smlm,
-                                  batch_size=hy_par.batch_size, shuffle=True, num_workers=24, pin_memory=True)
+                                  batch_size=hy_par.batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
         test_loader = DataLoader(test_data_smlm,
-                                 batch_size=hy_par.test_size, shuffle=False, num_workers=12, pin_memory=True)
+                                 batch_size=hy_par.test_size, shuffle=False, num_workers=0, pin_memory=True)
 
     elif io_par.data_mode == 'online':
         """Load 'Dataset' which is generated on the fly."""
@@ -187,12 +189,11 @@ if __name__ == '__main__':
 
         train_size = sim_par.pseudo_data_size - hy_par.test_size
 
-        train_data_smlm = SMLMDatasetOnFly(None, prior, simulator, train_size,
-                                           input_preparation, target_generator, None, static=False,
-                                           lifetime=hy_par.data_lifetime)
+        train_data_smlm = SMLMDatasetOnFly(None, prior, simulator, train_size, input_preparation, target_generator,
+                                           None, static=False, lifetime=hy_par.data_lifetime, return_em_tar=False)
 
-        test_data_smlm = SMLMDatasetOnFly(None, prior, simulator, hy_par.test_size,
-                                          input_preparation, target_generator, None, static=True)
+        test_data_smlm = SMLMDatasetOnFly(None, prior, simulator, hy_par.test_size, input_preparation, target_generator,
+                                          None, static=True, return_em_tar=True)
 
         train_loader = DataLoader(train_data_smlm,
                                   batch_size=hy_par.batch_size,
@@ -228,8 +229,10 @@ if __name__ == '__main__':
     optimiser = Adam(model.parameters(), lr=hy_par.lr)
 
     """Loss function."""
-    # criterion
     criterion = SpeiserLoss().return_criterion()
+
+    """Set up post processor"""
+    post_processor = None
 
     """Learning Rate Scheduling"""
     lr_scheduler = ReduceLROnPlateau(optimiser,
@@ -258,7 +261,7 @@ if __name__ == '__main__':
 
         train(train_loader, model, optimiser, criterion, i, hy_par, logger, experiment, train_data_smlm.calc_new_flag)
 
-        val_loss = test(test_loader, model, criterion, i, hy_par, logger, experiment, None, None)
+        val_loss = test(test_loader, model, criterion, i, hy_par, logger, experiment, post_processor)
         lr_scheduler.step(val_loss)
         sim_scheduler.step(val_loss)
 

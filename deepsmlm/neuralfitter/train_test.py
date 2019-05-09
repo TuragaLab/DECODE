@@ -18,7 +18,7 @@ deepsmlm_root = os.path.abspath(
 DEBUG = True
 LOG = True
 TENSORBOARD = True
-LOG_FIGURES = False
+LOG_FIGURES = True
 
 LOG = True if DEBUG else LOG
 
@@ -101,7 +101,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
 
     model.train()
     end = time.time()
-    for i, (x_in, target, _) in enumerate(train_loader):
+    for i, (x_in, target) in enumerate(train_loader):
         em_tar = None
 
         if (epoch == 0) and (i == 0) and LOG:
@@ -158,22 +158,6 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
             logger.add_scalar('data/data_time', data_time.val, step_batch)
             loss_values.clear()
 
-        if LOG_FIGURES and ((epoch == 0 and i == 0) or (i == 0 and calc_new)):
-            num_plot = 2
-            ix = np.random.randint(0, x_in.shape[0], num_plot)
-            # plot_io_frame_model(input, output, target, em_tar, ix,
-            #                     fig_str='training/fig_',
-            #                     comet_log=experiment,
-            #                     board_log=logger,
-            #                     step=epoch)
-            plot_io_coord_model(x_in, output, target, em_tar, ix,
-                                fig_str='training/fig_',
-                                comet_log=experiment,
-                                board_log=logger,
-                                step=epoch,
-                                D3=True)
-            plt.show()
-
         if i == 0:
             for name, param in model.named_parameters():
                 if 'bn' not in name:
@@ -184,7 +168,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         step_batch += 1
 
 
-def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_processor, evaluation):
+def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_processor):
     """
     Taken from: https://pytorch.org/tutorials/beginner/aws_distributed_training_tutorial.html
     """
@@ -197,8 +181,7 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
     model.eval()
     with torch.no_grad():
         end = time.time()
-        for i, (x_in, target, _) in enumerate(val_loader):
-            em_tar = None
+        for i, (x_in, target, em_tar) in enumerate(val_loader):
 
             x_in = x_in.to(hy_par.device)
             if type(target) is torch.Tensor:
@@ -212,11 +195,12 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
             output = model(x_in)
             loss = criterion(output, target)
 
-            # measure accuracy and record loss
+            # record loss
             losses.update(loss.item(), x_in.size(0))
 
-            # do evaluation
-            # pred = post_processor.forward(output)
+            # forward through postprocessor (scaling, etc.) and do evaluation
+            if post_processor is not None:
+                em_out = post_processor.forward(output)
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -231,17 +215,12 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
             """Log first 3 and a random subset to tensorboard"""
             if LOG_FIGURES and i == 0:
                 ix = [0, 1, 2, 3, 4, 5]
-                # plot_io_frame_model(input, output, target, em_tar, ix,
-                #                     fig_str='testset/fig_',
-                #                     comet_log=experiment,
-                #                     board_log=logger,
-                #                     step=epoch)
-                plot_io_coord_model(x_in, output, target, em_tar, ix,
+                plot_io_frame_model(x_in, output[:, 0], target, em_tar, ix,
                                     fig_str='testset/fig_',
                                     comet_log=experiment,
                                     board_log=logger,
-                                    step=epoch,
-                                    D3=True)
+                                    step=epoch)
+
                 plt.show()
 
     experiment.log_metric('learning/test_loss', losses.val, epoch)

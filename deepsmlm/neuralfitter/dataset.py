@@ -66,8 +66,8 @@ class SMLMDataset(Dataset):
 
 
 class SMLMDatasetOnFly(Dataset):
-    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen,
-                 dimensionality=3, static=False, lifetime=1, zts=64):
+    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, dimensionality=3, static=False,
+                 lifetime=1, return_em_tar=False):
         """
 
         :param extent:
@@ -79,7 +79,7 @@ class SMLMDatasetOnFly(Dataset):
         :param dimensionality:
         :param static:
         :param lifetime:
-        :param zts:
+        :param return_em_tar: __getitem__ method returns em_target
         """
         super().__init__()
 
@@ -89,6 +89,7 @@ class SMLMDatasetOnFly(Dataset):
         self.static_data = static
         self.lifetime = lifetime
         self.time_til_death = lifetime
+        self.return_em_tar = return_em_tar
 
         self.calc_new_flag = True if (not static) else False
 
@@ -170,7 +171,11 @@ class SMLMDatasetOnFly(Dataset):
             em_tar = self.em_tar[index]
 
         self.check_completeness(False)
-        return frame, target, index
+
+        if self.return_em_tar:
+            return frame, target, em_tar
+        else:
+            return frame, target
 
 
 class UnsupervisedDataset(Dataset):
