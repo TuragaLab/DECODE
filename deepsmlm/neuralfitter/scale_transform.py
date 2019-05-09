@@ -27,13 +27,21 @@ class OffsetRescale:
         """
         if x.dim() == 3:
             x.unsqueeze_(0)
+            squeeze_before_return = True
+        else:
+            squeeze_before_return = False
 
-        x[:, 1, :, :] *= self.sc_phot * self.buffer
-        x[:, 2, :, :] *= self.sc_x * self.buffer
-        x[:, 3, :, :] *= self.sc_y * self.buffer
-        x[:, 4, :, :] *= self.sc_z * self.buffer
+        x_ = x.clone()
 
-        return x.squeeze(0)
+        x_[:, 1, :, :] *= self.sc_phot * self.buffer
+        x_[:, 2, :, :] *= self.sc_x * self.buffer
+        x_[:, 3, :, :] *= self.sc_y * self.buffer
+        x_[:, 4, :, :] *= self.sc_z * self.buffer
+
+        if squeeze_before_return:
+            return x_.squeeze(0)
+        else:
+            return x_
 
 
 class InverseOffsetRescale(OffsetRescale):
@@ -55,10 +63,18 @@ class InverseOffsetRescale(OffsetRescale):
         """
         if x.dim() == 3:
             x.unsqueeze_(0)
+            squeeze_before_return = True
+        else:
+            squeeze_before_return = False
 
-        x[:, 1, :, :] /= (self.sc_phot * self.buffer)
-        x[:, 2, :, :] /= (self.sc_x * self.buffer)
-        x[:, 3, :, :] /= (self.sc_y * self.buffer)
-        x[:, 4, :, :] /= (self.sc_z * self.buffer)
+        x_ = x.clone()
 
-        return x.squeeze(0)
+        x_[:, 1, :, :] /= (self.sc_phot * self.buffer)
+        x_[:, 2, :, :] /= (self.sc_x * self.buffer)
+        x_[:, 3, :, :] /= (self.sc_y * self.buffer)
+        x_[:, 4, :, :] /= (self.sc_z * self.buffer)
+
+        if squeeze_before_return:
+            return x_.squeeze(0)
+        else:
+            return x_
