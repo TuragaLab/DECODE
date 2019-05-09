@@ -163,6 +163,11 @@ class ConnectedComponents:
         else:
             return cluster_ix
 
+
+class ConnectedComponentsOffset(ConnectedComponents):
+    def __init__(self, prob_th, svalue_th=0, connectivity=2):
+        super().__init__(prob_th, svalue_th, connectivity)
+
     @staticmethod
     def average_features(features, cluster_ix, weight):
         """
@@ -173,8 +178,10 @@ class ConnectedComponents:
         :param weight: (N)HW
         :return: list of tensors of size number of clusters x features
         """
+
+        """Add batch dimension if not already present."""
         if features.dim() == 3:
-            red2hw = True
+            red2hw = True  # squeeze batch dim out for return
             features = features.unsqueeze(0)
             cluster_ix = cluster_ix.unsqueeze(0)
             weight = weight.unsqueeze(0)
@@ -184,17 +191,19 @@ class ConnectedComponents:
         batch_size = features.size(0)
 
         """Flatten features, weights and cluster_ix in image space"""
-        feat_flat = features.view(features.size(0), features.size(1), -1)
-        clusix_flat = cluster_ix(cluster_ix.size(0), -1)
-        w_flat = weight(weight.size(0), -1)
+        feat_flat = features.view(batch_size, features.size(1), -1)
+        clusix_flat = cluster_ix.view(batch_size, -1)
+        w_flat = weight.view(batch_size, -1)
 
         feat_av = []  # list of feature average tensors
         p = []  # list of cumulative probabilites
-        for i in range(batch_size):
-            ccix = clusix_flat[i]
-            num_clusters = ccix.max()
 
-            feat_i = torch.zeros((num_clusters, ccix.size(0)))
+        """Loop over the batches"""
+        for i in range(batch_size):
+            ccix = clusix_flat[i]  # current cluster indices in batch
+            num_clusters = int(ccix.max().item())
+
+            feat_i = torch.zeros((num_clusters, feat_flat.size(1)))
             p_i = torch.zeros(num_clusters)
 
             for j in range(num_clusters):
@@ -204,7 +213,8 @@ class ConnectedComponents:
                 if ix.sum() == 0:
                     continue
 
-                feat_i[j, :] = torch.from_numpy(np.average(feat_flat[i, :, ix].numpy(), axis=1, weights=w_flat.numpy()))
+                feat_i[j, :] = torch.from_numpy(
+                    np.average(feat_flat[i, :, ix].numpy(), axis=1, weights=w_flat[i, ix].numpy()))
                 p_i = feat_flat[i, 0, ix].sum()
 
             feat_av.append(feat_i)
