@@ -1,8 +1,9 @@
+from math import sqrt
+
 import numpy as np
 import torch
-
 from sklearn.neighbors import NearestNeighbors
-from math import sqrt
+
 from deepsmlm.evaluation.metric_library import pos_neg_emitters, PrecisionRecallJacquard, RMSEMAD
 
 
