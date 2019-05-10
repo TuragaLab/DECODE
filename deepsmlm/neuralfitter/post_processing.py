@@ -209,16 +209,14 @@ class CC5ChModel(ConnectedComponents):
 
             for j in range(num_clusters):
                 # ix in current cluster
-                ix = (ccix == i + 1)
+                ix = (ccix == j + 1)
 
                 if ix.sum() == 0:
                     continue
 
                 feat_i[j, :] = torch.from_numpy(
                     np.average(feat_flat[i, :, ix].numpy(), axis=1, weights=w_flat[i, ix].numpy()))
-                p_i = feat_flat[i, 0, ix].sum()
-
-            #TODO: What if there are no clusters?
+                p_i[j] = feat_flat[i, 0, ix].sum()
 
             feat_av.append(feat_i)
             p.append(p_i)
@@ -259,16 +257,16 @@ class CC5ChModel(ConnectedComponents):
 
             # get list of emitters:
             p_red = pi
-            phot_red = feat_i[1]
+            phot_red = feat_i[:, 1]
             xyz = torch.cat((
-                feat_i[2].unsqueeze(1),
-                feat_i[3].unsqueeze(1),
-                feat_i[4].unsqueeze(1)), 1)
+                feat_i[:, 2].unsqueeze(1),
+                feat_i[:, 3].unsqueeze(1),
+                feat_i[:, 4].unsqueeze(1)), 1)
 
             em = EmitterSet(xyz, phot_red, frame_ix=(i * torch.ones_like(phot_red)))
 
-            em_list.append(em)
-
+            emitter_sets[i] = em
+        return emitter_sets
 
 
 class Offset2Coordinate:
