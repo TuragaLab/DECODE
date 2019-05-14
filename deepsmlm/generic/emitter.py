@@ -49,6 +49,38 @@ class EmitterSet:
                 and (self.frame_ix.shape[0] == self.id.shape[0])):
             raise ValueError("Coordinates, photons, frame ix and id are not of equal shape in 0th dimension.")
 
+    @staticmethod
+    def cat_emittersets(emittersets, remap_frame_ix=None, step_frame_ix=None):
+        """
+        Concatenates list of emitters and rempas there frame indices if they start over with 0 per item in list.
+
+        :param emittersets: instance of this class
+        :param remap_frame_ix: iterable of frame indices to which the 0th frame index in the emitterset corresponds to
+        :param step_frame_ix: step of frame indices between items in list
+        :return: emitterset
+        """
+        num_emittersets = emittersets.__len__()
+
+        if remap_frame_ix is not None and step_frame_ix is not None:
+            raise ValueError("You cannot specify remap frame ix and step frame ix at the same time.")
+        elif remap_frame_ix is not None:
+            shift = torch.tensor(remap_frame_ix)
+        elif step_frame_ix is not None:
+            shift = torch.arange(0, num_emittersets) * step_frame_ix
+        else:
+            shift = torch.zeros(num_emittersets)
+
+        total_num_emitter = 0
+        for i in range(num_emittersets):
+            total_num_emitter += emittersets[i].num_emitter
+
+        xyz = torch.cat([emittersets[i].xyz for i in range(num_emittersets)], 0)
+        phot = torch.cat([emittersets[i].phot for i in range(num_emittersets)], 0)
+        frame_ix = torch.cat([emittersets[i].frame_ix + shift[i] for i in range(num_emittersets)], 0)
+        id = torch.cat([emittersets[i].id for i in range(num_emittersets)], 0)
+
+        return EmitterSet(xyz, phot, frame_ix, id)
+
     def sort_by_frame(self):
         self.frame_ix, ix = self.frame_ix.sort()
         self.xyz = self.xyz[ix, :]
@@ -131,6 +163,19 @@ class EmitterSet:
             em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5]))
 
         return em_list
+
+
+class RandomEmitterSet(EmitterSet):
+    """
+    A helper calss when we only want to provide a number of emitters.
+    """
+    def __init__(self, num_emitters):
+        """
+
+        :param num_emitters:
+        """
+        xyz = torch.rand((num_emitters, 3)) * 1000
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]))
 
 
 class CoordinateOnlyEmitter(EmitterSet):
@@ -217,6 +262,8 @@ class LooseEmitterSet:
 
                 """Split photons linearly across the frames. This is an approximation."""
                 ontime_on_frame = torch.min(self.te[i], frame_ix_[c] + 1) - torch.max(self.t0[i], frame_ix_[c])
+                # TODO: takout self.ontime, replace phot as photons per frame and draw photon on frame from
+                #  normal distribution (std 150, but no negatives)
                 phot_[c] = ontime_on_frame / self.ontime[i] * self.phot[i]
 
                 c += 1

@@ -129,8 +129,7 @@ class CoordScan:
 
 
 class ConnectedComponents:
-    def __init__(self, prob_th, svalue_th=0, connectivity=2):
-        self.prob_th = prob_th
+    def __init__(self, svalue_th=0, connectivity=2):
         self.svalue_th = svalue_th
         self.clusterer = label
 
@@ -152,6 +151,9 @@ class ConnectedComponents:
             out_hw = False  # output in NHW format
             p = p_map.clone()
 
+        """Set all values under the single value threshold to 0."""
+        p[p_map < self.svalue_th] = 0.
+
         cluster_ix = torch.zeros_like(p)
 
         for i in range(p.size(0)):
@@ -167,7 +169,8 @@ class ConnectedComponents:
 class CC5ChModel(ConnectedComponents):
     """Connected components on 5 channel model."""
     def __init__(self, prob_th, svalue_th=0, connectivity=2):
-        super().__init__(prob_th, svalue_th, connectivity)
+        super().__init__(svalue_th, connectivity)
+        self.prob_th = prob_th
 
     @staticmethod
     def average_features(features, cluster_ix, weight):
@@ -256,17 +259,72 @@ class CC5ChModel(ConnectedComponents):
             feat_i = feature_av[i]
 
             # get list of emitters:
-            p_red = pi
+            ix_above_prob_th = pi >= self.prob_th
             phot_red = feat_i[:, 1]
             xyz = torch.cat((
                 feat_i[:, 2].unsqueeze(1),
                 feat_i[:, 3].unsqueeze(1),
                 feat_i[:, 4].unsqueeze(1)), 1)
 
-            em = EmitterSet(xyz, phot_red, frame_ix=(i * torch.ones_like(phot_red)))
+            em = EmitterSet(xyz[ix_above_prob_th],
+                            phot_red[ix_above_prob_th],
+                            frame_ix=(i * torch.ones_like(phot_red[ix_above_prob_th])))
 
             emitter_sets[i] = em
-        return emitter_sets
+        if red_batch:
+            return emitter_sets[0]
+        else:
+            return emitter_sets
+
+
+class CCDirectPMap(CC5ChModel):
+    def __init__(self, extent, img_shape, prob_th, svalue_th=0, connectivity=2):
+        """
+
+        :param photon_threshold: minimum total value of summmed output
+        :param extent:
+        :param clusterer:
+        :param single_value_threshold:
+        :param connectivity:
+        """
+        super().__init__(svalue_th, connectivity)
+        self.extent = extent
+        self.prob_th = prob_th
+
+        self.clusterer = label
+        self.matrix_extent = None
+        self.connectivity = connectivity
+
+        self.offset2coordinate = Offset2Coordinate(extent[0], extent[1], img_shape)
+
+        if self.connectivity == 2:
+            self.kernel = np.ones((3, 3))
+        elif self.connectivity == 1:
+            self.kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+
+    def forward(self, x):
+        """
+        Forward a batch of frames through connected components. Must only contain one channel.
+
+        :param x: 2D frame, or 4D batch of 1 channel frames.
+        :return: (instance of emitterset)
+        """
+
+        # loop over all batch elements
+        if not(x.dim() == 3 or x.dim() == 4):
+            raise ValueError("Input must be C x H x W or N x C x H x W.")
+        elif x.dim() == 3:
+            x = x.unsquueze(0)
+
+        """Generate a pseudo offset (with 0zeros) to use the present CC5ch model."""
+        x_pseudo = torch.zeros((x.size(0), 5, x.size(2), x.size(3)))
+        x_pseudo[:, 0] = x
+
+        """Run the pseudo offsets through the Offset2Coordinate"""
+        x_pseudo = self.offset2coordinate.forward(x_pseudo)
+
+        """Run the super().forward as we are now in the same stiuation as for the 5 channel offset model."""
+        return super().forward(x_pseudo)
 
 
 class Offset2Coordinate:
@@ -312,115 +370,6 @@ class Offset2Coordinate:
             return output_converted.squeeze(0)
         else:
             return output_converted
-
-
-class ConnectedComponentsOld:
-    def __init__(self, photon_threshold, extent, clusterer=label, single_value_threshold=0, connectivity=2):
-        """
-
-        :param photon_threshold: minimum total value of summmed output
-        :param extent:
-        :param clusterer:
-        :param single_value_threshold:
-        :param connectivity:
-        """
-        self.phot_thres = photon_threshold
-        self.single_val_threshold = single_value_threshold
-        self.extent = extent
-        self.dim = 2 if (extent[2] is None) else 3
-        self.clusterer = clusterer
-        self.matrix_extent = None
-        self.connectivity = connectivity
-
-        if connectivity == 2:
-            self.kernel = np.ones((3, 3))
-        elif connectivity == 1:
-            self.kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
-
-    @staticmethod
-    def _generate_coordinate_mesh(mat_shape):
-        """
-        Helper method to generate coordinates when the mask for connected labels is at the same time the positions.
-        :return:
-        """
-        """Generate a meshgrid where the first component is x, 
-        the second is y. concat them as channels to feed it into the averager.
-        """
-        xv, yv = torch.meshgrid([torch.arange(0, mat_shape[0]), torch.arange(0, mat_shape[1])])
-        return torch.cat((xv.unsqueeze(0), yv.unsqueeze(0)), 0)
-
-    @staticmethod
-    def channeled_average(cmpt_ix, ch_input, weight):
-
-        # flatten features, weights and mask (C x H x W to C x HW)
-        mask_flat = cmpt_ix.view(-1)
-        w_flat = weight.view(-1)
-        ch_flat = ch_input.view(ch_input.size(0), -1)
-
-        num_clusters = cmpt_ix.max()
-        feat_av = torch.zeros((num_clusters, ch_input.size(0)))
-        p_sum = torch.zeros(num_clusters)
-
-        for i in range(num_clusters):
-            # ix in current cluster
-            ix = (cmpt_ix == i + 1)
-
-            if ix.sum() == 0:
-                continue
-
-            # calculate the average over all features
-            feat_av[i, :] = torch.from_numpy(np.average(ch_input[:, ix].numpy(), axis=1, weights=w_flat.numpy()))
-            p_sum[i] = ch_input[0, ix].sum()
-
-        return feat_av, p_sum
-
-    def forward(self, x):
-        """
-        Forward a batch of frames through connected components. Must only contain one channel.
-
-        :param x: 2D frame, or 4D batch of 1 channel frames.
-        :return: (instance of emitterset)
-        """
-
-        # loop over all batch elements
-        if not(x.dim() == 3 or x.dim() == 4):
-            raise ValueError("Input must be C x H x W or N x C x H x W.")
-        elif x.dim() == 3:
-            x_ = x.unsquueze(0)
-        else:
-            x_ = x
-
-        clusters = []
-
-        for i in range(x_.shape[0]):
-
-            """Threshold single px values"""
-            mask = x_[i, 0, :, :]
-            x_ = x_[i, :, :, :]
-            prob = x_[0]
-
-            # self.matrix_extent = ((-0.5, mask.shape[0] - 0.5), (-0.5, mask.shape[1] - 0.5))
-            mask[x_ < self.single_val_threshold] = 0
-
-            cmpt_ix, num_clusters = label(mask.numpy(), self.kernel)
-            cmpt_ix = torch.from_numpy(cmpt_ix)
-
-            feat_av, p_sum = self.channeled_average(cmpt_ix, x_, prob)
-
-            """Filter by prob threshold"""
-            ix_above_thres = p_sum > self.phot_thres
-            # p_sum = p_sum[ix_above_thres]
-
-            """Calc xyz"""
-            feat_av = feat_av[ix_above_thres, :]
-            xyz = torch.cat((feat_av[:, [2]], feat_av[:, [3]], feat_av[:, [4]]), 1)
-            phot = feat_av[:, 1]
-
-            clusters.append(EmitterSet(xyz=xyz,
-                                       phot=phot,
-                                       frame_ix=(torch.ones_like(phot) * (-1))))
-
-        return clusters
 
 
 if __name__ == '__main__':

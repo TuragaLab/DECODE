@@ -192,6 +192,7 @@ def pairwise_distances(x, y=None):  # not numerically stable but fast
     dist = x_norm + y_norm - 2.0 * torch.mm(x, torch.transpose(y, 0, 1))
     return dist
 
+
 if __name__ == '__main__':
     extent = ((-0.5, 31.5), (-0.5, 31.5), (-5, 5))
     density = 0.001

@@ -7,37 +7,45 @@ from sklearn.neighbors import NearestNeighbors
 from deepsmlm.evaluation.metric_library import pos_neg_emitters, PrecisionRecallJacquard, RMSEMAD
 
 
-class AverageMeter(object):
+class MetricMeter:
     """Computes and stores the average and current value"""
     def __init__(self):
         self.val = None
-        self.avg = None
-        self.sum = None
+        self.vals = None
         self.count = None
         self.reset()
+
+    @property
+    def std(self):
+        return torch.tensor(self.vals).std().item()
+
+    @property
+    def mean(self):
+        return torch.tensor(self.vals).mean().item()
+
+    @property
+    def avg(self):
+        return self.mean
 
     def reset(self):
         """
         Reset instance.
         :return:
         """
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
+        self.val = None
+        self.vals = []
         self.count = 0
 
-    def update(self, val, n=1):
+    def update(self, val):
         """
         Update AverageMeter.
 
         :param val: value
-        :param n: weight of sample
         :return: None
         """
         self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
+        self.vals.append(val)
+        self.count += 1
 
 
 class BatchEvaluation:
@@ -55,9 +63,9 @@ class BatchEvaluation:
         :param target:
         :return:
         """
-        prec, rec, jaq = AverageMeter(), AverageMeter(), AverageMeter()
-        rmse_vol, rmse_lat, rmse_axial = AverageMeter(), AverageMeter(), AverageMeter()
-        mad_vol, mad_lat, mad_axial = AverageMeter(), AverageMeter(), AverageMeter()
+        prec, rec, jaq = MetricMeter(), MetricMeter(), MetricMeter()
+        rmse_vol, rmse_lat, rmse_axial = MetricMeter(), MetricMeter(), MetricMeter()
+        mad_vol, mad_lat, mad_axial = MetricMeter(), MetricMeter(), MetricMeter()
 
         if output.__len__() != target.__len__():
             raise ValueError("Output and Target batch size must be of equal length.")

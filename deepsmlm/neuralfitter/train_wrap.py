@@ -1,5 +1,8 @@
 import datetime
 import os
+
+from deepsmlm.neuralfitter.post_processing import Offset2Coordinate, CC5ChModel
+
 os.environ['COMET_LOGGING_FILE'] = 'comet.log'
 os.environ['COMET_LOGGING_FILE_LEVEL'] = 'DEBUG'
 import time
@@ -18,7 +21,7 @@ from deepsmlm.generic.noise import Poisson
 from deepsmlm.generic.psf_kernel import ListPseudoPSFInSize, DeltaPSF
 from deepsmlm.neuralfitter.pre_processing import OffsetRep
 from deepsmlm.generic.utils.data_utils import smlm_collate
-from deepsmlm.generic.utils.processing import TransformSequence
+import deepsmlm.generic.utils.processing as processing
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, SimulationParam, LoggerParameter, \
     SchedulerParameter
@@ -43,7 +46,7 @@ deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
                  os.pardir, os.pardir)) + '/'
 
-WRITE_TO_LOG = True
+WRITE_TO_LOG = False
 
 if __name__ == '__main__':
 
@@ -53,11 +56,11 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-05-08/model_offset.pt',
+        model_out=deepsmlm_root + 'network/2019-05-13/model_offset_no_phot_limit.pt',
         model_init=None)
 
     log_par = LoggerParameter(
-        tags=['3D', 'Coords', 'DenseNet'])
+        tags=['3D', 'Offset', 'UNet'])
 
     sched_par = SchedulerParameter(
         lr_factor=0.1,
@@ -78,7 +81,7 @@ if __name__ == '__main__':
         dimensions=3,
         channels=3,
         max_emitters=64,
-        min_phot=600.,
+        min_phot=0.,
         data_lifetime=10,
         upscaling=8,
         upscaling_mode='nearest',
@@ -89,7 +92,7 @@ if __name__ == '__main__':
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(128 * 32 + 128),  # (256*256 + 512),
+        pseudo_data_size=(2 * 32 + 128),  # (256*256 + 512),
         emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-500, 500)),
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
@@ -135,7 +138,7 @@ if __name__ == '__main__':
                                         10000,
                                         1.2))
 
-    target_generator = TransformSequence(tar_seq)
+    target_generator = processing.TransformSequence(tar_seq)
 
     if io_par.data_mode == 'precomputed':
         """Load Data from binary."""
@@ -198,26 +201,33 @@ if __name__ == '__main__':
         train_loader = DataLoader(train_data_smlm,
                                   batch_size=hy_par.batch_size,
                                   shuffle=True,
-                                  num_workers=12,
+                                  num_workers=0,
                                   pin_memory=False,
                                   collate_fn=smlm_collate)
 
         test_loader = DataLoader(test_data_smlm,
                                  batch_size=hy_par.batch_size,
                                  shuffle=False,
-                                 num_workers=8,
+                                 num_workers=0,
                                  pin_memory=False,
                                  collate_fn=smlm_collate)
 
     else:
         raise NameError("You used the wrong switch of how to get the training data.")
 
-    """Model load and save interface."""
+    """Set model and corresponding post-processing"""
     model = OffsetUnet(hy_par.channels)
+
+    proc = processing.TransformSequence([
+        OffsetRescale(0.5, 0.5, 750., 10000, 1.2),
+        Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
+        CC5ChModel(0.3, 0.1)
+    ])
+
 
     """Log the model"""
     try:
-        dummy = torch.rand((2, 3, *sim_par.img_size), requires_grad=True)
+        dummy = torch.rand((2, hy_par.channels, *sim_par.img_size), requires_grad=True)
         logger.add_graph(model, dummy, False)
     except:
         print("Your dummy input is wrong. Please update it.")

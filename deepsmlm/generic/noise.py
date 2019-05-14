@@ -49,6 +49,8 @@ class Poisson(NoisePost):
         self.bg_uniform = bg_uniform
 
     def forward(self, image):
+        """Image must be in integers."""
+
         return torch.distributions.poisson.Poisson(image + self.bg_uniform).sample()
 
 

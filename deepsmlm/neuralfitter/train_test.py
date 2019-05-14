@@ -7,7 +7,7 @@ import torch
 from matplotlib import pyplot as plt
 
 from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord, PlotCoordinates3D
-from deepsmlm.evaluation.evaluation import AverageMeter
+import deepsmlm.evaluation.evaluation as eval
 
 
 """Several pseudo-global variables useful for data processing and debugging."""
@@ -72,7 +72,6 @@ def plot_io_coord_model(frame, output, target, em_tar, indices, fig_str, comet_l
         comet_log.log_figure(fig_str_, fig)
         board_log.add_figure(fig_str_, fig, step)
 
-
         if D3:
             fig = plt.figure()
             PlotCoordinates3D(pos_tar=xyz_tar,
@@ -95,9 +94,9 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
     loss_values = []
     step_batch = epoch * train_loader.__len__()
 
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    losses = AverageMeter()
+    batch_time = eval.MetricMeter()
+    data_time = eval.MetricMeter()
+    losses = eval.MetricMeter()
 
     model.train()
     end = time.time()
@@ -126,7 +125,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         loss = criterion(output, target)
 
         # record loss
-        losses.update(loss.item(), x_in.size(0))
+        losses.update(loss.item())
         loss_values.append(loss.item())
 
         # compute gradients in a backward pass
@@ -174,11 +173,14 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
     """
     experiment.set_step(epoch)
 
-    batch_time = AverageMeter()
-    losses = AverageMeter()
+    batch_time = eval.MetricMeter()
+    losses = eval.MetricMeter()
 
-    # switch to evaluate mode
-    model.eval()
+    inputs = []
+    outputs = []
+    tars = []
+
+    """Eval mode."""
     with torch.no_grad():
         end = time.time()
         for i, (x_in, target, em_tar) in enumerate(val_loader):
@@ -196,33 +198,20 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
             loss = criterion(output, target)
 
             # record loss
-            losses.update(loss.item(), x_in.size(0))
-
-            # forward through postprocessor (scaling, etc.) and do evaluation
-            if post_processor is not None:
-                em_out = post_processor.forward(output)
+            losses.update(loss.item())
 
             # measure elapsed time
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if (i in [0, 1, 2, 10]) or (i % 200 == 0):
-                print('Test: [{0}/{1}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
-                    i, len(val_loader), batch_time=batch_time, loss=losses))
+            inputs.append(x_in.cpu())
+            outputs.append(output.detach().cpu())
+            tars.extend(em_tar)
 
-            """Log first 3 and a random subset to tensorboard"""
-            if LOG_FIGURES and i == 0:
-                ix = [0, 1, 2, 3, 4, 5]
-                plot_io_frame_model(x_in, output[:, 0], target, em_tar, ix,
-                                    fig_str='testset/fig_',
-                                    comet_log=experiment,
-                                    board_log=logger,
-                                    step=epoch)
+    print("Test: Time: {batch_time.avg:.3f} \t""Loss: {loss.avg:.4f}".format(batch_time=batch_time, loss=losses))
 
-                plt.show()
+    """Forward output through post-processor for eval."""
+    if post_processor is not None:
+        em_out = post_processor.forward(output)
 
-    experiment.log_metric('learning/test_loss', losses.val, epoch)
-    logger.add_scalar('learning/test_loss', losses.val, epoch)
     return losses.avg

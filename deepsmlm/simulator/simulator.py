@@ -50,33 +50,30 @@ class Simulation:
             self.em_split = self.em.split_in_frames(self.frame_range[0], self.frame_range[1])
 
     @staticmethod
-    def forward_single_frame(pos, phot, psf, bg):
+    def forward_single_frame(pos, phot, psf):
         """
         Render a single frame. Consist of psf forward and therafter bg forward.
 
         :param pos: torch tensor of xyz position
         :param phot: torch tensor of number of photons
         :param psf: psf instance
-        :param bg: background instance
         :return: frame (torch.tensor)
         """
         frame = psf.forward(pos, phot)
-        frame = bg.forward(frame)
         return frame
 
-    def forward_single_frame_wrapper(self, emitter, psf, bg):
+    def forward_single_frame_wrapper(self, emitter, psf):
         """
         Simple wrapper to unpack attributes of emitter set class.
 
         :param emitter: instance of class emitter set
         :param psf: instance of psf
-        :param bg: instance of background
         :return: returns a frame
         """
         pos = emitter.xyz
         phot = emitter.phot
         # id = emitter.id
-        return self.forward_single_frame(pos, phot, psf, bg)
+        return self.forward_single_frame(pos, phot, psf)
 
     def forward(self, em_new=None):
         """
@@ -90,22 +87,25 @@ class Simulation:
             self.em_split = self.em.split_in_frames(self.frame_range[0], self.frame_range[1])
 
         if self.poolsize != 0:
+            # with multiprocessing.Pool(processes=self.poolsize) as pool:
+            #     # pool = ThreadPool(self.poolsize)
+            #     frame_list = pool.starmap(self.forward_single_frame_wrapper, zip(self.em_split,
+            #                                                                      iter.repeat(self.psf),
+            #                                                                      iter.repeat(self.background)))
             raise NotImplementedError("Does not work at the moment.")
-            with multiprocessing.Pool(processes=self.poolsize) as pool:
-                # pool = ThreadPool(self.poolsize)
-                frame_list = pool.starmap(self.forward_single_frame_wrapper, zip(self.em_split,
-                                                                                 iter.repeat(self.psf),
-                                                                                 iter.repeat(self.background)))
 
         elif self.poolsize == 0:
             em_sets = self.em_split.__len__()
             frame_list = [None] * em_sets
             for i in range(em_sets):
                 frame_list[i] = self.forward_single_frame_wrapper(self.em_split[i],
-                                                                  self.psf,
-                                                                  self.background)
+                                                                  self.psf)
 
-        self.frames = torch.stack(frame_list, dim=0).type(torch.int16)
+        frames = torch.stack(frame_list, dim=0)
+
+        """Add background. This needs to happen here and not on a single frame, since background may be correlated."""
+        self.frames = self.background.forward(frames).type(torch.int16)
+
         return self.frames
 
     def write_to_binary(self, outfile):
