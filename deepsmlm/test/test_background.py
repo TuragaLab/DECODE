@@ -9,7 +9,7 @@ class TestExperimentBg:
     def exp_bg(self):
         extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
         img_shape = (64, 64)
-        return background.ExperimentBg(extent[0], extent[1], img_shape, bg_range=(1., 1.), num_bg_emitter=1)
+        return background.OutOfFocusEmitters(extent[0], extent[1], img_shape, bg_range=(1., 1.), num_bg_emitter=1)
 
     def test_gauss_psf(self, exp_bg):
         """Tests whether the correct attribute for the gaussian psf is used."""

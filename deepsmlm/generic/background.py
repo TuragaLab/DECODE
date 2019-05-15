@@ -5,9 +5,17 @@ import deepsmlm.generic.emitter as emitter
 import deepsmlm.generic.psf_kernel as psf_kernel
 
 
-class ExperimentBg:
-    """A class where we have a background which is constant over the course of the whole experiment, and """
+class OutOfFocusEmitters:
+    """Simulate out of focus emitters by using huge z values."""
     def __init__(self, xextent, yextent, img_shape, bg_range=(15, 15), num_bg_emitter=0):
+        """
+
+        :param xextent:
+        :param yextent:
+        :param img_shape:
+        :param bg_range: peak height of emitters
+        :param num_bg_emitter: number of background emitters in image.
+        """
 
         self.xextent = xextent
         self.yextent = yextent
@@ -43,7 +51,7 @@ if __name__ == '__main__':
 
     extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
     img_shape = (64, 64)
-    bg = ExperimentBg(extent[0], extent[1], img_shape, bg_range=(10., 20.), num_bg_emitter=3)
+    bg = OutOfFocusEmitters(extent[0], extent[1], img_shape, bg_range=(10., 20.), num_bg_emitter=3)
 
     x = torch.zeros((1, 1, 64, 64))
     out = bg.forward(x)
