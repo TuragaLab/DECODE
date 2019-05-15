@@ -1,8 +1,34 @@
 import torch
+import pytest
 from unittest import TestCase
 
 from deepsmlm.generic.emitter import CoordinateOnlyEmitter
-from deepsmlm.generic.psf_kernel import DeltaPSF, OffsetPSF
+import deepsmlm.generic.psf_kernel as psf_kernel
+
+
+class TestGaussianExpect:
+    @pytest.fixture(scope='class')
+    def normgauss2d(self):
+        return psf_kernel.GaussianExpect((-0.5, 63.5), (-0.5, 63.5), None, img_shape=(64, 64), sigma_0=1.5)
+
+    @pytest.fixture(scope='class')
+    def normgauss3d(self):
+        return psf_kernel.GaussianExpect((-0.5, 63.5), (-0.5, 63.5), (-5000., 5000.), img_shape=(64, 64), sigma_0=1.5)
+
+    def test_norm(self, normgauss2d, normgauss3d):
+        xyz = torch.tensor([[32., 32., 0.]])
+        phot = torch.tensor([1.])
+        assert pytest.approx(normgauss2d.forward(xyz, phot).sum().item(), 0.05) == 1
+        assert pytest.approx(normgauss3d.forward(xyz, phot).sum().item(), 0.05) == 1
+
+    def test_peak_weight(self, normgauss2d, normgauss3d):
+        normgauss2d.peak_weight = True
+        normgauss3d.peak_weight = True
+
+        xyz = torch.tensor([[32., 32., 0.]])
+        phot = torch.tensor([1.])
+        assert pytest.approx(normgauss2d.forward(xyz, phot).max().item(), 0.05) == 1
+        assert pytest.approx(normgauss2d.forward(xyz, phot).max().item(), 0.05) == 1
 
 
 class TestOffsetPSF(TestCase):
@@ -11,19 +37,19 @@ class TestOffsetPSF(TestCase):
         Implicit test on the constructor
         Do not change this here, because then the tests will be broken.
         """
-        self.psf_bin_1px = OffsetPSF((-0.5, 31.5),
+        self.psf_bin_1px = psf_kernel.OffsetPSF((-0.5, 31.5),
                                      (-0.5, 31.5),
                                      (32, 32))
 
-        self.delta_psf_1px = DeltaPSF((-0.5, 31.5),
+        self.delta_psf_1px = psf_kernel.DeltaPSF((-0.5, 31.5),
                                   (-0.5, 31.5),
                                   None, (32, 32), 0, False, 0)
 
-        self.psf_bin_halfpx = OffsetPSF((-0.5, 31.5),
+        self.psf_bin_halfpx = psf_kernel.OffsetPSF((-0.5, 31.5),
                                         (-0.5, 31.5),
                                         (64, 64))
 
-        self.delta_psf_hpx = DeltaPSF((-0.5, 31.5),
+        self.delta_psf_hpx = psf_kernel.DeltaPSF((-0.5, 31.5),
                                       (-0.5, 31.5),
                                       None, (64, 64), 0, False, 0)
 

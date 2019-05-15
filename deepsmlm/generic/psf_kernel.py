@@ -255,17 +255,19 @@ class GaussianExpect(PSF):
     You must not use this function without shotnoise for simulation.
     """
 
-    def __init__(self, xextent, yextent, zextent, img_shape, sigma_0):
+    def __init__(self, xextent, yextent, zextent, img_shape, sigma_0, peak_weight=False):
         """
         (See abstract class constructor.)
 
         :param sigma_0: initial sigma value in px dimension
+        :param peak_weight: use weight for determining the peak intensity instead of
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
 
         self.sigma_0 = sigma_0
+        self.peak_weight = peak_weight
 
-    def astigmatism(self, z, sigma_0, m=torch.tensor([0.4, 0.1])):
+    def astigmatism(self, z, sigma_0, m=torch.tensor([0.004, 0.001])):
         """
         Astigmatism function for gaussians which are 3D.
 
@@ -274,14 +276,16 @@ class GaussianExpect(PSF):
         :return: sigma values
         """
 
-        raise NotImplementedError
-        sigma_xy = sigma_0 * torch.ones(znm.shape[0], 2)  # change behaviour as this is tuple
+        # raise NotImplementedError
+        sigma_xy = sigma_0 * torch.ones(z.shape[0], 2)  # change behaviour as this is tuple
 
-        sigma_xy[z > 0, :] *= torch.cat(
-            ((1 + m[0] * z[z > 0]).unsqueeze(1), (1 + m[1] * z[z > 0]).unsqueeze(1)), 1)
+        sigma_xy[z > 0, :] = torch.cat(
+            ((sigma_0 + m[0] * z[z > 0].abs()).unsqueeze(1),
+             (sigma_0 + m[1] * z[z > 0].abs()).unsqueeze(1)), 1)
 
-        sigma_xy[z < 0, :] *= torch.cat(
-            ((1 - m[0] * z[z < 0]).unsqueeze(1), (1 - m[1] * z[z < 0]).unsqueeze(1)), 1)
+        sigma_xy[z < 0, :] = torch.cat(
+            ((sigma_0 + m[1] * z[z < 0].abs()).unsqueeze(1),
+             (sigma_0 + m[0] * z[z < 0].abs()).unsqueeze(1)), 1)
 
         return sigma_xy
 
@@ -303,12 +307,12 @@ class GaussianExpect(PSF):
         ypos = pos[:, 1].repeat(img_shape[0], img_shape[1], 1)
 
         if self.zextent is not None:
-            sig = astigmatism(pos, sigma_0=self.sigma_0)
+            sig = self.astigmatism(pos[:, 2], sigma_0=self.sigma_0)
             sig_x = sig[:, 0].repeat(img_shape[0], img_shape[1], 1)
             sig_y = sig[:, 1].repeat(img_shape[0], img_shape[1], 1)
         else:
-            sig_x = sigma_0[0]
-            sig_y = sigma_0[1]
+            sig_x = sigma_0
+            sig_y = sigma_0
 
         x = torch.linspace(self.xextent[0], self.xextent[1], img_shape[0] + 1, dtype=torch.float32)
         y = torch.linspace(self.yextent[0], self.yextent[1], img_shape[1] + 1, dtype=torch.float32)
@@ -326,6 +330,8 @@ class GaussianExpect(PSF):
             - torch.erf((yy[1:, 0:-1, :] - ypos) / (math.sqrt(2) * sig_y))
 
         gaussCdf = weight.type_as(gauss_x) / 4 * torch.mul(gauss_x, gauss_y)
+        if self.peak_weight:
+            gaussCdf *= 2 * math.pi * sig_x * sig_y
         gaussCdf = torch.sum(gaussCdf, 2)
 
         return gaussCdf.unsqueeze(0)
@@ -529,28 +535,33 @@ class GaussianSampleBased(PSF):
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    # from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
-    #
-    # extent = ((-0.5, 25.5), (-0.5, 25.5), None)
-    # img_shape = (26, 26)
-    # # spline_file = '/Users/lucasmueller/Repositories/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
-    # spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
-    # psf = SMAPSplineCoefficient(spline_file).initSpline(extent[0], extent[1], img_shape)
-    # img = psf.forward(torch.rand((1, 3)) * 10, torch.rand((5)) * 500)
-    #
-    # plt.imshow(img.squeeze().numpy())
-    # plt.colorbar()
-    # plt.show()
+    from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
+    import deepsmlm.generic.noise as noise
+    import deepsmlm.generic.plotting.frame_coord as smplot
 
     img_shape = (32, 32)
-    psf = DeltaPSF((-0.5, 31.5), (-0.5, 31.5), None, img_shape, 1000, True)
+    extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
+    psf = GaussianExpect(extent[0], extent[1], (-5000., 5000.), img_shape, sigma_0=1.5)
 
-    xyz = torch.tensor([[1., 1.], [15., 15.]])
-    phot = torch.tensor([1000., 1001])
-    frame_ix = torch.tensor([0, 0])
-    em = EmitterSet(xyz, phot, frame_ix)
-    img = psf.forward(em)
-    plt.imshow(img.squeeze())
-    plt.show()
+    spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
+    psf_spline = SMAPSplineCoefficient(spline_file).init_spline(extent[0], extent[1], img_shape)
+
+    xyz_bg = torch.rand((3, 3)) * torch.tensor([32, 32., 1000.])
+    xyz_bg[:, 2] = torch.randint_like(xyz_bg[:, 2], low=2000, high=8000)
+    xyz_bg[:, 2] *= torch.from_numpy(np.random.choice([-1., 1.], xyz_bg.shape[0])).type(torch.FloatTensor)
+    phot_bg = torch.randint_like(xyz_bg[:, 0], low=15000, high=25000)
+
+    xyz_em = torch.rand((8, 3)) * torch.tensor([32., 32, 1500]) - torch.tensor([0, 0, 750.])
+    phot_em = torch.randint_like(xyz_em[:, 0], low=3000, high=8000)
+
+    img_bg = psf.forward(xyz_bg, phot_bg)
+    img_spline = psf_spline.forward(xyz_em, phot_em)
+
+    img = img_bg + img_spline
+    img_noise = noise.Poisson(15).forward(img)
+    img_bg_only_noise = noise.Poisson(15).forward(img_bg)
+
+    smplot.PlotFrameCoord(frame=img_bg_only_noise, pos_tar=xyz_em, pos_ini=xyz_bg).plot(); plt.show()
+    smplot.PlotFrameCoord(frame=img_noise, pos_tar=xyz_em, pos_ini=xyz_bg).plot(); plt.show()
     print('Success.')
 
