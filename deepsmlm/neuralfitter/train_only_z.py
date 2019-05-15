@@ -27,9 +27,9 @@ from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSEL
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco
 from deepsmlm.neuralfitter.models.model_beta import DenseNetZPrediction, SMNET
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ, ZPrediction, ZasOneHot, EasyZ
-from deepsmlm.simulator.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
-from deepsmlm.simulator.structure_prior import DiscreteZStructure, RandomStructure
-from deepsmlm.simulator.simulator import Simulation
+from deepsmlm.simulation.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
+from deepsmlm.simulation.structure_prior import DiscreteZStructure, RandomStructure
+from deepsmlm.simulation.simulator import Simulation
 from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord, PlotCoordinates3D
 from deepsmlm.evaluation.evaluation import AverageMeter
 

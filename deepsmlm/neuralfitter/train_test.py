@@ -101,7 +101,6 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
     model.train()
     end = time.time()
     for i, (x_in, target) in enumerate(train_loader):
-        em_tar = None
 
         if (epoch == 0) and (i == 0) and LOG:
             """Save a batch to see what we input into the network."""
@@ -122,6 +121,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
 
         # compute output
         output = model(x_in)
+        # import matplotlib.pyplot as plt; plt.imshow(x_in[0, 0].detach().cpu().numpy()); plt.show()
         loss = criterion(output, target)
 
         # record loss

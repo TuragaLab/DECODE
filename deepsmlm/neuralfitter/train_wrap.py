@@ -3,8 +3,6 @@ import os
 
 from deepsmlm.neuralfitter.post_processing import Offset2Coordinate, CC5ChModel
 
-os.environ['COMET_LOGGING_FILE'] = 'comet.log'
-os.environ['COMET_LOGGING_FILE_LEVEL'] = 'DEBUG'
 import time
 from comet_ml import Experiment, OfflineExperiment
 
@@ -17,8 +15,9 @@ from torch.utils.data import DataLoader
 from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 from deepsmlm.generic.inout.load_save_emitter import NumpyInterface
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
-from deepsmlm.generic.noise import Poisson
-from deepsmlm.generic.psf_kernel import ListPseudoPSFInSize, DeltaPSF
+import deepsmlm.generic.background as background
+import deepsmlm.generic.noise as noise
+import deepsmlm.generic.psf_kernel as psf_kernel
 from deepsmlm.neuralfitter.pre_processing import OffsetRep
 from deepsmlm.generic.utils.data_utils import smlm_collate
 import deepsmlm.generic.utils.processing as processing
@@ -33,9 +32,8 @@ from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale
 from deepsmlm.neuralfitter.train_test import train, test
-from deepsmlm.simulator.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
-from deepsmlm.simulator.structure_prior import RandomStructure
-from deepsmlm.simulator.simulator import Simulation
+
+from deepsmlm.simulation import structure_prior, emittergenerator, simulator
 
 import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -46,7 +44,7 @@ deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
                  os.pardir, os.pardir)) + '/'
 
-WRITE_TO_LOG = False
+WRITE_TO_LOG = True
 
 if __name__ == '__main__':
 
@@ -92,7 +90,7 @@ if __name__ == '__main__':
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(2 * 32 + 128),  # (256*256 + 512),
+        pseudo_data_size=(128 * 32 + 128),  # (256*256 + 512),
         emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-500, 500)),
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
@@ -161,18 +159,26 @@ if __name__ == '__main__':
         """Load 'Dataset' which is generated on the fly."""
         smap_psf = SMAPSplineCoefficient(sim_par.calibration)
         psf = smap_psf.init_spline(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size)
-        noise = Poisson(bg_uniform=sim_par.bg_pois)
 
-        structure_prior = RandomStructure(sim_par.emitter_extent[0],
-                                          sim_par.emitter_extent[1],
-                                          sim_par.emitter_extent[2])
+        """Define our noise model."""
+        # Out of focus emitters, homogeneous background noise, poisson noise
+        noise = processing.TransformSequence([background.OutOfFocusEmitters(sim_par.psf_extent[0],
+                                                                            sim_par.psf_extent[1],
+                                                                            sim_par.img_size,
+                                                                            bg_range=(15., 15.),
+                                                                            num_bg_emitter=3),
+                                              noise.Poisson(bg_uniform=sim_par.bg_pois)])
 
-        prior = EmitterPopperMultiFrame(structure_prior,
-                                        density=sim_par.density,
-                                        photon_range=sim_par.photon_range,
-                                        lifetime=1,
-                                        num_frames=3,
-                                        emitter_av=sim_par.emitter_av)
+        structure_prior = structure_prior.RandomStructure(sim_par.emitter_extent[0],
+                                                          sim_par.emitter_extent[1],
+                                                          sim_par.emitter_extent[2])
+
+        prior = emittergenerator.EmitterPopperMultiFrame(structure_prior,
+                                                         density=sim_par.density,
+                                                         photon_range=sim_par.photon_range,
+                                                         lifetime=1,
+                                                         num_frames=3,
+                                                         emitter_av=sim_par.emitter_av)
 
         if hy_par.channels == 3:
             frame_range = (-1, 1)
@@ -181,12 +187,12 @@ if __name__ == '__main__':
         else:
             raise ValueError("Channels must be 1 (for only target frame) or 3 for one adjacent frame.")
 
-        simulator = Simulation(None,
-                               sim_par.emitter_extent,
-                               psf,
-                               noise,
-                               poolsize=0,
-                               frame_range=frame_range)
+        simulator = simulator.Simulation(None,
+                                                    sim_par.emitter_extent,
+                                                    psf,
+                                                    noise,
+                                                    poolsize=0,
+                                                    frame_range=frame_range)
 
         input_preparation = N2C()
 
@@ -223,7 +229,6 @@ if __name__ == '__main__':
         Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
         CC5ChModel(0.3, 0.1)
     ])
-
 
     """Log the model"""
     try:

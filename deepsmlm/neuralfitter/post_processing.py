@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.ndimage.measurements import label
-# from skimage.measure import label
-from skimage.feature import peak_local_max
+# from skimage.feature import peak_local_max
 from sklearn.cluster import DBSCAN
 import torch
 
