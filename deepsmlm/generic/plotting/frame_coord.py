@@ -44,6 +44,8 @@ class PlotFrame:
         plt.xlabel('x')
         plt.ylabel('y')
 
+        return plt.gca()
+
 
 class PlotCoordinates:
     def __init__(self,
@@ -78,7 +80,7 @@ class PlotCoordinates:
         """
         def plot_xyz(pos, marker, color, label):
             plt.scatter(pos[:, 0].numpy(), pos[:, 1].numpy(),
-                        marker=marker, edgecolors=color, facecolors='none', label=label)
+                        marker=marker, c=color, facecolors='none', label=label)
 
         def plot_xyz_phot(pos, phot, marker, cmap, label):
             plt.scatter(pos[:, 0].numpy(), pos[:, 1].numpy(), c=phot.numpy(),
@@ -108,6 +110,8 @@ class PlotCoordinates:
         if self.extent_limit is not None:
             plt.xlim(*self.extent_limit[0])
             plt.ylim(*self.extent_limit[1][::-1])  # reverse tuple order
+
+        return plt.gca()
 
 class PlotCoordinates3D:
     def __init__(self, pos_tar=None, pos_out=None, phot_out=None):
