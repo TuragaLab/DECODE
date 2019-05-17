@@ -1,10 +1,8 @@
-import datetime
-import os
-
-from deepsmlm.neuralfitter.post_processing import Offset2Coordinate, CC5ChModel
-
-import time
 from comet_ml import Experiment, OfflineExperiment
+
+import datetime
+import time
+import os
 
 import torch
 from tensorboardX import SummaryWriter
@@ -12,6 +10,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
+from deepsmlm.neuralfitter.post_processing import Offset2Coordinate, CC5ChModel
 from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 from deepsmlm.generic.inout.load_save_emitter import NumpyInterface
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
@@ -284,13 +283,7 @@ if __name__ == '__main__':
         if io_par.data_mode == 'online':
             train_data_smlm.step()
 
-        """Give the output file a new suffix every hour (i.e. _0, _1, _2 ...)"""
-        if time.time() > last_new_model_name_time + 60 * 60:
-            trigger_new_name = True
-            last_new_model_name_time = time.time()
-        else:
-            trigger_new_name = False
-
-        model_ls.save(model, trigger_new_name)
+        """Save."""
+        model_ls.save(model, val_loss)
 
     experiment.end()
