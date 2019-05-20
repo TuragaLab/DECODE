@@ -5,41 +5,65 @@ import pytest
 from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet
 
 
-class TestEmitterSet(TestCase):
+class TestEmitterSet:
 
-    def setUp(self):
-        self.em2d = EmitterSet(xyz=torch.rand((25, 2)),
+    @pytest.fixture(scope='class')
+    def em2d(self):
+        return EmitterSet(xyz=torch.rand((25, 2)),
                                phot=torch.rand(25),
                                frame_ix=torch.zeros(25))
 
+    @pytest.fixture(scope='class')
+    def em3d(self):
         frames = torch.arange(25)
         frames[[0, 1, 2]] = 1
-        self.em3d = EmitterSet(xyz=torch.rand((25, 3)),
+        return EmitterSet(xyz=torch.rand((25, 3)),
                                phot=torch.rand(25),
                                frame_ix=frames)
 
-    def test_init(self):
+    def test_init(self, em2d, em3d):
         # 2D input get's converted to 3D with zeros
-        self.assertEqual(3, self.em2d.xyz.shape[1], "2D converted to 3D")
-        self.assertEqual(3, self.em3d.xyz.shape[1], "3D")
+        assert em2d.xyz.shape[1] == 3
+        assert em3d.xyz.shape[1] == 3
 
-    def test_split_in_frames(self):
-        splits = self.em2d.split_in_frames(None, None)
-        self.assertEqual(1, splits.__len__(), "Only one frame ix.")
+    def test_split_in_frames(self, em2d, em3d):
+        splits = em2d.split_in_frames(None, None)
+        assert splits.__len__() == 1
 
-        splits = self.em3d.split_in_frames(None, None)
-        self.assertEqual(self.em3d.frame_ix.max() - self.em3d.frame_ix.min() + 1,
-                         splits.__len__(),
-                         "Frame ix with wholes.")
+        splits = em3d.split_in_frames(None, None)
+        assert em3d.frame_ix.max() - em3d.frame_ix.min() + 1 == splits.__len__()
 
         """Test negative numbers in Frame ix."""
         neg_frames = EmitterSet(torch.rand((3, 3)),
                                 torch.rand(3),
                                 torch.tensor([-1, 0., 1]))
         splits = neg_frames.split_in_frames(None, None)
-        self.assertEqual(3, splits.__len__())
+        assert  splits.__len__() == 3
         splits = neg_frames.split_in_frames(0, None)
-        self.assertEqual(2, splits.__len__())
+        assert splits.__len__() == 2
+
+    def test_adjacent_frame_split(self):
+        xyz = torch.rand((500, 3))
+        phot = torch.rand_like(xyz[:, 0])
+        frame_ix = torch.randint_like(xyz[:, 0], low=-1, high=2)
+        em = EmitterSet(xyz, phot, frame_ix)
+
+        em_split = em.split_in_frames(-1, 1)
+        assert (em_split[0].frame_ix == -1).all()
+        assert (em_split[1].frame_ix == 0).all()
+        assert (em_split[2].frame_ix == 1).all()
+
+        em_split = em.split_in_frames(0, 0)
+        assert em_split.__len__() == 1
+        assert (em_split[0].frame_ix == 0).all()
+
+        em_split = em.split_in_frames(-1, -1)
+        assert em_split.__len__() == 1
+        assert (em_split[0].frame_ix == -1).all()
+
+        em_split = em.split_in_frames(1, 1)
+        assert em_split.__len__() == 1
+        assert (em_split[0].frame_ix == 1).all()
 
     def test_cat_emittersets(self):
         """

@@ -16,43 +16,78 @@
 
 #include "torch_boost.hpp"
 
+    
+/**
+ Get range indices which equal to a value (element).
+
+ @param vals tensor which are indices (must be sorted)
+ @param element single value
+ @param last_ix (input & return) index of last accessed item in vals
+ @param ix_low (return) index of first item
+ @param ix_up (return) index of last item
+ */
+void get_frame_range(torch::Tensor vals, int element, int& last_ix, int& ix_low, int& ix_up) {
+    
+    // first item to be accessed (other items have been looped through earlier)
+    int j = last_ix + 1;
+    // look out for first index of value 'element'
+    while ((j <= vals.size(0) - 1) && (static_cast<int>(*(vals[j]).data<float>()) != element)) {
+        j++;
+    }
+    // if outside range, return indicater
+    if (j >= vals.size(0)) {
+        ix_low = -1;
+        ix_up = -1;
+        return;
+    } else {
+        ix_low = j;
+    }
+    
+    // search how many items have the value
+    int k = ix_low;
+    while ((k <= vals.size(0) - 1) && (static_cast<int>(*(vals[k]).data<float>()) == element)) {
+        ix_up = k;
+        k++;
+    }
+    last_ix = ix_up;
+    return;
+}
+
 
 /**
- Function to split a tensor into vector / list of tensors acoording to an indexing split_data tensor.
+ Function to split a tensor in a recotr of rows of the aforementioned tensor
 
- @param tensor_ tensor of size N x D  which should be splitted in rows, must be sorted(!)
- @param split_data tensor of size N
- @param bound_low first value of splitting (e.g. 0)
- @param bound_high last value of splitting
- 
- @return vector of splitted tensor_
+ @param tensor_ tensor which should be splitted
+ @param split_data indices for splitting
+ @param bound_low lower bound of range
+ @param bound_high high bound
+ @return vector of tensors, each element being a tensor
  */
 auto split_tensor(torch::Tensor tensor_, torch::Tensor split_data, int bound_low, int bound_high) -> std::vector<torch::Tensor> {
     
     std::vector<torch::Tensor> tensor_split;
     
-    int ix_start_frame = 0;
-    int ix_end_frame = 0;
+    // initiailise last accesed item in split_data
+    int last_ix = -1;
     
     for (int i = bound_low; i <= bound_high; i++) {
         
-        int j = ix_start_frame;
+        // call get_frame_range, outputs are ix_low, ix_up
+        int ix_low, ix_up;
+        get_frame_range(split_data, i, last_ix, ix_low, ix_up);
         
-        while ((j < split_data.size(0)) && (i >= static_cast<int>(*(split_data[j]).data<float>()))) {
-            j++;
-        }
-        ix_end_frame = j;
-        
-        if (ix_start_frame != ix_end_frame){
-            tensor_split.push_back(tensor_.slice(0, ix_start_frame, ix_end_frame));
-        } else {
+        // if value is not found in tensor, push empty
+        if (ix_up == -1 || ix_low == -1) {
             tensor_split.push_back(torch::zeros({0, 6}));
+        } else {
+            tensor_split.push_back(tensor_.slice(0, ix_low, ix_up + 1));  // behaviour like Python, so excluding end index
         }
         
-        ix_start_frame = ix_end_frame;
     }
+    
     return tensor_split;
 }
+
 
 auto distribute_frames(torch::Tensor t0, torch::Tensor ontime, torch::Tensor xyz, torch::Tensor phot, torch::Tensor id) -> std::vector<torch::Tensor> {
     
