@@ -48,12 +48,13 @@ class LoadSaveModel:
         :param metric_val:
         :return:
         """
-        """If relative difference to previous value is less than threshold difference, do not save."""
-        rel_diff = metric_val / self._best_metric_val
-        if rel_diff <= 1 - self.better_th:
-            self._best_metric_val = metric_val
-        else:
-            return
+        if metric_val is not None:
+            """If relative difference to previous value is less than threshold difference, do not save."""
+            rel_diff = metric_val / self._best_metric_val
+            if rel_diff <= 1 - self.better_th:
+                self._best_metric_val = metric_val
+            else:
+                return
 
         """After a certain period, change the suffix."""
         if (time.time() > self._new_name_time + self.name_time_interval) or metric_val is None:
