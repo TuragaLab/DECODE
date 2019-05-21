@@ -23,6 +23,7 @@ dependencies:
   - scipy
   - seaborn
   - setuptools
+  - scikit-learn
   - snakeviz
   - sqlite
   - torchvision
