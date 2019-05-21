@@ -6,7 +6,7 @@ import deepsmlm.neuralfitter.post_processing as post
 
 @pytest.fixture(scope='module')
 def cc():
-    return post.ConnectedComponents(0.3, 0., 2)
+    return post.ConnectedComponents(0.1, 2)
 
 
 @pytest.fixture(scope='module')

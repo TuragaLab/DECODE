@@ -151,7 +151,7 @@ class ConnectedComponents:
             p = p_map.clone()
 
         """Set all values under the single value threshold to 0."""
-        p[p_map < self.svalue_th] = 0.
+        p[p < self.svalue_th] = 0.
 
         cluster_ix = torch.zeros_like(p)
 
