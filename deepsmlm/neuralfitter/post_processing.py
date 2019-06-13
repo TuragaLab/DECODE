@@ -3,6 +3,7 @@ from scipy.ndimage.measurements import label
 # from skimage.feature import peak_local_max
 from sklearn.cluster import DBSCAN
 import torch
+import torch.nn as nn
 
 from deepsmlm.generic.coordinate_trafo import UpsamplingTransformation as ScaleTrafo
 from deepsmlm.generic.coordinate_trafo import A2BTransform
@@ -163,6 +164,90 @@ class ConnectedComponents:
             return cluster_ix.squeeze(0)
         else:
             return cluster_ix
+
+
+class SpeiserPost:
+
+    def __init__(self, svalue_th=0., sep_th=0.6):
+
+        self.svalue_th = svalue_th
+        self.sep_th = sep_th
+
+    def forward_masked(self, p, features):
+        """
+
+        :param features: N x C x H x W
+        :return: feature averages N x C x H x W
+        """
+        with torch.no_grad():
+
+            diag = 0
+            p_ = p.clone()
+            features = features.clone()
+
+            # probability values > 0.3 are regarded as possible locations
+            p_clip = torch.where(p > self.svalue_th, p, torch.zeros_like(p))[:, None]
+
+            # localize maximum values within a 3x3 patch
+            pool = torch.nn.functional.max_pool2d(p_clip, 3, 1, padding=1)
+            max_mask1 = torch.eq(p[:, None], pool).float()
+
+            # Add probability values from the 4 adjacent pixels
+            filt = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).view(1, 1, 3, 3).\
+                type(features.dtype).\
+                to(features.device)
+            conv = torch.nn.functional.conv2d(p[:, None], filt, padding=1)
+            p_ps1 = max_mask1 * conv
+
+            """In order do be able to identify two fluorophores in adjacent pixels we look for 
+            probablity values > 0.6 that are not part of the first mask."""
+            p_ *= (1 - max_mask1[:, 0])
+            p_clip = torch.where(p_ > self.sep_th, p_, torch.zeros_like(p_))[:, None]
+            max_mask2 = torch.where(p_ > self.sep_th, torch.ones_like(p_), torch.zeros_like(p_))[:, None]
+            p_ps2 = max_mask2 * conv
+
+            """This is our final clustered probablity which we then threshold (normally > 0.7) 
+            to get our final discrete locations."""
+            p_ps = p_ps1 + p_ps2
+
+            max_mask = torch.clamp(max_mask1 + max_mask2, 0, 1)
+
+            mult_1 = max_mask1 / p_ps1
+            mult_1[torch.isnan(mult_1)] = 0
+            mult_2 = max_mask2 / p_ps2
+            mult_2[torch.isnan(mult_2)] = 0
+
+            feat_out = torch.zeros_like(features)
+            for i in range(features.size(1)):
+                feature_mid = features[:, i] * p
+                feat_conv1 = torch.nn.functional.conv2d((feature_mid * (1 - max_mask2[:, 0]))[:, None], filt, padding=1)
+                feat_conv2 = torch.nn.functional.conv2d((feature_mid * (1 - max_mask1[:, 0]))[:, None], filt, padding=1)
+
+                feat_out[:, [i]] = feat_conv1 * mult_1 + feat_conv2 * mult_2
+
+            feat_out[torch.isnan(feat_out)] = 0
+
+        return feat_out
+
+    def forward(self, features):
+        """
+        Wrapper method calling forward_masked which is the actual implementation.
+
+        :param features: NCHW
+        :return:
+        """
+        return self.forward_masked(features[:, 0], features[:, 1:])
+
+
+def speis_post_functional(features):
+    """
+    A dummy wrapper because I don't get tracing to work otherwise.
+
+    :param features: N x C x H x W
+    :return: feature averages N x C x H x W
+    """
+
+    return SpeiserPost(0.3, 0.6).forward(features)
 
 
 class CC5ChModel(ConnectedComponents):
@@ -366,12 +451,18 @@ class Offset2Coordinate:
         output_converted[:, 3] = y_coord
 
         if squeeze_batch_dim:
-            return output_converted.squeeze(0)
-        else:
-            return output_converted
+            output_converted.squeeze_(0)
+
+        return output_converted
 
 
 if __name__ == '__main__':
+
+    offset_2_coord = Offset2Coordinate((-0.5, 63.5), (-0.5, 63.5), (64, 64))
+    output = offset_2_coord.forward(torch.rand((2, 5, 64, 64)))
+
+    torch.jit.save(offset_2_coord, 'temp.pt')
+
     from sklearn.datasets.samples_generator import make_blobs
 
     # x = torch.tensor([[25., 25., 0], [0., 0., 5.], [0., 0., 7]])
@@ -383,16 +474,6 @@ if __name__ == '__main__':
     #                          extent=((-0.5, 10), (-0.5, 10), None))
     # xyz_clus, phot_clus = cn.forward(xyz, phot)
     # print(xyz_clus, phot_clus)
-
-    frame = torch.zeros((50, 50))
-    frame[0, 0] = 0.3
-    frame[1, 1] = 0.5
-    frame[2, 2] = 0.2
-
-    cn = ConnectedComponents(photon_threshold=0.6,
-                             extent=((-0.5, 24.5), (-0.5, 24.5), None), connectivity=1)
-    xyz_clus, phot_clus = cn.forward(frame)
-    print(xyz_clus, phot_clus)
 
     # centers = [[1, 1], [-1, -1], [1, -1]]
     # X, labels_true = make_blobs(n_samples=750, centers=centers, cluster_std=0.4,

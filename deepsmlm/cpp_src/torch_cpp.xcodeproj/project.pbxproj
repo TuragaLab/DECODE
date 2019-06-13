@@ -20,6 +20,8 @@
 		6FBB48BE22136359006BFE2C /* libtorch.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F4C477B22131D17004EC347 /* libtorch.dylib */; };
 		6FBB48C122141D11006BFE2C /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F02B4A4220C87AA00093004 /* main.cpp */; };
 		6FBB48C222172428006BFE2C /* torch_boost.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F4C47752213099E004EC347 /* torch_boost.cpp */; };
+		6FED9E9A229457FB008E6497 /* libtorch.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F4C477B22131D17004EC347 /* libtorch.dylib */; };
+		6FED9EA02294580A008E6497 /* inference.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6FED9E74229456D7008E6497 /* inference.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +71,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
+		6FED9E9B229457FB008E6497 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -93,6 +104,9 @@
 		6FBADEB2223BE083007E3109 /* spline_psf.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = spline_psf.c; sourceTree = "<group>"; };
 		6FBB48BA22136210006BFE2C /* torch_cubicspline.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = torch_cubicspline.cpp; sourceTree = "<group>"; };
 		6FBB48BB22136210006BFE2C /* torch_cubicspline.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = torch_cubicspline.hpp; sourceTree = "<group>"; };
+		6FED9E74229456D7008E6497 /* inference.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = inference.cpp; sourceTree = "<group>"; };
+		6FED9E7B22945714008E6497 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		6FED9E9F229457FB008E6497 /* testing copy */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "testing copy"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,6 +144,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		6FED9E98229457FB008E6497 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6FED9E9A229457FB008E6497 /* libtorch.dylib in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -140,6 +162,7 @@
 				6F323D1B2271B05A0021A75E /* tests */,
 				6F02B4A3220C87AA00093004 /* libtorchInterface */,
 				6F323D232271B2410021A75E /* testing */,
+				6FED9E7A22945714008E6497 /* inference */,
 				6F02B479220C765B00093004 /* Products */,
 				6F02B490220C794E00093004 /* Frameworks */,
 			);
@@ -152,6 +175,7 @@
 				6F02B486220C77CF00093004 /* torch_cppLibrary */,
 				6F02B4A2220C87AA00093004 /* libtorchInterface */,
 				6F323D222271B2410021A75E /* testing */,
+				6FED9E9F229457FB008E6497 /* testing copy */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -176,6 +200,7 @@
 				6F4C47792213196F004EC347 /* pybind_wrapper.cpp */,
 				6FBB48BA22136210006BFE2C /* torch_cubicspline.cpp */,
 				6FBB48BB22136210006BFE2C /* torch_cubicspline.hpp */,
+				6FED9E74229456D7008E6497 /* inference.cpp */,
 			);
 			path = libtorchInterface;
 			sourceTree = "<group>";
@@ -214,6 +239,14 @@
 				6FBADEB2223BE083007E3109 /* spline_psf.c */,
 			);
 			path = lib;
+			sourceTree = "<group>";
+		};
+		6FED9E7A22945714008E6497 /* inference */ = {
+			isa = PBXGroup;
+			children = (
+				6FED9E7B22945714008E6497 /* main.cpp */,
+			);
+			path = inference;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -288,6 +321,23 @@
 			productReference = 6F323D222271B2410021A75E /* testing */;
 			productType = "com.apple.product-type.tool";
 		};
+		6FED9E91229457FB008E6497 /* testing copy */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6FED9E9C229457FB008E6497 /* Build configuration list for PBXNativeTarget "testing copy" */;
+			buildPhases = (
+				6FED9E94229457FB008E6497 /* Sources */,
+				6FED9E98229457FB008E6497 /* Frameworks */,
+				6FED9E9B229457FB008E6497 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "testing copy";
+			productName = testing;
+			productReference = 6FED9E9F229457FB008E6497 /* testing copy */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -328,6 +378,7 @@
 				6F02B485220C77CF00093004 /* torch_cppLibrary */,
 				6F02B4A1220C87AA00093004 /* libtorchInterface */,
 				6F323D212271B2410021A75E /* testing */,
+				6FED9E91229457FB008E6497 /* testing copy */,
 			);
 		};
 /* End PBXProject section */
@@ -365,6 +416,14 @@
 				6F323D302271C1240021A75E /* torch_boost.cpp in Sources */,
 				6F323D2C2271B3E30021A75E /* catch_main.cpp in Sources */,
 				6F323D2A2271B2620021A75E /* test_torchcppboost.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6FED9E94229457FB008E6497 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6FED9EA02294580A008E6497 /* inference.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -680,6 +739,60 @@
 			};
 			name = Release;
 		};
+		6FED9E9D229457FB008E6497 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					TORCH_DIRECT,
+					"$(inherited)",
+				);
+				LD_RUNPATH_SEARCH_PATHS = /Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
+				OTHER_LDFLAGS = (
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libtorch.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libcaffe2.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libc10.dylib,
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_HEADER_SEARCH_PATHS = (
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include/torch/csrc/api/include,
+				);
+				USE_HEADERMAP = YES;
+			};
+			name = Debug;
+		};
+		6FED9E9E229457FB008E6497 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					TORCH_DIRECT,
+					"$(inherited)",
+				);
+				LD_RUNPATH_SEARCH_PATHS = /Users/lucasmueller/Documents/Development/cpp/libraries/libtorch/lib;
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
+				OTHER_LDFLAGS = (
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libtorch.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libcaffe2.dylib,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/lib/libc10.dylib,
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_HEADER_SEARCH_PATHS = (
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include,
+					/Users/lucasmueller/Documents/Development/Cpp/libraries/libtorch/include/torch/csrc/api/include,
+				);
+				USE_HEADERMAP = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -724,6 +837,15 @@
 			buildConfigurations = (
 				6F323D272271B2410021A75E /* Debug */,
 				6F323D282271B2410021A75E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6FED9E9C229457FB008E6497 /* Build configuration list for PBXNativeTarget "testing copy" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6FED9E9D229457FB008E6497 /* Debug */,
+				6FED9E9E229457FB008E6497 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

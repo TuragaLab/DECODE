@@ -57,7 +57,7 @@ class UNetLearned3D(UNet):
 
 if __name__ == '__main__':
     img = torch.rand((1, 1, 32, 32))
-    test = torch.rand((1, 1, 32, 32*4, 32*4)).cuda()
+    test = torch.rand((1, 1, 32, 32*4, 32*4))
 
     criterion = torch.nn.MSELoss()
     model = UNet(1, 1, F.relu)

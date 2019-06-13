@@ -1,5 +1,6 @@
 import os
 import sys
+import numpy as np
 import torch
 
 import torch_cpp
@@ -144,6 +145,9 @@ class EmitterSet:
         if self.num_emitter != 0:
             ix_low_ = ix_low if ix_low is not None else frame_ix.min()
             ix_up_ = ix_up if ix_up is not None else frame_ix.max()
+
+            # if not np.diff(frame_ix.numpy()) >= 0:
+            #     raise ValueError("Array is not sorted even though it is supposed to be.")
 
             grand_matrix_list = torch_cpp.split_tensor(grand_matrix, frame_ix, ix_low_, ix_up_)
 

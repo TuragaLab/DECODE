@@ -5,7 +5,7 @@ from deepsmlm.neuralfitter.models.unet_model import *
 
 class OffsetUnet(UNet):
     def __init__(self, n_channels):
-        super().__init__(n_channels, 5, out_func=F.relu)
+        super().__init__(n_channels=n_channels, n_classes=5)
         # p non-linearity is in loss (BCEWithLogitsLoss)
         self.p_nl = torch.sigmoid
         self.i_nl = torch.sigmoid
@@ -34,3 +34,14 @@ class OffsetUnet(UNet):
         x = torch.cat((p, i, xyz), 1)
 
         return x
+
+
+if __name__ == '__main__':
+    img = torch.rand((1, 1, 32, 32))
+    test = torch.rand((1, 1, 32, 32*4, 32*4))
+
+    criterion = torch.nn.MSELoss()
+    model = UNet(1, 1, F.relu)
+    out = model(img)
+
+    print("Done.")

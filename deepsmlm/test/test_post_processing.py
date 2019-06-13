@@ -54,3 +54,39 @@ class TestCC5ChModel:
         assert em_list.__len__() == 1
 
 
+class TestSpeiser:
+
+    @pytest.fixture(scope='class')
+    def speis(self):
+        return post.SpeiserPost(0.3, 0.6)
+
+    @pytest.fixture(scope='class')
+    def feat(self):
+        feat = torch.zeros((2, 5, 32, 32))
+
+        feat[0, 0, 5, 5] = .4 + 1e-7
+        feat[0, 0, 5, 6] = .4
+        feat[0, 1, 5, 5] = 10.
+        feat[0, 1, 5, 6] = 20.
+
+        return feat
+
+    def test_run(self, speis, feat):
+
+        output = speis.forward(feat)
+        assert torch.eq(torch.tensor(feat[:, 1:].size()), torch.tensor(output.size())).all()
+        assert torch.eq(torch.tensor([15., 0.]), output[0, 0, 5, 5:7]).all()
+
+    def test_trace(self, speis, feat):
+        x = torch.rand((2, 5, 64, 64))
+        traced_script_module = torch.jit.trace(post.speis_post_functional, x)
+
+        """Test whether the results are the same."""
+        output_speis = speis.forward(feat)
+        output_trace = traced_script_module(feat)
+        assert torch.eq(output_speis, output_trace).all()
+
+        x = torch.rand(32, 5, 64, 64)
+        assert torch.eq(speis.forward(x), traced_script_module(x)).all()
+
+

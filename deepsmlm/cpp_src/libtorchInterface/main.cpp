@@ -47,5 +47,7 @@ int main() {
     
     std::cout << x << std::endl;
     
+    torch::ones
+    
     return 0;
 }
