@@ -59,6 +59,8 @@ class LoadSaveModel:
         """After a certain period, change the suffix."""
         if (time.time() > self._new_name_time + self.name_time_interval) or metric_val is None:
             self.output_file_suffix += 1
+            self._new_name_time = time.time()
+
 
         """Determine file name and save."""
         fname = self.output_file[:-3] + '_' + str(self.output_file_suffix) + '.pt'
