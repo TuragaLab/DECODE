@@ -2,9 +2,9 @@ import os
 import torch
 
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
-# from deepsmlm.neuralfitter import scale_transform as scaling
-# from deepsmlm.neuralfitter import post_processing as post
-# from deepsmlm.generic.utils import processing as utils
+from deepsmlm.neuralfitter import scale_transform as scaling
+from deepsmlm.neuralfitter import post_processing as post
+from deepsmlm.generic.utils import processing as utils
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
 
 """Root folder"""
@@ -24,24 +24,26 @@ def trace_post_processing(post_functional):
     x = torch.rand((2, 5, 64, 64))
     traced_module = torch.jit.trace(post_functional, x)
 
-    return
+    return traced_module
 
 
 if __name__ == '__main__':
+
+    model = OffsetUnet(3)
+    model = LoadSaveModel(model,
+                          output_file=None,
+                          input_file='/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/network/2019-06-14_debug/model_1.pt').load_init(False)
+    traced_mod = trace_offset_model(model)
+    print("This is PyTorch version: {}".format(torch.__version__))
+    torch.jit.save(traced_mod, '/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/network/2019-06-14_debug/model_1_1810_trace.pt')
 
     # psf_extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
     # img_shape = (64, 64)
     #
     # rescale = scaling.OffsetRescale(0.5, 0.5, 750., 10000, 1.2)
     # convert_offset = post.Offset2Coordinate(psf_extent[0], psf_extent[1], img_shape)
-    # nms = post.SpeiserPost(0.3, 0.6)
+    # nms = post.SpeiserPost(0.3, 0.6, 'frames')
+    # nms = post.speis_post_functional
     #
-    # post_processing_functional = utils.TransformSequence([convert_offset]).forward
-    # trace_post_processing(post_processing_functional)
-
-    model = OffsetUnet(3)
-    model = LoadSaveModel(model,
-                          output_file=None,
-                          input_file='/home/lucas/RemoteDeploymentTemp/deepsmlm/network/2019-05-08/model_offset_47.pt').load_init(False)
-    traced_mod = trace_offset_model(model)
-    torch.jit.save(traced_mod, 'helloooo.pt')
+    # traced_post = trace_post_processing(nms)
+    print("Saved.")
