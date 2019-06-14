@@ -2,6 +2,10 @@ import torch
 
 
 class OffsetRescale:
+    """
+       The purpose of this class is to rescale the data from the network value world back to useful values.
+       This class is used after the network output.
+       """
     def __init__(self, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, buffer=1.):
         """
         Assumes scale_x, scale_y, scale_z to be symmetric ranged, scale_phot, ranged between 0-1
@@ -45,6 +49,10 @@ class OffsetRescale:
 
 
 class InverseOffsetRescale(OffsetRescale):
+    """
+    The purpose of this class is to provide the output to the network, i.e. scaling the data between -1,1 or 0,1.
+    This class is used before the network.
+    """
     def __init__(self, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, buffer=1.):
         """
         Assumes scale_x, scale_y, scale_z to be symmetric ranged, scale_phot, ranged between 0-1
