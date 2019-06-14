@@ -24,7 +24,7 @@ class OutOfFocusEmitters:
                                              yextent,
                                              (-5000., 5000.),
                                              img_shape=img_shape,
-                                             sigma_0=1.5,
+                                             sigma_0=2.5,
                                              peak_weight=True)
         self.level_dist = torch.distributions.uniform.Uniform(low=bg_range[0], high=bg_range[1])
 
