@@ -58,7 +58,7 @@ class TestSpeiser:
 
     @pytest.fixture(scope='class')
     def speis(self):
-        return post.SpeiserPost(0.3, 0.6)
+        return post.SpeiserPost(0.3, 0.6, 'frames')
 
     @pytest.fixture(scope='class')
     def feat(self):
@@ -74,8 +74,8 @@ class TestSpeiser:
     def test_run(self, speis, feat):
 
         output = speis.forward(feat)
-        assert torch.eq(torch.tensor(feat[:, 1:].size()), torch.tensor(output.size())).all()
-        assert torch.eq(torch.tensor([15., 0.]), output[0, 0, 5, 5:7]).all()
+        assert torch.eq(torch.tensor(feat.size()), torch.tensor(output.size())).all()
+        assert torch.eq(torch.tensor([15., 0.]), output[0, 1, 5, 5:7]).all()
 
     def test_trace(self, speis, feat):
         x = torch.rand((2, 5, 64, 64))

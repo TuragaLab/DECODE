@@ -168,19 +168,26 @@ class ConnectedComponents:
 
 class SpeiserPost:
 
-    def __init__(self, svalue_th=0., sep_th=0.6):
+    def __init__(self, svalue_th=0.3, sep_th=0.6, out_format='emitters', out_th=0.7):
+        """
 
+        :param svalue_th: single value threshold
+        :param sep_th: threshold when to assume that we have 2 emitters
+        :param out_format: either 'emitters' or 'image'. If 'emitter' we output instance of EmitterSet, if 'frames' we output post_processed frames.
+        :param out_th: final threshold
+        """
         self.svalue_th = svalue_th
         self.sep_th = sep_th
+        self.out_format = out_format
+        self.out_th = out_th
 
-    def forward_masked(self, p, features):
+    def forward(self, p, features):
         """
 
         :param features: N x C x H x W
         :return: feature averages N x C x H x W
         """
         with torch.no_grad():
-
             diag = 0
             p_ = p.clone()
             features = features.clone()
@@ -227,27 +234,56 @@ class SpeiserPost:
 
             feat_out[torch.isnan(feat_out)] = 0
 
-        return feat_out
+        """Output """
+        combined_output = torch.cat((p_ps, feat_out), dim=1)
 
-    def forward(self, features):
+        return combined_output
+
+    def forward_(self, features):
         """
         Wrapper method calling forward_masked which is the actual implementation.
 
         :param features: NCHW
-        :return:
+        :return: feature averages N x C x H x W if self.out_format == frames, EmitterSet if self.out_foramt == 'emitters'
         """
-        return self.forward_masked(features[:, 0], features[:, 1:])
+        post_frames = self.forward_masked(features[:, 0], features[:, 1:])
+        is_above_out_th = (post_frames[:, [0], :, :] > self.out_th)
+
+        post_frames = post_frames * is_above_out_th.type(post_frames.dtype)
+
+        """Output according to format as specified."""
+        if self.out_format == 'frames':
+            return post_frames
+
+        elif self.out_format == 'emitters':
+            is_above_out_th.squeeze_(1)
+            frame_ix = torch.ones_like(post_frames[:, 0, :, :]) * \
+                       torch.arange(post_frames.shape[0], dtype=post_frames.dtype).view(-1, 1, 1, 1)
+            frame_ix = frame_ix[:, 0, :, :][is_above_out_th]
+            p_map = post_frames[:, 0, :, :][is_above_out_th]
+            phot_map = post_frames[:, 1, :, :][is_above_out_th]
+            x_map = post_frames[:, 2, :, :][is_above_out_th]
+            y_map = post_frames[:, 3, :, :][is_above_out_th]
+            z_map = post_frames[:, 4, :, :][is_above_out_th]
+            xyz = torch.cat((
+                x_map.unsqueeze(1),
+                y_map.unsqueeze(1),
+                z_map.unsqueeze(1)
+            ), 1)
+            em = EmitterSet(xyz, phot_map, frame_ix)
+            em.p = p_map
+            return em
 
 
-def speis_post_functional(features):
+def speis_post_functional(x):
     """
     A dummy wrapper because I don't get tracing to work otherwise.
 
     :param features: N x C x H x W
-    :return: feature averages N x C x H x W
+    :return: feature averages N x C x H x W if self.out_format == frames, EmitterSet if self.out_foramt == 'emitters'
     """
 
-    return SpeiserPost(0.3, 0.6).forward(features)
+    return SpeiserPost(0.3, 0.6, 'frames').forward(x)
 
 
 class CC5ChModel(ConnectedComponents):
@@ -458,30 +494,10 @@ class Offset2Coordinate:
 
 if __name__ == '__main__':
 
-    offset_2_coord = Offset2Coordinate((-0.5, 63.5), (-0.5, 63.5), (64, 64))
-    output = offset_2_coord.forward(torch.rand((2, 5, 64, 64)))
+    speis = SpeiserPost(0.3, 0.6, 'emitters')
+    speis.save('testytest.pt')
+    x = torch.rand((2, 5, 64, 64))
+    output = speis.forward(x)
 
-    torch.jit.save(offset_2_coord, 'temp.pt')
-
-    from sklearn.datasets.samples_generator import make_blobs
-
-    # x = torch.tensor([[25., 25., 0], [0., 0., 5.], [0., 0., 7]])
-    # xyz = torch.tensor([[0.0, 0.0], [0.1, 0.05], [5.2, 5], [5.3, 5.1]])
-    # phot = torch.tensor([0.4, 0.4, 0.4, 0.2])
-    # cn = ConnectedComponents(mode='coords',
-    #                          distance_threshold=0.0015,
-    #                          photon_threshold=0.6,
-    #                          extent=((-0.5, 10), (-0.5, 10), None))
-    # xyz_clus, phot_clus = cn.forward(xyz, phot)
-    # print(xyz_clus, phot_clus)
-
-    # centers = [[1, 1], [-1, -1], [1, -1]]
-    # X, labels_true = make_blobs(n_samples=750, centers=centers, cluster_std=0.4,
-    #                             random_state=0)
-    # X = torch.from_numpy(X).unsqueeze(0)
-    # photons = torch.ones_like(X[:, :, 0])
-    #
-    # clusterer = CoordScan(2, 0.5, 5)
-    # clus_means, clus_photons = clusterer.forward(X, photons)
 
     print("Success.")
