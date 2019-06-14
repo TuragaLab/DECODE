@@ -60,6 +60,14 @@ SimulationParam = namedtuple("SimulationParam",
                                  'bg_pois',
                                  'calibration'])
 
+ScalingParam = namedtuple("ScalingParam",
+                          [
+                              'dx_max',
+                              'dy_max',
+                              'z_max',
+                              'phot_max',
+                              'linearisation_buffer'
+                          ])
 
 
 class Args:

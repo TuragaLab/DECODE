@@ -15,14 +15,14 @@ from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 from deepsmlm.generic.inout.load_save_emitter import NumpyInterface
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 import deepsmlm.generic.background as background
-import deepsmlm.generic.noise as noise
+import deepsmlm.generic.noise as noise_bg
 import deepsmlm.generic.psf_kernel as psf_kernel
 from deepsmlm.neuralfitter.pre_processing import OffsetRep
 from deepsmlm.generic.utils.data_utils import smlm_collate
 import deepsmlm.generic.utils.processing as processing
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, SimulationParam, LoggerParameter, \
-    SchedulerParameter
+    SchedulerParameter, ScalingParam
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss
@@ -53,7 +53,7 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-05-13/model_offset_no_phot_limit.pt',
+        model_out=deepsmlm_root + 'network/2019-06-14_debug/model.pt',
         model_init=None)
 
     log_par = LoggerParameter(
@@ -89,16 +89,24 @@ if __name__ == '__main__':
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(128 * 32 + 128),  # (256*256 + 512),
+        pseudo_data_size=(256 * 32 + 128),  # (256*256 + 512),
         emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-500, 500)),
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
         density=0,
         emitter_av=60,
-        photon_range=(3000, 8000),
-        bg_pois=15,
+        photon_range=(1000, 20000),
+        bg_pois=90,
         calibration=deepsmlm_root +
-                    'data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat')
+                    'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat')
+
+    scale_par = ScalingParam(
+        dx_max=0.5,
+        dy_max=0.5,
+        z_max=750.,
+        phot_max=25000.,
+        linearisation_buffer=1.2
+    )
 
     """Log System"""
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
@@ -114,6 +122,7 @@ if __name__ == '__main__':
     experiment.log_parameters(sched_par._asdict(), prefix='Sched')
     experiment.log_parameters(io_par._asdict(), prefix='IO')
     experiment.log_parameters(log_par._asdict(), prefix='Log')
+    experiment.log_parameters(scale_par._asdict(), prefix='Scale')
 
     """Add some tags as specified above."""
     for tag in log_par.tags:
@@ -129,11 +138,11 @@ if __name__ == '__main__':
                           img_shape=(sim_par.img_size[0], sim_par.img_size[1]))
     tar_seq = []
     tar_seq.append(offsetRep)
-    tar_seq.append(InverseOffsetRescale(offsetRep.offset.offset_max_x,
-                                        offsetRep.offset.offset_max_y,
-                                        sim_par.psf_extent[2][1],
-                                        10000,
-                                        1.2))
+    tar_seq.append(InverseOffsetRescale(scale_par.dx_max,
+                                        scale_par.dy_max,
+                                        scale_par.z_max,
+                                        scale_par.phot_max,
+                                        scale_par.linearisation_buffer))
 
     target_generator = processing.TransformSequence(tar_seq)
 
@@ -161,12 +170,15 @@ if __name__ == '__main__':
 
         """Define our noise model."""
         # Out of focus emitters, homogeneous background noise, poisson noise
-        noise = processing.TransformSequence([background.OutOfFocusEmitters(sim_par.psf_extent[0],
-                                                                            sim_par.psf_extent[1],
-                                                                            sim_par.img_size,
-                                                                            bg_range=(15., 15.),
-                                                                            num_bg_emitter=3),
-                                              noise.Poisson(bg_uniform=sim_par.bg_pois)])
+        noise = []
+        # noise.append(background.OutOfFocusEmitters(
+        #     sim_par.psf_extent[0],
+        #     sim_par.psf_extent[1],
+        #     sim_par.img_size,
+        #     bg_range=(15., 15.),
+        #     num_bg_emitter=3))
+        noise.append(noise_bg.Poisson(bg_uniform=sim_par.bg_pois))
+        noise = processing.TransformSequence(noise)
 
         structure_prior = structure_prior.RandomStructure(sim_par.emitter_extent[0],
                                                           sim_par.emitter_extent[1],
@@ -206,14 +218,14 @@ if __name__ == '__main__':
         train_loader = DataLoader(train_data_smlm,
                                   batch_size=hy_par.batch_size,
                                   shuffle=True,
-                                  num_workers=0,
+                                  num_workers=12,
                                   pin_memory=False,
                                   collate_fn=smlm_collate)
 
         test_loader = DataLoader(test_data_smlm,
                                  batch_size=hy_par.batch_size,
                                  shuffle=False,
-                                 num_workers=0,
+                                 num_workers=6,
                                  pin_memory=False,
                                  collate_fn=smlm_collate)
 
@@ -224,7 +236,11 @@ if __name__ == '__main__':
     model = OffsetUnet(hy_par.channels)
 
     proc = processing.TransformSequence([
-        OffsetRescale(0.5, 0.5, 750., 10000, 1.2),
+        OffsetRescale(scale_par.dx_max,
+                      scale_par.dy_max,
+                      scale_par.z_max,
+                      scale_par.phot_max,
+                      scale_par.linearisation_buffer),
         Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
         CC5ChModel(0.3, 0.1)
     ])
