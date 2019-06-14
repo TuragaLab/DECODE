@@ -1,0 +1,3 @@
+# Install packages which are not available through conda here.
+# WARNING: Do this after you have created and activated the conda environment! (aka source activate deepsmlm_deployed)
+comet-ml
