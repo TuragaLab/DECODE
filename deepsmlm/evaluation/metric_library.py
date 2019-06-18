@@ -1,3 +1,4 @@
+import math
 import torch
 from torch import nn as nn
 
@@ -112,7 +113,7 @@ def pos_neg_emitters(output, target, distance_threshold=1.):
     return tp, fp, fn, ix_pred2gt, ix_gt, ix_gt2pred, ix_pred
 
 
-class PrecisionRecallJacquard:
+class PrecisionRecallJaccard:
     def __init__(self):
         pass
 
@@ -131,9 +132,9 @@ class PrecisionRecallJacquard:
         fp = float(fp)
         fn = float(fn)
 
-        precision = tp / (tp + fp)
-        recall = tp / (tp + fn)
-        jacquard = tp / (tp + fp + fn)
+        precision = math.nan if (tp + fp) == 0 else tp / (tp + fp)
+        recall = math.nan if (tp + fn) == 0 else tp / (tp + fn)
+        jacquard = math.nan if (tp + fp + fn) == 0 else tp / (tp + fp + fn)
 
         return precision, recall, jacquard
 
@@ -187,7 +188,7 @@ class RMSEMAD:
         mad_lat = (mad_loss(tp_[:, 0], r_[:, 0]) + mad_loss(tp_[:, 0], r_[:, 0])) / num_tp
         mad_axial = mad_loss(tp_[:, 2], r_[:, 2]) / num_tp
 
-        return rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial
+        return rmse_vol.item(), rmse_lat.item(), rmse_axial.item(), mad_vol.item(), mad_lat.item(), mad_axial.item()
 
 
 if __name__ == '__main__':

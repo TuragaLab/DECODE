@@ -4,7 +4,8 @@ import numpy as np
 import torch
 from sklearn.neighbors import NearestNeighbors
 
-from deepsmlm.evaluation.metric_library import pos_neg_emitters, PrecisionRecallJacquard, RMSEMAD
+from deepsmlm.evaluation.metric_library import pos_neg_emitters, PrecisionRecallJaccard, RMSEMAD
+import deepsmlm.generic.emitter as emitter
 
 
 class MetricMeter:
@@ -47,13 +48,50 @@ class MetricMeter:
         self.vals.append(val)
         self.count += 1
 
+    def __str__(self):
+        return "(avg) = {:.3f}".format(self.avg)
+
+
+class EvalSet:
+    """Just a dummy class to combine things into one object."""
+    def __init__(self, prec, rec, jac, rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial):
+        self.prec = prec
+        self.rec = rec
+        self.jac = jac
+
+        self.rmse_vol = rmse_vol
+        self.rmse_lat = rmse_lat
+        self.rmse_axial = rmse_axial
+        self.mad_vol = mad_vol
+        self.mad_lat = mad_lat
+        self.mad_axial = mad_axial
+
+    def __str__(self):
+        str = "------------ Evaluation Set ------------\n"
+        str += "Precision {}\n".format(self.prec.__str__())
+        str += "Recall {}\n".format(self.rec.__str__())
+        str += "Jaccard {}\n".format(self.jac.__str__())
+        str += "RMSE lat. {}\n".format(self.rmse_lat.__str__())
+        str += "RMSE ax. {}\n".format(self.rmse_axial.__str__())
+        str += "RMSE vol. {}\n".format(self.rmse_vol.__str__())
+        str += "MAD lat. {}\n".format(self.mad_lat.__str__())
+        str += "MAD ax. {}\n".format(self.mad_axial.__str__())
+        str += "MAD vol. {}\n".format(self.mad_vol.__str__())
+        str += "-----------------------------------------"
+        return str
+
+
+
+
 
 class BatchEvaluation:
 
     def __init__(self, matching, segmentation_eval, distance_eval):
-        self.matching = matching
-        self.segmentation_eval = segmentation_eval
-        self.distance_eval = distance_eval
+        self._matching = matching
+        self._segmentation_eval = segmentation_eval
+        self._distance_eval = distance_eval
+
+        self.values = None
 
     def forward(self, output, target):
         """
@@ -63,7 +101,7 @@ class BatchEvaluation:
         :param target:
         :return:
         """
-        prec, rec, jaq = MetricMeter(), MetricMeter(), MetricMeter()
+        prec, rec, jac = MetricMeter(), MetricMeter(), MetricMeter()
         rmse_vol, rmse_lat, rmse_axial = MetricMeter(), MetricMeter(), MetricMeter()
         mad_vol, mad_lat, mad_axial = MetricMeter(), MetricMeter(), MetricMeter()
 
@@ -71,19 +109,21 @@ class BatchEvaluation:
             raise ValueError("Output and Target batch size must be of equal length.")
 
         for i in range(output.__len__()):
-            tp, fp, fn, tp_match = self.matching(output[i], target[i])
-            prec_, rec_, jaq_ = self.segmentation_eval.forward(tp, fp, fn)
-            rmse_vol_, rmse_lat_, rmse_axial_, mad_vol_, mad_lat_, mad_axial_ = self.distance_eval.forward()
+            tp, fp, fn, tp_match = self._matching.forward(output[i], target[i])
+            prec_, rec_, jaq_ = self._segmentation_eval.forward(tp, fp, fn)
+            rmse_vol_, rmse_lat_, rmse_axial_, mad_vol_, mad_lat_, mad_axial_ = self._distance_eval.forward(tp, tp_match)
 
             prec.update(prec_)
             rec.update(rec_)
-            jaq.update(jaq_)
+            jac.update(jaq_)
             rmse_vol.update(rmse_vol_)
             rmse_lat.update(rmse_lat_)
             rmse_axial.update(rmse_axial_)
             mad_vol.update(mad_vol_)
             mad_lat.update(mad_lat_)
             mad_axial.update(mad_axial_)
+
+        self.values = EvalSet(prec, rec, jac, rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial)
 
 
 class NNMatching:
@@ -100,6 +140,8 @@ class NNMatching:
         self.dist_lat_thresh = dist_lat
         self.dist_ax_thresh = dist_ax
         self.match_dims = match_dims
+
+        self.nearest_neigh = NearestNeighbors(n_neighbors=1, metric='minkowski', p=2)
 
         if self.match_dims not in [2, 3]:
             raise ValueError("You must compare in either 2 or 3 dimensions.")
@@ -123,7 +165,17 @@ class NNMatching:
             xyz_tar_ = xyz_tar
             xyz_out_ = xyz_out
 
-        nbrs = NearestNeighbors(n_neighbors=1, metric='minkowski', p=2).fit(xyz_tar_)
+        nbrs = self.nearest_neigh.fit(xyz_tar_)
+
+        """If no emitter has been found, all are false negatives. No tp, no fp."""
+        if xyz_out_.shape[0] == 0:
+            tp = emitter.EmptyEmitterSet()
+            fp = emitter.EmptyEmitterSet()
+            fn = target
+            tp_match = emitter.EmptyEmitterSet()
+
+            return tp, fp, fn, tp_match
+
         distances_nn, indices = nbrs.kneighbors(xyz_out_)
 
         distances_nn = distances_nn.squeeze()
@@ -172,7 +224,7 @@ class SegmentationEvaluation:
         """
         self.print_mode = print_mode
 
-    def forward_frame(self, tp, fp, fn):
+    def forward(self, tp, fp, fn):
         """
         Run the complete segmentation evaluation for two arbitrary emittersets.
         This disregards the frame_ix
@@ -183,7 +235,7 @@ class SegmentationEvaluation:
         :return: several metrics
         """
 
-        prec, rec, jac = PrecisionRecallJacquard.forward(tp.num_emitter, fp.num_emitter, fn.num_emitter)
+        prec, rec, jac = PrecisionRecallJaccard.forward(tp.num_emitter, fp.num_emitter, fn.num_emitter)
         actual_em = tp.num_emitter + fn.num_emitter
         pred_em = tp.num_emitter + fp.num_emitter
 
