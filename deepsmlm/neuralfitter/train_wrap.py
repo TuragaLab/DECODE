@@ -80,25 +80,25 @@ if __name__ == '__main__':
         dimensions=3,
         channels=3,
         max_emitters=64,
-        min_phot=0.,
+        min_phot=600.,
         data_lifetime=10,
-        upscaling=1,
+        upscaling=8,
         upscaling_mode='nearest',
-        batch_size=2,
-        test_size=4,
+        batch_size=32,
+        test_size=128,
         num_epochs=10000,
         lr=1E-4,
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(128 + 4),  # (256*256 + 512),
-        emitter_extent=((-0.5, 255.5), (-0.5, 255.5), (-750, 750)),
-        psf_extent=((-0.5, 255.5), (-0.5, 255.5), (-750., 750.)),
-        img_size=(256, 256),
+        pseudo_data_size=(128*32 + 128),  # (256*256 + 512),
+        emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-500, 500)),
+        psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
+        img_size=(64, 64),
         density=0,
-        emitter_av=100,
-        photon_range=(1000, 20000),
-        bg_pois=90,
+        emitter_av=60,
+        photon_range=(3000, 8000),
+        bg_pois=15,
         calibration=deepsmlm_root +
                     'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat')
 
