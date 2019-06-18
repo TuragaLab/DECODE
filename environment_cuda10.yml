@@ -4,10 +4,12 @@ channels:
   - anaconda
   - conda-forge
   - anaconda-fusion
+  - pyviz
   - defaults
 
 dependencies:
   - bokeh
+  - holoviews
   - cudatoolkit=10.0
   - intel-openmp
   - jupyter_contrib_nbextensions
