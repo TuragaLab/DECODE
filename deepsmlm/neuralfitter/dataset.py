@@ -103,7 +103,7 @@ class SMLMDatasetOnFly(Dataset):
         self.frame = None
         self.target = None
         self.em_tar = None
-        self.data_complete = True
+        self.data_complete = None
 
         self.drop_data_set(verbose=False)
         """Pre-Calculcate the complete dataset and use the same data as one draws samples.

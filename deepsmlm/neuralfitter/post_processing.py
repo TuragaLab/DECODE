@@ -181,11 +181,11 @@ class SpeiserPost:
         self.out_format = out_format
         self.out_th = out_th
 
-    def forward(self, p, features):
+    def forward_(self, p, features):
         """
-
-        :param features: N x C x H x W
-        :return: feature averages N x C x H x W
+        :param p: N x H x W probability map
+        :param features: N x C x H x W features
+        :return: feature averages N x (1 + C) x H x W final probabilities plus features
         """
         with torch.no_grad():
             diag = 0
@@ -239,17 +239,19 @@ class SpeiserPost:
 
         return combined_output
 
-    def forward_(self, features):
+    def forward(self, features):
         """
         Wrapper method calling forward_masked which is the actual implementation.
 
         :param features: NCHW
-        :return: feature averages N x C x H x W if self.out_format == frames, EmitterSet if self.out_foramt == 'emitters'
+        :return: feature averages N x C x H x W if self.out_format == frames,
+            list of EmitterSets if self.out_format == 'emitters'
         """
-        post_frames = self.forward_masked(features[:, 0], features[:, 1:])
+        post_frames = self.forward_(features[:, 0], features[:, 1:])
         is_above_out_th = (post_frames[:, [0], :, :] > self.out_th)
 
         post_frames = post_frames * is_above_out_th.type(post_frames.dtype)
+        batch_size = post_frames.shape[0]
 
         """Output according to format as specified."""
         if self.out_format == 'frames':
@@ -258,7 +260,7 @@ class SpeiserPost:
         elif self.out_format == 'emitters':
             is_above_out_th.squeeze_(1)
             frame_ix = torch.ones_like(post_frames[:, 0, :, :]) * \
-                       torch.arange(post_frames.shape[0], dtype=post_frames.dtype).view(-1, 1, 1, 1)
+                       torch.arange(batch_size, dtype=post_frames.dtype).view(-1, 1, 1, 1)
             frame_ix = frame_ix[:, 0, :, :][is_above_out_th]
             p_map = post_frames[:, 0, :, :][is_above_out_th]
             phot_map = post_frames[:, 1, :, :][is_above_out_th]
@@ -272,7 +274,7 @@ class SpeiserPost:
             ), 1)
             em = EmitterSet(xyz, phot_map, frame_ix)
             em.p = p_map
-            return em
+            return em.split_in_frames(0, batch_size - 1)
 
 
 def speis_post_functional(x):
@@ -461,8 +463,8 @@ class Offset2Coordinate:
 
     def _convert_xy_offset(self, x_offset, y_offset):
         batch_size = x_offset.size(0)
-        x_coord = self.x_mesh.repeat(batch_size, 1, 1) + x_offset
-        y_coord = self.y_mesh.repeat(batch_size, 1, 1) + y_offset
+        x_coord = self.x_mesh.repeat(batch_size, 1, 1).to(x_offset.device) + x_offset
+        y_coord = self.y_mesh.repeat(batch_size, 1, 1).to(y_offset.device) + y_offset
         return x_coord, y_coord
 
     def forward(self, output):

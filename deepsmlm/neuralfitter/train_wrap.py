@@ -10,19 +10,21 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
-from deepsmlm.neuralfitter.post_processing import Offset2Coordinate, CC5ChModel
+import deepsmlm.neuralfitter.post_processing as post
 from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 from deepsmlm.generic.inout.load_save_emitter import NumpyInterface
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 import deepsmlm.generic.background as background
 import deepsmlm.generic.noise as noise_bg
 import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.evaluation.evaluation as evaluation
 from deepsmlm.neuralfitter.pre_processing import OffsetRep
+import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.generic.utils.data_utils import smlm_collate
 import deepsmlm.generic.utils.processing as processing
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, SimulationParam, LoggerParameter, \
-    SchedulerParameter, ScalingParam
+    SchedulerParameter, ScalingParam, EvaluationParam, PostProcessingParam
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss
@@ -53,8 +55,8 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-06-14_debug/model.pt',
-        model_init=None)
+        model_out=deepsmlm_root + 'network/2019-06-17_debug/model_re.pt',
+        model_init=deepsmlm_root + 'network/2019-0')
 
     log_par = LoggerParameter(
         tags=['3D', 'Offset', 'UNet'])
@@ -80,32 +82,43 @@ if __name__ == '__main__':
         max_emitters=64,
         min_phot=0.,
         data_lifetime=10,
-        upscaling=8,
+        upscaling=1,
         upscaling_mode='nearest',
-        batch_size=32,
-        test_size=128,
+        batch_size=2,
+        test_size=4,
         num_epochs=10000,
         lr=1E-4,
         device=torch.device('cuda'))
 
     sim_par = SimulationParam(
-        pseudo_data_size=(256 * 32 + 128),  # (256*256 + 512),
-        emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-500, 500)),
-        psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
-        img_size=(64, 64),
+        pseudo_data_size=(128 + 4),  # (256*256 + 512),
+        emitter_extent=((-0.5, 255.5), (-0.5, 255.5), (-750, 750)),
+        psf_extent=((-0.5, 255.5), (-0.5, 255.5), (-750., 750.)),
+        img_size=(256, 256),
         density=0,
-        emitter_av=60,
+        emitter_av=100,
         photon_range=(1000, 20000),
         bg_pois=90,
         calibration=deepsmlm_root +
                     'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat')
 
     scale_par = ScalingParam(
-        dx_max=0.5,
-        dy_max=0.5,
+        dx_max=0.6,
+        dy_max=0.6,
         z_max=750.,
         phot_max=25000.,
         linearisation_buffer=1.2
+    )
+
+    post_par = PostProcessingParam(
+        single_val_th=0.3,
+        total_th=0.6
+    )
+
+    eval_par = EvaluationParam(
+        dist_lat=1.5,
+        dist_ax=300,
+        match_dims=2
     )
 
     """Log System"""
@@ -177,6 +190,7 @@ if __name__ == '__main__':
         #     sim_par.img_size,
         #     bg_range=(15., 15.),
         #     num_bg_emitter=3))
+
         noise.append(noise_bg.Poisson(bg_uniform=sim_par.bg_pois))
         noise = processing.TransformSequence(noise)
 
@@ -241,8 +255,8 @@ if __name__ == '__main__':
                       scale_par.z_max,
                       scale_par.phot_max,
                       scale_par.linearisation_buffer),
-        Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
-        CC5ChModel(0.3, 0.1)
+        post.Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
+        post.SpeiserPost(0.3, 0.6, 'emitters')
     ])
 
     """Log the model"""
@@ -262,7 +276,11 @@ if __name__ == '__main__':
     criterion = SpeiserLoss().return_criterion()
 
     """Set up post processor"""
-    post_processor = None
+    post_processor = processing.TransformSequence([
+        OffsetRescale(1, 1, 750., 25000, 1.2),
+        post.Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
+        post.SpeiserPost(post_par.single_val_th, post_par.total_th, 'emitters')
+    ])
 
     """Learning Rate Scheduling"""
     lr_scheduler = ReduceLROnPlateau(optimiser,
@@ -284,6 +302,14 @@ if __name__ == '__main__':
 
     last_new_model_name_time = time.time()
 
+    """Evaluation Specification"""
+    matcher = evaluation.NNMatching(eval_par.dist_lat, eval_par.dist_ax, eval_par.match_dims)
+    segmentation_eval = evaluation.SegmentationEvaluation(False)
+    distance_eval = evaluation.DistanceEvaluation(False)
+
+    batch_ev = evaluation.BatchEvaluation(matcher, segmentation_eval, distance_eval)
+    epoch_logger = log_utils.LogTestEpoch(logger, experiment)
+
     """Ask if everything is correct before we start."""
     for i in range(hy_par.num_epochs):
         logger.add_scalar('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
@@ -291,7 +317,7 @@ if __name__ == '__main__':
 
         train(train_loader, model, optimiser, criterion, i, hy_par, logger, experiment, train_data_smlm.calc_new_flag)
 
-        val_loss = test(test_loader, model, criterion, i, hy_par, logger, experiment, post_processor)
+        val_loss = test(test_loader, model, criterion, i, hy_par, logger, experiment, post_processor, batch_ev, epoch_logger)
         lr_scheduler.step(val_loss)
         sim_scheduler.step(val_loss)
 

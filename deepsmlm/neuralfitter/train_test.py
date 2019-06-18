@@ -121,7 +121,19 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
 
         # compute output
         output = model(x_in)
-        # import matplotlib.pyplot as plt; plt.imshow(x_in[0, 0].detach().cpu().numpy()); plt.show()
+        """
+        import matplotlib.pyplot as plt;
+        plt.figure(figsize=(32, 32))
+        plt.subplot(231)
+        plt.imshow(x_in[0, 0].detach().cpu().numpy())
+        plt.subplot(232)
+        plt.imshow(x_in[0, 1].detach().cpu().numpy())
+        plt.subplot(233)
+        plt.imshow(x_in[0, 2].detach().cpu().numpy())
+        plt.subplot(235)
+        plt.imshow(target[0, 0].detach().cpu().numpy())
+        plt.show()
+        """
         loss = criterion(output, target)
 
         # record loss
@@ -167,7 +179,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         step_batch += 1
 
 
-def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_processor):
+def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_processor, batch_ev, epoch_logger):
     """
     Taken from: https://pytorch.org/tutorials/beginner/aws_distributed_training_tutorial.html
     """
@@ -210,8 +222,15 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
 
     print("Test: Time: {batch_time.avg:.3f} \t""Loss: {loss.avg:.4f}".format(batch_time=batch_time, loss=losses))
 
+    # from list of outputs to one output
+    outputs = torch.cat(outputs, 0)
+
     """Forward output through post-processor for eval."""
     if post_processor is not None:
-        em_out = post_processor.forward(output)
+        em_out = post_processor.forward(outputs)
+
+    """Batch evaluation and log"""
+    batch_ev.forward(em_out, tars)
+    epoch_logger.forward(batch_ev.values, epoch)
 
     return losses.avg

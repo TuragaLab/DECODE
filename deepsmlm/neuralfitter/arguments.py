@@ -69,6 +69,19 @@ ScalingParam = namedtuple("ScalingParam",
                               'linearisation_buffer'
                           ])
 
+PostProcessingParam = namedtuple("PostProcessingParam",
+                                 {
+                                     'single_val_th',
+                                     'total_th'
+                                 })
+
+EvaluationParam = namedtuple("EvaluationParam",
+                             [
+                                 'dist_lat',
+                                 'dist_ax',
+                                 'match_dims'
+                             ])
+
 
 class Args:
     """
