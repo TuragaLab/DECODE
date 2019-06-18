@@ -46,7 +46,9 @@ HyperParamter = namedtuple('HyperParameter',
                                'test_size',
                                'num_epochs',
                                'lr',
-                               'device'])  # I know that is not a hyper parameter ...
+                               'device',
+                               'ignore_boundary_frames'
+                            ])  # I know that is not a hyper parameter ...
 
 SimulationParam = namedtuple("SimulationParam",
                              [

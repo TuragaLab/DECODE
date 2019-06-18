@@ -55,8 +55,8 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-06-17_debug/model_re.pt',
-        model_init=deepsmlm_root + 'network/2019-0')
+        model_out=deepsmlm_root + 'network/2019-06-18/model_rep_debugv1.pt',
+        model_init=None)
 
     log_par = LoggerParameter(
         tags=['3D', 'Offset', 'UNet'])
@@ -88,10 +88,11 @@ if __name__ == '__main__':
         test_size=128,
         num_epochs=10000,
         lr=1E-4,
-        device=torch.device('cuda'))
+        device=torch.device('cuda'),
+        ignore_boundary_frames=True)
 
     sim_par = SimulationParam(
-        pseudo_data_size=(128*32 + 128),  # (256*256 + 512),
+        pseudo_data_size=(256*32 + hy_par.test_size),  # (128*32 + 128),
         emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-500, 500)),
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
@@ -103,10 +104,10 @@ if __name__ == '__main__':
                     'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat')
 
     scale_par = ScalingParam(
-        dx_max=0.6,
-        dy_max=0.6,
+        dx_max=0.5,
+        dy_max=0.5,
         z_max=750.,
-        phot_max=25000.,
+        phot_max=10000.,
         linearisation_buffer=1.2
     )
 
@@ -277,7 +278,11 @@ if __name__ == '__main__':
 
     """Set up post processor"""
     post_processor = processing.TransformSequence([
-        OffsetRescale(1, 1, 750., 25000, 1.2),
+        OffsetRescale(scale_par.dx_max,
+                      scale_par.dy_max,
+                      scale_par.z_max,
+                      scale_par.phot_max,
+                      scale_par.linearisation_buffer),
         post.Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
         post.SpeiserPost(post_par.single_val_th, post_par.total_th, 'emitters')
     ])

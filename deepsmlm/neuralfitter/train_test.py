@@ -134,7 +134,12 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         plt.imshow(target[0, 0].detach().cpu().numpy())
         plt.show()
         """
-        loss = criterion(output, target)
+
+        """Ignore the loss of the boundary frames"""
+        if hy_par.ignore_boundary_frames:
+            loss = criterion(output[1:-1], target[1:-1])
+        else:
+            loss = criterion(output, target)
 
         # record loss
         losses.update(loss.item())
