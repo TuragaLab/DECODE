@@ -55,7 +55,7 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-06-18/model_rep_debugv1.pt',
+        model_out=deepsmlm_root + 'network/2019-06-18/model_for_challenge.pt',
         model_init=None)
 
     log_par = LoggerParameter(
@@ -80,7 +80,7 @@ if __name__ == '__main__':
         dimensions=3,
         channels=3,
         max_emitters=64,
-        min_phot=600.,
+        min_phot=0.,
         data_lifetime=10,
         upscaling=8,
         upscaling_mode='nearest',
@@ -93,27 +93,27 @@ if __name__ == '__main__':
 
     sim_par = SimulationParam(
         pseudo_data_size=(256*32 + hy_par.test_size),  # (128*32 + 128),
-        emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-500, 500)),
+        emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-750, 750)),
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
         density=0,
         emitter_av=60,
-        photon_range=(3000, 8000),
-        bg_pois=15,
+        photon_range=(1000, 20000),
+        bg_pois=90,
         calibration=deepsmlm_root +
                     'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat')
 
     scale_par = ScalingParam(
-        dx_max=0.5,
-        dy_max=0.5,
+        dx_max=0.6,
+        dy_max=0.6,
         z_max=750.,
-        phot_max=10000.,
+        phot_max=25000.,
         linearisation_buffer=1.2
     )
 
     post_par = PostProcessingParam(
-        single_val_th=0.3,
-        total_th=0.6
+        single_val_th=0.2,
+        total_th=0.5
     )
 
     eval_par = EvaluationParam(
