@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+from matplotlib.ticker import AutoMinorLocator
 from math import sqrt
 
 import numpy as np
@@ -5,6 +7,7 @@ import torch
 from sklearn.neighbors import NearestNeighbors
 
 from deepsmlm.evaluation.metric_library import pos_neg_emitters, PrecisionRecallJaccard, RMSEMAD
+import deepsmlm.evaluation.metric_library as metric_lib
 import deepsmlm.generic.emitter as emitter
 
 
@@ -28,6 +31,12 @@ class MetricMeter:
     def avg(self):
         return self.mean
 
+    def hist(self, bins=30, range=None):
+        _ = plt.hist(self.vals.view(-1).numpy(), bins=30, range=range)
+        ax = plt.gca()
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        return ax
+
     def reset(self):
         """
         Reset instance.
@@ -49,12 +58,30 @@ class MetricMeter:
         self.count += 1
 
     def __str__(self):
-        return "(avg) = {:.3f}".format(self.avg)
+        return "(avg) - (sig) = {:.3f} - {:.3f}".format(self.avg, self.std)
+
+
+class CumulantMeter(MetricMeter):
+    def __init__(self):
+        super().__init__()
+        self.vals = torch.empty(0)
+
+    def update(self, val):
+        """
+        Assuming a 1D tensor
+        :param val:
+        :return:
+        """
+
+        self.vals = torch.cat((self.vals, val), 0)
 
 
 class EvalSet:
     """Just a dummy class to combine things into one object."""
-    def __init__(self, prec, rec, jac, rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial):
+    def __init__(self, prec, rec, jac,
+                 rmse_vol, rmse_lat, rmse_axial,
+                 mad_vol, mad_lat, mad_axial,
+                 dx, dy, dz, dxw, dyw, dzw):
         self.prec = prec
         self.rec = rec
         self.jac = jac
@@ -65,6 +92,13 @@ class EvalSet:
         self.mad_vol = mad_vol
         self.mad_lat = mad_lat
         self.mad_axial = mad_axial
+
+        self.dx = dx
+        self.dy = dy
+        self.dz = dz
+        self.dxw = dxw
+        self.dyw = dyw
+        self.dzw = dzw
 
     def __str__(self):
         str = "------------ Evaluation Set ------------\n"
@@ -81,15 +115,13 @@ class EvalSet:
         return str
 
 
-
-
-
 class BatchEvaluation:
 
     def __init__(self, matching, segmentation_eval, distance_eval):
         self._matching = matching
         self._segmentation_eval = segmentation_eval
         self._distance_eval = distance_eval
+        self._distance_delta = metric_lib.Deltas()
 
         self.values = None
 
@@ -104,6 +136,8 @@ class BatchEvaluation:
         prec, rec, jac = MetricMeter(), MetricMeter(), MetricMeter()
         rmse_vol, rmse_lat, rmse_axial = MetricMeter(), MetricMeter(), MetricMeter()
         mad_vol, mad_lat, mad_axial = MetricMeter(), MetricMeter(), MetricMeter()
+        dx, dy, dz, dxw, dyw, dzw = CumulantMeter(), CumulantMeter(), CumulantMeter(), \
+                                    CumulantMeter(), CumulantMeter(), CumulantMeter()
 
         if output.__len__() != target.__len__():
             raise ValueError("Output and Target batch size must be of equal length.")
@@ -112,6 +146,7 @@ class BatchEvaluation:
             tp, fp, fn, tp_match = self._matching.forward(output[i], target[i])
             prec_, rec_, jaq_ = self._segmentation_eval.forward(tp, fp, fn)
             rmse_vol_, rmse_lat_, rmse_axial_, mad_vol_, mad_lat_, mad_axial_ = self._distance_eval.forward(tp, tp_match)
+            dx_, dy_, dz_, dxw_, dyw_, dzw_ = self._distance_delta.forward(tp, tp_match)
 
             prec.update(prec_)
             rec.update(rec_)
@@ -123,7 +158,17 @@ class BatchEvaluation:
             mad_lat.update(mad_lat_)
             mad_axial.update(mad_axial_)
 
-        self.values = EvalSet(prec, rec, jac, rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial)
+            dx.update(dx_)
+            dy.update(dy_)
+            dz.update(dz_)
+            dxw.update(dxw_)
+            dyw.update(dyw_)
+            dzw.update(dzw_)
+
+        self.values = EvalSet(prec, rec, jac,
+                              rmse_vol, rmse_lat, rmse_axial,
+                              mad_vol, mad_lat, mad_axial,
+                              dx, dy, dz, dxw, dyw, dzw)
 
 
 class NNMatching:

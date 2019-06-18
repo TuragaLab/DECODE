@@ -2,6 +2,8 @@ import math
 import torch
 from torch import nn as nn
 
+import deepsmlm.generic.emitter as emitter
+
 
 def expanded_pairwise_distances(x, y=None, sqd=False):
     '''
@@ -154,6 +156,24 @@ def interpoint_loss(output, target, reduction='mean'):
         return interpoint_dist.min(1)[0].sum()
     else:
         raise ValueError('Reduction type unsupported.')
+
+
+class Deltas:
+    def __init__(self):
+        return
+
+    @staticmethod
+    def forward(tp: emitter.EmitterSet, ref: emitter.EmitterSet):
+        """
+        Calculate the dx / dy / dz values and their weighted values (weighted by the photons).
+        :param tp: true positives (instance of emitterset)
+        :param ref: reference (instance of emitterset)
+        :return: dx, dy, dz, dx_weighted, dy_weighted, dz_weighted
+        """
+        dxyz = tp.xyz - ref.xyz
+        dxyz_weighted = dxyz * (ref.phot.unsqueeze(1)).sqrt()
+
+        return dxyz[:, 0], dxyz[:, 1], dxyz[:, 2], dxyz_weighted[:, 0], dxyz_weighted[:, 1], dxyz_weighted[:, 2]
 
 
 class RMSEMAD:
