@@ -195,6 +195,12 @@ class CoordinateOnlyEmitter(EmitterSet):
         super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]))
 
 
+class EmptyEmitterSet(CoordinateOnlyEmitter):
+    """An empty emitter set."""
+    def __init__(self):
+        super().__init__(torch.zeros((0, 3)))
+
+
 class LooseEmitterSet:
     """
     An emitterset where we don't specify the frame_ix of an emitter but rather it's (real) time when

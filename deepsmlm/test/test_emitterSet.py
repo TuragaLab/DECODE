@@ -2,7 +2,7 @@ import torch
 from unittest import TestCase
 import pytest
 
-from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet
+from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
 
 
 class TestEmitterSet:
@@ -81,3 +81,9 @@ class TestEmitterSet:
         assert 70 == cat_sets.num_emitter
         assert 5 == cat_sets.frame_ix[0]
         assert 50 == cat_sets.frame_ix[50]
+
+
+def test_empty_emitterset():
+    em = EmptyEmitterSet()
+    assert 0 == em.num_emitter
+
