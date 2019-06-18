@@ -104,7 +104,10 @@ class Simulation:
         frames = torch.stack(frame_list, dim=0)
 
         """Add background. This needs to happen here and not on a single frame, since background may be correlated."""
-        self.frames = self.background.forward(frames).type(torch.int16)
+        if self.background is not None:
+            self.frames = self.background.forward(frames).type(torch.int16)
+        else:
+            self.frames = frames.type(torch.int16)
 
         return self.frames
 
