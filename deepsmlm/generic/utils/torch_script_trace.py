@@ -29,13 +29,16 @@ def trace_post_processing(post_functional):
 
 if __name__ == '__main__':
 
+    file = '/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/network/2019-06-18/model_for_challenge_4.pt'
+    traced_file = file[:-3] + '_jit_traced.pt'
+
     model = OffsetUnet(3)
     model = LoadSaveModel(model,
                           output_file=None,
-                          input_file='/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/network/2019-06-14_debug/model_1.pt').load_init(False)
+                          input_file=file).load_init(False)
     traced_mod = trace_offset_model(model)
     print("This is PyTorch version: {}".format(torch.__version__))
-    torch.jit.save(traced_mod, '/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/network/2019-06-14_debug/model_1_1810_trace.pt')
+    torch.jit.save(traced_mod, traced_file)
 
     # psf_extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
     # img_shape = (64, 64)
