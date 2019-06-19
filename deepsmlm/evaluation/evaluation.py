@@ -49,7 +49,7 @@ class MetricMeter:
 
         """Get the fit values."""
         (mu, sigma) = stats.norm.fit(vals)
-        plt.legend(["N $ (\mu$ = {0:.3g}, $\sigma^2$ = {1:.3g}$^2$)".format(mu, sigma)])
+        plt.legend(["N $ (\mu$ = {0:.3g}, $\sigma^2$ = {1:.3g}$^2$)".format(mu, sigma)], frameon=False)
 
         # Cosmetics
         ax_box.set(yticks=[])
