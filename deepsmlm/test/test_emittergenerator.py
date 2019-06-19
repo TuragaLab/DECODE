@@ -19,13 +19,13 @@ class TestEmitterPopperMultiFrame:
                                              density=None,
                                              intensity_mu_sig=(1000., 300.),
                                              lifetime=1.5,
-                                             num_frames=1000.,
+                                             num_frames=3.,
                                              emitter_av=60)
 
     def test_loose_emset(self, empopper):
         loose_em = empopper.gen_loose_emitter()
-        assert loose_em.intensity.mean().item() == pytest.approx(1000., 0.001)
-        assert loose_em.intensity.std().item() == pytest.approx(300., 0.01)
+        assert loose_em.intensity.mean().item() == pytest.approx(1000., 0.1)
+        assert loose_em.intensity.std().item() == pytest.approx(300., 0.1)
 
     def test_emset_after_distribution(self, empopper):
         emset = empopper.pop()

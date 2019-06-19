@@ -105,6 +105,16 @@ class TestLooseEmitterSet:
 
         return em
 
+    def test_distribution(self):
+        loose_em = emitter.LooseEmitterSet(torch.zeros((2, 3)),
+                                           torch.tensor([1000., 10]),
+                                           None,
+                                           torch.tensor([-0.2, 0.9]),
+                                           torch.tensor([1., 5]))
+
+        em = loose_em.return_emitterset()
+        print("Done")
+
     @pytest.mark.skip(reason="C++ currently not implemented for updated generator.")
     def test_eq_distribute(self, dummy_set):
         """

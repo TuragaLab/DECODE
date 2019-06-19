@@ -45,7 +45,7 @@ deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
                  os.pardir, os.pardir)) + '/'
 
-WRITE_TO_LOG = False
+WRITE_TO_LOG = True
 
 if __name__ == '__main__':
 
@@ -104,14 +104,14 @@ if __name__ == '__main__':
         calibration=deepsmlm_root +
                     'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat',
         intensity_mu_sig=(2000., 500.),
-        lifetime=2.
+        lifetime_avg=2.
         )
 
     scale_par = ScalingParam(
         dx_max=0.6,
         dy_max=0.6,
         z_max=750.,
-        phot_max=25000.,
+        phot_max=15000.,
         linearisation_buffer=1.2
     )
 

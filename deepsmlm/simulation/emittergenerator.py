@@ -77,11 +77,20 @@ class EmitterPopperMultiFrame(EmitterPopper):
         self.intensity_mu_sig = intensity_mu_sig
         self.intensity_dist = torch.distributions.normal.Normal(self.intensity_mu_sig[0],
                                                                 self.intensity_mu_sig[1])
-        self.lifetime = lifetime
-        self.lifetime_dist = Exponential(self.lifetime)
+        self.lifetime_avg = lifetime
+        self.lifetime_dist = Exponential(1 / self.lifetime_avg)  # parse the rate not the scale ...
+        if num_frames != 3:
+            raise ValueError("Current emitter generator needs to be changed to allow for more than 3 frames.")
+
+        self.frame_range = (int(-(self.num_frames - 1) / 2), int((self.num_frames - 1) / 2))
+
+        self.t0_dist = torch.distributions.uniform.Uniform(self.frame_range[0] - 3 * self.lifetime_avg,
+                                                           self.frame_range[1] + 3 * self.lifetime_avg)
 
         """Determine the number of emitters. Depends on lifetime and num_frames. Rough estimate."""
-        self.emitter_av = math.ceil(self.emitter_av * 1.8 * self.num_frames / (0.5 * self.lifetime + 1))
+        # self.emitter_av = math.ceil(self.emitter_av * 2 * self.num_frames / (1))
+        self.emitter_av = emitter_av
+        self._emitter_av_total = None
 
     def gen_loose_emitter(self):
         """
@@ -89,26 +98,48 @@ class EmitterPopperMultiFrame(EmitterPopper):
         :return: isntance of LooseEmitterset
         """
         """Pop a multi_frame emitter set."""
-        n = np.random.poisson(lam=self.emitter_av)
+        if self._emitter_av_total is None:
+            lam_in = self.emitter_av
+        else:
+            lam_in = self._emitter_av_total
+
+        n = np.random.poisson(lam=lam_in)
         xyz = self.structure.draw(n, 3)
         """Draw from intensity distribution but clamp the value so as not to fall below 0."""
         intensity = torch.clamp(self.intensity_dist.sample((n,)), 0, None)
 
         """Distribute emitters in time. Increase the range a bit."""
-        t0 = torch.rand((n,)) * (self.num_frames + 4 * self.lifetime)
+        t0 = self.t0_dist.sample((n, ))
         ontime = self.lifetime_dist.rsample((n,))
 
         return LooseEmitterSet(xyz, intensity, None, t0, ontime)
 
+    def _test_actual_number(self):
+        """
+        Function to test what the actual number of emitters on the target frame is. Basically for debugging.
+        :return: number of emitters on 0th frame.
+        """
+        return self.gen_loose_emitter().return_emitterset().get_subset_frame(0, 0).num_emitter
+
+    def _total_emitter_average_search(self):
+        """
+        Search for the correct total emitter average (since the users specifies it on the 0th frame but we have more)
+        :return:
+        """
+        actual_emitters = torch.zeros(20)
+        for i in range(actual_emitters.shape[0]):
+            actual_emitters[i] = self._test_actual_number()
+        actual_emitters = actual_emitters.mean().item()
+        self._emitter_av_total = self.emitter_av ** 2 / actual_emitters
+
     def pop(self):
-        frame_range = (math.ceil(2 * self.lifetime), math.ceil(2 * self.lifetime) + self.num_frames - 1)
+        frame_range = (math.ceil(2 * self.lifetime_avg), math.ceil(2 * self.lifetime_avg) + self.num_frames - 1)
         """
         Return Emitters with frame index. Use subset of the originally increased range of frames because of
         statistical reasons. Shift index to -1, 0, 1 ...
         """
         loose_em = self.gen_loose_emitter()
-        return loose_em.return_emitterset().get_subset_frame(*frame_range,
-                                                             shift_to=-(self.num_frames - 1)/2)
+        return loose_em.return_emitterset().get_subset_frame(-1, 1)
 
 
 class RandomPhysical(EmitterGenerator):
