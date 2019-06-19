@@ -103,7 +103,8 @@ if __name__ == '__main__':
         bg_pois=90,
         calibration=deepsmlm_root +
                     'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat',
-        intensity_mu_sig=(1000., 200.)
+        intensity_mu_sig=(2000., 500.),
+        lifetime=2.
         )
 
     scale_par = ScalingParam(
@@ -205,7 +206,7 @@ if __name__ == '__main__':
         prior = emittergenerator.EmitterPopperMultiFrame(structure_prior,
                                                          density=sim_par.density,
                                                          intensity_mu_sig=sim_par.intensity_mu_sig,
-                                                         lifetime=1,
+                                                         lifetime=sim_par.lifetime_avg,
                                                          num_frames=3,
                                                          emitter_av=sim_par.emitter_av)
 

@@ -62,7 +62,9 @@ SimulationParam = namedtuple("SimulationParam",
                                  'photon_range',
                                  'bg_pois',
                                  'calibration',
-                                 'intensity_mu_sig'])
+                                 'intensity_mu_sig',
+                                 'lifetime_avg'
+                            ])
 
 ScalingParam = namedtuple("ScalingParam",
                           [
