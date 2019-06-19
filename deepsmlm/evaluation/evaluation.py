@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 from math import sqrt
+from scipy import stats
+import seaborn as sns
 
 import numpy as np
 import torch
@@ -32,10 +34,30 @@ class MetricMeter:
         return self.mean
 
     def hist(self, bins=30, range=None):
-        _ = plt.hist(self.vals.view(-1).numpy(), bins=30, range=range)
-        ax = plt.gca()
-        ax.xaxis.set_minor_locator(AutoMinorLocator())
-        return ax
+        """
+
+        :param bins: number of bins
+        :param range: specify range
+        :return: plt.figure
+        """
+        vals = self.vals.view(-1).numpy()
+        f, (ax_box, ax_hist) = plt.subplots(2, sharex=True, gridspec_kw={"height_ratios": (.1, .9)})
+
+        """Plot boxplot and distplot."""
+        sns.boxplot(vals, ax=ax_box)
+        sns.distplot(vals, ax=ax_hist, kde=False, fit=stats.norm, bins=30)
+
+        """Get the fit values."""
+        (mu, sigma) = stats.norm.fit(vals)
+        plt.legend(["N $ (\mu$ = {0:.3g}, $\sigma^2$ = {1:.3g}$^2$)".format(mu, sigma)])
+
+        # Cosmetics
+        ax_box.set(yticks=[])
+        ax_box.xaxis.set_minor_locator(AutoMinorLocator())
+        ax_hist.xaxis.set_minor_locator(AutoMinorLocator())
+        sns.despine(ax=ax_hist)
+        sns.despine(ax=ax_box, left=True)
+        return f
 
     def reset(self):
         """

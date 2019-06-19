@@ -17,5 +17,6 @@ class TestCumulantMeter:
         m = evaluation.CumulantMeter()
         m.update(torch.rand(10000))
         m.update(torch.rand(10000))
-        f = m.hist
+        f = m.hist()
+        plt.show()
         assert True
