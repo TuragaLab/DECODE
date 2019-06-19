@@ -26,24 +26,35 @@ class Loss(ABC):
 
 
 class SpeiserLoss:
-    def __init__(self):
+    def __init__(self, weight_sqrt_phot=False):
+        """
+
+        :param weight_sqrt_phot: weight phot, dx, dy, dz etc. by sqrt(phot), i.e. weight the l2 loss
+        """
         self.ce = torch.nn.BCELoss()
         self.l2 = torch.nn.MSELoss()
+        self.weight_sqrt_phot = weight_sqrt_phot
 
     @staticmethod
-    def loss(output, target, ce, l2):
+    def loss(output, target, ce, l2, weight_by_phot):
         mask = target[:, [0], :, :]
 
         p_loss = ce(output[:, [0], :, :], target[:, [0], :, :])
-        # all other losses must be masked
-        xyzi_loss = l2(mask * output[:, 1:, :, :], mask * target[:, 1:, :, :])
+
+        if weight_by_phot:
+            weight = target[:, [1], :, :]
+        else:
+            weight = torch.ones_like(target[:, [1], :, :])
+
+        """Mask and weight the loss"""
+        xyzi_loss = l2(mask * weight * output[:, 1:, :, :], mask * weight * target[:, 1:, :, :])
 
         return p_loss + xyzi_loss
 
     def return_criterion(self):
 
         def loss_return(output, target):
-            return self.loss(output, target, self.ce, self.l2)
+            return self.loss(output, target, self.ce, self.l2, self.weight_sqrt_phot)
 
         return loss_return
 

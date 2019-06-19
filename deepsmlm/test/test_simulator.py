@@ -24,7 +24,7 @@ class TestSimulator:
         psf_extent = ((-0.5, 63.5), (-0.5, 63.5), (-750, 750))
         img_shape = (64, 64)
         csp_calib = deepsmlm_root + \
-                    'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat'
+                    'data/Calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat'
 
         sp = load_calib.SMAPSplineCoefficient(csp_calib)
         psf = sp.init_spline(psf_extent[0], psf_extent[1], img_shape=img_shape)

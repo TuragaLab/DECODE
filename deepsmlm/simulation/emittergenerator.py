@@ -6,6 +6,7 @@ from random import randint
 import torch
 from torch.distributions.exponential import Exponential
 
+
 from deepsmlm.generic.emitter import EmitterSet, LooseEmitterSet
 
 
@@ -61,30 +62,53 @@ class EmitterPopper:
 
 
 class EmitterPopperMultiFrame(EmitterPopper):
-    def __init__(self, structure, density, photon_range, lifetime, num_frames=3, emitter_av=None):
-        super().__init__(structure, density, photon_range, emitter_av)
+    def __init__(self, structure, density, intensity_mu_sig, lifetime, num_frames=3, emitter_av=None):
+        """
+
+        :param structure: structure to sample locations frame
+        :param density: density of fluophores
+        :param intensity_mu_sig: intensity parametrisation for gaussian dist (mu, sig)
+        :param lifetime: average lifetime
+        :param num_frames: number of frames
+        :param emitter_av: average number of emitters (note that this overrides the density)
+        """
+        super().__init__(structure, density, None, emitter_av)
         self.num_frames = num_frames
+        self.intensity_mu_sig = intensity_mu_sig
+        self.intensity_dist = torch.distributions.normal.Normal(self.intensity_mu_sig[0],
+                                                                self.intensity_mu_sig[1])
         self.lifetime = lifetime
         self.lifetime_dist = Exponential(self.lifetime)
 
         """Determine the number of emitters. Depends on lifetime and num_frames. Rough estimate."""
         self.emitter_av = math.ceil(self.emitter_av * 1.8 * self.num_frames / (0.5 * self.lifetime + 1))
 
-    def pop(self):
+    def gen_loose_emitter(self):
+        """
+        Generate a loose emitterset (float starting time ...)
+        :return: isntance of LooseEmitterset
+        """
         """Pop a multi_frame emitter set."""
         n = np.random.poisson(lam=self.emitter_av)
         xyz = self.structure.draw(n, 3)
-        phot = torch.randint(*self.photon_range, (n,))
+        """Draw from intensity distribution but clamp the value so as not to fall below 0."""
+        intensity = torch.clamp(self.intensity_dist.sample((n,)), 0, None)
 
         """Distribute emitters in time. Increase the range a bit."""
         t0 = torch.rand((n,)) * (self.num_frames + 4 * self.lifetime)
-        ontime = self.lifetime_dist.rsample((n, ))
+        ontime = self.lifetime_dist.rsample((n,))
 
+        return LooseEmitterSet(xyz, intensity, None, t0, ontime)
+
+    def pop(self):
         frame_range = (math.ceil(2 * self.lifetime), math.ceil(2 * self.lifetime) + self.num_frames - 1)
-        """Return Emitters with frame index. Use subset of the originally increased range of frames because of
-        statistical reasons. Shift index to -1, 0, 1 ..."""
-        return LooseEmitterSet(xyz, phot, None, t0, ontime).\
-            return_emitterset().get_subset_frame(*frame_range, shift_to=-(self.num_frames - 1)/2)
+        """
+        Return Emitters with frame index. Use subset of the originally increased range of frames because of
+        statistical reasons. Shift index to -1, 0, 1 ...
+        """
+        loose_em = self.gen_loose_emitter()
+        return loose_em.return_emitterset().get_subset_frame(*frame_range,
+                                                             shift_to=-(self.num_frames - 1)/2)
 
 
 class RandomPhysical(EmitterGenerator):

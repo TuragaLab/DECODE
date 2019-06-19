@@ -206,11 +206,12 @@ class LooseEmitterSet:
     An emitterset where we don't specify the frame_ix of an emitter but rather it's (real) time when
     it's starts to blink and it's ontime and then construct the EmitterSet (framewise) out of it.
     """
-    def __init__(self, xyz, phot, id=None, t0=None, ontime=None):
+    def __init__(self, xyz, intensity, id=None, t0=None, ontime=None):
         """
 
         :param xyz: Coordinates
         :param phot: Photons
+        :param intensity: Intensity (i.e. photons per time)
         :param id: ID
         :param t0: Timepoint of first occurences
         :param ontime: Duration in frames how long the emitter is on.
@@ -221,7 +222,8 @@ class LooseEmitterSet:
             id = torch.arange(xyz.shape[0])
 
         self.xyz = xyz
-        self.phot = phot
+        self.phot = None
+        self.intensity = intensity
         self.id = id
         self.t0 = t0
         self.te = None
@@ -233,10 +235,10 @@ class LooseEmitterSet:
 
         :return: Instance of EmitterSet class.
         """
-        xyz_, phot_, frame_ix_, id_ = self.distribute_framewise()
+        xyz_, phot_, frame_ix_, id_ = self.distribute_framewise_py()
         return EmitterSet(xyz_, phot_, frame_ix_, id_)
 
-    def distribute_framewise(self):
+    def distribute_framewise_cpp(self):
         """
         Wrapper to call C++ function to distribute the stuff over the frames.
         Unfortunately this does not seem to be way faster than the Py version ...
@@ -251,6 +253,11 @@ class LooseEmitterSet:
         return _xyz, _phot, _frame_ix, _id
 
     def distribute_framewise_py(self):
+        """
+        Distribute the emitters with arbitrary starting point and intensity over the frames so as to get a proper
+        set of emitters (instance of EmitterSet) with photons.
+        :return:
+        """
         frame_start = torch.floor(self.t0)
         self.te = self.t0 + self.ontime  # endpoint
         frame_last = torch.ceil(self.te)
@@ -270,11 +277,9 @@ class LooseEmitterSet:
                 frame_ix_[c] = frame_start[i] + j
                 id_[c] = self.id[i]
 
-                """Split photons linearly across the frames. This is an approximation."""
+                """Calculate time on frame and multiply that by the intensity."""
                 ontime_on_frame = torch.min(self.te[i], frame_ix_[c] + 1) - torch.max(self.t0[i], frame_ix_[c])
-                # TODO: takout self.ontime, replace phot as photons per frame and draw photon on frame from
-                #  normal distribution (std 150, but no negatives)
-                phot_[c] = ontime_on_frame / self.ontime[i] * self.phot[i]
+                phot_[c] = ontime_on_frame * self.intensity[i]
 
                 c += 1
         return xyz_, phot_, frame_ix_, id_

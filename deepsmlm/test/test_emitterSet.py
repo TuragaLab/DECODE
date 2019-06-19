@@ -1,8 +1,11 @@
 import torch
 from unittest import TestCase
 import pytest
+import time
 
 from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
+import deepsmlm.generic.emitter as emitter
+import deepsmlm.test.utils_ci as tutil
 
 
 class TestEmitterSet:
@@ -87,3 +90,38 @@ def test_empty_emitterset():
     em = EmptyEmitterSet()
     assert 0 == em.num_emitter
 
+
+class TestLooseEmitterSet:
+
+    @pytest.fixture(scope='class')
+    def dummy_set(self):
+        num_emitters = 10000
+        t0_max = 5000
+        em = emitter.LooseEmitterSet(torch.rand((num_emitters, 3)),
+                                torch.ones(num_emitters) * 10000,
+                                None,
+                                torch.rand(num_emitters) * t0_max,
+                                torch.rand(num_emitters) * 3)
+
+        return em
+
+    @pytest.mark.skip(reason="C++ currently not implemented for updated generator.")
+    def test_eq_distribute(self, dummy_set):
+        """
+        Test whether the C++ and the Python implementations return the same stuff.
+        """
+        # Time the stuff
+        t = time.process_time()
+        xyz_py, phot_py, frame_py, id_py = dummy_set.distribute_framewise_py()
+        t_py = time.process_time() - t
+        t = time.process_time()
+        xyz_cpp, phot_cpp, frame_cpp, id_cpp = dummy_set.distribute_framewise_cpp()
+        t_cpp = time.process_time() - t
+
+        assert tutil.tens_almeq(xyz_py, xyz_cpp)
+        assert tutil.tens_almeq(phot_py, phot_cpp)
+        assert tutil.tens_almeq(frame_py, frame_cpp)
+        assert tutil.tens_almeq(id_py, id_cpp)
+
+        """Print timing."""
+        print("Elapsed time Python: {} - C++: {}".format(t_py, t_cpp))

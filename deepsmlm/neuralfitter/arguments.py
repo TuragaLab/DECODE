@@ -46,9 +46,10 @@ HyperParamter = namedtuple('HyperParameter',
                                'test_size',
                                'num_epochs',
                                'lr',
-                               'device',
-                               'ignore_boundary_frames'
-                            ])  # I know that is not a hyper parameter ...
+                               'device',  # I know this is not so much of a hyper param
+                               'ignore_boundary_frames',
+                               'speiser_weight_sqrt_phot'
+                            ])
 
 SimulationParam = namedtuple("SimulationParam",
                              [
@@ -60,7 +61,8 @@ SimulationParam = namedtuple("SimulationParam",
                                  'emitter_av',
                                  'photon_range',
                                  'bg_pois',
-                                 'calibration'])
+                                 'calibration',
+                                 'intensity_mu_sig'])
 
 ScalingParam = namedtuple("ScalingParam",
                           [

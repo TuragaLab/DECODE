@@ -45,7 +45,7 @@ deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
                  os.pardir, os.pardir)) + '/'
 
-WRITE_TO_LOG = True
+WRITE_TO_LOG = False
 
 if __name__ == '__main__':
 
@@ -55,7 +55,7 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-06-18/model_for_challenge.pt',
+        model_out=deepsmlm_root + 'network/2019-06-19_new_simulator/model.pt',
         model_init=None)
 
     log_par = LoggerParameter(
@@ -89,7 +89,8 @@ if __name__ == '__main__':
         num_epochs=10000,
         lr=1E-4,
         device=torch.device('cuda'),
-        ignore_boundary_frames=True)
+        ignore_boundary_frames=True,
+        speiser_weight_sqrt_phot=True)
 
     sim_par = SimulationParam(
         pseudo_data_size=(256*32 + hy_par.test_size),  # (128*32 + 128),
@@ -98,10 +99,12 @@ if __name__ == '__main__':
         img_size=(64, 64),
         density=0,
         emitter_av=60,
-        photon_range=(1000, 20000),
+        photon_range=None,
         bg_pois=90,
         calibration=deepsmlm_root +
-                    'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat')
+                    'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat',
+        intensity_mu_sig=(1000., 200.)
+        )
 
     scale_par = ScalingParam(
         dx_max=0.6,
@@ -201,7 +204,7 @@ if __name__ == '__main__':
 
         prior = emittergenerator.EmitterPopperMultiFrame(structure_prior,
                                                          density=sim_par.density,
-                                                         photon_range=sim_par.photon_range,
+                                                         intensity_mu_sig=sim_par.intensity_mu_sig,
                                                          lifetime=1,
                                                          num_frames=3,
                                                          emitter_av=sim_par.emitter_av)
@@ -274,7 +277,7 @@ if __name__ == '__main__':
     optimiser = Adam(model.parameters(), lr=hy_par.lr)
 
     """Loss function."""
-    criterion = SpeiserLoss().return_criterion()
+    criterion = SpeiserLoss(hy_par.speiser_weight_sqrt_phot).return_criterion()
 
     """Set up post processor"""
     post_processor = processing.TransformSequence([

@@ -3,6 +3,7 @@ import pytest
 import torch
 
 import deepsmlm.evaluation.evaluation as evaluation
+import deepsmlm.test.utils_ci as tutil
 
 
 class TestCumulantMeter:
