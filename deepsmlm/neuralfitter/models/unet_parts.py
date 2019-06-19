@@ -74,6 +74,22 @@ class down_3d(down):
         )
 
 
+class Upsample(nn.Module):
+    """
+    Dummy wrapper for Upsampling, since for whatever reason nn.Upsample is deprecated ...
+    """
+    def __init__(self, scale_factor, mode, align_corners):
+        super().__init__()
+        self.interp = nn.functional.interpolate
+        self.scale_factor = scale_factor
+        self.mode = mode
+        self.align_corners = align_corners
+
+    def forward(self, x):
+        x = self.interp(x, scale_factor=self.scale_factor, mode=self.mode, align_corners=self.align_corners)
+        return x
+
+
 class up(nn.Module):
     def __init__(self, in_ch, out_ch, bilinear=True):
         super(up, self).__init__()
@@ -81,7 +97,8 @@ class up(nn.Module):
         #  would be a nice idea if the upsampling could be learned too,
         #  but my machine do not have enough memory to handle all those weights
         if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+            # self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+            self.up = Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         else:
             self.up = nn.ConvTranspose2d(in_ch//2, in_ch//2, 2, stride=2)
 
@@ -110,7 +127,8 @@ class up_3d(up):
     def __init__(self, in_ch, out_ch, scale_factor=(2, 2, 2), bilinear=True):
         super().__init__(in_ch, out_ch, bilinear=bilinear)
         if bilinear:
-            self.up = nn.Upsample(scale_factor=scale_factor, mode='trilinear', align_corners=True)
+            # self.up = nn.Upsample(scale_factor=scale_factor, mode='trilinear', align_corners=True)
+            self.up = Upsample(scale_factor=scale_factor, mode='trilinear', align_corners=True)
         else:
             self.up = nn.ConvTranspose3d(in_ch//2, in_ch//2, scale_factor, stride=2)
 
