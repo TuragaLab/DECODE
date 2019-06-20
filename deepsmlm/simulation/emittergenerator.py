@@ -92,6 +92,12 @@ class EmitterPopperMultiFrame(EmitterPopper):
         self.emitter_av = emitter_av
         self._emitter_av_total = None
 
+        """
+        Search for the actual value of total emitters on the extended frame range so that on the 0th frame we have
+        as many as we have specified in self.emitter_av
+        """
+        self._total_emitter_average_search()
+
     def gen_loose_emitter(self):
         """
         Generate a loose emitterset (float starting time ...)
