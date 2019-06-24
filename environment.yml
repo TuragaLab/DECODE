@@ -15,6 +15,7 @@ dependencies:
   - jupyterlab
   - nb_conda
   - matplotlib
+  - nodejs
   - numpy
   - opencv
   - pillow
