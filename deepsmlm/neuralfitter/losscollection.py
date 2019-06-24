@@ -42,7 +42,7 @@ class SpeiserLoss:
         p_loss = ce(output[:, [0], :, :], target[:, [0], :, :])
 
         if weight_by_phot:
-            weight = target[:, [1], :, :]
+            weight = target[:, [1], :, :].sqrt()
         else:
             weight = torch.ones_like(target[:, [1], :, :])
 
