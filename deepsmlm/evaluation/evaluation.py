@@ -5,6 +5,7 @@ from scipy import stats
 import seaborn as sns
 
 import numpy as np
+import math
 import torch
 from sklearn.neighbors import NearestNeighbors
 
@@ -23,33 +24,45 @@ class MetricMeter:
 
     @property
     def std(self):
-        return torch.tensor(self.vals).std().item()
+        if isinstance(self.vals, torch.Tensor):
+            self.vals.std().item()
+        else:
+            return torch.tensor(self.vals).std().item()
 
     @property
     def mean(self):
-        return torch.tensor(self.vals).mean().item()
+        if isinstance(self.vals, torch.Tensor):
+            return self.vals.mean().item()
+        else:
+            return torch.tensor(self.vals).mean().item()
 
     @property
     def avg(self):
         return self.mean
 
-    def hist(self, bins=30, range=None):
+    def hist(self, bins=30, range=None, fit=stats.norm):
         """
 
         :param bins: number of bins
         :param range: specify range
         :return: plt.figure
         """
+        if range is not None:
+            bins_ = np.linspace(range[0], range[1], bins)
+        else:
+            bins_ = bins
+
         vals = self.vals.view(-1).numpy()
         f, (ax_box, ax_hist) = plt.subplots(2, sharex=True, gridspec_kw={"height_ratios": (.1, .9)})
 
         """Plot boxplot and distplot."""
         sns.boxplot(vals, ax=ax_box)
-        sns.distplot(vals, ax=ax_hist, kde=False, fit=stats.norm, bins=30)
+        sns.distplot(vals, ax=ax_hist, kde=False, fit=fit, bins=bins_, norm_hist=True)
 
         """Get the fit values."""
-        (mu, sigma) = stats.norm.fit(vals)
-        plt.legend(["N $ (\mu$ = {0:.3g}, $\sigma^2$ = {1:.3g}$^2$)".format(mu, sigma)], frameon=False)
+        if fit is not None:
+            (mu, sigma) = stats.norm.fit(vals)
+            plt.legend(["N $ (\mu$ = {0:.3g}, $\sigma^2$ = {1:.3g}$^2$)".format(mu, sigma)], frameon=False)
 
         # Cosmetics
         ax_box.set(yticks=[])
@@ -75,6 +88,7 @@ class MetricMeter:
         :param val: value
         :return: None
         """
+        val = float(val)
         self.val = val
         self.vals.append(val)
         self.count += 1
@@ -101,12 +115,15 @@ class CumulantMeter(MetricMeter):
 class EvalSet:
     """Just a dummy class to combine things into one object."""
     def __init__(self, prec, rec, jac,
+                 delta_num,
                  rmse_vol, rmse_lat, rmse_axial,
                  mad_vol, mad_lat, mad_axial,
                  dx, dy, dz, dxw, dyw, dzw):
         self.prec = prec
         self.rec = rec
         self.jac = jac
+
+        self.delta_num = delta_num
 
         self.rmse_vol = rmse_vol
         self.rmse_lat = rmse_lat
@@ -123,17 +140,18 @@ class EvalSet:
         self.dzw = dzw
 
     def __str__(self):
-        str = "------------ Evaluation Set ------------\n"
+        str = "------------------------ Evaluation Set ------------------------\n"
         str += "Precision {}\n".format(self.prec.__str__())
         str += "Recall {}\n".format(self.rec.__str__())
         str += "Jaccard {}\n".format(self.jac.__str__())
+        str += "Delta num. emitters (out - tar.) {}\n".format(self.delta_num.__str__())
         str += "RMSE lat. {}\n".format(self.rmse_lat.__str__())
         str += "RMSE ax. {}\n".format(self.rmse_axial.__str__())
         str += "RMSE vol. {}\n".format(self.rmse_vol.__str__())
         str += "MAD lat. {}\n".format(self.mad_lat.__str__())
         str += "MAD ax. {}\n".format(self.mad_axial.__str__())
         str += "MAD vol. {}\n".format(self.mad_vol.__str__())
-        str += "-----------------------------------------"
+        str += "-----------------------------------------------------------------"
         return str
 
 
@@ -156,6 +174,7 @@ class BatchEvaluation:
         :return:
         """
         prec, rec, jac = MetricMeter(), MetricMeter(), MetricMeter()
+        delta_num = MetricMeter()
         rmse_vol, rmse_lat, rmse_axial = MetricMeter(), MetricMeter(), MetricMeter()
         mad_vol, mad_lat, mad_axial = MetricMeter(), MetricMeter(), MetricMeter()
         dx, dy, dz, dxw, dyw, dzw = CumulantMeter(), CumulantMeter(), CumulantMeter(), \
@@ -173,6 +192,9 @@ class BatchEvaluation:
             prec.update(prec_)
             rec.update(rec_)
             jac.update(jaq_)
+
+            delta_num.update(output[i].num_emitter - target[i].num_emitter)
+
             rmse_vol.update(rmse_vol_)
             rmse_lat.update(rmse_lat_)
             rmse_axial.update(rmse_axial_)
@@ -188,6 +210,7 @@ class BatchEvaluation:
             dzw.update(dzw_)
 
         self.values = EvalSet(prec, rec, jac,
+                              delta_num,
                               rmse_vol, rmse_lat, rmse_axial,
                               mad_vol, mad_lat, mad_axial,
                               dx, dy, dz, dxw, dyw, dzw)

@@ -45,7 +45,7 @@ deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
                  os.pardir, os.pardir)) + '/'
 
-WRITE_TO_LOG = False
+WRITE_TO_LOG = True
 
 if __name__ == '__main__':
 
@@ -55,7 +55,7 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-06-19_new_simulator/model.pt',
+        model_out=deepsmlm_root + 'network/2019-06-24/debug_high_phot_withhout_sqrt.pt',
         model_init=None)
 
     log_par = LoggerParameter(
@@ -82,15 +82,15 @@ if __name__ == '__main__':
         max_emitters=64,
         min_phot=0.,
         data_lifetime=10,
-        upscaling=8,
-        upscaling_mode='nearest',
+        upscaling=None,
+        upscaling_mode=None,
         batch_size=32,
         test_size=128,
         num_epochs=10000,
         lr=1E-4,
-        device=torch.device('cuda'),
+        device=torch.device('cpu'),
         ignore_boundary_frames=True,
-        speiser_weight_sqrt_phot=True)
+        speiser_weight_sqrt_phot=False)
 
     sim_par = SimulationParam(
         pseudo_data_size=(256*32 + hy_par.test_size),  # (128*32 + 128),
@@ -98,12 +98,12 @@ if __name__ == '__main__':
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
         density=0,
-        emitter_av=60,
+        emitter_av=15,
         photon_range=None,
         bg_pois=90,
         calibration=deepsmlm_root +
                     'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat',
-        intensity_mu_sig=(2000., 500.),
+        intensity_mu_sig=(500000., 500.),
         lifetime_avg=2.
         )
 
@@ -111,7 +111,7 @@ if __name__ == '__main__':
         dx_max=0.6,
         dy_max=0.6,
         z_max=750.,
-        phot_max=15000.,
+        phot_max=500000.,
         linearisation_buffer=1.2
     )
 
@@ -326,7 +326,7 @@ if __name__ == '__main__':
 
         train(train_loader, model, optimiser, criterion, i, hy_par, logger, experiment, train_data_smlm.calc_new_flag)
 
-        val_loss = test(test_loader, model, criterion, i, hy_par, logger, experiment, post_processor, batch_ev, epoch_logger)
+        val_loss = test(test_loader, model, criterion, i, hy_par, experiment, post_processor, batch_ev, epoch_logger)
         lr_scheduler.step(val_loss)
         sim_scheduler.step(val_loss)
 

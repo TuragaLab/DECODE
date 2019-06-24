@@ -184,7 +184,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         step_batch += 1
 
 
-def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_processor, batch_ev, epoch_logger):
+def test(val_loader, model, criterion, epoch, hy_par, experiment, post_processor, batch_ev, epoch_logger):
     """
     Taken from: https://pytorch.org/tutorials/beginner/aws_distributed_training_tutorial.html
     """
@@ -228,6 +228,7 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
     print("Test: Time: {batch_time.avg:.3f} \t""Loss: {loss.avg:.4f}".format(batch_time=batch_time, loss=losses))
 
     # from list of outputs to one output
+    inputs = torch.cat(inputs, 0)
     outputs = torch.cat(outputs, 0)
 
     """Forward output through post-processor for eval."""
@@ -236,6 +237,6 @@ def test(val_loader, model, criterion, epoch, hy_par, logger, experiment, post_p
 
     """Batch evaluation and log"""
     batch_ev.forward(em_out, tars)
-    epoch_logger.forward(batch_ev.values, epoch)
+    epoch_logger.forward(batch_ev.values, inputs, outputs, em_out, tars, epoch)
 
     return losses.avg

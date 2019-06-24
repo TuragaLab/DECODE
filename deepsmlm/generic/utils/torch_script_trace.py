@@ -7,6 +7,7 @@ from deepsmlm.neuralfitter import post_processing as post
 from deepsmlm.generic.utils import processing as utils
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
 
+
 """Root folder"""
 deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
