@@ -26,7 +26,7 @@ class Loss(ABC):
 
 
 class SpeiserLoss:
-    def __init__(self, weight_sqrt_phot=False):
+    def __init__(self, weight_sqrt_phot):
         """
 
         :param weight_sqrt_phot: weight phot, dx, dy, dz etc. by sqrt(phot), i.e. weight the l2 loss
