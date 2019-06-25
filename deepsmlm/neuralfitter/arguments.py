@@ -66,6 +66,15 @@ SimulationParam = namedtuple("SimulationParam",
                                  'lifetime_avg'
                             ])
 
+CameraParam = namedtuple("CameraParam",
+                         [
+                             'qe',
+                             'em_gain',
+                             'e_per_adu',
+                             'baseline',
+                             'read_sigma'
+                         ])
+
 ScalingParam = namedtuple("ScalingParam",
                           [
                               'dx_max',

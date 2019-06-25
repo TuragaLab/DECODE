@@ -69,7 +69,7 @@ class Gaussian(NoisePost):
 
     def forward(self, image):
 
-        return image + self.bg_uniform + self.sigma_gaussian * torch.randn(image.shape[0], image.shape[1])
+        return image + self.bg_uniform + self.sigma_gaussian * torch.randn_like(image)
 
 
 class GaussianSmoothing(nn.Module):
