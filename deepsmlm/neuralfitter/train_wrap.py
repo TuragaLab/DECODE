@@ -18,13 +18,14 @@ import deepsmlm.generic.background as background
 import deepsmlm.generic.noise as noise_bg
 import deepsmlm.generic.psf_kernel as psf_kernel
 import deepsmlm.evaluation.evaluation as evaluation
+from deepsmlm.generic.phot_camera import Photon2Camera
 from deepsmlm.neuralfitter.pre_processing import OffsetRep
 import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.generic.utils.data_utils import smlm_collate
 import deepsmlm.generic.utils.processing as processing
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, SimulationParam, LoggerParameter, \
-    SchedulerParameter, ScalingParam, EvaluationParam, PostProcessingParam
+    SchedulerParameter, ScalingParam, EvaluationParam, PostProcessingParam, CameraParam
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss
@@ -88,7 +89,7 @@ if __name__ == '__main__':
         test_size=128,
         num_epochs=10000,
         lr=1E-4,
-        device=torch.device('cpu'),
+        device=torch.device('cuda'),
         ignore_boundary_frames=True,
         speiser_weight_sqrt_phot=False)
 
@@ -98,14 +99,22 @@ if __name__ == '__main__':
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
         density=0,
-        emitter_av=15,
+        emitter_av=25,
         photon_range=None,
-        bg_pois=90,
+        bg_pois=95,
         calibration=deepsmlm_root +
                     'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat',
-        intensity_mu_sig=(500000., 500.),
+        intensity_mu_sig=(20000., 500.),
         lifetime_avg=2.
         )
+
+    cam_par = CameraParam(
+        qe=0.9,
+        em_gain=300.,
+        e_per_adu=45.,
+        baseline=100.,
+        read_sigma=74.4
+    )
 
     scale_par = ScalingParam(
         dx_max=0.6,
@@ -188,7 +197,7 @@ if __name__ == '__main__':
 
         """Define our noise model."""
         # Out of focus emitters, homogeneous background noise, poisson noise
-        noise = []
+        # noise = []
         # noise.append(background.OutOfFocusEmitters(
         #     sim_par.psf_extent[0],
         #     sim_par.psf_extent[1],
@@ -196,8 +205,14 @@ if __name__ == '__main__':
         #     bg_range=(15., 15.),
         #     num_bg_emitter=3))
 
-        noise.append(noise_bg.Poisson(bg_uniform=sim_par.bg_pois))
-        noise = processing.TransformSequence(noise)
+        # noise.append(noise_bg.Poisson(bg_uniform=sim_par.bg_pois))
+        # noise = processing.TransformSequence(noise)
+        noise = Photon2Camera(qe=cam_par.qe,
+                              bg_uniform=sim_par.bg_pois,
+                              em_gain=cam_par.em_gain,
+                              e_per_adu=cam_par.e_per_adu,
+                              baseline=cam_par.baseline,
+                              read_sigma=cam_par.read_sigma)
 
         structure_prior = structure_prior.RandomStructure(sim_par.emitter_extent[0],
                                                           sim_par.emitter_extent[1],
@@ -261,7 +276,9 @@ if __name__ == '__main__':
                       scale_par.phot_max,
                       scale_par.linearisation_buffer),
         post.Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
-        post.SpeiserPost(0.3, 0.6, 'emitters')
+        post.SpeiserPost(post_par.single_val_th,
+                         post_par.total_th,
+                         'emitters')
     ])
 
     """Log the model"""
@@ -278,7 +295,7 @@ if __name__ == '__main__':
     optimiser = Adam(model.parameters(), lr=hy_par.lr)
 
     """Loss function."""
-    criterion = SpeiserLoss(hy_par.speiser_weight_sqrt_phot).return_criterion()
+    criterion = SpeiserLoss(weight_sqrt_phot=hy_par.speiser_weight_sqrt_phot).return_criterion()
 
     """Set up post processor"""
     post_processor = processing.TransformSequence([
