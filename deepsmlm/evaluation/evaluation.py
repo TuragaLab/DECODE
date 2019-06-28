@@ -48,7 +48,7 @@ class MetricMeter:
         :return: plt.figure
         """
         if range is not None:
-            bins_ = np.linspace(range[0], range[1], bins)
+            bins_ = np.linspace(range[0], range[1], bins + 1)
         else:
             bins_ = bins
 

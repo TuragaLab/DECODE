@@ -96,7 +96,7 @@ class LogTestEpoch:
         dy_dist.vals = output_frames[:, 3][is_above_th]
         z_dist.vals = output_frames[:, 4][is_above_th]
 
-        _ = phot_dist.hist(fit=None)
+        _ = phot_dist.hist(fit=None, range=(0., 1.))
         plt.gca().set_xlabel(r'$phot$')
         self._log_figure(plt.gcf(), step, "io/phot")
 
