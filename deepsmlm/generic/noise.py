@@ -54,6 +54,15 @@ class Poisson(NoisePost):
         return torch.distributions.poisson.Poisson(image + self.bg_uniform).sample()
 
 
+class Gamma(NoisePost):
+    def __init__(self, scale):
+        super().__init__()
+        self.scale = scale
+
+    def forward(self, x):
+        return torch.distributions.gamma.Gamma(x, 1 / self.scale).sample()
+
+
 class Gaussian(NoisePost):
 
     def __init__(self, sigma_gaussian, bg_uniform):

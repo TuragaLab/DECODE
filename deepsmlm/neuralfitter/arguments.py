@@ -72,7 +72,8 @@ CameraParam = namedtuple("CameraParam",
                              'em_gain',
                              'e_per_adu',
                              'baseline',
-                             'read_sigma'
+                             'read_sigma',
+                             'spur_noise'
                          ])
 
 ScalingParam = namedtuple("ScalingParam",

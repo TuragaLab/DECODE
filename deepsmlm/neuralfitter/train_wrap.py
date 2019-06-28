@@ -39,7 +39,7 @@ from deepsmlm.simulation import structure_prior, emittergenerator, simulator
 
 import resource
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+resource.setrlimit(resource.RLIMIT_NOFILE, (8192, rlimit[1]))
 
 """Root folder"""
 deepsmlm_root = os.path.abspath(
@@ -56,7 +56,7 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-06-24/debug_high_phot_withhout_sqrt.pt',
+        model_out=deepsmlm_root + 'network/2019-06-27/model_with_camera_wsqrt.pt',
         model_init=None)
 
     log_par = LoggerParameter(
@@ -86,15 +86,15 @@ if __name__ == '__main__':
         upscaling=None,
         upscaling_mode=None,
         batch_size=32,
-        test_size=128,
+        test_size=256,
         num_epochs=10000,
         lr=1E-4,
         device=torch.device('cuda'),
         ignore_boundary_frames=True,
-        speiser_weight_sqrt_phot=False)
+        speiser_weight_sqrt_phot=True)
 
     sim_par = SimulationParam(
-        pseudo_data_size=(256*32 + hy_par.test_size),  # (128*32 + 128),
+        pseudo_data_size=(512 * hy_par.batch_size + hy_par.test_size),  # (128*32 + 128),
         emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-750, 750)),
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
@@ -113,7 +113,8 @@ if __name__ == '__main__':
         em_gain=300.,
         e_per_adu=45.,
         baseline=100.,
-        read_sigma=74.4
+        read_sigma=74.4,
+        spur_noise=0.002
     )
 
     scale_par = ScalingParam(
@@ -208,6 +209,7 @@ if __name__ == '__main__':
         # noise.append(noise_bg.Poisson(bg_uniform=sim_par.bg_pois))
         # noise = processing.TransformSequence(noise)
         noise = Photon2Camera(qe=cam_par.qe,
+                              spur_noise=cam_par.spur_noise,
                               bg_uniform=sim_par.bg_pois,
                               em_gain=cam_par.em_gain,
                               e_per_adu=cam_par.e_per_adu,
