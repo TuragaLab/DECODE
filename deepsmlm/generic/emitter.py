@@ -173,12 +173,12 @@ class RandomEmitterSet(EmitterSet):
     """
     A helper calss when we only want to provide a number of emitters.
     """
-    def __init__(self, num_emitters):
+    def __init__(self, num_emitters, extent=32):
         """
 
         :param num_emitters:
         """
-        xyz = torch.rand((num_emitters, 3)) * 1000
+        xyz = torch.rand((num_emitters, 3)) * extent
         super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]))
 
 
