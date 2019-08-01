@@ -36,10 +36,13 @@ class Photon2Camera:
         """
         """Poisson for photon characteristics of emitter (plus autofluorescence etc."""
         camera = self.poisson.forward((x + self.bg_uniform) * self.qe + self.spur)
-        """Gamma for EM-Gain"""
-        camera = self.gain.forward(camera)
-        """Gaussian for read-noise. Takes camera and adds zero centred gaussian noise."""
+        """Gamma for EM-Gain (EM-CCD cameras, not sCMOS)"""
+        if self.em_gain is not None:
+            camera = self.gain.forward(camera)
+        """Gaussian for read-noise. Takes camera and adds zero centred gaussian noise. 
+        Make sure it's not below 0."""
         camera = self.read.forward(camera)
+        camera = torch.max(camera, torch.tensor([0.]))
         """Electrons per ADU"""
         camera /= self.e_per_adu
         """Manufacturer baseline"""
