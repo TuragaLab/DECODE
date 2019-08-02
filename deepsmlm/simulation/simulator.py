@@ -94,7 +94,7 @@ class Simulation:
             #                                                                      iter.repeat(self.background)))
             raise NotImplementedError("Does not work at the moment.")
 
-        elif self.poolsize == 0:
+        else:
             em_sets = self.em_split.__len__()
             frame_list = [None] * em_sets
             for i in range(em_sets):
