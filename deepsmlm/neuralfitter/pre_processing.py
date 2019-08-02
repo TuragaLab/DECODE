@@ -2,6 +2,7 @@ import math
 from abc import ABC, abstractmethod
 import torch
 from torch.nn import functional
+from sklearn import neighbors, datasets
 
 from deepsmlm.generic.emitter import EmitterSet
 from deepsmlm.generic.noise import GaussianSmoothing
@@ -76,6 +77,14 @@ class TargetGenerator(ABC):
 
 
 class OffsetRep(TargetGenerator):
+    """
+    Target generator to generate a 5 channel target.
+    0th ch: emitter prob
+    1st ch: photon value
+    2nd ch: dx subpixel offset
+    3rd ch: dy subpixel offset
+    4th ch: z values
+    """
     def __init__(self, xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=None):
         super().__init__()
         self.delta = DeltaPSF(xextent,
@@ -99,7 +108,7 @@ class OffsetRep(TargetGenerator):
     def forward(self, x):
         """
         Create 5 channel output, decode_like
-        :param x:
+        :param x: emitter instance
         :return: concatenated maps, or single maps with 1 x H x W each (channel order: p, I, x  y, z)
         """
         p_map = self.delta.forward(x, torch.ones_like(x.phot))
@@ -115,6 +124,69 @@ class OffsetRep(TargetGenerator):
             return torch.cat((p_map, phot_map, xy_map, z_map), 0)
         else:
             return p_map, phot_map, xy_map[[0]], xy_map[[1]], z_map
+
+
+class GlobalOffsetRep(OffsetRep):
+    def __init__(self, xextent, yextent, zextent, img_shape, photon_threshold=None):
+        super().__init__(xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=photon_threshold)
+        self.xextent = xextent
+        self.yextent = yextent
+        self.zextent = zextent
+        self.img_shape = img_shape
+
+        self.nearest_neighbor = neighbors.KNeighborsClassifier(1, weights='uniform')
+
+        """Grid coordinates"""
+        # ToDo: Double check
+        x = torch.linspace(xextent[0], xextent[1], steps=img_shape[0] + 1).float()[:-1]
+        y = torch.linspace(yextent[0], yextent[1], steps=img_shape[1] + 1).float()[:-1]
+
+        # add half a pixel to get the center
+        x += (x[1] - x[0]) / 2
+        y += (y[1] - y[0]) / 2
+        self.x_grid, self.y_grid = torch.meshgrid(x, y)
+        self.xy_list = torch.cat((self.x_grid.contiguous().view(-1, 1), self.y_grid.contiguous().view(-1, 1)), dim=1)
+
+    def assign_px_emitters(self, x):
+        """
+        Assign px to the closest emitter
+        :param x: emitter instance
+        :return:
+        """
+        """Fit the emitters. Fit only in 2D"""
+        dummy_index = torch.arange(0, x.num_emitter)
+        self.nearest_neighbor.fit(x.xyz[:, :2].numpy(), dummy_index)
+
+        """Predict NN for all image coordinates"""
+        pred_ix = self.nearest_neighbor.predict(self.xy_list)
+        pred_ix = torch.from_numpy(pred_ix).reshape(self.img_shape[0], self.img_shape[1])
+
+        return pred_ix
+
+    def forward(self, x):
+        """
+
+        :param x: emitter instance
+        :return: 5 ch output
+        """
+        pred_ix = self.assign_px_emitters(x)
+
+        """Calculate l1 distance per dimension to predicted index for all image coordinates"""
+        dx = torch.zeros(self.img_shape[0], self.img_shape[1])
+        dy = torch.zeros_like(dx)
+        z = torch.zeros_like(dx)
+        for i in range(x.num_emitter):
+            mask = (pred_ix == i)
+
+            dx[mask] = x.xyz[i, 0] - self.x_grid[mask]
+            dy[mask] = x.xyz[i, 1] - self.y_grid[mask]
+            z[mask] = x.xyz[i, 2]
+
+        p_map = self.delta.forward(x, torch.ones_like(x.phot))
+        p_map[p_map > 1] = 1
+        phot_map = self.delta.forward(x, x.phot)
+
+        return torch.cat((p_map, phot_map, dx.unsqueeze(0), dy.unsqueeze(0), z.unsqueeze(0)), 0)
 
 
 class ZasOneHot(TargetGenerator):

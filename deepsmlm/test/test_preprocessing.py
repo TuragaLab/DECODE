@@ -1,10 +1,13 @@
 from unittest import TestCase
 import torch
 import pytest
+import matplotlib.pyplot as plt
 
-from deepsmlm.generic.emitter import EmitterSet
+import deepsmlm.test.utils_ci as tutil
+from deepsmlm.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
 from deepsmlm.generic.psf_kernel import DeltaPSF
-from deepsmlm.neuralfitter.pre_processing import ZasOneHot, OffsetRep
+from deepsmlm.neuralfitter.pre_processing import ZasOneHot, OffsetRep, GlobalOffsetRep
+from deepsmlm.generic.plotting.frame_coord import PlotFrame, PlotFrameCoord
 
 
 def equal_nonzero(*a):
@@ -82,4 +85,46 @@ class TestDecodeRepresentation:
         assert (dy >= -0.5).all(), "delta x/y must be between -0.5 and 0.5"
 
 
+class TestGlobalOffsetRep:
 
+    @pytest.fixture(scope='class')
+    def classyclassclass(self):
+        return GlobalOffsetRep((-0.5, 31.5), (-0.5, 31.5), None, (32, 32))
+
+    @pytest.fixture(scope='class')
+    def two_em(self):
+        return CoordinateOnlyEmitter(torch.tensor([[-0.5, 15.5, 0.], [31.5, 15.5, 0.]]))
+
+    def test_forward_shape(self, classyclassclass, two_em):
+        assert classyclassclass.assign_px_emitters(two_em).shape == torch.zeros(32, 32).shape
+
+    def test_classification(self, classyclassclass, two_em):
+        gt = torch.zeros(32, 32).type(torch.LongTensor)
+        gt[16:, :] = 1
+
+        prediction_ix = classyclassclass.assign_px_emitters(two_em)
+        assert tutil.tens_almeq(gt, prediction_ix)
+
+    # @pytest.mark.skip("Only for plotting.")
+    def test_diag_em(self, classyclassclass):
+        em = CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.], [31., 31., 0.]]))
+        prediction_ix = classyclassclass.assign_px_emitters(em)
+
+        PlotFrame(prediction_ix).plot()
+        plt.show()
+
+        em = RandomEmitterSet(10, extent=32)
+        ix_map = classyclassclass.assign_px_emitters(em)
+        PlotFrameCoord(frame=ix_map, pos_tar=em.xyz).plot()
+        plt.show()
+
+        offset_maps = classyclassclass.forward(em)
+        PlotFrameCoord(frame=offset_maps[2], pos_tar=em.xyz).plot()
+        plt.show()
+
+        PlotFrameCoord(frame=offset_maps[3], pos_tar=em.xyz).plot()
+        plt.show()
+
+        PlotFrameCoord(frame=offset_maps[4], pos_tar=em.xyz).plot()
+        plt.show()
+        assert True
