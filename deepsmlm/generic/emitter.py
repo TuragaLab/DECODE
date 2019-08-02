@@ -50,6 +50,13 @@ class EmitterSet:
                 and (self.frame_ix.shape[0] == self.id.shape[0])):
             raise ValueError("Coordinates, photons, frame ix and id are not of equal shape in 0th dimension.")
 
+    def clone(self):
+        """
+        Clone method to generate a deep copy.
+        :return: Deep copy of self.
+        """
+        return EmitterSet(self.xyz.clone(), self.phot.clone(), self.frame_ix.clone(), self.id.clone())
+
     @staticmethod
     def cat_emittersets(emittersets, remap_frame_ix=None, step_frame_ix=None):
         """
