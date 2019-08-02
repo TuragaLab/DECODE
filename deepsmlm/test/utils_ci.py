@@ -8,6 +8,13 @@ def tens_almeq(a, b, prec=1e-8):
     :param b: tensor b
     :param prec: precision
     """
+    if a.type() != b.type():
+        raise TypeError("Both tensors must be of equal type.")
+
+    if a.type != torch.FloatTensor:
+        a = a.float()
+        b = b.float()
+
     return torch.all(torch.lt(torch.abs(torch.add(a, -b)), prec))
 
 
