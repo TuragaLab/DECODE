@@ -11,6 +11,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
 import deepsmlm.neuralfitter.post_processing as post
+import deepsmlm.generic.inout.write_load_param as wlp
 from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 from deepsmlm.generic.inout.load_save_emitter import NumpyInterface
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
@@ -24,7 +25,7 @@ import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.generic.utils.data_utils import smlm_collate
 import deepsmlm.generic.utils.processing as processing
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
-from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, SimulationParam, LoggerParameter, \
+from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParameter, SimulationParam, LoggerParameter, \
     SchedulerParameter, ScalingParam, EvaluationParam, PostProcessingParam, CameraParam
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
@@ -56,8 +57,8 @@ if __name__ == '__main__':
         log_comment='',
         data_mode='online',
         data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-06-27/model_with_camera_wsqrt.pt',
-        model_init=None)
+        model_out=deepsmlm_root + 'network/2019-08-02/model_challenge_re.pt',
+        model_init=deepsmlm_root + 'network/2019-08-02/model_challenge_7.pt')
 
     log_par = LoggerParameter(
         tags=['3D', 'Offset', 'UNet'])
@@ -77,7 +78,7 @@ if __name__ == '__main__':
         sim_max_value=50,
     )
 
-    hy_par = HyperParamter(
+    hy_par = HyperParameter(
         dimensions=3,
         channels=3,
         max_emitters=64,
@@ -87,11 +88,14 @@ if __name__ == '__main__':
         upscaling_mode=None,
         batch_size=32,
         test_size=256,
-        num_epochs=10000,
+        num_epochs=1000,
         lr=1E-4,
-        device=torch.device('cuda'),
+        device='cuda',
         ignore_boundary_frames=True,
-        speiser_weight_sqrt_phot=True)
+        speiser_weight_sqrt_phot=False,
+        class_freq_weight=None,
+        pch_weight=1. #2 * 20 / (64*64)
+    )
 
     sim_par = SimulationParam(
         pseudo_data_size=(512 * hy_par.batch_size + hy_par.test_size),  # (128*32 + 128),
@@ -99,17 +103,17 @@ if __name__ == '__main__':
         psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
         img_size=(64, 64),
         density=0,
-        emitter_av=25,
+        emitter_av=20,
         photon_range=None,
         bg_pois=95,
         calibration=deepsmlm_root +
                     'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat',
-        intensity_mu_sig=(20000., 500.),
+        intensity_mu_sig=(10000., 500.),
         lifetime_avg=2.
         )
 
-    cam_par = CameraParam(
-        qe=0.9,
+    cam_par_challenge = CameraParam(
+        qe=1.,
         em_gain=300.,
         e_per_adu=45.,
         baseline=100.,
@@ -117,11 +121,31 @@ if __name__ == '__main__':
         spur_noise=0.002
     )
 
+    cam_par_m2 = CameraParam(
+        qe=0.9,
+        em_gain=100.,
+        e_per_adu=4.553,
+        baseline=398.6,
+        read_sigma=58.8,
+        spur_noise=0.0015
+    )
+
+    cam_par_m4 = CameraParam(
+        qe=0.82,  # A647
+        em_gain=None, # scmos
+        e_per_adu=0.758,
+        baseline=99.,
+        read_sigma=3.,
+        spur_noise=0.
+    )
+
+    cam_par = cam_par_challenge
+
     scale_par = ScalingParam(
         dx_max=0.6,
         dy_max=0.6,
         z_max=750.,
-        phot_max=500000.,
+        phot_max=50000.,
         linearisation_buffer=1.2
     )
 
@@ -135,6 +159,10 @@ if __name__ == '__main__':
         dist_ax=300,
         match_dims=2
     )
+
+    param_file = io_par.model_out[:-3] + '_param.json'
+    wlp.write_params(param_file, io_par, log_par, sched_par, hy_par, sim_par, cam_par_challenge, scale_par, post_par,
+                     eval_par)
 
     """Log System"""
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
@@ -292,12 +320,14 @@ if __name__ == '__main__':
 
     model_ls = LoadSaveModel(model, output_file=io_par.model_out, input_file=io_par.model_init)
     model = model_ls.load_init()
-    model = model.to(hy_par.device)
+    model = model.to(torch.device(hy_par.device))
 
     optimiser = Adam(model.parameters(), lr=hy_par.lr)
 
     """Loss function."""
-    criterion = SpeiserLoss(weight_sqrt_phot=hy_par.speiser_weight_sqrt_phot).return_criterion()
+    criterion = SpeiserLoss(weight_sqrt_phot=hy_par.speiser_weight_sqrt_phot,
+                            class_freq_weight=hy_par.class_freq_weight,
+                            pch_weight=hy_par.pch_weight).return_criterion()
 
     """Set up post processor"""
     post_processor = processing.TransformSequence([
