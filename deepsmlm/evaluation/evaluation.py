@@ -255,13 +255,23 @@ class NNMatching:
             xyz_tar_ = xyz_tar
             xyz_out_ = xyz_out
 
-        nbrs = self.nearest_neigh.fit(xyz_tar_)
-
         """If no emitter has been found, all are false negatives. No tp, no fp."""
         if xyz_out_.shape[0] == 0:
             tp = emitter.EmptyEmitterSet()
             fp = emitter.EmptyEmitterSet()
             fn = target
+            tp_match = emitter.EmptyEmitterSet()
+
+            return tp, fp, fn, tp_match
+
+        if xyz_tar_.shape[0] != 0:
+            nbrs = self.nearest_neigh.fit(xyz_tar_)
+
+        else:
+            """If there were no positives, no tp, no fn, all fp, no match."""
+            tp = emitter.EmptyEmitterSet()
+            fn = emitter.EmptyEmitterSet()
+            fp = output
             tp_match = emitter.EmptyEmitterSet()
 
             return tp, fp, fn, tp_match
