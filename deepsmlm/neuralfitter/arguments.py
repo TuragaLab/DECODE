@@ -33,8 +33,8 @@ SchedulerParameter = namedtuple('SchedulerParameter',
                                     'sim_max_value',
                                 ])
 
-HyperParamter = namedtuple('HyperParameter',
-                           [
+HyperParameter = namedtuple('HyperParameter',
+                            [
                                'dimensions',
                                'channels',
                                'max_emitters',
@@ -48,7 +48,9 @@ HyperParamter = namedtuple('HyperParameter',
                                'lr',
                                'device',  # I know this is not so much of a hyper param
                                'ignore_boundary_frames',
-                               'speiser_weight_sqrt_phot'
+                               'speiser_weight_sqrt_phot',
+                               'class_freq_weight',
+                               'pch_weight'
                             ])
 
 SimulationParam = namedtuple("SimulationParam",
