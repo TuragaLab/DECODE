@@ -257,7 +257,7 @@ class SpeiserPost:
         if self.out_format == 'frames':
             return post_frames
 
-        elif self.out_format == 'emitters':
+        elif self.out_format[:8] == 'emitters':
             is_above_out_th.squeeze_(1)
             frame_ix = torch.ones_like(post_frames[:, 0, :, :]) * \
                        torch.arange(batch_size, dtype=post_frames.dtype).view(-1, 1, 1, 1)
@@ -274,7 +274,10 @@ class SpeiserPost:
             ), 1)
             em = EmitterSet(xyz, phot_map, frame_ix)
             em.p = p_map
-            return em.split_in_frames(0, batch_size - 1)
+            if self.out_format[8:] == '_emset':
+                return em
+            else:
+                return em.split_in_frames(0, batch_size - 1)
 
 
 def speis_post_functional(x):

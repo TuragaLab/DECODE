@@ -18,7 +18,7 @@ from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 from deepsmlm.generic.noise import Poisson
 from deepsmlm.generic.psf_kernel import ListPseudoPSFInSize, DeltaPSF
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
-from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParamter, SimulationParam, LoggerParameter, \
+from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParameter, SimulationParam, LoggerParameter, \
     SchedulerParameter
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.generic.utils.data_utils import smlm_collate
@@ -200,7 +200,7 @@ if __name__ == '__main__':
         sim_max_value=50,
     )
 
-    hy_par = HyperParamter(
+    hy_par = HyperParameter(
         dimensions=3,
         channels=3,
         max_emitters=128,
