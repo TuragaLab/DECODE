@@ -7,12 +7,40 @@ import torch.nn.functional as F
 from deepsmlm.generic.noise import GaussianSmoothing
 
 
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
-
-
 class FocalLoss(nn.Module):
+    """
+    Taken from: https://github.com/c0nn3r/RetinaNet/blob/master/focal_loss.py
+    """
+
+    def __init__(self, focusing_param=2, balance_param=0.25):
+        super().__init__()
+
+        self.focusing_param = focusing_param
+        self.balance_param = balance_param
+
+    def forward(self, output, target):
+        """
+
+        :param output: N C d1 d2 d3 ...
+        :param target: N d1 d2 d3 ...
+        where C are the classes!
+
+        :return:
+        """
+
+        cross_entropy = F.cross_entropy(output, target)
+        cross_entropy_log = torch.log(cross_entropy)
+        logpt = - F.cross_entropy(output, target)
+        pt    = torch.exp(logpt)
+
+        focal_loss = -((1 - pt) ** self.focusing_param) * logpt
+
+        balanced_focal_loss = self.balance_param * focal_loss
+
+        return balanced_focal_loss
+
+
+class FocalLoss_2bdeleted(nn.Module):
     """
     (https://github.com/Hsuxu/Loss_ToolBox-PyTorch/blob/master/FocalLoss/FocalLoss.py)
     This is a implementation of Focal Loss with smooth label cross entropy supported which is proposed in
@@ -112,20 +140,30 @@ class Loss(ABC):
 
 
 class SpeiserLoss:
-    def __init__(self, weight_sqrt_phot):
+    def __init__(self, weight_sqrt_phot, class_freq_weight=None, pch_weight=1.):
         """
 
         :param weight_sqrt_phot: weight phot, dx, dy, dz etc. by sqrt(phot), i.e. weight the l2 loss
+        :param class_freq_weight: weight positives by a factor (to balance fore / background). a good starting point
+            might be num_px / avg. emitter per image
         """
-        self.ce = torch.nn.BCELoss()
+        self.ce = torch.nn.BCELoss(reduction='none')
         self.l2 = torch.nn.MSELoss()
         self.weight_sqrt_phot = weight_sqrt_phot
+        self.class_freq_weight = class_freq_weight
+        self.pch_weight = pch_weight
 
     @staticmethod
-    def loss(output, target, ce, l2, weight_by_phot):
+    def loss(output, target, ce, l2, weight_by_phot, class_freq_weight, pch_weight):
         mask = target[:, [0], :, :]
 
         p_loss = ce(output[:, [0], :, :], target[:, [0], :, :])
+        if class_freq_weight is not None:
+            weight = torch.ones_like(p_loss)
+            weight[target[:, [0], :, :] == 1.] = class_freq_weight
+            p_loss *= weight
+
+        p_loss = p_loss.mean()
 
         if weight_by_phot:
             weight = target[:, [1], :, :].sqrt()
@@ -135,12 +173,13 @@ class SpeiserLoss:
         """Mask and weight the loss"""
         xyzi_loss = l2(mask * weight * output[:, 1:, :, :], mask * weight * target[:, 1:, :, :])
 
-        return p_loss + xyzi_loss
+        return pch_weight * p_loss + xyzi_loss
 
     def return_criterion(self):
 
         def loss_return(output, target):
-            return self.loss(output, target, self.ce, self.l2, self.weight_sqrt_phot)
+            return self.loss(output, target, self.ce, self.l2,
+                             self.weight_sqrt_phot, self.class_freq_weight, self.pch_weight)
 
         return loss_return
 
