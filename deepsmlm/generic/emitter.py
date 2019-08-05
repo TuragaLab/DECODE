@@ -62,7 +62,7 @@ class EmitterSet:
         """
         Concatenates list of emitters and rempas there frame indices if they start over with 0 per item in list.
 
-        :param emittersets: instance of this class
+        :param emittersets: iterable of instances of this class
         :param remap_frame_ix: iterable of frame indices to which the 0th frame index in the emitterset corresponds to
         :param step_frame_ix: step of frame indices between items in list
         :return: emitterset
@@ -72,7 +72,7 @@ class EmitterSet:
         if remap_frame_ix is not None and step_frame_ix is not None:
             raise ValueError("You cannot specify remap frame ix and step frame ix at the same time.")
         elif remap_frame_ix is not None:
-            shift = torch.tensor(remap_frame_ix)
+            shift = remap_frame_ix.clone()
         elif step_frame_ix is not None:
             shift = torch.arange(0, num_emittersets) * step_frame_ix
         else:
@@ -174,6 +174,14 @@ class EmitterSet:
             em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5]))
 
         return em_list
+
+    def write_to_csv(self, filename):
+        grand_matrix = torch.cat((self.id.unsqueeze(1),
+                                  self.frame_ix.unsqueeze(1),
+                                  self.xyz,
+                                  self.phot.unsqueeze(1)), 1)
+        header = 'This is an export from DeepSMLM. Total number of emitters: {}\nid, frame_ix, xyz, phot'.format(self.num_emitter)
+        np.savetxt(filename, grand_matrix.numpy(), delimiter=',', header=header)
 
 
 class RandomEmitterSet(EmitterSet):
