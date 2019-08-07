@@ -2,6 +2,7 @@ from unittest import TestCase
 import torch
 import pytest
 import matplotlib.pyplot as plt
+from tensorboardX import SummaryWriter
 
 import deepsmlm.test.utils_ci as tutil
 
@@ -37,6 +38,27 @@ class TestFocalLoss:
         focal_gamma2 = loss.FocalLoss(focusing_param=2.)
         l_2 = focal_gamma2.forward(prediction, gt)
 
+        assert True
+
+
+class TestSpeiserLogged:
+
+    @pytest.fixture(scope='class')
+    def crit(self):
+        logger = SummaryWriter('temp', comment='dummy', write_to_disk=False)
+        return loss.SpeiserLoss(False, logger=logger)
+
+    def test_forward(self, crit):
+        for _ in range(5):
+            x = torch.rand((2, 5, 32, 32), requires_grad=True)
+            gt = torch.rand_like(x)
+
+            loss_ = crit(x, gt)
+            loss_.mean().backward()
+
+            crit.log_batch_loss_cmp(loss_)
+
+        crit.log_components(1)
         assert True
 
 

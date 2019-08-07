@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 
+from deepsmlm.generic.emitter import EmitterSet
 from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord, PlotCoordinates3D
 import deepsmlm.evaluation.evaluation as eval
 
@@ -121,26 +122,14 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
 
         # compute output
         output = model(x_in)
-        """
-        import matplotlib.pyplot as plt;
-        plt.figure(figsize=(32, 32))
-        plt.subplot(231)
-        plt.imshow(x_in[0, 0].detach().cpu().numpy())
-        plt.subplot(232)
-        plt.imshow(x_in[0, 1].detach().cpu().numpy())
-        plt.subplot(233)
-        plt.imshow(x_in[0, 2].detach().cpu().numpy())
-        plt.subplot(235)
-        plt.imshow(target[0, 0].detach().cpu().numpy())
-        plt.show()
-        """
 
         """Ignore the loss of the boundary frames"""
         if conf_param['Hyper']['ignore_boundary_frames']:
-            loss = criterion(output[1:-1], target[1:-1])
+            loss_ = criterion(output[1:-1], target[1:-1])
         else:
-            loss = criterion(output, target)
+            loss_ = criterion(output, target)
 
+        loss = loss_.mean()
         # record loss
         losses.update(loss.item())
         loss_values.append(loss.item())
@@ -195,6 +184,7 @@ def test(val_loader, model, criterion, epoch, conf_param, experiment, post_proce
 
     inputs = []
     outputs = []
+    em_outs = []
     tars = []
 
     """Eval mode."""
@@ -213,10 +203,15 @@ def test(val_loader, model, criterion, epoch, conf_param, experiment, post_proce
 
             # compute output
             output = model(x_in)
-            loss = criterion(output, target)
+            loss_ = criterion(output, target)  # vectorised loss
+            loss = loss_.mean()
 
             # record loss
             losses.update(loss.item())
+
+            """Forward output through post-processor for eval."""
+            if post_processor is not None:
+                em_outs.extend(post_processor.forward(output))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -232,12 +227,8 @@ def test(val_loader, model, criterion, epoch, conf_param, experiment, post_proce
     inputs = torch.cat(inputs, 0)
     outputs = torch.cat(outputs, 0)
 
-    """Forward output through post-processor for eval."""
-    if post_processor is not None:
-        em_out = post_processor.forward(outputs)
-
     """Batch evaluation and log"""
-    batch_ev.forward(em_out, tars)
-    epoch_logger.forward(batch_ev.values, inputs, outputs, em_out, tars, epoch)
+    batch_ev.forward(em_outs, tars)
+    epoch_logger.forward(batch_ev.values, inputs, outputs, em_outs, tars, epoch)
 
     return losses.avg

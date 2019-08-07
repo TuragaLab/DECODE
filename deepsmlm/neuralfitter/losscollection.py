@@ -31,7 +31,7 @@ class FocalLoss(nn.Module):
         cross_entropy = F.cross_entropy(output, target)
         cross_entropy_log = torch.log(cross_entropy)
         logpt = - F.cross_entropy(output, target)
-        pt    = torch.exp(logpt)
+        pt = torch.exp(logpt)
 
         focal_loss = -((1 - pt) ** self.focusing_param) * logpt
 
@@ -126,35 +126,77 @@ class Loss(ABC):
     def __init__(self):
         super().__init__()
 
+    @staticmethod
     @abstractmethod
-    def return_criterion(self):
+    def functional():
         """
-        Return loss function.
+        static / functional of the loss
+        :return:
+        """
+        pass
 
-        :return: Return criterion function (not an evaluation!)
+    @abstractmethod
+    def __call__(self, output, target):
         """
-        def dummyLoss(output, target):
-            return 1
+        calls functional
+        """
 
         return dummyLoss
 
 
-class SpeiserLoss:
-    def __init__(self, weight_sqrt_phot, class_freq_weight=None, pch_weight=1.):
+class LossLog(Loss):
+    """
+    "Pseudo" Abstract loss class which should be used to log individual loss components.
+    """
+    def __init__(self, cmp_desc=None, logger=None):
+        super().__init__()
+
+        self.cmp_desc = cmp_desc
+        self.logger = logger
+
+    @abstractmethod
+    def log_components(self, loss_vec):
+        pass
+
+
+class SpeiserLoss(Loss):
+    cmp_suffix = ('p', 'phot', 'dx', 'dy', 'dz')
+
+    def __init__(self, weight_sqrt_phot, class_freq_weight=None, pch_weight=1., cmp_prefix='loss', logger=None):
         """
 
         :param weight_sqrt_phot: weight phot, dx, dy, dz etc. by sqrt(phot), i.e. weight the l2 loss
         :param class_freq_weight: weight positives by a factor (to balance fore / background). a good starting point
             might be num_px / avg. emitter per image
+        :param pch_weight: weight of the p channel
+        :param cmp_desc
+        :param logger: logging instance (tensorboard)
+        :param log: log? true / false
         """
-        self.ce = torch.nn.BCELoss(reduction='none')
-        self.l2 = torch.nn.MSELoss()
+        super().__init__()
         self.weight_sqrt_phot = weight_sqrt_phot
         self.class_freq_weight = class_freq_weight
         self.pch_weight = pch_weight
 
+        self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none')
+        self.phot_xyz_loss = torch.nn.MSELoss(reduction='none')
+
+        self.cmp_desc = (cmp_prefix + '/' + v for v in SpeiserLoss.cmp_suffix)
+        self.cmp_val = None
+        self.logger = logger
+
+        self.cmp_values = None
+        self._reset_batch_log()
+
+    def __call__(self, output, target):
+        return self.functional(output, target, self.p_loss, self.phot_xyz_loss,
+                               self.weight_sqrt_phot, self.class_freq_weight, self.pch_weight)
+
+    def _reset_batch_log(self):
+        self.cmp_values = torch.zeros((0, 5))
+
     @staticmethod
-    def loss(output, target, ce, l2, weight_by_phot, class_freq_weight, pch_weight):
+    def functional(output, target, ce, l2, weight_by_phot, class_freq_weight, pch_weight):
         mask = target[:, [0], :, :]
 
         p_loss = ce(output[:, [0], :, :], target[:, [0], :, :])
@@ -162,8 +204,6 @@ class SpeiserLoss:
             weight = torch.ones_like(p_loss)
             weight[target[:, [0], :, :] == 1.] = class_freq_weight
             p_loss *= weight
-
-        p_loss = p_loss.mean()
 
         if weight_by_phot:
             weight = target[:, [1], :, :].sqrt()
@@ -173,18 +213,22 @@ class SpeiserLoss:
         """Mask and weight the loss"""
         xyzi_loss = l2(mask * weight * output[:, 1:, :, :], mask * weight * target[:, 1:, :, :])
 
-        return pch_weight * p_loss + xyzi_loss
+        return torch.cat((pch_weight * p_loss, xyzi_loss), 1)
 
-    def return_criterion(self):
+    def log_batch_loss_cmp(self, loss_vec):
+        self.cmp_values = torch.cat((self.cmp_values, loss_vec.mean(-1).mean(-1).mean(0).view(1, 5)), dim=0)
 
-        def loss_return(output, target):
-            return self.loss(output, target, self.ce, self.l2,
-                             self.weight_sqrt_phot, self.class_freq_weight, self.pch_weight)
+    def log_components(self, ix):
 
-        return loss_return
+        cmp_values = self.cmp_values.mean(0)  # loss wrt to the batches
+
+        for i, cmp in enumerate(self.cmp_desc):
+            self.logger.add_scalar(cmp, cmp_values[i].item(), ix)
+
+        self._reset_batch_log()
 
 
-class FocalVoronoiPointLoss(nn.Module):
+class FocalOffsetLoss(SpeiserLoss):
     def __init__(self, alpha, gamma):
         """
 

@@ -278,7 +278,7 @@ if __name__ == '__main__':
     """Loss function."""
     criterion = SpeiserLoss(weight_sqrt_phot=param['Hyper']['speiser_weight_sqrt_phot'],
                             class_freq_weight=param['Hyper']['class_freq_weight'],
-                            pch_weight=param['Hyper']['pch_weight']).return_criterion()
+                            pch_weight=param['Hyper']['pch_weight'])
 
 
 
