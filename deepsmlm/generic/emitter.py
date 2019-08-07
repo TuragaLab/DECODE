@@ -1,5 +1,6 @@
 import os
 import sys
+import hashlib
 import numpy as np
 import torch
 
@@ -175,12 +176,26 @@ class EmitterSet:
 
         return em_list
 
-    def write_to_csv(self, filename):
+    def write_to_csv(self, filename, model=None, comments=None):
+        """
+        Write the prediction to a csv file.
+        :param filename: output filename
+        :param model: model file which was being used (will create a hash out of it)
+        :return:
+        """
         grand_matrix = torch.cat((self.id.unsqueeze(1),
                                   self.frame_ix.unsqueeze(1),
                                   self.xyz,
                                   self.phot.unsqueeze(1)), 1)
-        header = 'This is an export from DeepSMLM. Total number of emitters: {}\nid, frame_ix, xyz, phot'.format(self.num_emitter)
+        header = 'This is an export from DeepSMLM. ' \
+                 'Total number of emitters: {}\nid, frame_ix, xyz, phot'.format(self.num_emitter)
+
+        if model is not None:
+            if hasattr(model, 'hash'):
+                header += f'\n Model initialisation file SHA-1 hash: {model.hash}'
+
+        if comments is not None:
+            header += f'\nUser comment during export: {comments}'
         np.savetxt(filename, grand_matrix.numpy(), delimiter=',', header=header)
 
 
