@@ -247,10 +247,11 @@ class SpeiserPost:
         :return: feature averages N x C x H x W if self.out_format == frames,
             list of EmitterSets if self.out_format == 'emitters'
         """
-        post_frames = self.forward_(features[:, 0], features[:, 1:])
+        post_frames = self.forward_(features[:, 0], features[:, 1:]).cpu()
         is_above_out_th = (post_frames[:, [0], :, :] > self.out_th)
 
         post_frames = post_frames * is_above_out_th.type(post_frames.dtype)
+
         batch_size = post_frames.shape[0]
 
         """Output according to format as specified."""

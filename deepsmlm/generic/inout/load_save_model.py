@@ -1,6 +1,22 @@
 import math
 import time
 import torch
+import hashlib
+
+
+def hash_model(modelfile):
+    """
+    Calculate hash and show it to the user.
+    (https://www.pythoncentral.io/hashing-files-with-python/)
+    """
+    blocksize = 65536
+    hasher = hashlib.sha1()
+    with open(modelfile, 'rb') as afile:
+        buf = afile.read(blocksize)
+        while len(buf) > 0:
+            hasher.update(buf)
+            buf = afile.read(blocksize)
+    return hasher.hexdigest()
 
 
 class LoadSaveModel:
@@ -31,6 +47,9 @@ class LoadSaveModel:
             # model.weight_init()
             print('Model initialised randomly as specified in the constructor.')
         else:
+            hashv = hash_model(self.warmstart_file)
+            print(f'Model SHA-1 hash: {hashv}')
+            model.hash = hashv
 
             if cuda:
                 model.load_state_dict(torch.load(self.warmstart_file))
@@ -38,6 +57,7 @@ class LoadSaveModel:
                 model.load_state_dict(torch.load(self.warmstart_file, map_location='cpu'))
 
             print('Loaded pretrained model: {}'.format(self.warmstart_file))
+
         model.eval()
         return model
 

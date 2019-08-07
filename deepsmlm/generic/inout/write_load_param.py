@@ -1,7 +1,7 @@
 import json
 
 
-def write_params(filename, inout, logging, scheduling, hyper, simulation, camera, scaling, postprocessing, evaluation):
+def write_params(filename, param):
     """
     Writes a JSON file with the used parameters.
     :param filename:
@@ -16,20 +16,22 @@ def write_params(filename, inout, logging, scheduling, hyper, simulation, camera
     :param evaluation:
     :return:
     """
-    json_string = json.dumps({'InOutParameter': inout._asdict(),
-                              'LoggerParameter': logging._asdict(),
-                              'HyperParameter': hyper._asdict(),
-                              'SchedulerParameter': scheduling._asdict(),
-                              'SimulationParam': simulation._asdict(),
-                              'CameraParam': camera._asdict(),
-                              'ScalingParam': scaling._asdict(),
-                              'PostProcessingParam': postprocessing._asdict(),
-                              'EvaluationParam': evaluation._asdict()}, indent=4)
+    data = {'InOut': param['InOut'],
+                              'Logging': param['Logging'],
+                              'Hyper': param['Hyper'],
+                              'Scheduler': param['Scheduler'],
+                              'Simulation': param['Simulation'],
+                              'Camera': param['Camera'],
+                              'Scaling': param['Scaling'],
+                              'PostProcessing': param['PostProcessing'],
+                              'Evaluation': param['Evaluation']}
 
-    f = open(filename, "w+")
-    f.write(json_string)
-    f.close()
+    with open(filename, "w") as write_file:
+        json.dump(data, write_file, indent=4)
 
 
 def load_params(filename):
-    pass
+    with open(filename) as json_file:
+        params = json.load(json_file)
+
+    return params

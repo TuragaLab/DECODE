@@ -3,6 +3,8 @@ from comet_ml import Experiment, OfflineExperiment
 import datetime
 import time
 import os
+import getopt
+import sys
 
 import torch
 from tensorboardX import SummaryWriter
@@ -35,6 +37,7 @@ from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale
 from deepsmlm.neuralfitter.train_test import train, test
+from deepsmlm.generic.inout.util import add_root_relative
 
 from deepsmlm.simulation import structure_prior, emittergenerator, simulator
 
@@ -51,178 +54,119 @@ WRITE_TO_LOG = True
 
 if __name__ == '__main__':
 
-    """Set ur basic parameters"""
-    io_par = InOutParameter(
-        root=deepsmlm_root,
-        log_comment='',
-        data_mode='online',
-        data_set=None,  # deepsmlm_root + 'data/2019-03-26/complete_z_range.npz',
-        model_out=deepsmlm_root + 'network/2019-08-02/model_challenge_re.pt',
-        model_init=deepsmlm_root + 'network/2019-08-02/model_challenge_7.pt')
+    """
+    Parsing parameters from command line. 
+    Valid options are p for specifying the parameter file and n for not logging the stuff.
+    """
+    param_file = None
+    unixOptions = "p:n"
+    gnuOptions = ["params=", "no_log"]
 
-    log_par = LoggerParameter(
-        tags=['3D', 'Offset', 'UNet'])
+    # read commandline arguments, first
+    argumentList = sys.argv[1:]
 
-    sched_par = SchedulerParameter(
-        lr_factor=0.1,
-        lr_patience=10,
-        lr_threshold=0.0025,
-        lr_cooldown=10,
-        lr_verbose=True,
-        sim_factor=1,
-        sim_patience=1,
-        sim_threshold=0,
-        sim_cooldown=10,
-        sim_verbose=True,
-        sim_disabled=True,
-        sim_max_value=50,
-    )
+    try:
+        arguments, values = getopt.getopt(argumentList, unixOptions, gnuOptions)
+    except getopt.error as err:
+        # output error, and return with an error code
+        print(str(err))
+        sys.exit(2)
 
-    hy_par = HyperParameter(
-        dimensions=3,
-        channels=3,
-        max_emitters=64,
-        min_phot=0.,
-        data_lifetime=10,
-        upscaling=None,
-        upscaling_mode=None,
-        batch_size=32,
-        test_size=256,
-        num_epochs=1000,
-        lr=1E-4,
-        device='cuda',
-        ignore_boundary_frames=True,
-        speiser_weight_sqrt_phot=False,
-        class_freq_weight=None,
-        pch_weight=1. #2 * 20 / (64*64)
-    )
+    for currentArgument, currentValue in arguments:
+        if currentArgument in ("-n", "--no_log"):
+            WRITE_TO_LOG = False
+            print("Not logging the current run.")
 
-    sim_par = SimulationParam(
-        pseudo_data_size=(512 * hy_par.batch_size + hy_par.test_size),  # (128*32 + 128),
-        emitter_extent=((-0.5, 63.5), (-0.5, 63.5), (-750, 750)),
-        psf_extent=((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)),
-        img_size=(64, 64),
-        density=0,
-        emitter_av=20,
-        photon_range=None,
-        bg_pois=95,
-        calibration=deepsmlm_root +
-                    'data/calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat',
-        intensity_mu_sig=(10000., 500.),
-        lifetime_avg=2.
-        )
+        elif currentArgument in ("-p", "--params"):
+            print("Parameter file is in: {}".format(currentValue))
+            param_file = currentValue
 
-    cam_par_challenge = CameraParam(
-        qe=1.,
-        em_gain=300.,
-        e_per_adu=45.,
-        baseline=100.,
-        read_sigma=74.4,
-        spur_noise=0.002
-    )
+    param_file = add_root_relative(param_file, deepsmlm_root)
 
-    cam_par_m2 = CameraParam(
-        qe=0.9,
-        em_gain=100.,
-        e_per_adu=4.553,
-        baseline=398.6,
-        read_sigma=58.8,
-        spur_noise=0.0015
-    )
+    """Load Parameters"""
+    if param_file is None:
+        raise ValueError("Parameters not specified. "
+                         "Parse the parameter file via -p [Your parameeter.json]")
+    param = wlp.load_params(param_file)
 
-    cam_par_m4 = CameraParam(
-        qe=0.82,  # A647
-        em_gain=None, # scmos
-        e_per_adu=0.758,
-        baseline=99.,
-        read_sigma=3.,
-        spur_noise=0.
-    )
+    """If path is relative add deepsmlm root."""
+    param['InOut']['model_out'] = add_root_relative(param['InOut']['model_out'],
+                                                    deepsmlm_root)
+    param['InOut']['model_init'] = add_root_relative(param['InOut']['model_init'],
+                                                     deepsmlm_root)
+    param['Simulation']['calibration'] = add_root_relative(param['Simulation']['calibration'],
+                                                           deepsmlm_root)
 
-    cam_par = cam_par_challenge
-
-    scale_par = ScalingParam(
-        dx_max=0.6,
-        dy_max=0.6,
-        z_max=750.,
-        phot_max=50000.,
-        linearisation_buffer=1.2
-    )
-
-    post_par = PostProcessingParam(
-        single_val_th=0.2,
-        total_th=0.5
-    )
-
-    eval_par = EvaluationParam(
-        dist_lat=1.5,
-        dist_ax=300,
-        match_dims=2
-    )
-
-    param_file = io_par.model_out[:-3] + '_param.json'
-    wlp.write_params(param_file, io_par, log_par, sched_par, hy_par, sim_par, cam_par_challenge, scale_par, post_par,
-                     eval_par)
+    # write params to folder where the network weights are
+    param_file = param['InOut']['model_out'][:-3] + '_param.json'
+    wlp.write_params(param_file, param)
 
     """Log System"""
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
 
     experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
                             auto_metric_logging=False, disabled=(not WRITE_TO_LOG))
-    # experiment = OfflineExperiment(project_name='deepsmlm',
-    #                                workspace='haydnspass',
-    #                                auto_metric_logging=False,
-    #                                offline_directory=deepsmlm_root + 'log/')
-    experiment.log_parameters(hy_par._asdict(), prefix='Hyp')
-    experiment.log_parameters(sim_par._asdict(), prefix='Sim')
-    experiment.log_parameters(sched_par._asdict(), prefix='Sched')
-    experiment.log_parameters(io_par._asdict(), prefix='IO')
-    experiment.log_parameters(log_par._asdict(), prefix='Log')
-    experiment.log_parameters(scale_par._asdict(), prefix='Scale')
+
+    experiment.log_parameters(param['Hyper'], prefix='Hyp')
+    experiment.log_parameters(param['Simulation'], prefix='Sim')
+    experiment.log_parameters(param['Scheduler'], prefix='Sched')
+    experiment.log_parameters(param['InOut'], prefix='IO')
+    experiment.log_parameters(param['Logging'], prefix='Log')
+    experiment.log_parameters(param['Scaling'], prefix='Scale')
+    experiment.log_parameters(param['Camera'], prefix='Cam')
+    experiment.log_parameters(param['PostProcessing'], prefix='Post')
+    experiment.log_parameters(param['Evaluation'], prefix='Eval')
 
     """Add some tags as specified above."""
-    for tag in log_par.tags:
+    for tag in param['Logging']['tags']:
         experiment.add_tag(tag)
 
-    logger = SummaryWriter(log_dir, comment=io_par.log_comment, write_to_disk=WRITE_TO_LOG)
+    logger = SummaryWriter(log_dir,
+                           comment=param['Logging']['log_comment'],
+                           write_to_disk=WRITE_TO_LOG)
+
     logger.add_text('comet_ml_key', experiment.get_key())
 
     """Set target for the Neural Network."""
-    offsetRep = OffsetRep(xextent=sim_par.psf_extent[0],
-                          yextent=sim_par.psf_extent[1],
+    offsetRep = OffsetRep(xextent=param['Simulation']['psf_extent'][0],
+                          yextent=param['Simulation']['psf_extent'][1],
                           zextent=None,
-                          img_shape=(sim_par.img_size[0], sim_par.img_size[1]))
+                          img_shape=(param['Simulation']['img_size'][0], param['Simulation']['img_size'][1]))
     tar_seq = []
     tar_seq.append(offsetRep)
-    tar_seq.append(InverseOffsetRescale(scale_par.dx_max,
-                                        scale_par.dy_max,
-                                        scale_par.z_max,
-                                        scale_par.phot_max,
-                                        scale_par.linearisation_buffer))
+    tar_seq.append(InverseOffsetRescale(param['Scaling']['dx_max'],
+                                        param['Scaling']['dy_max'],
+                                        param['Scaling']['z_max'],
+                                        param['Scaling']['phot_max'],
+                                        param['Scaling']['linearisation_buffer']))
 
     target_generator = processing.TransformSequence(tar_seq)
 
-    if io_par.data_mode == 'precomputed':
+    if param['InOut']['data_mode'] == 'precomputed':
         """Load Data from binary."""
-        emitter, extent, frames = NumpyInterface().load_binary(io_par.data_set)
+        emitter, extent, frames = NumpyInterface().load_binary(param['InOut']['data_set'])
 
         data_smlm = SMLMDataset(emitter, extent, frames, target_generator,
                                 multi_frame_output=False,
                                 dimensionality=None)
 
-        train_size = data_smlm.__len__() - hy_par.test_size
-        train_data_smlm, test_data_smlm = torch.utils.data.random_split(data_smlm, [train_size, hy_par.test_size])
+        train_size = data_smlm.__len__() - param['Hyper']['test_size']
+        train_data_smlm, test_data_smlm = torch.utils.data.\
+            random_split(data_smlm, [train_size, param['Hyper']['test_size']])
 
         train_loader = DataLoader(train_data_smlm,
-                                  batch_size=hy_par.batch_size, shuffle=True, num_workers=0, pin_memory=True)
+                                  batch_size=param['Hyper']['batch_size'], shuffle=True, num_workers=0, pin_memory=True)
 
         test_loader = DataLoader(test_data_smlm,
-                                 batch_size=hy_par.test_size, shuffle=False, num_workers=0, pin_memory=True)
+                                 batch_size=param['Hyper']['test_size'], shuffle=False, num_workers=0, pin_memory=True)
 
-    elif io_par.data_mode == 'online':
+    elif param['InOut']['data_mode'] == 'online':
         """Load 'Dataset' which is generated on the fly."""
-        smap_psf = SMAPSplineCoefficient(sim_par.calibration)
-        psf = smap_psf.init_spline(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size)
+
+        smap_psf = SMAPSplineCoefficient(param['Simulation']['calibration'])
+        psf = smap_psf.init_spline(param['Simulation']['psf_extent'][0],
+                                   param['Simulation']['psf_extent'][1],
+                                   param['Simulation']['img_size'])
 
         """Define our noise model."""
         # Out of focus emitters, homogeneous background noise, poisson noise
@@ -236,58 +180,58 @@ if __name__ == '__main__':
 
         # noise.append(noise_bg.Poisson(bg_uniform=sim_par.bg_pois))
         # noise = processing.TransformSequence(noise)
-        noise = Photon2Camera(qe=cam_par.qe,
-                              spur_noise=cam_par.spur_noise,
-                              bg_uniform=sim_par.bg_pois,
-                              em_gain=cam_par.em_gain,
-                              e_per_adu=cam_par.e_per_adu,
-                              baseline=cam_par.baseline,
-                              read_sigma=cam_par.read_sigma)
+        noise = Photon2Camera(qe=param['Camera']['qe'],
+                              spur_noise=param['Camera']['spur_noise'],
+                              bg_uniform=param['Simulation']['bg_pois'],
+                              em_gain=param['Camera']['em_gain'],
+                              e_per_adu=param['Camera']['e_per_adu'],
+                              baseline=param['Camera']['baseline'],
+                              read_sigma=param['Camera']['read_sigma'])
 
-        structure_prior = structure_prior.RandomStructure(sim_par.emitter_extent[0],
-                                                          sim_par.emitter_extent[1],
-                                                          sim_par.emitter_extent[2])
+        structure_prior = structure_prior.RandomStructure(param['Simulation']['emitter_extent'][0],
+                                                          param['Simulation']['emitter_extent'][1],
+                                                          param['Simulation']['emitter_extent'][2])
 
         prior = emittergenerator.EmitterPopperMultiFrame(structure_prior,
-                                                         density=sim_par.density,
-                                                         intensity_mu_sig=sim_par.intensity_mu_sig,
-                                                         lifetime=sim_par.lifetime_avg,
+                                                         density=param['Simulation']['density'],
+                                                         intensity_mu_sig=param['Simulation']['intensity_mu_sig'],
+                                                         lifetime=param['Simulation']['lifetime_avg'],
                                                          num_frames=3,
-                                                         emitter_av=sim_par.emitter_av)
+                                                         emitter_av=param['Simulation']['emitter_av'])
 
-        if hy_par.channels == 3:
+        if param['Hyper']['channels'] == 3:
             frame_range = (-1, 1)
-        elif hy_par.channels == 1:
+        elif param['Hyper']['channels'] == 1:
             frame_range = (0, 0)
         else:
             raise ValueError("Channels must be 1 (for only target frame) or 3 for one adjacent frame.")
 
         simulator = simulator.Simulation(None,
-                                                    sim_par.emitter_extent,
-                                                    psf,
-                                                    noise,
-                                                    poolsize=0,
-                                                    frame_range=frame_range)
+                                         param['Simulation']['emitter_extent'],
+                                         psf,
+                                         noise,
+                                         poolsize=0,
+                                         frame_range=frame_range)
 
         input_preparation = N2C()
 
-        train_size = sim_par.pseudo_data_size - hy_par.test_size
+        train_size = param['Simulation']['pseudo_data_size'] - param['Hyper']['test_size']
 
         train_data_smlm = SMLMDatasetOnFly(None, prior, simulator, train_size, input_preparation, target_generator,
-                                           None, static=False, lifetime=hy_par.data_lifetime, return_em_tar=False)
+                                           None, static=False, lifetime=param['Hyper']['data_lifetime'], return_em_tar=False)
 
-        test_data_smlm = SMLMDatasetOnFly(None, prior, simulator, hy_par.test_size, input_preparation, target_generator,
+        test_data_smlm = SMLMDatasetOnFly(None, prior, simulator, param['Hyper']['test_size'], input_preparation, target_generator,
                                           None, static=True, return_em_tar=True)
 
         train_loader = DataLoader(train_data_smlm,
-                                  batch_size=hy_par.batch_size,
+                                  batch_size=param['Hyper']['batch_size'],
                                   shuffle=True,
                                   num_workers=12,
                                   pin_memory=False,
                                   collate_fn=smlm_collate)
 
         test_loader = DataLoader(test_data_smlm,
-                                 batch_size=hy_par.batch_size,
+                                 batch_size=param['Hyper']['batch_size'],
                                  shuffle=False,
                                  num_workers=6,
                                  pin_memory=False,
@@ -297,71 +241,71 @@ if __name__ == '__main__':
         raise NameError("You used the wrong switch of how to get the training data.")
 
     """Set model and corresponding post-processing"""
-    model = OffsetUnet(hy_par.channels)
+    model = OffsetUnet(param['Hyper']['channels'])
 
-    proc = processing.TransformSequence([
-        OffsetRescale(scale_par.dx_max,
-                      scale_par.dy_max,
-                      scale_par.z_max,
-                      scale_par.phot_max,
-                      scale_par.linearisation_buffer),
-        post.Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
-        post.SpeiserPost(post_par.single_val_th,
-                         post_par.total_th,
+    """Set up post processor"""
+    post_processor = processing.TransformSequence([
+        OffsetRescale(param['Scaling']['dx_max'],
+                      param['Scaling']['dy_max'],
+                      param['Scaling']['z_max'],
+                      param['Scaling']['phot_max'],
+                      param['Scaling']['linearisation_buffer']),
+        post.Offset2Coordinate(param['Simulation']['psf_extent'][0],
+                               param['Simulation']['psf_extent'][1],
+                               param['Simulation']['img_size']),
+        post.SpeiserPost(param['PostProcessing']['single_val_th'],
+                         param['PostProcessing']['total_th'],
                          'emitters')
     ])
 
     """Log the model"""
     try:
-        dummy = torch.rand((2, hy_par.channels, *sim_par.img_size), requires_grad=True)
+        dummy = torch.rand((2, param['Hyper']['channels'],
+                            *param['Simulation']['img_size']), requires_grad=True)
         logger.add_graph(model, dummy, False)
     except:
         print("Your dummy input is wrong. Please update it.")
 
-    model_ls = LoadSaveModel(model, output_file=io_par.model_out, input_file=io_par.model_init)
-    model = model_ls.load_init()
-    model = model.to(torch.device(hy_par.device))
+    model_ls = LoadSaveModel(model,
+                             output_file=param['InOut']['model_out'],
+                             input_file=param['InOut']['model_init'])
 
-    optimiser = Adam(model.parameters(), lr=hy_par.lr)
+    model = model_ls.load_init()
+    model = model.to(torch.device(param['Hyper']['device']))
+
+    optimiser = Adam(model.parameters(), lr=param['Hyper']['lr'])
 
     """Loss function."""
-    criterion = SpeiserLoss(weight_sqrt_phot=hy_par.speiser_weight_sqrt_phot,
-                            class_freq_weight=hy_par.class_freq_weight,
-                            pch_weight=hy_par.pch_weight).return_criterion()
+    criterion = SpeiserLoss(weight_sqrt_phot=param['Hyper']['speiser_weight_sqrt_phot'],
+                            class_freq_weight=param['Hyper']['class_freq_weight'],
+                            pch_weight=param['Hyper']['pch_weight']).return_criterion()
 
-    """Set up post processor"""
-    post_processor = processing.TransformSequence([
-        OffsetRescale(scale_par.dx_max,
-                      scale_par.dy_max,
-                      scale_par.z_max,
-                      scale_par.phot_max,
-                      scale_par.linearisation_buffer),
-        post.Offset2Coordinate(sim_par.psf_extent[0], sim_par.psf_extent[1], sim_par.img_size),
-        post.SpeiserPost(post_par.single_val_th, post_par.total_th, 'emitters')
-    ])
+
 
     """Learning Rate Scheduling"""
     lr_scheduler = ReduceLROnPlateau(optimiser,
                                      mode='min',
-                                     factor=sched_par.lr_factor,
-                                     patience=sched_par.lr_patience,
-                                     threshold=sched_par.lr_threshold,
-                                     cooldown=sched_par.lr_cooldown,
-                                     verbose=sched_par.lr_verbose)
+                                     factor=param['Scheduler']['lr_factor'],
+                                     patience=param['Scheduler']['lr_patience'],
+                                     threshold=param['Scheduler']['lr_threshold'],
+                                     cooldown=param['Scheduler']['lr_cooldown'],
+                                     verbose=param['Scheduler']['lr_verbose'])
 
     sim_scheduler = ScheduleSimulation(prior=prior,
                                        datasets=[train_data_smlm, test_data_smlm],
                                        optimiser=optimiser,
-                                       threshold=sched_par.sim_threshold,
-                                       step_size=sched_par.sim_factor,
-                                       max_emitter=sched_par.sim_max_value,
-                                       patience=sched_par.sim_patience,
-                                       cooldown=sched_par.sim_cooldown)
+                                       threshold=param['Scheduler']['sim_threshold'],
+                                       step_size=param['Scheduler']['sim_factor'],
+                                       max_emitter=param['Scheduler']['sim_max_value'],
+                                       patience=param['Scheduler']['sim_patience'],
+                                       cooldown=param['Scheduler']['sim_cooldown'])
 
     last_new_model_name_time = time.time()
 
     """Evaluation Specification"""
-    matcher = evaluation.NNMatching(eval_par.dist_lat, eval_par.dist_ax, eval_par.match_dims)
+    matcher = evaluation.NNMatching(param['Evaluation']['dist_lat'],
+                                    param['Evaluation']['dist_ax'],
+                                    param['Evaluation']['match_dims'])
     segmentation_eval = evaluation.SegmentationEvaluation(False)
     distance_eval = evaluation.DistanceEvaluation(False)
 
@@ -369,18 +313,18 @@ if __name__ == '__main__':
     epoch_logger = log_utils.LogTestEpoch(logger, experiment)
 
     """Ask if everything is correct before we start."""
-    for i in range(hy_par.num_epochs):
+    for i in range(param['Hyper']['num_epochs']):
         logger.add_scalar('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
         experiment.log_metric('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
 
-        train(train_loader, model, optimiser, criterion, i, hy_par, logger, experiment, train_data_smlm.calc_new_flag)
+        train(train_loader, model, optimiser, criterion, i, param, logger, experiment, train_data_smlm.calc_new_flag)
 
-        val_loss = test(test_loader, model, criterion, i, hy_par, experiment, post_processor, batch_ev, epoch_logger)
+        val_loss = test(test_loader, model, criterion, i, param, experiment, post_processor, batch_ev, epoch_logger)
         lr_scheduler.step(val_loss)
         sim_scheduler.step(val_loss)
 
         """When using online generated data, reduce lifetime."""
-        if io_par.data_mode == 'online':
+        if param['InOut']['data_mode'] == 'online':
             train_data_smlm.step()
 
         """Save."""

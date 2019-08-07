@@ -89,7 +89,7 @@ def plot_io_coord_model(frame, output, target, em_tar, indices, fig_str, comet_l
     return figures, figures_3d
 
 
-def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, experiment, calc_new):
+def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, experiment, calc_new):
     last_print_time = 0
     loss_values = []
     step_batch = epoch * train_loader.__len__()
@@ -111,11 +111,11 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         # measure data loading time
         data_time.update(time.time() - end)
 
-        x_in = x_in.to(hy_par.device)
+        x_in = x_in.to(torch.device(conf_param['Hyper']['device']))
         if type(target) is torch.Tensor:
-            target = target.to(hy_par.device)
+            target = target.to(torch.device(conf_param['Hyper']['device']))
         elif type(target) in (tuple, list):
-            target = (target[0].to(hy_par.device), target[1].to(hy_par.device))
+            target = (target[0].to(torch.device(conf_param['Hyper']['device'])), target[1].to(torch.device(param['Hyper']['device'])))
         else:
             raise TypeError("Not supported type to push to cuda.")
 
@@ -136,7 +136,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         """
 
         """Ignore the loss of the boundary frames"""
-        if hy_par.ignore_boundary_frames:
+        if conf_param['Hyper']['ignore_boundary_frames']:
             loss = criterion(output[1:-1], target[1:-1])
         else:
             loss = criterion(output, target)
@@ -184,7 +184,7 @@ def train(train_loader, model, optimizer, criterion, epoch, hy_par, logger, expe
         step_batch += 1
 
 
-def test(val_loader, model, criterion, epoch, hy_par, experiment, post_processor, batch_ev, epoch_logger):
+def test(val_loader, model, criterion, epoch, conf_param, experiment, post_processor, batch_ev, epoch_logger):
     """
     Taken from: https://pytorch.org/tutorials/beginner/aws_distributed_training_tutorial.html
     """
@@ -202,11 +202,12 @@ def test(val_loader, model, criterion, epoch, hy_par, experiment, post_processor
         end = time.time()
         for i, (x_in, target, em_tar) in enumerate(val_loader):
 
-            x_in = x_in.to(hy_par.device)
+            x_in = x_in.to(torch.device(conf_param['Hyper']['device']))
             if type(target) is torch.Tensor:
-                target = target.to(hy_par.device)
+                target = target.to(torch.device(conf_param['Hyper']['device']))
             elif type(target) in (tuple, list):
-                target = (target[0].to(hy_par.device), target[1].to(hy_par.device))
+                target = (target[0].to(torch.device(conf_param['Hyper']['device'])),
+                          target[1].to(torch.device(conf_param['Hyper']['device'])))
             else:
                 raise TypeError("Not supported type to push to cuda.")
 
