@@ -196,10 +196,10 @@ class SpeiserLoss(Loss):
         self.cmp_values = torch.zeros((0, 5))
 
     @staticmethod
-    def functional(output, target, ce, l2, weight_by_phot, class_freq_weight, pch_weight):
+    def functional(output, target, p_loss, phot_xyz_loss, weight_by_phot, class_freq_weight, pch_weight):
         mask = target[:, [0], :, :]
 
-        p_loss = ce(output[:, [0], :, :], target[:, [0], :, :])
+        p_loss = p_loss(output[:, [0], :, :], target[:, [0], :, :])
         if class_freq_weight is not None:
             weight = torch.ones_like(p_loss)
             weight[target[:, [0], :, :] == 1.] = class_freq_weight
@@ -211,7 +211,8 @@ class SpeiserLoss(Loss):
             weight = torch.ones_like(target[:, [1], :, :])
 
         """Mask and weight the loss"""
-        xyzi_loss = l2(mask * weight * output[:, 1:, :, :], mask * weight * target[:, 1:, :, :])
+        xyzi_loss = phot_xyz_loss(output[:, 1:, :, :], target[:, 1:, :, :])
+        xyzi_loss *= mask * weight
 
         return torch.cat((pch_weight * p_loss, xyzi_loss), 1)
 
