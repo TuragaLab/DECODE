@@ -7,7 +7,7 @@ class OffsetUnet(UNet):
     def __init__(self, n_channels):
         super().__init__(n_channels=n_channels, n_classes=5)
         # p non-linearity is in loss (BCEWithLogitsLoss)
-        self.p_nl = lambda x: x  # identity function since sigmoid is now in loss.
+        self.p_nl_training = torch.sigmoid  # identity function since sigmoid is now in loss.
         self.i_nl = torch.sigmoid
         self.xyz_nl = torch.tanh
 
@@ -28,7 +28,9 @@ class OffsetUnet(UNet):
         i = x[:, [1]]
         xyz = x[:, 2:]
 
-        p = self.p_nl(p)
+        if not self.training:
+            p = self.p_nl_training(p)
+
         i = self.i_nl(i)
         xyz = self.xyz_nl(xyz)
         x = torch.cat((p, i, xyz), 1)
