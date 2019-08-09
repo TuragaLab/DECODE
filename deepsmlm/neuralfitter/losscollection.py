@@ -39,87 +39,6 @@ class FocalLoss(nn.Module):
 
         return balanced_focal_loss
 
-
-class FocalLoss_2bdeleted(nn.Module):
-    """
-    (https://github.com/Hsuxu/Loss_ToolBox-PyTorch/blob/master/FocalLoss/FocalLoss.py)
-    This is a implementation of Focal Loss with smooth label cross entropy supported which is proposed in
-    'Focal Loss for Dense Object Detection. (https://arxiv.org/abs/1708.02002)'
-        Focal_Loss= -1*alpha*(1-pt)*log(pt)
-    :param num_class:
-    :param alpha: (tensor) 3D or 4D the scalar factor for this criterion
-    :param gamma: (float,double) gamma > 0 reduces the relative loss for well-classified examples (p>0.5) putting more
-                    focus on hard misclassified example
-    :param smooth: (float,double) smooth value when cross entropy
-    :param balance_index: (int) balance class index, should be specific when alpha is float
-    :param size_average: (bool, optional) By default, the losses are averaged over each loss element in the batch.
-    """
-
-    def __init__(self, num_class, alpha=None, gamma=2, balance_index=-1, smooth=None, size_average=True):
-        super(FocalLoss, self).__init__()
-        self.num_class = num_class
-        self.alpha = alpha
-        self.gamma = gamma
-        self.smooth = smooth
-        self.size_average = size_average
-
-        if self.alpha is None:
-            self.alpha = torch.ones(self.num_class, 1)
-        elif isinstance(self.alpha, (list, np.ndarray)):
-            assert len(self.alpha) == self.num_class
-            self.alpha = torch.FloatTensor(alpha).view(self.num_class, 1)
-            self.alpha = self.alpha / self.alpha.sum()
-        elif isinstance(self.alpha, float):
-            alpha = torch.ones(self.num_class, 1)
-            alpha = alpha * (1 - self.alpha)
-            alpha[balance_index] = self.alpha
-            self.alpha = alpha
-        else:
-            raise TypeError('Not support alpha type')
-
-        if self.smooth is not None:
-            if self.smooth < 0 or self.smooth > 1.0:
-                raise ValueError('smooth value should be in [0,1]')
-
-    def forward(self, logit, target):
-
-        if logit.dim() > 2:
-            # N,C,d1,d2 -> N,C,m (m=d1*d2*...)
-            logit = logit.view(logit.size(0), logit.size(1), -1)
-            logit = logit.permute(0, 2, 1).contiguous()
-            logit = logit.view(-1, logit.size(-1))
-        target = target.view(-1, 1)
-
-        epsilon = 1e-10
-        alpha = self.alpha
-        if alpha.device != logit.device:
-            alpha = alpha.to(logit.device)
-
-        idx = target.cpu().long()
-
-        one_hot_key = torch.FloatTensor(target.size(0), self.num_class).zero_()
-        one_hot_key = one_hot_key.scatter_(1, idx, 1)
-        if one_hot_key.device != logit.device:
-            one_hot_key = one_hot_key.to(logit.device)
-
-        if self.smooth:
-            one_hot_key = torch.clamp(
-                one_hot_key, self.smooth/(self.num_class-1), 1.0 - self.smooth)
-        pt = (one_hot_key * logit).sum(1) + epsilon
-        logpt = pt.log()
-
-        gamma = self.gamma
-
-        alpha = alpha[idx]
-        loss = -1 * alpha * torch.pow((1 - pt), gamma) * logpt
-
-        if self.size_average:
-            loss = loss.mean()
-        else:
-            loss = loss.sum()
-        return loss
-
-
 class Loss(ABC):
     """Abstract class for my loss functions."""
 
@@ -181,7 +100,7 @@ class SpeiserLoss(Loss):
         self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none')
         self.phot_xyz_loss = torch.nn.MSELoss(reduction='none')
 
-        self.cmp_desc = (cmp_prefix + '/' + v for v in SpeiserLoss.cmp_suffix)
+        self.cmp_desc = [cmp_prefix + '/' + v for v in SpeiserLoss.cmp_suffix]
         self.cmp_val = None
         self.logger = logger
 
@@ -206,18 +125,16 @@ class SpeiserLoss(Loss):
             p_loss *= weight
 
         if weight_by_phot:
-            weight = target[:, [1], :, :].sqrt()
-        else:
-            weight = torch.ones_like(target[:, [1], :, :])
+            mask *= target[:, [1], :, :].sqrt()
 
         """Mask and weight the loss"""
         xyzi_loss = phot_xyz_loss(output[:, 1:, :, :], target[:, 1:, :, :])
-        xyzi_loss *= mask * weight
+        xyzi_loss *= mask
 
         return torch.cat((pch_weight * p_loss, xyzi_loss), 1)
 
     def log_batch_loss_cmp(self, loss_vec):
-        self.cmp_values = torch.cat((self.cmp_values, loss_vec.mean(-1).mean(-1).mean(0).view(1, 5)), dim=0)
+        self.cmp_values = torch.cat((self.cmp_values, loss_vec.mean(-1).mean(-1).mean(0).view(1, 5).cpu()), dim=0)
 
     def log_components(self, ix):
 
@@ -227,6 +144,71 @@ class SpeiserLoss(Loss):
             self.logger.add_scalar(cmp, cmp_values[i].item(), ix)
 
         self._reset_batch_log()
+
+
+class OffsetROILoss(SpeiserLoss):
+    def __init__(self, roi_size=3, weight_sqrt_phot=False, class_freq_weight=None, ch_weight=None, cmp_prefix='loss', logger=None):
+        """
+
+        :param weight_sqrt_phot:
+        :param class_freq_weight:
+        :param ch_weight: tensor of size 5
+        :param cmp_prefix:
+        :param logger:
+        """
+        super().__init__(weight_sqrt_phot, class_freq_weight, None, cmp_prefix, logger)
+        self.roi_size = roi_size
+        if roi_size != 3:
+            raise NotImplementedError('Only ROI size 3 supported currently.')
+
+        if ch_weight is None:
+            self.ch_weight = torch.ones((1, 5, 1, 1))
+        else:
+            self.ch_weight = ch_weight.view(1, 5, 1, 1)
+
+    def __call__(self, output, target):
+        return self.functional(output, target, self.roi_size, self.p_loss, self.phot_xyz_loss,
+                               self.weight_sqrt_phot, self.class_freq_weight, self.ch_weight)
+
+    @staticmethod
+    def functional(output, target, roi_size, p_loss, phot_xyz_loss, weight_by_phot, class_freq_weight, ch_weight):
+        mask = target[:, [0], :, :]
+        is_emitter = target[:, [0], :, :].byte()  # save indexing tensor where we have an emitter
+
+        conv_kernel = torch.tensor([[1 / 4, 1 / 2, 1 / 4],
+                                    [1 / 2, 1., 1 / 2],
+                                    [1 / 4, 1 / 2, 1 / 4]])
+        conv_kernel /= conv_kernel.sum()
+        conv_kernel = conv_kernel.unsqueeze(0).unsqueeze(0).to(output.device)
+        mask = F.conv2d(mask, conv_kernel, padding=1)
+
+        """Calculate overlapping ROI"""
+        overlap_kernel = torch.ones((1, 1, roi_size, roi_size)).to(output.device)
+        overlap_mask = F.conv2d(target[:, [0]], overlap_kernel, padding=1)
+
+        """Where we have overlapping ROI, set mask to zero but not in the ground truth pixel"""
+        mask_ = mask.clone()
+        is_overlap = overlap_mask >= 2.
+        mask_[is_overlap] = 0.
+        mask_[is_emitter] = mask[is_emitter]
+        mask = mask_
+
+        p_loss = p_loss(output[:, [0], :, :], target[:, [0], :, :])
+        if class_freq_weight is not None:
+            weight = torch.ones_like(p_loss)
+            weight[target[:, [0], :, :] == 1.] = class_freq_weight
+            p_loss *= weight
+
+        if weight_by_phot:
+            mask *= target[:, [1], :, :].sqrt()
+
+        """Mask and weight the loss"""
+        xyzi_loss = phot_xyz_loss(output[:, 1:, :, :], target[:, 1:, :, :])
+        xyzi_loss *= mask
+
+        out = torch.cat((p_loss, xyzi_loss), 1)
+        out *= ch_weight.to(out.device)
+        return out
 
 
 class FocalOffsetLoss(SpeiserLoss):
