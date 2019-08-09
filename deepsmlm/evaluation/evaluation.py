@@ -55,6 +55,10 @@ class MetricMeter:
         vals = self.vals.view(-1).numpy()
         f, (ax_box, ax_hist) = plt.subplots(2, sharex=True, gridspec_kw={"height_ratios": (.1, .9)})
 
+        """If we don't have values return empty figure"""
+        if vals.shape[0] <= 2:
+            return f
+
         """Plot boxplot and distplot."""
         sns.boxplot(vals, ax=ax_box)
         sns.distplot(vals, ax=ax_hist, kde=False, fit=fit, bins=bins_, norm_hist=True)
