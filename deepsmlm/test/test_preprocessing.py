@@ -85,6 +85,12 @@ class TestDecodeRepresentation:
         assert (dy <= 0.5).all(), "delta x/y must be between -0.5 and 0.5"
         assert (dy >= -0.5).all(), "delta x/y must be between -0.5 and 0.5"
 
+    def test_single_emitter(self, offset_rep):
+        em = CoordinateOnlyEmitter(torch.tensor([[15.1, 19.6, 250.]]))
+        offset_rep.cat_out = True
+        target = offset_rep.forward(em)
+        assert tutil.tens_almeq(target[:, 15, 20], torch.tensor([1., 1., 0.1, -0.4, 250.]), 1e-5)
+
 
 class TestROIOffsetRep(TestDecodeRepresentation):
 
@@ -122,12 +128,16 @@ class TestROIOffsetRep(TestDecodeRepresentation):
         # plt.subplot(236)
         # PlotFrame(target[4]).plot()
         # plt.show()
+        
+        assert tutil.tens_almeq(target[:, 15, 17], torch.tensor([1., 1., -0.1, 0.2, 300.]), 1e-5)
+        assert tutil.tens_almeq(target[2, 15, 16:19], torch.tensor([-0.1, -0.1, -0.1]), 1e-5)
+        assert tutil.tens_almeq(target[3, 14:17, 17], torch.tensor([0.2, 0.2, 0.2]), 1e-5)
 
         """Test it together with the loss"""
         prediction = torch.rand((1, 5, 32, 32))
         loss_v = loss(prediction, target.unsqueeze(0))
-        assert tutil.tens_almeq(loss_v[0, :, 1, 0], torch.zeros(5))
-        assert tutil.tens_almeq(loss_v[0, :, 0, 1], torch.zeros(5))
+        assert tutil.tens_almeq(loss_v[0, 1:, 1, 0], torch.zeros(4))
+        assert tutil.tens_almeq(loss_v[0, 1:, 0, 1], torch.zeros(4))
 
 
 class TestGlobalOffsetRep:

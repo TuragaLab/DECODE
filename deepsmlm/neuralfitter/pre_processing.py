@@ -135,8 +135,8 @@ class ROIOffsetRep(OffsetRep):
             raise NotImplementedError("Currently only ROI size 3 is implemented and tested.")
 
         """Addition 'kernel' for phot channel, dxyz"""
-        self.kern_dx = torch.tensor([[1., 0., -1.], [1., 0., -1.], [1., 0., -1.]])
-        self.kern_dy = torch.tensor([[1., 1., 1], [0., 0., 0.], [-1., -1., -1.]])
+        self.kern_dy = torch.tensor([[1., 0., -1.], [1., 0., -1.], [1., 0., -1.]])
+        self.kern_dx = torch.tensor([[1., 1., 1], [0., 0., 0.], [-1., -1., -1.]])
 
     def forward(self, x):
         offset_target = super().forward(x)
