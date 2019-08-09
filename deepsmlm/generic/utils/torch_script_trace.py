@@ -8,12 +8,6 @@ from deepsmlm.generic.utils import processing as utils
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
 
 
-"""Root folder"""
-deepsmlm_root = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 os.pardir, os.pardir)) + '/'
-
-
 def trace_offset_model(model):
     x = torch.rand((2, 3, 64, 64))
     traced_module = torch.jit.trace(model, x)
@@ -29,8 +23,13 @@ def trace_post_processing(post_functional):
 
 
 if __name__ == '__main__':
+    
+    """Root folder"""
+    deepsmlm_root = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     os.pardir, os.pardir)) + '/'
 
-    file = '/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/network/2019-06-18/model_for_challenge_4.pt'
+    file = '/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/network/2019-08-06/model_challenge_roi_10_quant_comp.pt'
     traced_file = file[:-3] + '_jit_traced.pt'
 
     model = OffsetUnet(3)

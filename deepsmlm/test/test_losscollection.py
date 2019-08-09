@@ -62,6 +62,18 @@ class TestSpeiserLogged:
         assert True
 
 
+class TestOffsetROILoss:
+
+    @pytest.fixture(scope='class')
+    def loss(self):
+        return loss.OffsetROILoss()
+
+    def test_run(self, loss):
+        x = torch.zeros((2, 5, 32, 32))
+        x[0, 0, 1, 1] = 1.
+        assert tutil.tens_almeq(x, loss(x, x))
+
+
 class TestFocalVoronoiPointLoss:
 
     @pytest.fixture(scope='class')

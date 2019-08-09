@@ -22,7 +22,7 @@ import deepsmlm.generic.noise as noise_bg
 import deepsmlm.generic.psf_kernel as psf_kernel
 import deepsmlm.evaluation.evaluation as evaluation
 from deepsmlm.generic.phot_camera import Photon2Camera
-from deepsmlm.neuralfitter.pre_processing import OffsetRep
+from deepsmlm.neuralfitter.pre_processing import OffsetRep, GlobalOffsetRep, ROIOffsetRep
 import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.generic.utils.data_utils import smlm_collate
 import deepsmlm.generic.utils.processing as processing
@@ -31,7 +31,7 @@ from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParameter, Simu
     SchedulerParameter, ScalingParam, EvaluationParam, PostProcessingParam, CameraParam
 from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
-from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss
+from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss, OffsetROILoss
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
@@ -128,10 +128,16 @@ if __name__ == '__main__':
     logger.add_text('comet_ml_key', experiment.get_key())
 
     """Set target for the Neural Network."""
-    offsetRep = OffsetRep(xextent=param['Simulation']['psf_extent'][0],
+    # offsetRep = OffsetRep(xextent=param['Simulation']['psf_extent'][0],
+    #                       yextent=param['Simulation']['psf_extent'][1],
+    #                       zextent=None,
+    #                       img_shape=(param['Simulation']['img_size'][0], param['Simulation']['img_size'][1]))
+    offsetRep = ROIOffsetRep(xextent=param['Simulation']['psf_extent'][0],
                           yextent=param['Simulation']['psf_extent'][1],
                           zextent=None,
-                          img_shape=(param['Simulation']['img_size'][0], param['Simulation']['img_size'][1]))
+                          img_shape=(param['Simulation']['img_size'][0], param['Simulation']['img_size'][1]),
+                             roi_size=3)
+
     tar_seq = []
     tar_seq.append(offsetRep)
     tar_seq.append(InverseOffsetRescale(param['Scaling']['dx_max'],
@@ -276,11 +282,13 @@ if __name__ == '__main__':
     optimiser = Adam(model.parameters(), lr=param['Hyper']['lr'])
 
     """Loss function."""
-    criterion = SpeiserLoss(weight_sqrt_phot=param['Hyper']['speiser_weight_sqrt_phot'],
-                            class_freq_weight=param['Hyper']['class_freq_weight'],
-                            pch_weight=param['Hyper']['pch_weight'])
+    # criterion = SpeiserLoss(weight_sqrt_phot=param['Hyper']['speiser_weight_sqrt_phot'],
+    #                         class_freq_weight=param['Hyper']['class_freq_weight'],
+    #                         pch_weight=param['Hyper']['pch_weight'], logger=logger)
 
-
+    criterion = OffsetROILoss(roi_size=3, weight_sqrt_phot=param['Hyper']['speiser_weight_sqrt_phot'],
+                              class_freq_weight=param['Hyper']['class_freq_weight'],
+                              ch_weight=torch.tensor(param['Hyper']['ch_weight']), logger=logger)
 
     """Learning Rate Scheduling"""
     lr_scheduler = ReduceLROnPlateau(optimiser,

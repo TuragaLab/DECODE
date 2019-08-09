@@ -7,7 +7,7 @@ import torch
 from matplotlib import pyplot as plt
 
 from deepsmlm.generic.emitter import EmitterSet
-from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord, PlotCoordinates3D
+from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord, PlotCoordinates3D, PlotFrame
 import deepsmlm.evaluation.evaluation as eval
 
 
@@ -184,6 +184,7 @@ def test(val_loader, model, criterion, epoch, conf_param, experiment, post_proce
 
     inputs = []
     outputs = []
+    target_frames = []
     em_outs = []
     tars = []
 
@@ -208,6 +209,11 @@ def test(val_loader, model, criterion, epoch, conf_param, experiment, post_proce
 
             # record loss
             losses.update(loss.item())
+            criterion.log_batch_loss_cmp(loss_)
+
+            # ToDo: Ugly ...
+            # apply non-linearity in the p-channel
+            output = model.apply_pnl(output)
 
             """Forward output through post-processor for eval."""
             if post_processor is not None:
@@ -219,6 +225,7 @@ def test(val_loader, model, criterion, epoch, conf_param, experiment, post_proce
 
             inputs.append(x_in.cpu())
             outputs.append(output.detach().cpu())
+            target_frames.append(target.detach().cpu())
             tars.extend(em_tar)
 
     print("Test: Time: {batch_time.avg:.3f} \t""Loss: {loss.avg:.4f}".format(batch_time=batch_time, loss=losses))
@@ -226,9 +233,12 @@ def test(val_loader, model, criterion, epoch, conf_param, experiment, post_proce
     # from list of outputs to one output
     inputs = torch.cat(inputs, 0)
     outputs = torch.cat(outputs, 0)
+    target_frames = torch.cat(target_frames, 0)
+
 
     """Batch evaluation and log"""
     batch_ev.forward(em_outs, tars)
-    epoch_logger.forward(batch_ev.values, inputs, outputs, em_outs, tars, epoch)
+    criterion.log_components(epoch)
+    epoch_logger.forward(batch_ev.values, inputs, outputs, target_frames, em_outs, tars, epoch)
 
     return losses.avg

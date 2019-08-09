@@ -22,7 +22,7 @@ class LogTestEpoch:
         self.tb.add_figure(label, fig, step)
         self.cml.log_figure(label, fig)
 
-    def forward(self, metrics_set, input_frames, output_frames, em_out, em_tar, step):
+    def forward(self, metrics_set, input_frames, output_frames, target_frames, em_out, em_tar, step):
         self._log_metric(metrics_set.prec.avg, step, "eval/precision")
         self._log_metric(metrics_set.rec.avg, step, "eval/recall")
         self._log_metric(metrics_set.jac.avg, step, "eval/jac")
@@ -58,29 +58,59 @@ class LogTestEpoch:
 
         self._log_figure(plt.gcf(), step, "io/frames_in")
 
+        """Plot Target"""
+        # keep index
         _ = plt.figure(figsize=(12, 12))
         plt.subplot(231)
         emplot.PlotFrameCoord(frame=input_frames[ix, 1],
                               pos_tar=em_tar_.xyz,
-                              phot_tar=em_tar_.phot,
-                              pos_out=em_out_.xyz,
-                              phot_out=em_out_.phot).plot(); plt.legend()
+                              phot_tar=em_tar_.phot).plot();
+        plt.legend()
+        plt.subplot(232)
+        emplot.PlotFrame(frame=target_frames[ix, 0]).plot()
+        plt.title('p channel')
+        plt.subplot(233)
+        emplot.PlotFrame(frame=target_frames[ix, 1]).plot()
+        plt.title('phot channel')
+        plt.subplot(234)
+        emplot.PlotFrame(frame=target_frames[ix, 2]).plot()
+        plt.title('dx channel')
+        plt.subplot(235)
+        emplot.PlotFrame(frame=target_frames[ix, 3]).plot()
+        plt.title('dy channel')
+        plt.subplot(236)
+        emplot.PlotFrame(frame=target_frames[ix, 4]).plot()
+        plt.title('z channel')
+
+        self._log_figure(plt.gcf(), step, "io/target")
+
+        _ = plt.figure(figsize=(12, 12))
+        plt.subplot(231)
+        emplot.PlotFrameCoord(frame=input_frames[ix, 1],
+                              pos_tar=em_tar_.xyz,
+                              phot_tar=em_tar_.phot).plot(); plt.legend()
+        plt.title('Input')
 
         plt.subplot(232)
-        emplot.PlotFrameCoord(frame=output_frames[ix, 0],
-                              pos_tar=em_tar_.xyz,
-                              phot_tar=em_tar_.phot,
-                              pos_out=em_out_.xyz,
-                              phot_out=em_out_.phot).plot(); plt.legend()
+        emplot.PlotFrameCoord(frame=output_frames[ix, 0], clim=(0., 1.)).plot()
+        plt.legend()
+        plt.title('p channel')
 
         plt.subplot(233)
         emplot.PlotFrame(frame=output_frames[ix, 1]).plot()
+        plt.title('phot channel')
+
         plt.subplot(234)
         emplot.PlotFrame(frame=output_frames[ix, 2]).plot()
+        plt.title('dx channel')
+
         plt.subplot(235)
         emplot.PlotFrame(frame=output_frames[ix, 3]).plot()
+        plt.title('dy channel')
+
         plt.subplot(236)
         emplot.PlotFrame(frame=output_frames[ix, 4]).plot()
+        plt.title('z channel')
 
         self._log_figure(plt.gcf(), step, "io/tarframe_output")
 

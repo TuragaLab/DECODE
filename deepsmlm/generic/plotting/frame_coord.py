@@ -40,7 +40,7 @@ class PlotFrame:
         if self.clim is not None:
             plt.clim(self.clim[0], self.clim[1])
             # safety measure
-            plt.colorbar()
+            # plt.colorbar()
         plt.xlabel('x')
         plt.ylabel('y')
 
