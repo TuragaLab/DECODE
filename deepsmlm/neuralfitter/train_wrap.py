@@ -327,15 +327,15 @@ if __name__ == '__main__':
         logger.add_scalar('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
         experiment.log_metric('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
 
-        train(train_loader, model, optimiser, criterion, i, param, logger, experiment, train_data_smlm.calc_new_flag)
+        _ = train(train_loader, model, optimiser, criterion, i, param, logger, experiment, train_data_smlm.calc_new_flag)
 
-        val_loss = test(test_loader, model, criterion, i, param, experiment, post_processor, batch_ev, epoch_logger)
+        val_loss = test(test_loader, model, criterion, i, param, logger, experiment, post_processor, batch_ev, epoch_logger)
         lr_scheduler.step(val_loss)
         sim_scheduler.step(val_loss)
 
         """When using online generated data, reduce lifetime."""
         if param['InOut']['data_mode'] == 'online':
-            train_data_smlm.step()
+            train_loader.dataset.step()
 
         """Save."""
         model_ls.save(model, val_loss)

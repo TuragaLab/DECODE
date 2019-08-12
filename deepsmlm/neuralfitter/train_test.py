@@ -98,6 +98,7 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
     batch_time = eval.MetricMeter()
     data_time = eval.MetricMeter()
     losses = eval.MetricMeter()
+    loss_batch10 = eval.MetricMeter()
 
     model.train()
     end = time.time()
@@ -132,7 +133,7 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
         loss = loss_.mean()
         # record loss
         losses.update(loss.item())
-        loss_values.append(loss.item())
+        loss_batch10.update(loss.item())
 
         # compute gradients in a backward pass
         optimizer.zero_grad()
@@ -145,6 +146,7 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
         batch_time.update(time.time() - end)
         end = time.time()
 
+        """Print 0th, 1st, 2nd, 10th and every 5 secs to the console."""
         if (i in [0, 1, 2, 10]) or (time.time() > last_print_time + 5):  # print the first few batches plus after 5s
             last_print_time = time.time()
             print('Epoch: [{0}][{1}/{2}]\t'
@@ -156,13 +158,14 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
 
         """Log Learning Rate, Benchmarks etc."""
         if i % 10 == 0:
-            experiment.log_metric('learning/train_10_batch_loss', np.mean(loss_values), step=step_batch)
+            experiment.log_metric('learning/train_batch10_loss', loss.item(), step=step_batch)
 
-            logger.add_scalar('learning/train_loss', np.mean(loss_values), step_batch)
+            logger.add_scalar('learning/train_batch10_loss', loss.item(), step_batch)
             logger.add_scalar('data/eval_time', batch_time.val, step_batch)
             logger.add_scalar('data/data_time', data_time.val, step_batch)
-            loss_values.clear()
+            loss_batch10.reset()
 
+        """Log the gradients."""
         if i == 0:
             for name, param in model.named_parameters():
                 if 'bn' not in name:
@@ -172,8 +175,13 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
 
         step_batch += 1
 
+    experiment.log_metric('learning/train_epoch_loss', losses.avg, step=epoch)
+    logger.add_scalar('learning/train_epoch_loss', losses.avg, epoch)
 
-def test(val_loader, model, criterion, epoch, conf_param, experiment, post_processor, batch_ev, epoch_logger):
+    return losses.avg
+
+
+def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, post_processor, batch_ev, epoch_logger):
     """
     Taken from: https://pytorch.org/tutorials/beginner/aws_distributed_training_tutorial.html
     """
@@ -235,10 +243,12 @@ def test(val_loader, model, criterion, epoch, conf_param, experiment, post_proce
     outputs = torch.cat(outputs, 0)
     target_frames = torch.cat(target_frames, 0)
 
-
     """Batch evaluation and log"""
     batch_ev.forward(em_outs, tars)
     criterion.log_components(epoch)
     epoch_logger.forward(batch_ev.values, inputs, outputs, target_frames, em_outs, tars, epoch)
+
+    experiment.log_metric('learning/test_epoch_loss', losses.avg, step=epoch)
+    logger.add_scalar('learning/test_epoch_loss', losses.avg, epoch)
 
     return losses.avg
