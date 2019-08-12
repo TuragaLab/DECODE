@@ -1,5 +1,8 @@
 import torch
 from torch.utils.data import Dataset
+import ctypes
+import numpy as np
+import multiprocessing as mp
 
 from deepsmlm.generic.psf_kernel import DeltaPSF, DualDelta, ListPseudoPSF, ListPseudoPSFInSize
 from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV, N2C, Identity
@@ -100,12 +103,23 @@ class SMLMDatasetOnFly(Dataset):
         self.target_generator = tar_gen
 
         """Initialise Frame and Target. Call drop method to create list."""
-        self.frame = None
-        self.target = None
-        self.em_tar = None
-        self.data_complete = None
+        _, frame_dummy, target_dummy, _ = self.pop_new()
+
+        frames_base = mp.Array(ctypes.c_float, self.__len__() * frame_dummy.numel())
+        frames = np.ctypeslib.as_array(frames_base.get_obj())
+        frames = frames.reshape(self.__len__(), frame_dummy.size(0), frame_dummy.size(1), frame_dummy.size(2))
+
+        target_base = mp.Array(ctypes.c_float, self.__len__() * target_dummy.numel())
+        target = np.ctypeslib.as_array(target_base.get_obj())
+        target = target.reshape(self.__len__(), target_dummy.size(0), target_dummy.size(1), target_dummy.size(2))
+
+        self.frame = torch.from_numpy(frames)
+        self.target = torch.from_numpy(target)
+        self.em_tar = [None] * self.__len__()
+        self.use_cache = False
 
         self.drop_data_set(verbose=False)
+
         """Pre-Calculcate the complete dataset and use the same data as one draws samples.
         This is useful for the testset or the classical deep learning feeling of not limited training data."""
         if self.static_data:
@@ -115,8 +129,7 @@ class SMLMDatasetOnFly(Dataset):
                 self.target[i] = target
                 self.em_tar[i] = em_tar
 
-            self.check_completeness(warning=True)
-            self.calc_new_flag = False
+            self.use_cache = True
             print("Pre-calculation of dataset done.")
 
     def step(self):
@@ -125,24 +138,15 @@ class SMLMDatasetOnFly(Dataset):
             self.drop_data_set()
             self.time_til_death = self.lifetime
 
-    def check_completeness(self, warning=False):
-        frame_complete = not any(v is None for v in self.frame)
-        target_complete = not any(v is None for v in self.target)
-        em_tar_complete = not any(v is None for v in self.em_tar)
-        if frame_complete and target_complete and em_tar_complete:
-            self.data_complete = True
-            self.calc_new_flag = False
         else:
-            self.data_complete = False
-            self.calc_new_flag = True
-            if warning:
-                print("WARNING: The dataset is not complete.")
+            self.use_cache = True
 
     def drop_data_set(self, verbose=True):
-        self.frame = [None] * self.__len__()
-        self.target = [None] * self.__len__()
+        self.frame *= float('nan')
+        self.target *= float('nan')
         self.em_tar = [None] * self.__len__()
-        self.check_completeness()
+
+        self.use_cache = False
 
         if verbose:
             print("Dataset dropped. Will calculate a new one in next epoch.")
@@ -160,17 +164,13 @@ class SMLMDatasetOnFly(Dataset):
 
     def __getitem__(self, index):
 
-        if self.calc_new_flag or self.lifetime == 0:
+        if not self.use_cache:
             emitter, frame, target, em_tar = self.pop_new()
             self.frame[index] = frame
             self.target[index] = target
             self.em_tar[index] = em_tar
-        else:
-            frame = self.frame[index]
-            target = self.target[index]
-            em_tar = self.em_tar[index]
 
-        self.check_completeness(False)
+        frame, target, em_tar = self.frame[index], self.target[index], self.em_tar[index]
 
         if self.return_em_tar:
             return frame, target, em_tar
@@ -217,7 +217,3 @@ class UnsupervisedDataset(Dataset):
             img = self.frames[index, :, :, :]
 
         return img, index
-
-
-if __name__ == '__main__':
-    pass
