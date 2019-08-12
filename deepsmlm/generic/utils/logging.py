@@ -93,7 +93,6 @@ class LogTestEpoch:
 
         plt.subplot(232)
         emplot.PlotFrameCoord(frame=output_frames[ix, 0], clim=(0., 1.)).plot()
-        plt.legend()
         plt.title('p channel')
 
         plt.subplot(233)
