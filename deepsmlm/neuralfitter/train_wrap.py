@@ -306,7 +306,9 @@ if __name__ == '__main__':
                                        step_size=param['Scheduler']['sim_factor'],
                                        max_emitter=param['Scheduler']['sim_max_value'],
                                        patience=param['Scheduler']['sim_patience'],
-                                       cooldown=param['Scheduler']['sim_cooldown'])
+                                       cooldown=param['Scheduler']['sim_cooldown'],
+                                       verbose=param['Scheduler']['sim_verbose'],
+                                       disabled=param['Scheduler']['sim_disabled'])
 
     last_new_model_name_time = time.time()
 
