@@ -2,6 +2,7 @@ import torch
 from unittest import TestCase
 import pytest
 import time
+import os
 
 from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
 import deepsmlm.generic.emitter as emitter
@@ -80,10 +81,25 @@ class TestEmitterSet:
         assert 1 == cat_sets.frame_ix[50]
 
         sets = [RandomEmitterSet(50), RandomEmitterSet(20)]
-        cat_sets = EmitterSet.cat_emittersets(sets, [5, 50], None)
+        cat_sets = EmitterSet.cat_emittersets(sets, torch.tensor([5, 50]), None)
         assert 70 == cat_sets.num_emitter
         assert 5 == cat_sets.frame_ix[0]
         assert 50 == cat_sets.frame_ix[50]
+
+    def test_write_to_csv(self):
+        """
+        Test to write to csv file.
+        :return:
+        """
+        deepsmlm_root = os.path.abspath(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         os.pardir, os.pardir)) + '/'
+
+        random_em = RandomEmitterSet(1000)
+        fname = deepsmlm_root + 'deepsmlm/test/assets/dummy_csv.txt'
+        random_em.write_to_csv(fname)
+        assert os.path.isfile(fname)
+        os.remove(fname)
 
 
 def test_empty_emitterset():

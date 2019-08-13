@@ -59,7 +59,7 @@ $ gcc -fPIC -g -c -Wall lib/spline_psf.c -o lib/spline_psf.o
 $ ar rcs lib/libspline_psf.a lib/spline_psf.o
 
 @gpu6
-$ gcc -fPIC -g -c -std=c99 -Wall lib/spline_psf.c -o lib/spline_psf.o
+$ gcc-4.9 -fPIC -g -c -std=c99 -Wall lib/spline_psf.c -o lib/spline_psf.o
 $ ar rcs lib/libspline_psf.a lib/spline_psf.o
 
 @mac

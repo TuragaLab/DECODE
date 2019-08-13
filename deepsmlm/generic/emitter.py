@@ -11,7 +11,7 @@ class EmitterSet:
     """
     Class, storing a set of emitters. Each attribute is a torch.Tensor.
     """
-    def __init__(self, xyz, phot, frame_ix, id=None):
+    def __init__(self, xyz, phot, frame_ix, id=None, prob=None):
         """
         Constructor. Coordinates, photons, frame_ix must be provided. Id is optional.
 
@@ -22,6 +22,7 @@ class EmitterSet:
         the frame, if it's a tensor, it must be of length N.
         :param id: torch.Tensor of size N. id of an emitter. -1 is an arbitrary non uniquely used
          fallback id.
+        :param prob: torch.Tensor of size N. probability of observation. will be 1 by default.
         """
         self.num_emitter = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
 
@@ -30,12 +31,14 @@ class EmitterSet:
             self.phot = phot.type(xyz.dtype)
             self.frame_ix = frame_ix.type(xyz.dtype)
             self.id = id if id is not None else -torch.ones_like(frame_ix).type(xyz.dtype)
+            self.prob = prob if prob is not None else torch.ones_like(frame_ix).type(xyz.dtype)
 
         else:
             self.xyz = torch.zeros((0, 3), dtype=torch.float)
             self.phot = torch.zeros((0,), dtype=torch.float)
             self.frame_ix = torch.zeros((0,), dtype=torch.float)
             self.id = -torch.ones((0,), dtype=torch.float)
+            self.prob = torch.ones((0,), dtype=torch.float)
 
         self._sorted = False
 
@@ -48,15 +51,20 @@ class EmitterSet:
         """
         if not ((self.xyz.shape[0] == self.phot.shape[0])
                 and (self.phot.shape[0] == self.frame_ix.shape[0])
-                and (self.frame_ix.shape[0] == self.id.shape[0])):
-            raise ValueError("Coordinates, photons, frame ix and id are not of equal shape in 0th dimension.")
+                and (self.frame_ix.shape[0] == self.id.shape[0])
+                and (self.id.shape[0] == self.prob.shape[0])):
+            raise ValueError("Coordinates, photons, frame ix, id and prob are not of equal shape in 0th dimension.")
 
     def clone(self):
         """
         Clone method to generate a deep copy.
         :return: Deep copy of self.
         """
-        return EmitterSet(self.xyz.clone(), self.phot.clone(), self.frame_ix.clone(), self.id.clone())
+        return EmitterSet(self.xyz.clone(),
+                          self.phot.clone(),
+                          self.frame_ix.clone(),
+                          self.id.clone(),
+                          self.prob.clone())
 
     @staticmethod
     def cat_emittersets(emittersets, remap_frame_ix=None, step_frame_ix=None):
@@ -64,7 +72,7 @@ class EmitterSet:
         Concatenates list of emitters and rempas there frame indices if they start over with 0 per item in list.
 
         :param emittersets: iterable of instances of this class
-        :param remap_frame_ix: iterable of frame indices to which the 0th frame index in the emitterset corresponds to
+        :param remap_frame_ix: tensor of frame indices to which the 0th frame index in the emitterset corresponds to
         :param step_frame_ix: step of frame indices between items in list
         :return: emitterset
         """
@@ -87,19 +95,21 @@ class EmitterSet:
         phot = torch.cat([emittersets[i].phot for i in range(num_emittersets)], 0)
         frame_ix = torch.cat([emittersets[i].frame_ix + shift[i] for i in range(num_emittersets)], 0)
         id = torch.cat([emittersets[i].id for i in range(num_emittersets)], 0)
+        prob = torch.cat([emittersets[i].prob for i in range(num_emittersets)], 0)
 
-        return EmitterSet(xyz, phot, frame_ix, id)
+        return EmitterSet(xyz, phot, frame_ix, id, prob)
 
     def sort_by_frame(self):
         self.frame_ix, ix = self.frame_ix.sort()
         self.xyz = self.xyz[ix, :]
         self.phot = self.phot[ix]
         self.id = self.id[ix]
+        self.prob = self.prob[ix]
 
         self._sorted = True
 
     def get_subset(self, ix):
-        return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix])
+        return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix], self.prob[ix])
 
     def get_subset_frame(self, frame_start, frame_end, shift_to=None):
         """
@@ -145,9 +155,10 @@ class EmitterSet:
             grand_matrix = torch.cat((self.xyz[ix, :],
                                       self.phot[ix].unsqueeze(1),
                                       frame_ix.unsqueeze(1),
-                                      self.id[ix].unsqueeze(1)), dim=1)
+                                      self.id[ix].unsqueeze(1),
+                                      self.prob[ix].unsqueeze(1)), dim=1)
         else:
-            raise ValueError("No Id is not supported any more.")
+            raise DeprecationWarning("No Id is not supported any more.")
 
         """The first frame is assumed to be 0. If it's negative go to the lowest negative."""
         if self.num_emitter != 0:
@@ -172,7 +183,7 @@ class EmitterSet:
         em_list = []
 
         for i, em in enumerate(grand_matrix_list):
-            em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5]))
+            em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5], prob=em[:, 6]))
 
         return em_list
 
@@ -186,9 +197,10 @@ class EmitterSet:
         grand_matrix = torch.cat((self.id.unsqueeze(1),
                                   self.frame_ix.unsqueeze(1),
                                   self.xyz,
-                                  self.phot.unsqueeze(1)), 1)
-        header = 'This is an export from DeepSMLM. ' \
-                 'Total number of emitters: {}\nid, frame_ix, xyz, phot'.format(self.num_emitter)
+                                  self.phot.unsqueeze(1),
+                                  self.prob.unsqueeze(1)), 1)
+        header = 'id, frame_ix, x, y, z, phot, prob\nThis is an export from DeepSMLM.\n' \
+                 'Total number of emitters: {}'.format(self.num_emitter)
 
         if model is not None:
             if hasattr(model, 'hash'):
@@ -267,20 +279,6 @@ class LooseEmitterSet:
         """
         xyz_, phot_, frame_ix_, id_ = self.distribute_framewise_py()
         return EmitterSet(xyz_, phot_, frame_ix_, id_)
-
-    def distribute_framewise_cpp(self):
-        """
-        Wrapper to call C++ function to distribute the stuff over the frames.
-        Unfortunately this does not seem to be way faster than the Py version ...
-
-        :return: coordinates, photons, frame_ix, _id where for every frame-ix
-        """
-        _xyz, _phot, _frame_ix, _id = torch_cpp.distribute_frames(self.t0,
-                                                                  self.ontime,
-                                                                  self.xyz,
-                                                                  self.phot,
-                                                                  self.id)
-        return _xyz, _phot, _frame_ix, _id
 
     def distribute_framewise_py(self):
         """

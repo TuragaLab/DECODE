@@ -57,7 +57,7 @@ void get_frame_range(torch::Tensor vals, int element, int& last_ix, int& ix_low,
 /**
  Function to split a tensor in a recotr of rows of the aforementioned tensor
 
- @param tensor_ tensor which should be splitted
+ @param tensor_ tensor which should be splitted in rows as specified by the tensor split_data
  @param split_data indices for splitting
  @param bound_low lower bound of range
  @param bound_high high bound
@@ -65,6 +65,7 @@ void get_frame_range(torch::Tensor vals, int element, int& last_ix, int& ix_low,
  */
 auto split_tensor(torch::Tensor tensor_, torch::Tensor split_data, int bound_low, int bound_high) -> std::vector<torch::Tensor> {
     
+    int tensor_cols = tensor_.size(1);
     std::vector<torch::Tensor> tensor_split;
     
     // initiailise last accesed item in split_data
@@ -78,7 +79,7 @@ auto split_tensor(torch::Tensor tensor_, torch::Tensor split_data, int bound_low
         
         // if value is not found in tensor, push empty
         if (ix_up == -1 || ix_low == -1) {
-            tensor_split.push_back(torch::zeros({0, 6}));
+            tensor_split.push_back(torch::zeros({0, tensor_cols}));
         } else {
             tensor_split.push_back(tensor_.slice(0, ix_low, ix_up + 1));  // behaviour like Python, so excluding end index
         }
