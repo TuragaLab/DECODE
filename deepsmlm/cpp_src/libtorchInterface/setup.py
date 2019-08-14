@@ -48,6 +48,9 @@ $ CFLAGS='-stdlib=libc++' CC=clang CXX=clang++ NO_CUDA=1 python setup.py clean -
 Linux:
 $ python setup.py clean --all install
 
+Linux Server
+$ CXX=gcc-4.9 CC=gcc-4.9 python setup.py clean --all install
+
 Linux without CUDA:
 $ NO_CUDA=1 python setup.py clean --all install
 

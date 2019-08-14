@@ -136,8 +136,6 @@ class SMLMDatasetOnFly(Dataset):
         self.time_til_death -= 1
         if self.time_til_death <= 0:
             self.drop_data_set()
-            self.time_til_death = self.lifetime
-
         else:
             self.use_cache = True
 
@@ -147,6 +145,7 @@ class SMLMDatasetOnFly(Dataset):
         self.em_tar = [None] * self.__len__()
 
         self.use_cache = False
+        self.time_til_death = self.lifetime
 
         if verbose:
             print("Dataset dropped. Will calculate a new one in next epoch.")

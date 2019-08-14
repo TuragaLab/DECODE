@@ -3,7 +3,9 @@ import random
 import time
 
 import numpy as np
+from copy import deepcopy
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 from matplotlib import pyplot as plt
 
 from deepsmlm.generic.emitter import EmitterSet
@@ -231,10 +233,15 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
             batch_time.update(time.time() - end)
             end = time.time()
 
-            inputs.append(x_in.cpu())
-            outputs.append(output.detach().cpu())
-            target_frames.append(target.detach().cpu())
-            tars.extend(em_tar)
+            inputs.append(x_in.clone().cpu())
+            outputs.append(output.detach().clone().cpu())
+            target_frames.append(target.detach().clone().cpu())
+            tars.extend(deepcopy(em_tar))
+
+            del x_in
+            del output
+            del target
+            del em_tar
 
     print("Test: Time: {batch_time.avg:.3f} \t""Loss: {loss.avg:.4f}".format(batch_time=batch_time, loss=losses))
 

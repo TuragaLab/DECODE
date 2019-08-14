@@ -7,6 +7,7 @@ import getopt
 import sys
 
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 from tensorboardX import SummaryWriter
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -41,9 +42,10 @@ from deepsmlm.generic.inout.util import add_root_relative
 
 from deepsmlm.simulation import structure_prior, emittergenerator, simulator
 
-import resource
-rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-resource.setrlimit(resource.RLIMIT_NOFILE, (8192, rlimit[1]))
+# import resource
+# rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+# resource.setrlimit(resource.RLIMIT_NOFILE, (32768, rlimit[1]))
+
 
 """Root folder"""
 deepsmlm_root = os.path.abspath(
@@ -127,6 +129,15 @@ if __name__ == '__main__':
 
     logger.add_text('comet_ml_key', experiment.get_key())
 
+    """Some Server stuff"""
+    if param['Hyper']['device'] == 'cuda':
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(param['Hyper']['device_ix'])
+    else:
+        print("Device is not CUDA. Cuda ix not set.")
+
+    assert torch.cuda.device_count() == 1
+    torch.set_num_threads(param['Hyper']['num_threads'])
+
     """Set target for the Neural Network."""
     # offsetRep = OffsetRep(xextent=param['Simulation']['psf_extent'][0],
     #                       yextent=param['Simulation']['psf_extent'][1],
@@ -161,10 +172,12 @@ if __name__ == '__main__':
             random_split(data_smlm, [train_size, param['Hyper']['test_size']])
 
         train_loader = DataLoader(train_data_smlm,
-                                  batch_size=param['Hyper']['batch_size'], shuffle=True, num_workers=0, pin_memory=True)
+                                  batch_size=param['Hyper']['batch_size'], shuffle=True,
+                                  num_workers=param['Simulation']['num_workers'], pin_memory=True)
 
         test_loader = DataLoader(test_data_smlm,
-                                 batch_size=param['Hyper']['test_size'], shuffle=False, num_workers=0, pin_memory=True)
+                                 batch_size=param['Hyper']['test_size'], shuffle=False,
+                                 num_workers=param['Simulation']['num_workers'], pin_memory=True)
 
     elif param['InOut']['data_mode'] == 'online':
         """Load 'Dataset' which is generated on the fly."""
@@ -232,14 +245,14 @@ if __name__ == '__main__':
         train_loader = DataLoader(train_data_smlm,
                                   batch_size=param['Hyper']['batch_size'],
                                   shuffle=True,
-                                  num_workers=12,
+                                  num_workers=param['Simulation']['num_workers'],
                                   pin_memory=False,
                                   collate_fn=smlm_collate)
 
         test_loader = DataLoader(test_data_smlm,
                                  batch_size=param['Hyper']['batch_size'],
                                  shuffle=False,
-                                 num_workers=6,
+                                 num_workers=param['Simulation']['num_workers_test'],
                                  pin_memory=False,
                                  collate_fn=smlm_collate)
 
@@ -300,7 +313,7 @@ if __name__ == '__main__':
                                      verbose=param['Scheduler']['lr_verbose'])
 
     sim_scheduler = ScheduleSimulation(prior=prior,
-                                       datasets=[train_data_smlm, test_data_smlm],
+                                       datasets=[train_loader.dataset, test_loader.dataset],
                                        optimiser=optimiser,
                                        threshold=param['Scheduler']['sim_threshold'],
                                        step_size=param['Scheduler']['sim_factor'],
@@ -330,12 +343,16 @@ if __name__ == '__main__':
         _ = train(train_loader, model, optimiser, criterion, i, param, logger, experiment, train_data_smlm.calc_new_flag)
 
         val_loss = test(test_loader, model, criterion, i, param, logger, experiment, post_processor, batch_ev, epoch_logger)
-        lr_scheduler.step(val_loss)
-        sim_scheduler.step(val_loss)
 
-        """When using online generated data, reduce lifetime."""
+        """
+        When using online generated data and data is given a lifetime, 
+        reduce the steps until a new dataset is to be created. This needs to happen before sim_scheduler (for reasons).
+        """
         if param['InOut']['data_mode'] == 'online':
             train_loader.dataset.step()
+
+        lr_scheduler.step(val_loss)
+        sim_scheduler.step(val_loss)
 
         """Save."""
         model_ls.save(model, val_loss)

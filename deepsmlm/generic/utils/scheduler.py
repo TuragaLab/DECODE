@@ -96,6 +96,21 @@ class GenericScheduler(object):
 class ScheduleSimulation(GenericScheduler):
     def __init__(self, prior, datasets, optimiser, threshold, step_size, max_emitter,
                  mode='min', patience=10, threshold_mode='rel', cooldown=0, verbose=True, disabled=False):
+        """
+
+        :param prior:
+        :param datasets:
+        :param optimiser:
+        :param threshold:
+        :param step_size:
+        :param max_emitter:
+        :param mode:
+        :param patience:
+        :param threshold_mode:
+        :param cooldown:
+        :param verbose:
+        :param disabled:
+        """
         super().__init__(threshold,
                          mode=mode,
                          patience=patience,
