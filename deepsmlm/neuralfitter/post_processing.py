@@ -273,8 +273,7 @@ class SpeiserPost:
                 y_map.unsqueeze(1),
                 z_map.unsqueeze(1)
             ), 1)
-            em = EmitterSet(xyz, phot_map, frame_ix)
-            em.p = p_map
+            em = EmitterSet(xyz, phot_map, frame_ix, prob=p_map)
             if self.out_format[8:] == '_emset':
                 return em
             else:

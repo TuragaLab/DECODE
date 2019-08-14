@@ -204,10 +204,10 @@ class EmitterSet:
 
         if model is not None:
             if hasattr(model, 'hash'):
-                header += f'\n Model initialisation file SHA-1 hash: {model.hash}'
+                header += '\n Model initialisation file SHA-1 hash: {}'.format({model.hash})
 
         if comments is not None:
-            header += f'\nUser comment during export: {comments}'
+            header += '\nUser comment during export: {}'.format(comments)
         np.savetxt(filename, grand_matrix.numpy(), delimiter=',', header=header)
 
 
