@@ -2,6 +2,7 @@ import torch
 import pytest
 
 import deepsmlm.neuralfitter.post_processing as post
+import deepsmlm.test.utils_ci as tutil
 
 
 @pytest.fixture(scope='module')
@@ -89,4 +90,25 @@ class TestSpeiser:
         x = torch.rand(32, 5, 64, 64)
         assert torch.eq(speis.forward(x), traced_script_module(x)).all()
 
+
+class TestConsistentPostProcessing:
+    @pytest.fixture(scope='class')
+    def post(self):
+        return post.ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_batch')
+
+    def test_easy(self, post):
+        p = torch.zeros((2, 1, 32, 32))
+        out = torch.zeros((2, 4, 32, 32))
+        p[1, 0, 2, 4] = 0.6
+        p[1, 0, 2, 6] = 0.6
+        p[0, 0, 0, 0] = 0.3
+        p[0, 0, 0, 1] = 0.4
+
+        out[0, 2, 0, 0] = 0.3
+        out[0, 2, 0, 1] = 0.5
+        out[1, 2, 2, 4] = 1.
+        out[1, 2, 2, 6] = 1.2
+
+        em = post.forward(torch.cat((p, out),1))
+        print('Done')
 

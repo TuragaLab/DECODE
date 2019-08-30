@@ -1,14 +1,12 @@
-import numpy as np
-from scipy.ndimage.measurements import label
 # from skimage.feature import peak_local_max
-from sklearn.cluster import DBSCAN
-import torch
+from sklearn.cluster import AgglomerativeClustering
 import torch.nn as nn
 
-from deepsmlm.generic.coordinate_trafo import UpsamplingTransformation as ScaleTrafo
-from deepsmlm.generic.coordinate_trafo import A2BTransform
-from deepsmlm.generic.psf_kernel import DeltaPSF, OffsetPSF
+from deepsmlm.evaluation.evaluation import *
 from deepsmlm.generic.emitter import EmitterSet
+from deepsmlm.generic.phot_camera import *
+from deepsmlm.neuralfitter.post_processing import *
+from deepsmlm.neuralfitter.pred_tif import *
 
 
 class PeakFinder:
@@ -181,6 +179,17 @@ class SpeiserPost:
         self.out_format = out_format
         self.out_th = out_th
 
+    @staticmethod
+    def parse(param: dict):
+        return SpeiserPost(param['PostProcessing']['single_val_th'],
+                           param['PostProcessing']['total_th'],
+                           'emitters_framewise')
+
+    @staticmethod
+    def frame_to_emitter(prob, features, threshold):
+        pass
+        # Todo
+
     def forward_(self, p, features):
         """
         :param p: N x H x W probability map
@@ -208,9 +217,19 @@ class SpeiserPost:
 
             """In order do be able to identify two fluorophores in adjacent pixels we look for 
             probablity values > 0.6 that are not part of the first mask."""
-            p_ *= (1 - max_mask1[:, 0])
-            p_clip = torch.where(p_ > self.sep_th, p_, torch.zeros_like(p_))[:, None]
+            p_ = p * (1 - max_mask1[:, 0])
+            # p_clip = torch.where(p_ > self.sep_th, p_, torch.zeros_like(p_))[:, None]
             max_mask2 = torch.where(p_ > self.sep_th, torch.ones_like(p_), torch.zeros_like(p_))[:, None]
+            """
+            If we still have now adjacent pixels with a prob bigger than twice the seperation threshold, 
+            throw it away. One might think of a more sophisticated ambiguity handling.
+            """
+            # ToDo: I don't know whether this is correct!
+            count_mask2 = torch.nn.functional.conv2d(max_mask2, filt, padding=1)
+            ambig_mask = torch.ones_like(count_mask2)
+            ambig_mask[ambig_mask >= 2 * self.sep_th] = 0.
+            max_mask2 *= ambig_mask
+
             p_ps2 = max_mask2 * conv
 
             """This is our final clustered probablity which we then threshold (normally > 0.7) 
@@ -274,21 +293,160 @@ class SpeiserPost:
                 z_map.unsqueeze(1)
             ), 1)
             em = EmitterSet(xyz, phot_map, frame_ix, prob=p_map)
-            if self.out_format[8:] == '_emset':
+            if self.out_format[8:] == '_batch':
                 return em
-            else:
+            elif self.out_format[8:] == '_framewise':
                 return em.split_in_frames(0, batch_size - 1)
 
 
-def speis_post_functional(x):
-    """
-    A dummy wrapper because I don't get tracing to work otherwise.
+class ConsistencyPostprocessing:
+    p_aggregation = 'sum'
 
-    :param features: N x C x H x W
-    :return: feature averages N x C x H x W if self.out_format == frames, EmitterSet if self.out_foramt == 'emitters'
-    """
+    def __init__(self, svalue_th=0.1, final_th=0.6, dist_threshold=0.3, match_dims=2, out_format='emitters'):
+        """
 
-    return SpeiserPost(0.3, 0.6, 'frames').forward(x)
+        :param svalue_th: single value threshold
+        :param sep_th: threshold when to assume that we have 2 emitters
+        :param out_format: either 'emitters' or 'image'. If 'emitter' we output instance of EmitterSet, if 'frames' we output post_processed frames.
+        :param out_th: final threshold
+        """
+        self.svalue_th = svalue_th
+        self.final_th = final_th
+        self.out_format = out_format
+
+        diag = 0
+        self.neighbor_kernel = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).float().view(1, 1, 3, 3)
+        self.clusterer = AgglomerativeClustering(n_clusters=None, distance_threshold=dist_threshold)
+        self.match_dims = match_dims
+
+    def _cluster(self, p, features):
+        if p.size(1) > 1:
+            raise ValueError("Not Supported shape for propbabilty.")
+        p_out = torch.zeros_like(p).view(p.size(0), p.size(1), -1)
+        feat_out = features.clone().view(features.size(0), features.size(1), -1)
+
+        """Frame wise clustering."""
+        for i in range(features.size(0)):
+            ix = p[i, 0] > 0
+            if (ix == 0.).all().item():
+                continue
+            alg_ix = (p[i].view(-1) > 0).nonzero().squeeze(1)
+
+            p_frame = p[i, 0, ix].view(-1)
+            f_frame = features[i, :, ix]
+            # flatten samples and put them in the first dim
+            f_frame = f_frame.reshape(f_frame.size(0), -1).permute(1, 0)
+            if self.match_dims == 2:
+                coord = f_frame[:, 2:4]
+            elif self.match_dims == 3:
+                coord = f_frame[:, 2:5]
+            else:
+                raise ValueError("Match dims must be 2 or 3.")
+
+            self.clusterer.fit(coord.cpu().numpy())
+            n_clusters = self.clusterer.n_clusters_
+            labels = torch.from_numpy(self.clusterer.labels_)
+
+            for c in range(n_clusters):
+                in_cluster = labels == c
+                feat_ix = alg_ix[in_cluster]
+                if self.p_aggregation == 'sum':
+                    p_agg = p_frame[in_cluster].sum()
+                elif self.p_aggregation == 'max':
+                    p_agg = p_frame[in_cluster].max()
+                else:
+                    raise ValueError("Prob. aggregation must be sum or max.")
+
+                p_out[i, 0, feat_ix[0]] = p_agg  # only set first element to some probability
+                """Average the features."""
+                feat_av = (feat_out[i, :, feat_ix] * p_frame[in_cluster]).sum(1) / p_frame[in_cluster].sum()
+                feat_out[i, :, feat_ix] = feat_av.unsqueeze(1).repeat(1, in_cluster.sum())
+
+            return p_out.reshape(p.size()), feat_out.reshape(features.size())
+
+    def forward(self, features):
+        p = features[:, [0], :, :]
+        features = features[:, 1:, :, :]
+        p_out, feat_out = self.forward_(p, features)
+        is_above_final_th = p_out >= self.final_th
+
+        if self.out_format == 'frames':
+            post_frames = torch.cat((p_out, feat_out), 1) * is_above_final_th.type(features.dtype)
+            return post_frames
+        elif self.out_format[:8] == 'emitters':
+            batch_size = feat_out.shape[0]
+
+            is_above_final_th.squeeze_(1)
+            frame_ix = torch.ones_like(feat_out[:, 0, :, :]) * \
+                       torch.arange(batch_size, dtype=feat_out.dtype).view(-1, 1, 1, 1)
+            frame_ix = frame_ix[:, 0, :, :][is_above_final_th]
+            p_map = p_out[:, 0, :, :][is_above_final_th]
+            phot_map = feat_out[:, 0, :, :][is_above_final_th]
+            x_map = feat_out[:, 1, :, :][is_above_final_th]
+            y_map = feat_out[:, 2, :, :][is_above_final_th]
+            z_map = feat_out[:, 3, :, :][is_above_final_th]
+            xyz = torch.cat((
+                x_map.unsqueeze(1),
+                y_map.unsqueeze(1),
+                z_map.unsqueeze(1)
+            ), 1)
+            em = EmitterSet(xyz, phot_map, frame_ix, prob=p_map)
+            if self.out_format[8:] == '_batch':
+                return em
+            elif self.out_format[8:] == '_framewise':
+                return em.split_in_frames(0, batch_size - 1)
+
+    def forward_(self, p, features):
+        """
+        :param p: N x H x W probability map
+        :param features: N x C x H x W features
+        :return: feature averages N x (1 + C) x H x W final probabilities plus features
+        """
+        with torch.no_grad():
+            """First init by an first threshold to get rid of all the nonsense"""
+            p_clip = torch.zeros_like(p)
+            is_above_svalue = p > self.svalue_th
+            p_clip[is_above_svalue] = p[is_above_svalue]
+            p_clip_rep = p_clip.repeat(1, features.size(1), 1, 1)  # repeated to access the features
+
+            """Divide the set in easy (no neighbors) and set of predictions with adjacents"""
+            binary_mask = torch.zeros_like(p_clip)
+            binary_mask[p_clip > 0] = 1.
+
+            # count neighbors
+            self.neighbor_kernel.type(features.dtype).to(features.device)
+            count = torch.nn.functional.conv2d(binary_mask, self.neighbor_kernel, padding=1) * binary_mask
+
+            # divide in easy and difficult set
+            is_easy = count == 1
+            is_easy_rep = is_easy.repeat(1, features.size(1), 1, 1)
+            is_diff = count >= 2
+            is_diff_rep = is_diff.repeat(1, features.size(1), 1, 1)
+
+            p_easy = torch.zeros_like(p_clip)
+            p_diff = p_easy.clone()
+            feat_easy = torch.zeros_like(features)
+            feat_diff = feat_easy.clone()
+
+            p_easy[is_easy] = p_clip[is_easy]
+            feat_easy[is_easy_rep] = features[is_easy_rep]
+
+            p_diff[is_diff] = p_clip[is_diff]
+            feat_diff[is_diff_rep] = features[is_diff_rep]
+
+            p_out = torch.zeros_like(p_clip).cpu()
+            feat_out = torch.zeros_like(feat_diff).cpu()
+
+            """Cluster the hard cases if they are consistent given euclidean affinity."""
+            p_out_diff, feat_out_diff = self._cluster(p_diff, feat_diff)
+
+            """Add the easy ones."""
+            p_out[is_easy] = p_easy[is_easy]
+            p_out[is_diff] = p_out_diff[is_diff]
+
+            feat_out[is_easy_rep] = feat_easy[is_easy_rep]
+            feat_out[is_diff_rep] = feat_out_diff[is_diff_rep]
+            return p_out, feat_out
 
 
 class CC5ChModel(ConnectedComponents):
@@ -470,6 +628,17 @@ class Offset2Coordinate:
         y_coord = self.y_mesh.repeat(batch_size, 1, 1).to(y_offset.device) + y_offset
         return x_coord, y_coord
 
+    @staticmethod
+    def parse(param):
+        """
+
+        :param param:
+        :return:
+        """
+        return Offset2Coordinate(param['Simulation']['psf_extent'][0],
+                                 param['Simulation']['psf_extent'][1],
+                                 param['Simulation']['img_size'])
+
     def forward(self, output):
         """
         Forwards a batch of 5ch offset model and convert the offsets to coordinates
@@ -495,14 +664,3 @@ class Offset2Coordinate:
             output_converted.squeeze_(0)
 
         return output_converted
-
-
-if __name__ == '__main__':
-
-    speis = SpeiserPost(0.3, 0.6, 'emitters')
-    speis.save('testytest.pt')
-    x = torch.rand((2, 5, 64, 64))
-    output = speis.forward(x)
-
-
-    print("Success.")
