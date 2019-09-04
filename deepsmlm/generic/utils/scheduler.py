@@ -129,10 +129,25 @@ class ScheduleSimulation(GenericScheduler):
 
         self.init_lr = optimiser.param_groups[0]['lr']
 
-    def _do_step(self, epoch):
+    @staticmethod
+    def parse(prior, datasets, optimiser, param: dict):
+        """
 
-        if self.disabled:
-            return
+        :param param:
+        :return:
+        """
+        return ScheduleSimulation(prior=prior,
+                                       datasets=datasets,
+                                       optimiser=optimiser,
+                                       threshold=param['SimulationScheduler']['threshold'],
+                                       step_size=param['SimulationScheduler']['factor'],
+                                       max_emitter=param['SimulationScheduler']['max_value'],
+                                       patience=param['SimulationScheduler']['patience'],
+                                       cooldown=param['SimulationScheduler']['cooldown'],
+                                       verbose=param['SimulationScheduler']['verbose'],
+                                       disabled=param['SimulationScheduler']['disabled'])
+
+    def _do_step(self, epoch):
 
         if self.prior.emitter_av < self.max_emitter_av:
             self.prior.emitter_av *= self.step_size
@@ -147,6 +162,12 @@ class ScheduleSimulation(GenericScheduler):
 
         else:
             print("Maximum complexity reached.")
+
+    def step(self, metrics, epoch=None):
+
+        if self.disabled:
+            return
+        super().step(metrics, epoch)
 
 
 if __name__ == '__main__':

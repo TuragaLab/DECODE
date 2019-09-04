@@ -128,6 +128,9 @@ class OffsetRep(TargetGenerator):
 
 
 class ROIOffsetRep(OffsetRep):
+    """
+    Generate a target with increased size as compared to OffsetRep.
+    """
     def __init__(self, xextent, yextent, zextent, img_shape, photon_threshold=None, roi_size=3):
         super().__init__(xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=photon_threshold)
         self.roi_size = roi_size
@@ -137,6 +140,15 @@ class ROIOffsetRep(OffsetRep):
         """Addition 'kernel' for phot channel, dxyz"""
         self.kern_dy = torch.tensor([[1., 0., -1.], [1., 0., -1.], [1., 0., -1.]])
         self.kern_dx = torch.tensor([[1., 1., 1], [0., 0., 0.], [-1., -1., -1.]])
+
+    @staticmethod
+    def parse(param: dict):
+        return ROIOffsetRep(param['Simulation']['psf_extent'][0],
+                            param['Simulation']['psf_extent'][1],
+                            None,
+                            param['Simulation']['img_size'],
+                            param['HyperParameter']['photon_threshold'],
+                            param['HyperParameter']['target_roi_size'])
 
     def forward(self, x):
         offset_target = super().forward(x)

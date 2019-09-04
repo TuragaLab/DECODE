@@ -115,22 +115,15 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
         # measure data loading time
         data_time.update(time.time() - end)
 
-        x_in = x_in.to(torch.device(conf_param['Hyper']['device']))
-        if type(target) is torch.Tensor:
-            target = target.to(torch.device(conf_param['Hyper']['device']))
-        elif type(target) in (tuple, list):
-            target = (target[0].to(torch.device(conf_param['Hyper']['device'])), target[1].to(torch.device(param['Hyper']['device'])))
-        else:
-            raise TypeError("Not supported type to push to cuda.")
+        x_in = x_in.to(torch.device(conf_param['Hardware']['device']))
+        target = target.to(torch.device(conf_param['Hardware']['device']))
+
 
         # compute output
         output = model(x_in)
 
         """Ignore the loss of the boundary frames"""
-        if conf_param['Hyper']['ignore_boundary_frames']:
-            loss_ = criterion(output[1:-1], target[1:-1])
-        else:
-            loss_ = criterion(output, target)
+        loss_ = criterion(output, target)
 
         loss = loss_.mean()
         # record loss
@@ -203,14 +196,8 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
         end = time.time()
         for i, (x_in, target, em_tar) in enumerate(val_loader):
 
-            x_in = x_in.to(torch.device(conf_param['Hyper']['device']))
-            if type(target) is torch.Tensor:
-                target = target.to(torch.device(conf_param['Hyper']['device']))
-            elif type(target) in (tuple, list):
-                target = (target[0].to(torch.device(conf_param['Hyper']['device'])),
-                          target[1].to(torch.device(conf_param['Hyper']['device'])))
-            else:
-                raise TypeError("Not supported type to push to cuda.")
+            x_in = x_in.to(torch.device(conf_param['Hardware']['device']))
+            target = target.to(torch.device(conf_param['Hardware']['device']))
 
             # compute output
             output = model(x_in)

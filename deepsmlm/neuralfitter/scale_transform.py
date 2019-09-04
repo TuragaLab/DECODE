@@ -14,6 +14,7 @@ class OffsetRescale:
         :param scale_z:
         :param scale_phot:
         :param buffer: to extend the original range a little bit, to use the more linear parts of a sigmoidal fct.
+        :param px_size: scale to nm.
         Does not apply to probability channel 0.
         """
 
@@ -22,6 +23,19 @@ class OffsetRescale:
         self.sc_z = scale_z
         self.sc_phot = scale_phot
         self.buffer = buffer
+
+    @staticmethod
+    def parse(param: dict):
+        """
+
+        :param param: param dictionary
+        :return:
+        """
+        return OffsetRescale(param['Scaling']['dx_max'],
+                      param['Scaling']['dy_max'],
+                      param['Scaling']['z_max'],
+                      param['Scaling']['phot_max'],
+                      param['Scaling']['linearisation_buffer'])
 
     def forward(self, x):
         """
@@ -62,6 +76,19 @@ class InverseOffsetRescale(OffsetRescale):
         :param scale_phot:
         """
         super().__init__(scale_x, scale_y, scale_z, scale_phot, buffer)
+
+    @staticmethod
+    def parse(param):
+        """
+
+        :param param: parameter dictionary
+        :return: instance
+        """
+        return InverseOffsetRescale(param['Scaling']['dx_max'],
+                                    param['Scaling']['dy_max'],
+                                    param['Scaling']['z_max'],
+                                    param['Scaling']['phot_max'],
+                                    param['Scaling']['linearisation_buffer'])
 
     def forward(self, x):
         """

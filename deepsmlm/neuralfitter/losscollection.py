@@ -81,11 +81,11 @@ class LossLog(Loss):
 class SpeiserLoss(Loss):
     cmp_suffix = ('p', 'phot', 'dx', 'dy', 'dz')
 
-    def __init__(self, weight_sqrt_phot, class_freq_weight=None, pch_weight=1., cmp_prefix='loss', logger=None):
+    def __init__(self, weight_sqrt_phot, fgbg_factor=None, pch_weight=1., cmp_prefix='loss', logger=None):
         """
 
         :param weight_sqrt_phot: weight phot, dx, dy, dz etc. by sqrt(phot), i.e. weight the l2 loss
-        :param class_freq_weight: weight positives by a factor (to balance fore / background). a good starting point
+        :param fgbg_factor: weight positives by a factor (to balance fore / background). a good starting point
             might be num_px / avg. emitter per image
         :param pch_weight: weight of the p channel
         :param cmp_desc
@@ -94,7 +94,7 @@ class SpeiserLoss(Loss):
         """
         super().__init__()
         self.weight_sqrt_phot = weight_sqrt_phot
-        self.class_freq_weight = class_freq_weight
+        self.fgbg_factor = fgbg_factor
         self.pch_weight = pch_weight
 
         self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none')
@@ -109,19 +109,19 @@ class SpeiserLoss(Loss):
 
     def __call__(self, output, target):
         return self.functional(output, target, self.p_loss, self.phot_xyz_loss,
-                               self.weight_sqrt_phot, self.class_freq_weight, self.pch_weight)
+                               self.weight_sqrt_phot, self.fgbg_factor, self.pch_weight)
 
     def _reset_batch_log(self):
         self.cmp_values = torch.zeros((0, 5))
 
     @staticmethod
-    def functional(output, target, p_loss, phot_xyz_loss, weight_by_phot, class_freq_weight, pch_weight):
+    def functional(output, target, p_loss, phot_xyz_loss, weight_by_phot, fgbg_factor, pch_weight):
         mask = target[:, [0], :, :]
 
         p_loss = p_loss(output[:, [0], :, :], target[:, [0], :, :])
-        if class_freq_weight is not None:
+        if fgbg_factor is not None:
             weight = torch.ones_like(p_loss)
-            weight[target[:, [0], :, :] == 1.] = class_freq_weight
+            weight[target[:, [0], :, :] == 1.] = fgbg_factor
             p_loss *= weight
 
         if weight_by_phot:
@@ -147,16 +147,16 @@ class SpeiserLoss(Loss):
 
 
 class OffsetROILoss(SpeiserLoss):
-    def __init__(self, roi_size=3, weight_sqrt_phot=False, class_freq_weight=None, ch_weight=None, cmp_prefix='loss', logger=None):
+    def __init__(self, roi_size=3, weight_sqrt_phot=False, fgbg_factor=None, ch_weight=None, cmp_prefix='loss', logger=None):
         """
 
         :param weight_sqrt_phot:
-        :param class_freq_weight:
+        :param fgbg_factor:
         :param ch_weight: tensor of size 5
         :param cmp_prefix:
         :param logger:
         """
-        super().__init__(weight_sqrt_phot, class_freq_weight, None, cmp_prefix, logger)
+        super().__init__(weight_sqrt_phot, fgbg_factor, None, cmp_prefix, logger)
         self.roi_size = roi_size
         if roi_size != 3:
             raise NotImplementedError('Only ROI size 3 supported currently.')
@@ -166,14 +166,27 @@ class OffsetROILoss(SpeiserLoss):
         else:
             self.ch_weight = ch_weight.view(1, 5, 1, 1)
 
+    @staticmethod
+    def parse(param: dict, logger):
+        """
+
+        :param param: parameter dictionary
+        :param logger: for logging individual components
+        :return:
+        """
+        return OffsetROILoss(roi_size=param['HyperParameter']['target_roi_size'],
+                             weight_sqrt_phot=param['HyperParameter']['weight_sqrt_phot'],
+                             fgbg_factor=param['HyperParameter']['fgbg_factor'],
+                             ch_weight=torch.tensor(param['HyperParameter']['ch_weight']), logger=logger)
+
     def __call__(self, output, target):
         return self.functional(output, target, self.roi_size, self.p_loss, self.phot_xyz_loss,
-                               self.weight_sqrt_phot, self.class_freq_weight, self.ch_weight)
+                               self.weight_sqrt_phot, self.fgbg_factor, self.ch_weight)
 
     @staticmethod
-    def functional(output, target, roi_size, p_loss, phot_xyz_loss, weight_by_phot, class_freq_weight, ch_weight):
+    def functional(output, target, roi_size, p_loss, phot_xyz_loss, weight_by_phot, fgbg_factor, ch_weight):
         mask = target[:, [0], :, :]
-        is_emitter = target[:, [0], :, :].byte()  # save indexing tensor where we have an emitter
+        is_emitter = target[:, [0], :, :].bool()  # save indexing tensor where we have an emitter
 
         conv_kernel = torch.tensor([[1 / 4, 1 / 2, 1 / 4],
                                     [1 / 2, 1., 1 / 2],
@@ -194,9 +207,9 @@ class OffsetROILoss(SpeiserLoss):
         mask = mask_
 
         p_loss = p_loss(output[:, [0], :, :], target[:, [0], :, :])
-        if class_freq_weight is not None:
+        if fgbg_factor is not None:
             weight = torch.ones_like(p_loss)
-            weight[target[:, [0], :, :] == 1.] = class_freq_weight
+            weight[target[:, [0], :, :] == 1.] = fgbg_factor
             p_loss *= weight
 
         if weight_by_phot:

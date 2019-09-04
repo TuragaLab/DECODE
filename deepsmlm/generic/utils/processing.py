@@ -10,6 +10,16 @@ class TransformSequence:
         """
         self.com = components
 
+    @staticmethod
+    def parse(components, param: dict):
+        """
+        If all components implemented a parse method, you can do it globally only once for the whole sequence.
+        :param components: as in init.
+        :param param:
+        :return:
+        """
+        return TransformSequence([cpt.parse(param) for cpt in components])
+
     def forward(self, x):
         """
 

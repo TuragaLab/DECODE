@@ -148,3 +148,130 @@ def project01(img):
 def get_outputsize(input_size, model):
     input = torch.randn(1, 1, input_size, input_size)
     return model.forward(input).size()
+
+class ListPseudoPSFInSize(ListPseudoPSF):
+    def __init__(self, xextent, yextent, zextent, dim=3, zts=64, photon_threshold=0):
+        """
+
+        :param photon_threshold:
+        :param xextent:
+        :param yextent:
+        :param zextent:
+        :param dim:
+        """
+        super().__init__(xextent, yextent, zextent, dim=dim, photon_threshold=photon_threshold)
+        self.zts = zts
+
+    def forward(self, emitter):
+        pos, weight = super().forward(emitter)
+
+        num_emitters = pos.shape[0]
+        weight_fill = torch.zeros((self.zts), dtype=weight.dtype)
+        pos_fill = torch.zeros((self.zts, self.dim), dtype=pos.dtype)
+
+        weight_fill[:num_emitters] = 1.
+        if self.dim == 2:
+            pos_fill[:num_emitters, :] = pos[:, :2]
+            return pos_fill, weight_fill
+        else:
+            pos_fill[:num_emitters, :] = pos
+            return pos_fill, weight_fill
+
+
+
+class SplineExpect(PSF):
+    """
+    Partly based on
+    https://github.com/ZhuangLab/storm-analysis/blob/master/storm_analysis/spliner/spline3D.py
+    """
+
+    def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0):
+        """
+        (See abstract class constructor.)
+
+        :param coeff:   cubic spline coefficient matrix. dimension: Nx * Ny * Nz * 64
+        """
+        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
+
+        self.coeff = coeff
+        self.ref0 = ref0
+        self.max_i = torch.as_tensor(coeff.shape, dtype=torch.float32) - 1
+
+    def roundAndCheck(self, x, max_x):
+        if (x < 0.0) or (x > max_x):
+            return [-1, -1]
+
+        x_floor = torch.floor(x)
+        x_diff = x - x_floor
+        ix = int(x_floor)
+        if (x == max_x):
+            ix -= 1
+            x_diff = 1.0
+
+        return [ix, x_diff]
+
+    def dxf(self, x, y, z):
+        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
+        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
+        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
+
+        if (ix == -1) or (iy == -1) or (iz == -1):
+            return 0.0
+
+        yval = 0.0
+        for i in range(3):
+            for j in range(4):
+                for k in range(4):
+                    yval += float(i+1) * self.coeff[ix, iy, iz, (i+1)*16+j*4+k] * torch.pow(x_diff, i) * torch.pow(y_diff, j) * torch.pow(z_diff, k)
+        return yval
+
+    def dyf(self, x, y, z):
+        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
+        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
+        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
+
+        if (ix == -1) or (iy == -1) or (iz == -1):
+            return 0.0
+
+        yval = 0.0
+        for i in range(4):
+            for j in range(3):
+                for k in range(4):
+                    yval += float(j+1) * self.coeff[ix, iy, iz, i*16+(j+1)*4+k] * torch.pow(x_diff, i) * torch.pow(y_diff, j) * torch.pow(z_diff, k)
+        return yval
+
+    def dzf(self, x, y, z):
+        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
+        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
+        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
+
+        if (ix == -1) or (iy == -1) or (iz == -1):
+            return 0.0
+
+        yval = 0.0
+        for i in range(4):
+            for j in range(4):
+                for k in range(3):
+                    yval += float(k+1) * self.coeff[ix, iy, iz, i*16+j*4+k+1] * torch.pow(x_diff, i) * torch.pow(y_diff, j) * torch.pow(z_diff, k)
+        return yval
+
+    def f(self, x, y, z):
+        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
+        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
+        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
+
+        if (ix == -1) or (iy == -1) or (iz == -1):
+            return 0.0
+
+        f = 0.0
+        for i in range(4):
+            for j in range(4):
+                for k in range(4):
+                    f += self.coeff[ix, iy, iz, i * 16 + j * 4 + k] * \
+                        torch.pow(x_diff, i) * torch.pow(y_diff, j) * \
+                        torch.pow(z_diff, k)
+        return f
+
+    def forward(self, pos, weight):
+        raise NotImplementedError
+

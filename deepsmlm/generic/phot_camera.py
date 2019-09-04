@@ -4,7 +4,7 @@ import deepsmlm.generic.noise as noise
 
 
 class Photon2Camera:
-    def __init__(self, qe, spur_noise, bg_uniform, em_gain, e_per_adu, baseline, read_sigma):
+    def __init__(self, qe, spur_noise, bg_uniform, em_gain, e_per_adu, baseline, read_sigma, bg_uniform_var=0.):
         """
 
         :param qe: quantum efficiency
@@ -18,6 +18,7 @@ class Photon2Camera:
         self.qe = qe
         self.spur = spur_noise
         self.bg_uniform = bg_uniform
+        self.bg_uniform_var = bg_uniform_var
         self.em_gain = em_gain
         self.e_per_adu = e_per_adu
         self.baseline = baseline
@@ -28,6 +29,22 @@ class Photon2Camera:
         self.read = noise.Gaussian(sigma_gaussian=self.read_sigma,
                                    bg_uniform=0)
 
+    @staticmethod
+    def parse(param: dict):
+        """
+
+        :param param: parameter dictonary
+        :return:
+        """
+        return Photon2Camera(qe=param['Camera']['qe'],
+                             spur_noise=param['Camera']['spur_noise'],
+                             bg_uniform=param['Simulation']['bg_pois'],
+                             em_gain=param['Camera']['em_gain'],
+                             e_per_adu=param['Camera']['e_per_adu'],
+                             baseline=param['Camera']['baseline'],
+                             read_sigma=param['Camera']['read_sigma'],
+                             bg_uniform_var=param['Simulation']['bg_var'])
+
     def forward(self, x):
         """
         Input in photons
@@ -35,7 +52,7 @@ class Photon2Camera:
         :return:
         """
         """Poisson for photon characteristics of emitter (plus autofluorescence etc."""
-        camera = self.poisson.forward((x + self.bg_uniform) * self.qe + self.spur)
+        camera = self.poisson.forward((x + self.bg_uniform + (torch.rand(1).item() - 0.5) * self.bg_uniform_var) * self.qe + self.spur)
         """Gamma for EM-Gain (EM-CCD cameras, not sCMOS)"""
         if self.em_gain is not None:
             camera = self.gain.forward(camera)
