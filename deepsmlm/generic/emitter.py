@@ -55,6 +55,12 @@ class EmitterSet:
                 and (self.id.shape[0] == self.prob.shape[0])):
             raise ValueError("Coordinates, photons, frame ix, id and prob are not of equal shape in 0th dimension.")
 
+        if not ((1 == self.phot.ndim) and
+                (self.phot.ndim == self.prob.ndim) and
+                (self.prob.ndim == self.frame_ix.ndim) and
+                (self.frame_ix.ndim == self.id.ndim)):
+            raise ValueError("Expected photons, probability frame index and id to be 1D.")
+
     def clone(self):
         """
         Clone method to generate a deep copy.
@@ -187,11 +193,36 @@ class EmitterSet:
 
         return em_list
 
-    def write_to_csv(self, filename, model=None, comments=None):
+    def convert_coordinates(self, factor=None, shift=None, axis=None):
         """
-        Write the prediction to a csv file.
+        Convert coordinates. The order is factor -> shift -> axis
+        :param factor: scale up factor
+        :param shift: shift
+        :param axis: permute axis
+        :return:
+        """
+        xyz = self.xyz.clone()
+        if factor is not None:
+            if factor.size(0) == 2:
+                factor = torch.cat((factor, torch.tensor([1.])), 0)
+
+            xyz = xyz * factor.float().unsqueeze(0)
+        if shift is not None:
+            xyz += shift.float().unsqueeze(0)
+        if axis is not None:
+            xyz = xyz[:, axis]
+        return xyz
+
+    def convert_em_(self, factor=None, shift=None, axis=None, frame_shift=0):
+        self.xyz = self.convert_coordinates(factor, shift, axis)
+        self.frame_ix += frame_shift
+
+    def write_to_csv(self, filename, model=None, comments=None, plain_header=False):
+        """
+        Write the prediction to a csv file. If shift, factor and axis are set, the order is shift->factor->axis.
         :param filename: output filename
         :param model: model file which was being used (will create a hash out of it)
+        :param plain_header: uncomment the first line (which is where the column names are).
         :return:
         """
         grand_matrix = torch.cat((self.id.unsqueeze(1),
@@ -199,16 +230,60 @@ class EmitterSet:
                                   self.xyz,
                                   self.phot.unsqueeze(1),
                                   self.prob.unsqueeze(1)), 1)
+
         header = 'id, frame_ix, x, y, z, phot, prob\nThis is an export from DeepSMLM.\n' \
                  'Total number of emitters: {}'.format(self.num_emitter)
 
         if model is not None:
             if hasattr(model, 'hash'):
-                header += '\n Model initialisation file SHA-1 hash: {}'.format({model.hash})
+                header += '\nModel initialisation file SHA-1 hash: {}'.format(model.hash)
 
         if comments is not None:
             header += '\nUser comment during export: {}'.format(comments)
         np.savetxt(filename, grand_matrix.numpy(), delimiter=',', header=header)
+
+        if plain_header:
+            with open(filename, "r+") as f:
+                content = f.read()  # read everything in the file
+                content = content[2:]
+                f.seek(0)  # rewind
+                f.write(content)  # write the new line before
+
+        return grand_matrix
+
+    def write_csv_smap(self, filename, model=None, comments=None, factor=torch.tensor([100., 100., 1.]), shift=torch.tensor([50., -50., 0.]), axis=[1, 0, 2]):
+        """
+        Write to SMAP compatible csv (i.e. plain header for easier import in MATLAB)
+        :param filename:
+        :param mdoel:
+        :param comments:
+        :param factor:
+        :param shift:
+        :param axis:
+        :return:
+        """
+        pseudo_em = self.clone()
+        pseudo_em.convert_em_(factor, shift, axis, 1)
+
+        smap_comment = 'This is an Export for SMAP, (i.e. axis swapped).'
+        if comments is None:
+            comments = 'Export for SMAP'
+        else:
+            comments += '\nExport for SMAP'
+
+        pseudo_em.write_to_csv(filename, model, comments, plain_header=True)
+
+    @staticmethod
+    def read_csv(filename):
+        grand_matrix = np.loadtxt(filename, delimiter=",", comments='#')
+        grand_matrix = torch.from_numpy(grand_matrix).float()
+        if grand_matrix.size(1) == 7:
+            return EmitterSet(xyz=grand_matrix[:, 2:5], frame_ix=grand_matrix[:, 1],
+                              phot=grand_matrix[:, 5], id=grand_matrix[:, 0],
+                              prob=grand_matrix[:, 6])
+        else:
+            return EmitterSet(xyz=grand_matrix[:, 2:5], frame_ix=grand_matrix[:, 1],
+                              phot=grand_matrix[:, 5], id=grand_matrix[:, 0])
 
 
 class RandomEmitterSet(EmitterSet):
