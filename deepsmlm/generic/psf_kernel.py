@@ -43,11 +43,20 @@ class PSF(ABC):
         self.img_shape = img_shape
 
     @abstractmethod
-    def forward(self, pos, weight):
+    def forward(self, input, weight):
         """
         Abstract method to go from position-matrix and photon number (aka weight) to an image.
+        Call it before implementing your psf to be able to parse emittersets (super().forward(x, weight)).
         """
-        pass
+        if isinstance(input, EmitterSet):
+            pos = input.xyz
+            if weight is None:
+                weight = input.phot
+
+            return pos, weight
+
+        else:
+            return input, weight
 
     def print_basic_properties(self):
         print('PSF: \n xextent: {}\n yextent: {}\n zextent: {}\n img_shape: {}'.format(self.xextent,
@@ -88,23 +97,20 @@ class DeltaPSF(PSF):
             self.bin_z = np.linspace(zextent[0], zextent[1],
                                      img_shape[2] + 1, endpoint=True)
 
-    def forward(self, em, weight=None):
+    def forward(self, input, weight=None):
         """
 
-        :param em:  position of the emitter in 2 or 3D
+        :param input:  instance of emitterset or coordinates.
         :param weight:  number of photons or any other 1:1 connection to an emitter
 
         :return:  torch tensor of size 1 x H x W
         """
-        if weight is None:
-            weight = em.phot
+        xyz, weight = super().forward(input, weight)
 
         if self.photon_threshold is not None:
             ix_phot_threshold = weight >= self.photon_threshold
             weight = weight[ix_phot_threshold]
-            xyz = em.xyz[ix_phot_threshold, :]
-        else:
-            xyz = em.xyz
+            xyz = xyz[ix_phot_threshold, :]
 
         if self.photon_normalise:
             weight = torch.ones_like(weight)
@@ -146,10 +152,11 @@ class OffsetPSF(DeltaPSF):
 
     def forward(self, em):
         """
-        :param em: list of coordinates
+        :param emitter: emitterset
         :return: (torch.tensor), dim: 2 x img_shape[0] x img_shape[1] ("C x H x W"),
         where C=0 is the x offset and C=1 is the y offset.
         """
+
         xy_offset_map = torch.zeros((2, *self.img_shape))
         # loop over all emitter positions
         for i in range(em.num_emitter):
@@ -170,83 +177,6 @@ class OffsetPSF(DeltaPSF):
             xy_offset_map[1, x_ix, y_ix] = xy[1] - self.bin_ctr_y[y_ix]  # coordinate - midpoint
 
         return xy_offset_map
-
-
-class DualDelta(DeltaPSF):
-    """
-    Delta function PSF in channel 0: photons, channel 1 z position.
-    Derived from DeltaPSF class.
-    """
-
-    def __init__(self, xextent, yextent, zextent, img_shape):
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
-
-    def forward(self, em, weight, weight2):
-        """
-
-        :param em: position of the emitter in 2 or 3D
-        :param weight:  number of photons or any other 1:1 connection to an emitter
-        :param weight2: z position or any other 1:1 connection to an emitter
-
-        :return: torch tensor of size 2 x H x W
-        """
-        dual_ch_img = torch.cat((
-            super(DualDelta, self).forward(em, weight),
-            super(DualDelta, self).forward(em, weight2)),
-            dim=0)
-
-        return dual_ch_img
-
-
-class ListPseudoPSF(PSF):
-    def __init__(self, xextent, yextent, zextent, dim=3, photon_threshold=0):
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=None)
-        self.dim = dim
-        self.photon_threshold = photon_threshold
-
-    def forward(self, emitter):
-        pos, weight = emitter.xyz, emitter.phot
-
-        """Threshold the photons."""
-        ix = weight > self.photon_threshold
-        pos = pos[ix, :]
-        weight = weight[ix]
-
-        if self.dim == 3:
-            return pos[:, :3], weight
-        elif self.dim == 2:
-            return pos[:, :2], weight
-        else:
-            raise ValueError("Wrong dimension.")
-
-
-class ListPseudoPSFInSize(ListPseudoPSF):
-    def __init__(self, xextent, yextent, zextent, dim=3, zts=64, photon_threshold=0):
-        """
-
-        :param photon_threshold:
-        :param xextent:
-        :param yextent:
-        :param zextent:
-        :param dim:
-        """
-        super().__init__(xextent, yextent, zextent, dim=dim, photon_threshold=photon_threshold)
-        self.zts = zts
-
-    def forward(self, emitter):
-        pos, weight = super().forward(emitter)
-
-        num_emitters = pos.shape[0]
-        weight_fill = torch.zeros((self.zts), dtype=weight.dtype)
-        pos_fill = torch.zeros((self.zts, self.dim), dtype=pos.dtype)
-
-        weight_fill[:num_emitters] = 1.
-        if self.dim == 2:
-            pos_fill[:num_emitters, :] = pos[:, :2]
-            return pos_fill, weight_fill
-        else:
-            pos_fill[:num_emitters, :] = pos
-            return pos_fill, weight_fill
 
 
 class GaussianExpect(PSF):
@@ -289,19 +219,19 @@ class GaussianExpect(PSF):
 
         return sigma_xy
 
-    def forward(self, pos, weight):
+    def forward(self, input, weight):
         """
 
         :param pos:  position of the emitter in 2 or 3D
         :param weight:  number of photons or any other 1:1 connection to an emitter
         """
-
+        pos, weight = super().forward(input, weight)
         num_emitters = pos.shape[0]
         img_shape = self.img_shape
         sigma_0 = self.sigma_0
 
         if num_emitters == 0:
-            return torch.zeros(1, img_shape[0], img_shape[1], dtype=torch.float32)
+            return torch.zeros(1, img_shape[0], img_shape[1]).float()
 
         xpos = pos[:, 0].repeat(img_shape[0], img_shape[1], 1)
         ypos = pos[:, 1].repeat(img_shape[0], img_shape[1], 1)
@@ -314,8 +244,8 @@ class GaussianExpect(PSF):
             sig_x = sigma_0
             sig_y = sigma_0
 
-        x = torch.linspace(self.xextent[0], self.xextent[1], img_shape[0] + 1, dtype=torch.float32)
-        y = torch.linspace(self.yextent[0], self.yextent[1], img_shape[1] + 1, dtype=torch.float32)
+        x = torch.linspace(self.xextent[0], self.xextent[1], img_shape[0] + 1).float()
+        y = torch.linspace(self.yextent[0], self.yextent[1], img_shape[1] + 1).float()
         xx, yy = torch.meshgrid(x, y)
 
         xx = xx.unsqueeze(2).repeat(1, 1, num_emitters)
@@ -376,7 +306,9 @@ class SplineCPP(PSF):
     def f(self, x, y, z):
         return tp.f_spline(self.spline_c, x, y, z)
 
-    def forward(self, pos, weight):
+    def forward(self, pos, weight=None):
+        pos, weight = super().forward(pos, weight)
+
         if (pos is not None) and (pos.shape[0] != 0):
             return tp.fPSF(self.spline_c,
                            pos.type(torch.FloatTensor),
@@ -385,103 +317,6 @@ class SplineCPP(PSF):
                            list((self.xextent[0], self.yextent[0])))
         else:
             return torch.zeros((1, self.img_shape[0], self.img_shape[1])).type(torch.FloatTensor)
-
-
-class SplineExpect(PSF):
-    """
-    Partly based on
-    https://github.com/ZhuangLab/storm-analysis/blob/master/storm_analysis/spliner/spline3D.py
-    """
-
-    def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0):
-        """
-        (See abstract class constructor.)
-
-        :param coeff:   cubic spline coefficient matrix. dimension: Nx * Ny * Nz * 64
-        """
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
-
-        self.coeff = coeff
-        self.ref0 = ref0
-        self.max_i = torch.as_tensor(coeff.shape, dtype=torch.float32) - 1
-
-    def roundAndCheck(self, x, max_x):
-        if (x < 0.0) or (x > max_x):
-            return [-1, -1]
-
-        x_floor = torch.floor(x)
-        x_diff = x - x_floor
-        ix = int(x_floor)
-        if (x == max_x):
-            ix -= 1
-            x_diff = 1.0
-
-        return [ix, x_diff]
-
-    def dxf(self, x, y, z):
-        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
-        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
-        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
-
-        if (ix == -1) or (iy == -1) or (iz == -1):
-            return 0.0
-
-        yval = 0.0
-        for i in range(3):
-            for j in range(4):
-                for k in range(4):
-                    yval += float(i+1) * self.coeff[ix, iy, iz, (i+1)*16+j*4+k] * torch.pow(x_diff, i) * torch.pow(y_diff, j) * torch.pow(z_diff, k)
-        return yval
-
-    def dyf(self, x, y, z):
-        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
-        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
-        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
-
-        if (ix == -1) or (iy == -1) or (iz == -1):
-            return 0.0
-
-        yval = 0.0
-        for i in range(4):
-            for j in range(3):
-                for k in range(4):
-                    yval += float(j+1) * self.coeff[ix, iy, iz, i*16+(j+1)*4+k] * torch.pow(x_diff, i) * torch.pow(y_diff, j) * torch.pow(z_diff, k)
-        return yval
-
-    def dzf(self, x, y, z):
-        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
-        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
-        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
-
-        if (ix == -1) or (iy == -1) or (iz == -1):
-            return 0.0
-
-        yval = 0.0
-        for i in range(4):
-            for j in range(4):
-                for k in range(3):
-                    yval += float(k+1) * self.coeff[ix, iy, iz, i*16+j*4+k+1] * torch.pow(x_diff, i) * torch.pow(y_diff, j) * torch.pow(z_diff, k)
-        return yval
-
-    def f(self, x, y, z):
-        [ix, x_diff] = self.roundAndCheck(x, self.max_i[0])
-        [iy, y_diff] = self.roundAndCheck(y, self.max_i[1])
-        [iz, z_diff] = self.roundAndCheck(z, self.max_i[2])
-
-        if (ix == -1) or (iy == -1) or (iz == -1):
-            return 0.0
-
-        f = 0.0
-        for i in range(4):
-            for j in range(4):
-                for k in range(4):
-                    f += self.coeff[ix, iy, iz, i * 16 + j * 4 + k] * \
-                        torch.pow(x_diff, i) * torch.pow(y_diff, j) * \
-                        torch.pow(z_diff, k)
-        return f
-
-    def forward(self, pos, weight):
-        raise NotImplementedError
 
 
 class GaussianSampleBased(PSF):
@@ -533,35 +368,23 @@ class GaussianSampleBased(PSF):
         return camera
 
 
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
-    import deepsmlm.generic.noise as noise
-    import deepsmlm.generic.plotting.frame_coord as smplot
+class ListPseudoPSF(PSF):
+    def __init__(self, xextent, yextent, zextent, dim=3, photon_threshold=0):
+        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=None)
+        self.dim = dim
+        self.photon_threshold = photon_threshold
 
-    img_shape = (32, 32)
-    extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
-    psf = GaussianExpect(extent[0], extent[1], (-5000., 5000.), img_shape, sigma_0=1.5)
+    def forward(self, emitter):
+        pos, weight = emitter.xyz, emitter.phot
 
-    spline_file = '/home/lucas/RemoteDeploymentTemp/deepsmlm/data/Cubic Spline Coefficients/2019-02-20/60xOil_sampleHolderInv__CC0.140_1_MMStack.ome_3dcal.mat'
-    psf_spline = SMAPSplineCoefficient(spline_file).init_spline(extent[0], extent[1], img_shape)
+        """Threshold the photons."""
+        ix = weight > self.photon_threshold
+        pos = pos[ix, :]
+        weight = weight[ix]
 
-    xyz_bg = torch.rand((3, 3)) * torch.tensor([32, 32., 1000.])
-    xyz_bg[:, 2] = torch.randint_like(xyz_bg[:, 2], low=2000, high=8000)
-    xyz_bg[:, 2] *= torch.from_numpy(np.random.choice([-1., 1.], xyz_bg.shape[0])).type(torch.FloatTensor)
-    phot_bg = torch.randint_like(xyz_bg[:, 0], low=15000, high=25000)
-
-    xyz_em = torch.rand((8, 3)) * torch.tensor([32., 32, 1500]) - torch.tensor([0, 0, 750.])
-    phot_em = torch.randint_like(xyz_em[:, 0], low=3000, high=8000)
-
-    img_bg = psf.forward(xyz_bg, phot_bg)
-    img_spline = psf_spline.forward(xyz_em, phot_em)
-
-    img = img_bg + img_spline
-    img_noise = noise.Poisson(15).forward(img)
-    img_bg_only_noise = noise.Poisson(15).forward(img_bg)
-
-    smplot.PlotFrameCoord(frame=img_bg_only_noise, pos_tar=xyz_em, pos_ini=xyz_bg).plot(); plt.show()
-    smplot.PlotFrameCoord(frame=img_noise, pos_tar=xyz_em, pos_ini=xyz_bg).plot(); plt.show()
-    print('Success.')
-
+        if self.dim == 3:
+            return pos[:, :3], weight
+        elif self.dim == 2:
+            return pos[:, :2], weight
+        else:
+            raise ValueError("Wrong dimension.")
