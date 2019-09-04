@@ -43,26 +43,35 @@ class LogTestEpoch:
         em_out_ = em_out[ix]
 
         _ = plt.figure(figsize=(12, 6))
-        plt.subplot(131)
-        emplot.PlotFrameCoord(frame=input_frames[ix, 0],
-                              pos_tar=em_tar_.xyz,
-                              phot_tar=em_tar_.phot).plot()
-        plt.subplot(132)
-        emplot.PlotFrameCoord(frame=input_frames[ix, 1],
-                              pos_tar=em_tar_.xyz,
-                              phot_tar=em_tar_.phot).plot()
-        plt.subplot(133)
-        emplot.PlotFrameCoord(frame=input_frames[ix, 2],
-                              pos_tar=em_tar_.xyz,
-                              phot_tar=em_tar_.phot).plot()
+        if input_frames.size(1) == 3:
+            plt.subplot(131)
+            emplot.PlotFrameCoord(frame=input_frames[ix, 0],
+                                  pos_tar=em_tar_.xyz,
+                                  phot_tar=em_tar_.phot).plot()
+            plt.subplot(132)
+            emplot.PlotFrameCoord(frame=input_frames[ix, 1],
+                                  pos_tar=em_tar_.xyz,
+                                  phot_tar=em_tar_.phot).plot()
+            plt.subplot(133)
+            emplot.PlotFrameCoord(frame=input_frames[ix, 2],
+                                  pos_tar=em_tar_.xyz,
+                                  phot_tar=em_tar_.phot).plot()
+        else:
+            emplot.PlotFrameCoord(frame=input_frames[ix, 0],
+                                  pos_tar=em_tar_.xyz,
+                                  phot_tar=em_tar_.phot).plot()
 
         self._log_figure(plt.gcf(), step, "io/frames_in")
 
         """Plot Target"""
-        # keep index
+        if input_frames.size(1) == 3:
+            tar_ch = 1
+        elif input_frames.size(1) == 1:
+            tar_ch = 0
+
         _ = plt.figure(figsize=(12, 12))
         plt.subplot(231)
-        emplot.PlotFrameCoord(frame=input_frames[ix, 1],
+        emplot.PlotFrameCoord(frame=input_frames[ix, tar_ch],
                               pos_tar=em_tar_.xyz,
                               phot_tar=em_tar_.phot).plot();
         plt.legend()
@@ -86,7 +95,7 @@ class LogTestEpoch:
 
         _ = plt.figure(figsize=(12, 12))
         plt.subplot(231)
-        emplot.PlotFrameCoord(frame=input_frames[ix, 1],
+        emplot.PlotFrameCoord(frame=input_frames[ix, tar_ch],
                               pos_tar=em_tar_.xyz,
                               phot_tar=em_tar_.phot).plot(); plt.legend()
         plt.title('Input')
