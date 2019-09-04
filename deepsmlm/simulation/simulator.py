@@ -3,12 +3,15 @@ import math
 import numpy as np
 import os, sys
 import torch
+import matplotlib.pyplot as plt
 import multiprocessing
 from multiprocessing.dummy import Pool as ThreadPool
 
-from deepsmlm.generic.emitter import EmitterSet
+from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet
 from deepsmlm.generic.noise import Poisson
 from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
+from deepsmlm.generic.phot_camera import Photon2Camera
+from deepsmlm.generic.plotting.frame_coord import PlotFrame
 
 
 class Simulation:
@@ -105,9 +108,9 @@ class Simulation:
 
         """Add background. This needs to happen here and not on a single frame, since background may be correlated."""
         if self.background is not None:
-            self.frames = self.background.forward(frames).type(torch.int16)
+            self.frames = self.background.forward(frames).type(torch.int64)
         else:
-            self.frames = frames.type(torch.int16)
+            self.frames = frames.type(torch.int64)
 
         return self.frames
 
@@ -140,26 +143,17 @@ if __name__ == '__main__':
         os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      os.pardir, os.pardir)) + '/'
 
-    args = SimulationArgs(extent=((-0.5, 25.5), (-0.5, 25.5), (-200, 200)),
-                          img_shape=(26, 26),
-                          bg_value=None)
-    args.csp_calib = deepsmlm_root + \
-                     'data/Cubic Spline Coefficients/2019-02-19/000_3D_cal_640i_50_Z-stack_1_MMStack.ome_3dcal.mat'
-    args.binary_path = deepsmlm_root + 'data/temp.npz'
+    # load spline calibration
+    calib_file = deepsmlm_root + 'data/Calibration/SMLM Challenge Beads/Coefficients Big ROI/AS-Exp_100nm_3dcal.mat'
+    psf = SMAPSplineCoefficient(calib_file).init_spline((-0.5, 63.5), (-0.5, 63.5), (64, 64))
 
-    sp = SMAPSplineCoefficient(args.csp_calib)
-    psf = sp.init_spline(args.extent[0], args.extent[1], img_shape=args.img_shape)
-    bg = Poisson(bg_uniform=15)
+    noise = Photon2Camera(0.9, 0., 90., 300., 100., 10., 0.)
 
-    num_emitters = 100000
-    em = EmitterSet(xyz=torch.rand((num_emitters, 3)) * torch.tensor([30., 30, 5]),
-                    phot=torch.randint(800, 4000, (num_emitters,)),
-                    frame_ix=torch.randint(0, 10000, (num_emitters,)))
+    simulator = Simulation(None, ((-0.5, 63.5), (-0.5, 63.5), None), psf, noise, poolsize=0, frame_range=(0, 0))
 
-    em = EmitterSet(xyz=torch.tensor([[15., 15, -200], [15., 15, -200]]),
-                    phot=torch.tensor([2000, 1000.]),
-                    frame_ix=torch.tensor([0., 0.]))
+    em = RandomEmitterSet(5, 64)
+    em.phot *= 1000000
 
-    sim = Simulation(em=em, extent=args.extent, psf=psf, background=bg, poolsize=0, frame_range=(0, 0))
-    sim.forward(em)
-    sim.write_to_binary(args.binary_path)
+    img = simulator.forward(em_new=em)
+    PlotFrame(img[0]).plot()
+    plt.show()
