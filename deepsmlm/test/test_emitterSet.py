@@ -86,6 +86,23 @@ class TestEmitterSet:
         assert 5 == cat_sets.frame_ix[0]
         assert 50 == cat_sets.frame_ix[50]
 
+    def test_sanity_check(self):
+
+        """Test correct shape of 1D tensors in EmitterSet"""
+        xyz = torch.rand((10, 3))
+        phot = torch.rand((10, 1))
+        frame_ix = torch.rand(10)
+        with pytest.raises(ValueError):
+            EmitterSet(xyz, phot, frame_ix)
+
+        """Test correct number of el. in EmitterSet."""
+        xyz = torch.rand((10, 3))
+        phot = torch.rand((11, 1))
+        frame_ix = torch.rand(10)
+        with pytest.raises(ValueError):
+            EmitterSet(xyz, phot, frame_ix)
+
+
     def test_write_to_csv(self):
         """
         Test to write to csv file.
@@ -100,6 +117,17 @@ class TestEmitterSet:
         random_em.write_to_csv(fname)
         assert os.path.isfile(fname)
         os.remove(fname)
+
+    def test_write_to_SMAP(self):
+        deepsmlm_root = os.path.abspath(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         os.pardir, os.pardir)) + '/'
+
+        random_em = RandomEmitterSet(1000)
+        fname = deepsmlm_root + 'deepsmlm/test/assets/dummy_csv.txt'
+        random_em.write_csv_smap(fname)
+        assert os.path.isfile(fname)
+        # os.remove(fname)
 
 
 def test_empty_emitterset():

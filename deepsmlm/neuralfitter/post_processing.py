@@ -1,12 +1,49 @@
 # from skimage.feature import peak_local_max
+import scipy
 from sklearn.cluster import AgglomerativeClustering
 import torch.nn as nn
+from abc import ABC, abstractmethod  # abstract class
 
 from deepsmlm.evaluation.evaluation import *
 from deepsmlm.generic.emitter import EmitterSet
 from deepsmlm.generic.phot_camera import *
+from deepsmlm.generic.psf_kernel import OffsetPSF
 from deepsmlm.neuralfitter.post_processing import *
 from deepsmlm.neuralfitter.pred_tif import *
+
+
+class PostProcessing(ABC):
+
+    @abstractmethod
+    def __init__(self, final_th=None):
+        super().__init__()
+        self.final_th = final_th
+
+    @abstractmethod
+    def forward(self, x):
+        """
+
+        :param x: output from the network or previous post processing stages (such as rescaling etc.)
+        :return: emitterset
+        """
+
+    def frame2emitter(self, p: torch.Tensor, features: torch.Tensor):
+        """
+
+        :param p: mask to pick the final features from. N x 1 x H x W
+        :param features: features. N x C x H x W
+        :return: features
+        """
+        # predictions
+        is_pos = (p >= self.final_th).nonzero()
+
+        # bookkeep batch_ix
+        batch_ix = torch.ones_like(p) * torch.arange(p.size(0), dtype=features.dtype).view(-1, 1, 1, 1)
+
+        feat_out = features[is_pos[:, 0], :, is_pos[:, 2], is_pos[:, 3]]
+        p_out = p[p >= self.final_th]
+        batch_ix = batch_ix[is_pos[:, 0], :, is_pos[:, 2], is_pos[:, 3]]
+        return feat_out, p_out, batch_ix
 
 
 class PeakFinder:
@@ -299,10 +336,10 @@ class SpeiserPost:
                 return em.split_in_frames(0, batch_size - 1)
 
 
-class ConsistencyPostprocessing:
+class ConsistencyPostprocessing(PostProcessing):
     p_aggregation = 'sum'
 
-    def __init__(self, svalue_th=0.1, final_th=0.6, dist_threshold=0.3, match_dims=2, out_format='emitters'):
+    def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=0.3, ax_threshold=200., match_dims=2, out_format='emitters'):
         """
 
         :param svalue_th: single value threshold
@@ -310,14 +347,30 @@ class ConsistencyPostprocessing:
         :param out_format: either 'emitters' or 'image'. If 'emitter' we output instance of EmitterSet, if 'frames' we output post_processed frames.
         :param out_th: final threshold
         """
+        super().__init__(final_th)
         self.svalue_th = svalue_th
         self.final_th = final_th
         self.out_format = out_format
 
+        self.lat_th = lat_threshold
+        self.ax_th = ax_threshold
+
         diag = 0
         self.neighbor_kernel = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).float().view(1, 1, 3, 3)
-        self.clusterer = AgglomerativeClustering(n_clusters=None, distance_threshold=dist_threshold)
+        self.clusterer = AgglomerativeClustering(n_clusters=None,
+                                                 distance_threshold=self.lat_th,
+                                                 affinity='precomputed',
+                                                 linkage='single')
         self.match_dims = match_dims
+
+    @staticmethod
+    def parse(param: dict, out_format='emitters_framewise'):
+        return ConsistencyPostprocessing(svalue_th=param['PostProcessing']['single_val_th'],
+                                         final_th=param['PostProcessing']['total_th'],
+                                         lat_threshold=param['PostProcessing']['lat_th'],
+                                         ax_threshold=param['PostProcessing']['ax_th'],
+                                         match_dims=param['PostProcessing']['match_dims'],
+                                         out_format=out_format)
 
     def _cluster(self, p, features):
         if p.size(1) > 1:
@@ -337,13 +390,25 @@ class ConsistencyPostprocessing:
             # flatten samples and put them in the first dim
             f_frame = f_frame.reshape(f_frame.size(0), -1).permute(1, 0)
             if self.match_dims == 2:
-                coord = f_frame[:, 2:4]
+                coord = f_frame[:, 1:3]
+                dist_mat_lat = scipy.spatial.distance.pdist(coord.cpu().numpy())
+                dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
             elif self.match_dims == 3:
-                coord = f_frame[:, 2:5]
+                coord_lat = f_frame[:, 1:3]
+                dist_mat_lat = scipy.spatial.distance.pdist(coord_lat.cpu().numpy())
+                dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
+
+                coord_ax = f_frame[:, [3]]
+                dist_mat_ax = scipy.spatial.distance.pdist(coord_ax.cpu().numpy())
+                dist_mat_ax = scipy.spatial.distance.squareform(dist_mat_ax)
+
+                # where the z values are too different, don't merge
+                dist_mat_lat[dist_mat_ax > self.ax_th] = 999999999999.
+
             else:
                 raise ValueError("Match dims must be 2 or 3.")
 
-            self.clusterer.fit(coord.cpu().numpy())
+            self.clusterer.fit(dist_mat_lat)
             n_clusters = self.clusterer.n_clusters_
             labels = torch.from_numpy(self.clusterer.labels_)
 
@@ -362,39 +427,7 @@ class ConsistencyPostprocessing:
                 feat_av = (feat_out[i, :, feat_ix] * p_frame[in_cluster]).sum(1) / p_frame[in_cluster].sum()
                 feat_out[i, :, feat_ix] = feat_av.unsqueeze(1).repeat(1, in_cluster.sum())
 
-            return p_out.reshape(p.size()), feat_out.reshape(features.size())
-
-    def forward(self, features):
-        p = features[:, [0], :, :]
-        features = features[:, 1:, :, :]
-        p_out, feat_out = self.forward_(p, features)
-        is_above_final_th = p_out >= self.final_th
-
-        if self.out_format == 'frames':
-            post_frames = torch.cat((p_out, feat_out), 1) * is_above_final_th.type(features.dtype)
-            return post_frames
-        elif self.out_format[:8] == 'emitters':
-            batch_size = feat_out.shape[0]
-
-            is_above_final_th.squeeze_(1)
-            frame_ix = torch.ones_like(feat_out[:, 0, :, :]) * \
-                       torch.arange(batch_size, dtype=feat_out.dtype).view(-1, 1, 1, 1)
-            frame_ix = frame_ix[:, 0, :, :][is_above_final_th]
-            p_map = p_out[:, 0, :, :][is_above_final_th]
-            phot_map = feat_out[:, 0, :, :][is_above_final_th]
-            x_map = feat_out[:, 1, :, :][is_above_final_th]
-            y_map = feat_out[:, 2, :, :][is_above_final_th]
-            z_map = feat_out[:, 3, :, :][is_above_final_th]
-            xyz = torch.cat((
-                x_map.unsqueeze(1),
-                y_map.unsqueeze(1),
-                z_map.unsqueeze(1)
-            ), 1)
-            em = EmitterSet(xyz, phot_map, frame_ix, prob=p_map)
-            if self.out_format[8:] == '_batch':
-                return em
-            elif self.out_format[8:] == '_framewise':
-                return em.split_in_frames(0, batch_size - 1)
+        return p_out.reshape(p.size()), feat_out.reshape(features.size())
 
     def forward_(self, p, features):
         """
@@ -407,14 +440,14 @@ class ConsistencyPostprocessing:
             p_clip = torch.zeros_like(p)
             is_above_svalue = p > self.svalue_th
             p_clip[is_above_svalue] = p[is_above_svalue]
-            p_clip_rep = p_clip.repeat(1, features.size(1), 1, 1)  # repeated to access the features
+            # p_clip_rep = p_clip.repeat(1, features.size(1), 1, 1)  # repeated to access the features
 
             """Divide the set in easy (no neighbors) and set of predictions with adjacents"""
             binary_mask = torch.zeros_like(p_clip)
             binary_mask[p_clip > 0] = 1.
 
             # count neighbors
-            self.neighbor_kernel.type(features.dtype).to(features.device)
+            self.neighbor_kernel = self.neighbor_kernel.type(binary_mask.dtype).to(binary_mask.device)
             count = torch.nn.functional.conv2d(binary_mask, self.neighbor_kernel, padding=1) * binary_mask
 
             # divide in easy and difficult set
@@ -441,12 +474,37 @@ class ConsistencyPostprocessing:
             p_out_diff, feat_out_diff = self._cluster(p_diff, feat_diff)
 
             """Add the easy ones."""
-            p_out[is_easy] = p_easy[is_easy]
-            p_out[is_diff] = p_out_diff[is_diff]
+            p_out[is_easy] = p_easy[is_easy].cpu()
+            p_out[is_diff] = p_out_diff[is_diff].cpu()
 
-            feat_out[is_easy_rep] = feat_easy[is_easy_rep]
-            feat_out[is_diff_rep] = feat_out_diff[is_diff_rep]
+            feat_out[is_easy_rep] = feat_easy[is_easy_rep].cpu()
+            feat_out[is_diff_rep] = feat_out_diff[is_diff_rep].cpu()
             return p_out, feat_out
+
+    def forward(self, features):
+        """
+        Wrapper to output either the actual frames or emittersets
+        :param features:
+        :return:
+        """
+        p = features[:, [0], :, :]
+        features = features[:, 1:, :, :]
+        p_out, feat_out = self.forward_(p, features)
+
+        if self.out_format == 'frames':
+            is_above_final_th = p_out >= self.final_th
+            post_frames = torch.cat((p_out, feat_out), 1) * is_above_final_th.type(features.dtype)
+            return post_frames
+
+        elif self.out_format[:8] == 'emitters':
+            feature_list, prob_final, frame_ix = super().frame2emitter(p_out, feat_out)
+            em = EmitterSet(feature_list[:, 1:4], feature_list[:, 0], frame_ix.squeeze(), prob=prob_final)
+            if self.out_format[8:] == '_batch':
+                return em
+            elif self.out_format[8:] == '_framewise':
+                return em.split_in_frames(0, p.size(0) - 1)
+
+        raise ValueError("Output format not supported.")
 
 
 class CC5ChModel(ConnectedComponents):

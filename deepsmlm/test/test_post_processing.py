@@ -97,8 +97,8 @@ class TestConsistentPostProcessing:
         return post.ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_batch')
 
     def test_easy(self, post):
-        p = torch.zeros((2, 1, 32, 32))
-        out = torch.zeros((2, 4, 32, 32))
+        p = torch.zeros((2, 1, 32, 32)).cuda()
+        out = torch.zeros((2, 4, 32, 32)).cuda()
         p[1, 0, 2, 4] = 0.6
         p[1, 0, 2, 6] = 0.6
         p[0, 0, 0, 0] = 0.3
