@@ -60,8 +60,8 @@ def iterative_pos_neg(output, target, distance_threshold=1.):
     """
     dist_mat = expanded_pairwise_distances(output, target)
 
-    is_true_positive = torch.zeros_like(target[:, 0], dtype=torch.uint8)
-    is_false_positive = torch.zeros_like(output[:, 0], dtype=torch.uint8)
+    is_true_positive = torch.zeros_like(target[:, 0]).type(torch.BoolTensor)
+    is_false_positive = torch.zeros_like(output[:, 0]).type(torch.BoolTensor)
     is_false_negative = torch.zeros_like(is_true_positive)
 
     ix_gt = []

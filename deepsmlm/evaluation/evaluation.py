@@ -5,6 +5,7 @@ from scipy import stats
 import seaborn as sns
 
 import numpy as np
+from tqdm import tqdm
 import math
 import torch
 from sklearn.neighbors import NearestNeighbors
@@ -16,11 +17,12 @@ import deepsmlm.generic.emitter as emitter
 
 class MetricMeter:
     """Computes and stores the average and current value"""
-    def __init__(self):
+    def __init__(self, reduce_nan=True):
         self.val = None
         self.vals = None
         self.count = None
         self.reset()
+        self.reduce_nan = reduce_nan
 
     @property
     def std(self):
@@ -92,7 +94,11 @@ class MetricMeter:
         :param val: value
         :return: None
         """
+
         val = float(val)
+        if math.isnan(val) and self.reduce_nan:
+            return
+
         self.val = val
         self.vals.append(val)
         self.count += 1
@@ -161,20 +167,21 @@ class EvalSet:
 
 class BatchEvaluation:
 
-    def __init__(self, matching, segmentation_eval, distance_eval):
+    def __init__(self, matching, segmentation_eval, distance_eval, px_size=None):
         self._matching = matching
         self._segmentation_eval = segmentation_eval
         self._distance_eval = distance_eval
         self._distance_delta = metric_lib.Deltas()
 
         self.values = None
+        self.px_size = px_size
 
     def forward(self, output, target):
         """
         Evaluate metrics on a whole batch, i.e. average the stuff. This is based lists of outputs, targets.
 
-        :param output:
-        :param target:
+        :param output: list of emitter sets
+        :param target: list of emitter sets
         :return:
         """
         prec, rec, jac = MetricMeter(), MetricMeter(), MetricMeter()
@@ -188,7 +195,13 @@ class BatchEvaluation:
             raise ValueError("Output and Target batch size must be of equal length.")
 
         for i in range(output.__len__()):
-            tp, fp, fn, tp_match = self._matching.forward(output[i], target[i])
+            out = output[i].clone()
+            tar = target[i].clone()
+            if self.px_size is not None:
+                out.convert_em_(factor=self.px_size)
+                tar.convert_em_(factor=self.px_size)
+
+            tp, fp, fn, tp_match = self._matching.forward(out, tar)
             prec_, rec_, jaq_ = self._segmentation_eval.forward(tp, fp, fn)
             rmse_vol_, rmse_lat_, rmse_axial_, mad_vol_, mad_lat_, mad_axial_ = self._distance_eval.forward(tp, tp_match)
             dx_, dy_, dz_, dxw_, dyw_, dzw_ = self._distance_delta.forward(tp, tp_match)
@@ -197,7 +210,7 @@ class BatchEvaluation:
             rec.update(rec_)
             jac.update(jaq_)
 
-            delta_num.update(output[i].num_emitter - target[i].num_emitter)
+            delta_num.update(out.num_emitter - tar.num_emitter)
 
             rmse_vol.update(rmse_vol_)
             rmse_lat.update(rmse_lat_)
@@ -239,6 +252,15 @@ class NNMatching:
 
         if self.match_dims not in [2, 3]:
             raise ValueError("You must compare in either 2 or 3 dimensions.")
+        
+    @staticmethod
+    def parse(param: dict):
+        """
+        
+        :param param: parameter dict 
+        :return: 
+        """
+        return NNMatching(**param['Evaluation'])
 
     def forward(self, output, target):
         """Forward arbitrary output and target set. Does not care about the frame_ix.
@@ -307,8 +329,8 @@ class NNMatching:
         # remove indices which were found
         fn_ix = np.setdiff1d(tar_ix, indices)
 
-        is_tp = torch.from_numpy(is_tp.astype(np.uint8)).type(torch.ByteTensor)
-        is_fp = torch.from_numpy(is_fp.astype(np.uint8)).type(torch.ByteTensor)
+        is_tp = torch.from_numpy(is_tp.astype(np.uint8)).type(torch.BoolTensor)
+        is_fp = torch.from_numpy(is_fp.astype(np.uint8)).type(torch.BoolTensor)
         fn_ix = torch.from_numpy(fn_ix)
 
         tp = output.get_subset(is_tp)
