@@ -20,7 +20,7 @@ def hash_model(modelfile):
 
 
 class LoadSaveModel:
-    def __init__(self, model_instance, output_file, input_file=None, name_time_interval=(60*60), better_th=1e-3):
+    def __init__(self, model_instance, output_file, input_file=None, name_time_interval=(60*60), better_th=1e-6):
         """
 
         :param model_instance:

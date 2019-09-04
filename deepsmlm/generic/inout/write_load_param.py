@@ -17,14 +17,16 @@ def write_params(filename, param):
     :return:
     """
     data = {'InOut': param['InOut'],
-                              'Logging': param['Logging'],
-                              'Hyper': param['Hyper'],
-                              'Scheduler': param['Scheduler'],
-                              'Simulation': param['Simulation'],
-                              'Camera': param['Camera'],
-                              'Scaling': param['Scaling'],
-                              'PostProcessing': param['PostProcessing'],
-                              'Evaluation': param['Evaluation']}
+            'Hardware': param['Hardware'],
+            'Logging': param['Logging'],
+            'HyperParameter': param['HyperParameter'],
+            'LearningRateScheduler': param['LearningRateScheduler'],
+            'SimulationScheduler': param['SimulationScheduler'],
+            'Simulation': param['Simulation'],
+            'Camera': param['Camera'],
+            'Scaling': param['Scaling'],
+            'PostProcessing': param['PostProcessing'],
+            'Evaluation': param['Evaluation']}
 
     with open(filename, "w") as write_file:
         json.dump(data, write_file, indent=4)
