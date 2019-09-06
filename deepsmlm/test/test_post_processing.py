@@ -112,3 +112,12 @@ class TestConsistentPostProcessing:
         em = post.forward(torch.cat((p, out),1))
         print('Done')
 
+
+def test_offset2coordinate:
+
+    """First on a square image"""
+    img_shape = (32, 32)
+    frame = torch.zeros((2, 5, img_shape[0], img_shape[1]))
+    frame[1, 2, 1, 0] = 0.3
+
+    post = Offset2Coordinate(xextent=(-0.5, 31.5))

@@ -404,7 +404,6 @@ class ConsistencyPostprocessing(PostProcessing):
 
                 # where the z values are too different, don't merge
                 dist_mat_lat[dist_mat_ax > self.ax_th] = 999999999999.
-
             else:
                 raise ValueError("Match dims must be 2 or 3.")
 
