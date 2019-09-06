@@ -265,7 +265,6 @@ class EmitterSet:
         pseudo_em = self.clone()
         pseudo_em.convert_em_(factor, shift, axis, 1)
 
-        smap_comment = 'This is an Export for SMAP, (i.e. axis swapped).'
         if comments is None:
             comments = 'Export for SMAP'
         else:
