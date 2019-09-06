@@ -36,6 +36,11 @@ class PredictEval(ABC):
         :return: emitterset (and raw frames if specified).
         """
 
+        # warn the user when he wants to output_raw a big dataset
+        if output_raw and self.dataloader.dataset.__len__() > 10000:
+            print("WARNING: Are you sure that you want to output the raw frames for this dataset?"
+                  " This will mean serious memory consumption.")
+
         """Eval mode."""
         raw_frames = []
         em_outs = []
@@ -159,11 +164,18 @@ class PredictEvalTif(PredictEval):
         frames.unsqueeze_(1)
 
         self.frames = frames
-        self._init_dataset()
+        self.init_dataset()
 
-    def _init_dataset(self):
+    def init_dataset(self, frames=None):
+        """
+        Initiliase the dataset. Usually by preloaded frames but you can overwrite.
+        :param frames: N C(=1) H W
+        :return:
+        """
+        if frames is None:
+            frames = self.frames
 
-        ds = UnsupervisedDataset(((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)), frames=self.frames,
+        ds = UnsupervisedDataset(((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)), frames=frames,
                                  multi_frame_output=self.multi_frame)
         self.dataloader = torch.utils.data.DataLoader(ds,
                                                       batch_size=self.batch_size, shuffle=False,
