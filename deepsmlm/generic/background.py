@@ -1,8 +1,98 @@
+from abc import ABC, abstractmethod  # abstract class
 import numpy as np
 import torch
+import scipy
 
-import deepsmlm.generic.emitter as emitter
 import deepsmlm.generic.psf_kernel as psf_kernel
+
+
+class Background(ABC):
+
+    @abstractmethod
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def forward(self, x):
+        """
+        Must implement this forward method with frame input N C H W
+        :param x:
+        :return:
+        """
+        return
+
+
+class UniformBackground(Background):
+    def __init__(self, bg_uniform=0., bg_sampler=None):
+        """
+
+        :param bg_uniform: float or list / tuple. if the latter, bg value will be from a distribution
+        :param bg_sampler: provide any function which upon call returns a value
+        """
+        super().__init__()
+
+        if (bg_uniform is not None) and (bg_sampler is not None):
+            raise ValueError("You must either specify bg_uniform (X)OR a bg_distribution")
+
+        if bg_sampler is None:
+            if not (isinstance(bg_uniform, tuple) or isinstance(bg_uniform, list)):
+                bg_uniform = [bg_uniform, bg_uniform]
+
+            self.bg_distribution = torch.distributions.uniform.Uniform(*bg_uniform).sample
+        else:
+            self.bg_distribution = bg_sampler
+
+    @staticmethod
+    def parse(param):
+        return UniformBackground(param['Simulation']['bg_uniform'])
+
+    def forward(self, x):
+        """
+        Add uniform background
+        :param x:
+        :return:
+        """
+        return x + self.bg_distribution()
+
+
+class NonUniformBackground(Background):
+    """
+    A class to produce nonuniform background which is done by placing 5 points with 5 different values
+    on somewhat random positions and then interpolate an image.
+    """
+    def __init__(self, intensity, img_size, dynamic_factor=1.3):
+        super().__init__()
+        self.max_value = intensity
+        self.dynamic_factor = dynamic_factor
+
+        self.x = np.array([-0.3, -0.3, 0.5, 1.3, 1.3])
+        self.y = np.array([-0.3, 1.3, 0.5, -0.3, 1.3])
+        # self.x = np.array([-1., -1., 2., 2.])
+        # self.y = np.array([-1., 2., -1., 2.])
+
+        xn = np.linspace(0, 1, img_size[0])
+        yn = np.linspace(0, 1, img_size[1])
+        self.xn, self.yn = np.meshgrid(xn, yn)
+
+    @staticmethod
+    def parse(param):
+        return NonUniformBackground(param['Simulation']['bg_nonuni_intensity'],
+                                    param['Simulation']['img_size'],
+                                    param['Simulation']['bg_nonuni_dynamic'])
+
+    def forward(self, input):
+        """
+        :param x:
+        :return:
+        """
+        """Simulate locs and values"""
+        x = self.x + np.random.randn(self.x.shape[0]) * .2
+        y = self.y + np.random.randn(self.y.shape[0]) * .2
+        v = np.random.rand(x.shape[0]) * self.max_value / self.dynamic_factor
+        v[2] *= self.dynamic_factor
+        f = scipy.interpolate.Rbf(x, y, v, function='gaussian')
+        bg = torch.clamp(torch.from_numpy(f(self.xn, self.yn).astype('float32')), 0.)
+        return input + bg.unsqueeze(0).unsqueeze(0).repeat(1, input.size(1), 1, 1)
 
 
 class OutOfFocusEmitters:
@@ -47,7 +137,6 @@ class OutOfFocusEmitters:
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    import deepsmlm.generic.plotting.frame_coord as smplot
 
     extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
     img_shape = (64, 64)
@@ -56,4 +145,3 @@ if __name__ == '__main__':
     x = torch.zeros((1, 1, 64, 64))
     out = bg.forward(x)
     plt.imshow(out[0, 0]); plt.colorbar(); plt.show()
-

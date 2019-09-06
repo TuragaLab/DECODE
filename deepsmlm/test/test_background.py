@@ -1,6 +1,8 @@
 import torch
 import pytest
+import matplotlib.pyplot as plt
 import deepsmlm.generic.background as background
+from deepsmlm.generic.plotting.frame_coord import PlotFrame
 
 
 class TestExperimentBg:
@@ -20,3 +22,18 @@ class TestExperimentBg:
         x = torch.zeros((1, 1, 64, 64))
         out = exp_bg.forward(x)
         assert pytest.approx(out.max().item(), 0.01) == 1.
+
+
+def test_nonuniformbg():
+
+    bg_u = background.NonUniformBackground(0.1, img_size=(32, 32))
+    x = torch.rand((2, 3, 32, 32)) * 4
+
+    x_out = bg_u.forward(x)
+
+    plt.figure(figsize=(12, 12))
+    PlotFrame(x[0, 0]).plot()
+    plt.show()
+    plt.figure(figsize=(12, 12))
+    PlotFrame(x_out[0, 0]).plot()
+    plt.show()
