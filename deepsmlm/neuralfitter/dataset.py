@@ -139,7 +139,7 @@ class SMLMUnifiedDatasetLoader(Dataset):
 
 class SMLMDatasetOnFly(Dataset):
     def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, dimensionality=3, static=False,
-                 lifetime=1, return_em_tar=False):
+                 lifetime=1, return_em_tar=False, disk_cache=False):
         """
 
         :param extent:

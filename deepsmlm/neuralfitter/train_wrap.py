@@ -181,8 +181,9 @@ if __name__ == '__main__':
                                    param['Simulation']['img_size'])
 
         """Define our noise model."""
-
-        noise = Photon2Camera.parse(param)
+        noise = processing.TransformSequence.parse([background.UniformBackground,
+                                                    background.NonUniformBackground,
+                                                    Photon2Camera], param)
 
         structure_prior = structure_prior.RandomStructure(param['Simulation']['emitter_extent'][0],
                                                           param['Simulation']['emitter_extent'][1],

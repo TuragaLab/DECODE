@@ -30,5 +30,6 @@ dependencies:
   - scikit-learn
   - snakeviz
   - sqlite
+  - tifffile
   - torchvision
   - tqdm

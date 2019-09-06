@@ -147,7 +147,7 @@ if __name__ == '__main__':
     calib_file = deepsmlm_root + 'data/Calibration/SMLM Challenge Beads/Coefficients Big ROI/AS-Exp_100nm_3dcal.mat'
     psf = SMAPSplineCoefficient(calib_file).init_spline((-0.5, 63.5), (-0.5, 63.5), (64, 64))
 
-    noise = Photon2Camera(0.9, 0., 90., 300., 100., 10., 0.)
+    noise = Photon2Camera(0.9, 0., 300., 100., 10., 0.)
 
     simulator = Simulation(None, ((-0.5, 63.5), (-0.5, 63.5), None), psf, noise, poolsize=0, frame_range=(0, 0))
 
