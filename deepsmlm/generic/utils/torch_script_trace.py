@@ -8,8 +8,8 @@ from deepsmlm.generic.utils import processing as utils
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
 
 
-def trace_offset_model(model):
-    x = torch.rand((2, 3, 64, 64))
+def trace_offset_model(model, channels=3):
+    x = torch.rand((2, channels, 64, 64))
     traced_module = torch.jit.trace(model, x)
 
     return traced_module
