@@ -1,4 +1,5 @@
 # from skimage.feature import peak_local_max
+import multiprocessing as mp
 import scipy
 from sklearn.cluster import AgglomerativeClustering
 import torch.nn as nn
@@ -339,7 +340,7 @@ class SpeiserPost:
 class ConsistencyPostprocessing(PostProcessing):
     p_aggregation = 'sum'
 
-    def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=0.3, ax_threshold=200., match_dims=2, out_format='emitters'):
+    def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=0.3, ax_threshold=200., match_dims=2, out_format='emitters', num_workers=4):
         """
 
         :param svalue_th: single value threshold
@@ -362,6 +363,7 @@ class ConsistencyPostprocessing(PostProcessing):
                                                  affinity='precomputed',
                                                  linkage='single')
         self.match_dims = match_dims
+        self.num_workers = num_workers
 
     @staticmethod
     def parse(param: dict, out_format='emitters_framewise'):
@@ -372,7 +374,95 @@ class ConsistencyPostprocessing(PostProcessing):
                                          match_dims=param['PostProcessing']['match_dims'],
                                          out_format=out_format)
 
+    @staticmethod
+    def _cluster_single_frame(p, features, match_dims, clusterer, p_aggregation):
+        """
+        Cluster on a single frame. Useful to run it in parallel
+        :param p: probability C(=1) H W
+        :param frame: C H W
+        :return:
+        """
+
+        # output
+        p_out = torch.zeros_like(p).view(p.size(0), -1)
+        feat_out = features.clone().view(features.size(0), -1)
+
+        ix = p[0] > 0
+        if (ix == 0.).all().item():
+            return p_out, feat_out
+
+        alg_ix = (p.view(-1) > 0).nonzero().squeeze(1)
+
+        p_frame = p[0, ix].view(-1)
+        f_frame = features[:, ix]
+        # flatten samples and put them in the first dim
+        f_frame = f_frame.reshape(f_frame.size(0), -1).permute(1, 0)
+        if match_dims == 2:
+            coord = f_frame[:, 1:3]
+            dist_mat_lat = scipy.spatial.distance.pdist(coord.cpu().numpy())
+            dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
+        elif match_dims == 3:
+            coord_lat = f_frame[:, 1:3]
+            dist_mat_lat = scipy.spatial.distance.pdist(coord_lat.cpu().numpy())
+            dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
+
+            coord_ax = f_frame[:, [3]]
+            dist_mat_ax = scipy.spatial.distance.pdist(coord_ax.cpu().numpy())
+            dist_mat_ax = scipy.spatial.distance.squareform(dist_mat_ax)
+
+            # where the z values are too different, don't merge
+            dist_mat_lat[dist_mat_ax > self.ax_th] = 999999999999.
+        else:
+            raise ValueError("Match dims must be 2 or 3.")
+
+        clusterer.fit(dist_mat_lat)
+        n_clusters = clusterer.n_clusters_
+        labels = torch.from_numpy(clusterer.labels_)
+
+        for c in range(n_clusters):
+            in_cluster = labels == c
+            feat_ix = alg_ix[in_cluster]
+            if p_aggregation == 'sum':
+                p_agg = p_frame[in_cluster].sum()
+            elif p_aggregation == 'max':
+                p_agg = p_frame[in_cluster].max()
+            else:
+                raise ValueError("Prob. aggregation must be sum or max.")
+
+            p_out[0, feat_ix[0]] = p_agg  # only set first element to some probability
+            """Average the features."""
+            feat_av = (feat_out[:, feat_ix] * p_frame[in_cluster]).sum(1) / p_frame[in_cluster].sum()
+            feat_out[:, feat_ix] = feat_av.unsqueeze(1).repeat(1, in_cluster.sum())
+
+        return p_out, feat_out
+
+    def _cluster_mp(self, p, features):
+        """
+        Cluster in Multi processing.
+        :param p:
+        :param features:
+        :return:
+        """
+        if p.size(1) > 1:
+            raise ValueError("Not Supported shape for propbabilty.")
+        p_out = torch.zeros_like(p).view(p.size(0), p.size(1), -1)
+        feat_out = features.clone().view(features.size(0), features.size(1), -1)
+
+        with mp.Pool(processes=self.num_workers) as pool:
+            # p to list
+
+            # f to list
+
+            # itertools map p and f
+
+            results = pool.starmap(_cluster_single_frame, [(1, 1), (2, 2), (3, 3)])
+
+        # list to tensor
+
+        return p_out, feat_out
+
     def _cluster(self, p, features):
+
         if p.size(1) > 1:
             raise ValueError("Not Supported shape for propbabilty.")
         p_out = torch.zeros_like(p).view(p.size(0), p.size(1), -1)
@@ -721,3 +811,22 @@ class Offset2Coordinate:
             output_converted.squeeze_(0)
 
         return output_converted
+
+
+def profile_post_processing():
+    post = ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_batch')
+
+    p = torch.zeros((2, 1, 32, 32)).cuda()
+    out = torch.zeros((2, 4, 32, 32)).cuda()
+    p[1, 0, 2, 4] = 0.6
+    p[1, 0, 2, 6] = 0.6
+    p[0, 0, 0, 0] = 0.3
+    p[0, 0, 0, 1] = 0.4
+
+    out[0, 2, 0, 0] = 0.3
+    out[0, 2, 0, 1] = 0.5
+    out[1, 2, 2, 4] = 1.
+    out[1, 2, 2, 6] = 1.2
+
+    em = post.forward(torch.cat((p, out), 1))
+    print('Done')
