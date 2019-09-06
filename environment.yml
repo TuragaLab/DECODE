@@ -1,14 +1,16 @@
 name: deepsmlm_deployed
 channels:
   - pytorch
-  - anaconda
   - conda-forge
+  - anaconda
   - anaconda-fusion
+  - comet_ml
   - pyviz
   - defaults
 
 dependencies:
   - bokeh
+  - comet_ml
   - holoviews
   - intel-openmp
   - jupyter_contrib_nbextensions
@@ -20,7 +22,7 @@ dependencies:
   - opencv
   - pillow
   - python=3.6
-  - pytorch=1.1.0
+  - pytorch=1.2.0
   - pytest
   - pywavelets
   - scikit-image
