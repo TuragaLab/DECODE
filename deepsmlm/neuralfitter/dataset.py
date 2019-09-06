@@ -1,10 +1,13 @@
 import torch
+import os
+import glob
+import time
 from torch.utils.data import Dataset
 import ctypes
 import numpy as np
 import multiprocessing as mp
 
-from deepsmlm.generic.psf_kernel import DeltaPSF, DualDelta, ListPseudoPSF, ListPseudoPSFInSize
+from deepsmlm.generic.emitter import EmitterSet
 from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV, N2C, Identity
 
 
@@ -66,6 +69,72 @@ class SMLMDataset(Dataset):
         em_tar = self.em[index]
         target = self.target_generator.forward(em_tar)
         return img, target, em_tar, index
+
+
+class SMLMUnifiedDatasetLoader(Dataset):
+    """
+    Load a dataset which was calculated for multiple experiments
+    """
+    def __init__(self, folder):
+        self.folder = folder
+        self.ix = -float('inf')
+
+        self.samples = None
+        self.target = None
+
+        self.max_wait = 1800
+
+        self.step()
+
+    def _get_highest_ix_file(self):
+        """
+        Get the highest index in the folder
+        :return:
+        """
+        dataset_files = glob.glob(self.folder + '*.pt')
+        if dataset_files == []:
+            return None, None
+
+        indices = []
+        for ds in dataset_files:
+            fname_nofolder = ds.split('/')[-1]
+            indices.append(int(fname_nofolder.partition('_')[0]))
+        indices = torch.tensor(indices)
+        ix = indices.max(0)[1].item()
+        return ix, dataset_files[ix]
+
+    def step(self):
+        """
+        Check whether we got a new dataset, if yes load it.
+        :return:
+        """
+        ix, fname = self._get_highest_ix_file()
+        """If Dataset is not yet ready, sleep."""
+        time_waited = 0
+        while (ix is None) and time_waited < self.max_wait:
+            time.sleep(1)
+            time_waited += 1
+            ix, fname = self._get_highest_ix_file()
+
+        if ix > self.ix:
+            (samples, target) = torch.load(fname)
+            self.samples = samples
+            self.target = target
+            self.ix = ix
+
+    def __len__(self):
+        if self.samples is not None:
+            return self.samples.size(0)
+        else:
+            return 0
+
+    def __getitem(self, index):
+        """
+        Get a sample.
+        :param index:
+        :return:
+        """
+        return self.samples[index], self.target[index]
 
 
 class SMLMDatasetOnFly(Dataset):
@@ -131,6 +200,20 @@ class SMLMDatasetOnFly(Dataset):
 
             self.use_cache = True
             print("Pre-calculation of dataset done.")
+
+    def get_gt_emitter(self, output_format='list'):
+        """
+        Get the complete ground truth. Should only be used for static data.
+        :param output_format: either list (list of emittersets) or concatenated Emittersets.
+        :return:
+        """
+        if not self.static_data:
+            print("WARNING: Ground truth extraction may not be valid for non-static data. Please be aware.")
+
+        if output_format == 'list':
+            return self.em_tar
+        elif output_format == 'cat':
+            return EmitterSet.cat_emittersets(self.em_tar, step_frame_ix=1)
 
     def step(self):
         self.time_til_death -= 1
