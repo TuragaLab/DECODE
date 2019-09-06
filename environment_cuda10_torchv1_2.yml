@@ -1,0 +1,37 @@
+name: deepsmlm_betav1_2
+channels:
+  - pytorch
+  - conda-forge
+  - anaconda
+  - anaconda-fusion
+  - comet_ml
+  - pyviz
+  - defaults
+
+dependencies:
+  - bokeh
+  - comet_ml
+  - holoviews
+  - cudatoolkit=10.0
+  - intel-openmp
+  - jupyter_contrib_nbextensions
+  - jupyterlab
+  - nb_conda
+  - matplotlib
+  - numpy
+  - opencv
+  - pillow
+  - python=3.6
+  - pytorch=1.2.0
+  - pytest
+  - pywavelets
+  - scikit-image
+  - scipy
+  - seaborn
+  - setuptools
+  - scikit-learn
+  - snakeviz
+  - sqlite
+  - tifffile
+  - torchvision
+  - tqdm
