@@ -1,16 +1,15 @@
 # from skimage.feature import peak_local_max
-import multiprocessing as mp
+import itertools as iter
+import numpy as np
+import torch.multiprocessing as mp
 import scipy
-from sklearn.cluster import AgglomerativeClustering
-import torch.nn as nn
+from sklearn.cluster import AgglomerativeClustering, DBSCAN
+import torch
 from abc import ABC, abstractmethod  # abstract class
 
-from deepsmlm.evaluation.evaluation import *
 from deepsmlm.generic.emitter import EmitterSet
-from deepsmlm.generic.phot_camera import *
 from deepsmlm.generic.psf_kernel import OffsetPSF
-from deepsmlm.neuralfitter.post_processing import *
-from deepsmlm.neuralfitter.pred_tif import *
+from deepsmlm.generic.utils.warning_util import deprecated
 
 
 class PostProcessing(ABC):
@@ -377,7 +376,7 @@ class ConsistencyPostprocessing(PostProcessing):
     @staticmethod
     def _cluster_single_frame(p, features, match_dims, clusterer, p_aggregation):
         """
-        Cluster on a single frame. Useful to run it in parallel
+        Cluster on a single frame. Useful to run it in parallel. Must live entirely in CPU
         :param p: probability C(=1) H W
         :param frame: C H W
         :return:
@@ -399,15 +398,15 @@ class ConsistencyPostprocessing(PostProcessing):
         f_frame = f_frame.reshape(f_frame.size(0), -1).permute(1, 0)
         if match_dims == 2:
             coord = f_frame[:, 1:3]
-            dist_mat_lat = scipy.spatial.distance.pdist(coord.cpu().numpy())
+            dist_mat_lat = scipy.spatial.distance.pdist(coord.numpy())
             dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
         elif match_dims == 3:
             coord_lat = f_frame[:, 1:3]
-            dist_mat_lat = scipy.spatial.distance.pdist(coord_lat.cpu().numpy())
+            dist_mat_lat = scipy.spatial.distance.pdist(coord_lat.numpy())
             dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
 
             coord_ax = f_frame[:, [3]]
-            dist_mat_ax = scipy.spatial.distance.pdist(coord_ax.cpu().numpy())
+            dist_mat_ax = scipy.spatial.distance.pdist(coord_ax.numpy())
             dist_mat_ax = scipy.spatial.distance.squareform(dist_mat_ax)
 
             # where the z values are too different, don't merge
@@ -436,6 +435,26 @@ class ConsistencyPostprocessing(PostProcessing):
 
         return p_out, feat_out
 
+    def _cluster(self, p, features):
+        """
+        Wrapper method which calls _cluster_single_frame where the actual magic happens.
+        :param p:
+        :param features:
+        :return:
+        """
+
+        if p.size(1) > 1:
+            raise ValueError("Not Supported shape for propbabilty.")
+        p_out = torch.zeros_like(p).view(p.size(0), p.size(1), -1)
+        feat_out = features.clone().view(features.size(0), features.size(1), -1)
+
+        """Frame wise clustering."""
+        for i in range(features.size(0)):
+            p_out[i], feat_out[i] = self._cluster_single_frame(p[i], features[i], self.match_dims,
+                                                               self.clusterer, self.p_aggregation)
+
+        return p_out.reshape(p.size()), feat_out.reshape(features.size())
+
     def _cluster_mp(self, p, features):
         """
         Cluster in Multi processing.
@@ -445,76 +464,28 @@ class ConsistencyPostprocessing(PostProcessing):
         """
         if p.size(1) > 1:
             raise ValueError("Not Supported shape for propbabilty.")
-        p_out = torch.zeros_like(p).view(p.size(0), p.size(1), -1)
-        feat_out = features.clone().view(features.size(0), features.size(1), -1)
+        p = p.cpu().clone()
+        features = features.cpu().clone()
 
         with mp.Pool(processes=self.num_workers) as pool:
             # p to list
-
+            p_list = torch.unbind(p.cpu(), 0)
             # f to list
+            feat_list = torch.unbind(features.cpu(), 0)
 
             # itertools map p and f
+            args = iter.zip_longest(p_list, feat_list, [self.match_dims], [self.clusterer], [self.p_aggregation])
 
-            results = pool.starmap(_cluster_single_frame, [(1, 1), (2, 2), (3, 3)])
+            results = pool.starmap(self._cluster_single_frame, args)
 
-        # list to tensor
+        p_out_ = []
+        feat_out_ = []
+        for i in range(p.size(0)):
+            p_out_.append(results[i][0])
+            feat_out_.append(results[i][1])
 
-        return p_out, feat_out
-
-    def _cluster(self, p, features):
-
-        if p.size(1) > 1:
-            raise ValueError("Not Supported shape for propbabilty.")
-        p_out = torch.zeros_like(p).view(p.size(0), p.size(1), -1)
-        feat_out = features.clone().view(features.size(0), features.size(1), -1)
-
-        """Frame wise clustering."""
-        for i in range(features.size(0)):
-            ix = p[i, 0] > 0
-            if (ix == 0.).all().item():
-                continue
-            alg_ix = (p[i].view(-1) > 0).nonzero().squeeze(1)
-
-            p_frame = p[i, 0, ix].view(-1)
-            f_frame = features[i, :, ix]
-            # flatten samples and put them in the first dim
-            f_frame = f_frame.reshape(f_frame.size(0), -1).permute(1, 0)
-            if self.match_dims == 2:
-                coord = f_frame[:, 1:3]
-                dist_mat_lat = scipy.spatial.distance.pdist(coord.cpu().numpy())
-                dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
-            elif self.match_dims == 3:
-                coord_lat = f_frame[:, 1:3]
-                dist_mat_lat = scipy.spatial.distance.pdist(coord_lat.cpu().numpy())
-                dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
-
-                coord_ax = f_frame[:, [3]]
-                dist_mat_ax = scipy.spatial.distance.pdist(coord_ax.cpu().numpy())
-                dist_mat_ax = scipy.spatial.distance.squareform(dist_mat_ax)
-
-                # where the z values are too different, don't merge
-                dist_mat_lat[dist_mat_ax > self.ax_th] = 999999999999.
-            else:
-                raise ValueError("Match dims must be 2 or 3.")
-
-            self.clusterer.fit(dist_mat_lat)
-            n_clusters = self.clusterer.n_clusters_
-            labels = torch.from_numpy(self.clusterer.labels_)
-
-            for c in range(n_clusters):
-                in_cluster = labels == c
-                feat_ix = alg_ix[in_cluster]
-                if self.p_aggregation == 'sum':
-                    p_agg = p_frame[in_cluster].sum()
-                elif self.p_aggregation == 'max':
-                    p_agg = p_frame[in_cluster].max()
-                else:
-                    raise ValueError("Prob. aggregation must be sum or max.")
-
-                p_out[i, 0, feat_ix[0]] = p_agg  # only set first element to some probability
-                """Average the features."""
-                feat_av = (feat_out[i, :, feat_ix] * p_frame[in_cluster]).sum(1) / p_frame[in_cluster].sum()
-                feat_out[i, :, feat_ix] = feat_av.unsqueeze(1).repeat(1, in_cluster.sum())
+        p_out = torch.stack(p_out_, dim=0)
+        feat_out = torch.stack(feat_out_, dim=0)
 
         return p_out.reshape(p.size()), feat_out.reshape(features.size())
 
@@ -560,7 +531,10 @@ class ConsistencyPostprocessing(PostProcessing):
             feat_out = torch.zeros_like(feat_diff).cpu()
 
             """Cluster the hard cases if they are consistent given euclidean affinity."""
-            p_out_diff, feat_out_diff = self._cluster(p_diff, feat_diff)
+            if self.num_workers == 0:
+                p_out_diff, feat_out_diff = self._cluster(p_diff, feat_diff)
+            else:
+                p_out_diff, feat_out_diff = self._cluster_mp(p_diff, feat_diff)
 
             """Add the easy ones."""
             p_out[is_easy] = p_easy[is_easy].cpu()
@@ -813,8 +787,8 @@ class Offset2Coordinate:
         return output_converted
 
 
-def profile_post_processing():
-    post = ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_batch')
+if __name__ == '__main__':
+    post = ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_batch', num_workers=1)
 
     p = torch.zeros((2, 1, 32, 32)).cuda()
     out = torch.zeros((2, 4, 32, 32)).cuda()

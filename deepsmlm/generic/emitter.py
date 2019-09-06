@@ -55,10 +55,10 @@ class EmitterSet:
                 and (self.id.shape[0] == self.prob.shape[0])):
             raise ValueError("Coordinates, photons, frame ix, id and prob are not of equal shape in 0th dimension.")
 
-        if not ((1 == self.phot.ndim) and
-                (self.phot.ndim == self.prob.ndim) and
-                (self.prob.ndim == self.frame_ix.ndim) and
-                (self.frame_ix.ndim == self.id.ndim)):
+        if not ((1 == self.phot.ndimension()) and
+                (self.phot.ndimension() == self.prob.ndimension()) and
+                (self.prob.ndimension() == self.frame_ix.ndimension()) and
+                (self.frame_ix.ndimension() == self.id.ndimension())):
             raise ValueError("Expected photons, probability frame index and id to be 1D.")
 
     def clone(self):
