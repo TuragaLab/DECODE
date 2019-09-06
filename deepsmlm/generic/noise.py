@@ -37,23 +37,6 @@ class IdentityNoise(NoisePost):
         return image
 
 
-class Poisson(NoisePost):
-
-    def __init__(self, bg_uniform=0):
-        """
-
-        :param bg_uniform: uniform background value to be added before drawing from poisson distribution
-        """
-        super().__init__()
-
-        self.bg_uniform = bg_uniform
-
-    def forward(self, image):
-        """Image must be in integers."""
-
-        return torch.distributions.poisson.Poisson(image + self.bg_uniform).sample()
-
-
 class Gamma(NoisePost):
     def __init__(self, scale):
         super().__init__()
@@ -180,5 +163,11 @@ class GaussianSmoothing(nn.Module):
         return self.conv(self.padding(input), weight=self.weight, groups=self.groups)
 
 
-if __name__ == '__main__':
-    smoothener = GaussianSmoothing
+class Poisson(NoisePost):
+
+    def __init__(self):
+        """"""
+        super().__init__()
+
+    def forward(self, image):
+        return torch.distributions.poisson.Poisson(image).sample()
