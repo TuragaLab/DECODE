@@ -216,6 +216,10 @@ class SMLMDatasetOnFly(Dataset):
             return EmitterSet.cat_emittersets(self.em_tar, step_frame_ix=1)
 
     def step(self):
+        """
+        Reduce lifetime of dataset by one unit.
+        :return:
+        """
         self.time_til_death -= 1
         if self.time_til_death <= 0:
             self.drop_data_set()
@@ -223,6 +227,11 @@ class SMLMDatasetOnFly(Dataset):
             self.use_cache = True
 
     def drop_data_set(self, verbose=True):
+        """
+        Invalidate / clear cache.
+        :param verbose: print when dropped.
+        :return:
+        """
         self.frame *= float('nan')
         self.target *= float('nan')
         self.em_tar = [None] * self.__len__()
@@ -234,6 +243,13 @@ class SMLMDatasetOnFly(Dataset):
             print("Dataset dropped. Will calculate a new one in next epoch.")
 
     def pop_new(self):
+        """
+
+        :return: emitter (all three frames)
+                 frames
+                 target frames
+                 emitters on the target frame (i.e. the middle frame)
+        """
         emitter = self.prior.pop()
         sim_out = self.simulator.forward(emitter).type(torch.FloatTensor)
         frame = self.input_preperator.forward(sim_out)
