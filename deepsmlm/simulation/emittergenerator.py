@@ -139,11 +139,13 @@ class EmitterPopperMultiFrame(EmitterPopper):
         self._emitter_av_total = self.emitter_av ** 2 / actual_emitters
 
     def pop(self):
+         """
+         Return Emitters with frame index. Use subset of the originally increased range of frames because of
+         statistical reasons. Shift index to -1, 0, 1 ...
+         :return EmitterSet
+         """
         frame_range = (math.ceil(2 * self.lifetime_avg), math.ceil(2 * self.lifetime_avg) + self.num_frames - 1)
-        """
-        Return Emitters with frame index. Use subset of the originally increased range of frames because of
-        statistical reasons. Shift index to -1, 0, 1 ...
-        """
+
         loose_em = self.gen_loose_emitter()
         return loose_em.return_emitterset().get_subset_frame(-1, 1)
 
