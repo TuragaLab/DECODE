@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod  # abstract class
 import numpy as np
 import torch
 import scipy
+from scipy import interpolate
 
 import deepsmlm.generic.psf_kernel as psf_kernel
 
@@ -90,26 +91,26 @@ class NonUniformBackground(Background):
         y = self.y + np.random.randn(self.y.shape[0]) * .2
         v = np.random.rand(x.shape[0]) * self.max_value / self.dynamic_factor
         v[2] *= self.dynamic_factor
-        f = scipy.interpolate.Rbf(x, y, v, function='gaussian')
+        f = interpolate.Rbf(x, y, v, function='gaussian')
         bg = torch.clamp(torch.from_numpy(f(self.xn, self.yn).astype('float32')), 0.)
         return input + bg.unsqueeze(0).unsqueeze(0).repeat(1, input.size(1), 1, 1)
 
 
 class OutOfFocusEmitters:
     """Simulate out of focus emitters by using huge z values."""
-    def __init__(self, xextent, yextent, img_shape, bg_range=(15, 15), num_bg_emitter=0):
+    def __init__(self, xextent, yextent, img_shape, bg_range=(15, 15), num_bgem_range=0):
         """
 
         :param xextent:
         :param yextent:
         :param img_shape:
         :param bg_range: peak height of emitters
-        :param num_bg_emitter: number of background emitters in image.
+        :param num_bgem_range: number of background emitters in image.
         """
 
         self.xextent = xextent
         self.yextent = yextent
-        self.num_bg_emitter = num_bg_emitter
+        self.num_bg_emitter = num_bgem_range
         self.psf = psf_kernel.GaussianExpect(xextent,
                                              yextent,
                                              (-5000., 5000.),
@@ -117,6 +118,15 @@ class OutOfFocusEmitters:
                                              sigma_0=2.5,
                                              peak_weight=True)
         self.level_dist = torch.distributions.uniform.Uniform(low=bg_range[0], high=bg_range[1])
+        self.num_emitter_dist = torch.distributions.uniform.Uniform(low=num_bgem_range[0], high=num_bgem_range[1])
+
+    @staticmethod
+    def parse(param):
+        return OutOfFocusEmitters(param['Simulation']['psf_extent'][0],
+                                  param['Simulation']['psf_extent'][1],
+                                  param['Simulation']['img_size'],
+                                  param['Simulation']['bg_oof_range'],
+                                  param['Simulation']['bg_num_oof_range'])
 
     def forward(self, x):
         """
@@ -125,7 +135,8 @@ class OutOfFocusEmitters:
         :return:
         """
         """Sample emitters. Place them randomly over the image."""
-        xyz = torch.rand((self.num_bg_emitter, 3)) * torch.tensor([self.xextent[1] - self.xextent[0],
+        num_bg_em = self.num_emitter_dist.sample((1,)).int().item()
+        xyz = torch.rand((num_bg_em, 3)) * torch.tensor([self.xextent[1] - self.xextent[0],
                                                  self.yextent[1] - self.yextent[0],
                                                  1.]) - torch.tensor([self.xextent[0], self.yextent[0], 0.])
         xyz[:, 2] = torch.randint_like(xyz[:, 2], low=2000, high=8000)
@@ -138,10 +149,17 @@ class OutOfFocusEmitters:
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-    extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
-    img_shape = (64, 64)
-    bg = OutOfFocusEmitters(extent[0], extent[1], img_shape, bg_range=(10., 20.), num_bg_emitter=3)
+    extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
+    img_shape = (32, 32)
+    bg = OutOfFocusEmitters(extent[0], extent[1], img_shape, bg_range=(0., 100.), num_bgem_range=[0, 5])
 
-    x = torch.zeros((1, 1, 64, 64))
-    out = bg.forward(x)
-    plt.imshow(out[0, 0]); plt.colorbar(); plt.show()
+    x = torch.zeros((1, 1, 32, 32))
+    x = bg.forward(x)
+    plt.imshow(x[0, 0]); plt.colorbar(); plt.show()
+
+    bg2 = NonUniformBackground(100, img_shape, 1.0)
+    # x = torch.zeros((1, 1, 64, 64))
+    x = bg2.forward(x)
+    plt.imshow(x[0, 0]);
+    plt.colorbar()
+    plt.show()
