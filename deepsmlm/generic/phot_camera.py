@@ -28,6 +28,12 @@ class Photon2Camera:
         self.read = noise.Gaussian(sigma_gaussian=self.read_sigma,
                                    bg_uniform=0)
 
+
+    def __str__(self):
+        return f"Photon to Camera Converter.\n" + \
+               f"Camera: QE {self.qe} | Spur noise {self.spur} | EM Gain {self.em_gain} | " + \
+               f"e_per_adu {self.e_per_adu} | Baseline {self.baseline} | Readnoise {self.read_sigma}"
+
     @staticmethod
     def parse(param: dict):
         """
