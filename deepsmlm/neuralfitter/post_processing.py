@@ -1,5 +1,7 @@
 # from skimage.feature import peak_local_max
 import itertools as iter
+import math
+
 import numpy as np
 import torch.multiprocessing as mp
 import scipy
@@ -10,6 +12,20 @@ from abc import ABC, abstractmethod  # abstract class
 from deepsmlm.generic.emitter import EmitterSet
 from deepsmlm.generic.psf_kernel import OffsetPSF
 from deepsmlm.generic.utils.warning_util import deprecated
+
+
+def crlb_squared_distance(X, Y, XCrlb, YCrlb):
+    """
+    Computes the CRLB (Cramer Rao Lower Bound) weighted distances between the vectors X and Y
+    :param X:
+    :param Y:
+    :param XCrlb:
+    :param YCrlb:
+    :return: squarred distance in units of CRLB
+    """
+    dist = (X - Y) ** 2 / (XCrlb ** 2 + YCrlb ** 2)
+    dist = dist.sum(1)
+    return dist
 
 
 class PostProcessing(ABC):
