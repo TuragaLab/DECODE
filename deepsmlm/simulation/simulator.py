@@ -1,6 +1,7 @@
 import itertools as iter
 import math
 import numpy as np
+import warnings
 import os, sys
 import torch
 import matplotlib.pyplot as plt
@@ -25,17 +26,20 @@ class Simulation:
     (C, D, H, W) in 2D - single image
     (https://pytorch.org/docs/stable/_modules/torch/nn/modules/conv.html#Conv3d)
     """
-    def __init__(self, em, extent, psf, background=None, poolsize=4, frame_range=None):
+    def __init__(self, em, extent, psf, background, noise, frame_range=None, poolsize=4, out_bg=False):
         """
 
+        :param noise:
         :param em: set of emitters. instance of class EmitterSet
         :param extent: extent of the simulation, gives image-shape a meaning. tuple of tuples
         :param psf: instance of class psf
-        :param background: instance pf class background / noise
+        :param background: instance of class background
+        :param noise: instance of class noise
         :param poolsize: how many threads should be open to calculate psf
         :param frame_range: enforce the frame range of the simulation. None (default) / tuple
             usually we start with 0 (or the first frame) and end with the last frame, but you might want to have your
             simulation always contain a specific number of frames.
+        :param out_bg: Output background additionally seperately? (true false)
         """
 
         self.em = em
@@ -46,11 +50,19 @@ class Simulation:
 
         self.psf = psf
         self.background = background
+        self.noise = noise
         self.poolsize = poolsize
+        self.out_bg = out_bg
 
         """Split the Set of Emitters in frames. Outputs list of set of emitters."""
         if self.em is not None:
             self.em_split = self.em.split_in_frames(self.frame_range[0], self.frame_range[1])
+
+        if (self.background is not None) and (self.noise is None):
+            """This is temporary since I changed the interface."""
+            warnings.warn("Careful! You have not specified noise but you have specified background. "
+                          "Background is defined as something which does not depend on the actual "
+                          "signal whereas noise does.")
 
     @staticmethod
     def forward_single_frame(pos, phot, psf):
@@ -106,13 +118,24 @@ class Simulation:
 
         frames = torch.stack(frame_list, dim=0)
 
-        """Add background. This needs to happen here and not on a single frame, since background may be correlated."""
+        """
+        Add background. This needs to happen here and not on a single frame, since background may be correlated.
+        The difference between background and noise is, 
+        that background is assumed to be independent of the emitter position / signal.
+        """
         if self.background is not None:
-            self.frames = self.background.forward(frames).type(torch.int64)
-        else:
-            self.frames = frames.type(torch.int64)
+            bg_frames = self.background.forward(torch.zeros_like(frames))
+            frames += bg_frames
 
-        return self.frames
+        if self.noise is not None:
+            frames = self.noise.forward(frames)
+
+        self.frames = frames
+
+        if self.out_bg:
+            return frames, bg_frames
+        else:
+            return frames
 
     def write_to_binary(self, outfile):
             """
@@ -149,7 +172,7 @@ if __name__ == '__main__':
 
     noise = Photon2Camera(0.9, 0., 300., 100., 10., 0.)
 
-    simulator = Simulation(None, ((-0.5, 63.5), (-0.5, 63.5), None), psf, noise, poolsize=0, frame_range=(0, 0))
+    simulator = Simulation(None, ((-0.5, 63.5), (-0.5, 63.5), None), psf, noise, frame_range=(0, 0), poolsize=0)
 
     em = RandomEmitterSet(5, 64)
     em.phot *= 1000000
