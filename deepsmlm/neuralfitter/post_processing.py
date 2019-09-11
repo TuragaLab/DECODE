@@ -536,6 +536,7 @@ class ConsistencyPostprocessing(PostProcessing):
             if self.num_workers == 0:
                 p_out_diff, feat_out_diff = self._cluster_batch(p_diff.cpu(), feat_diff.cpu())
             else:
+                raise NotImplementedError("Multi Processing not working at the moment.")
                 p_out_diff, feat_out_diff = self._cluster_mp(p_diff, feat_diff)
 
             """Add the easy ones."""
