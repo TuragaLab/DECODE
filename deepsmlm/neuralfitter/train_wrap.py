@@ -5,7 +5,8 @@ import time
 import os
 import getopt
 import sys
-
+import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 from tensorboardX import SummaryWriter
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -42,7 +43,7 @@ from deepsmlm.simulation import structure_prior, emittergenerator, simulator
 
 # import resource
 # rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-# resource.setrlimit(resource.RLIMIT_NOFILE, (32768, rlimit[1]))
+# resource.setrlimit(resource.RLIMIT_NOFILE, (8192, rlimit[1]))
 
 
 """Root folder"""
@@ -97,10 +98,6 @@ if __name__ == '__main__':
     else:
         print("Device is not CUDA. Cuda ix not set.")
     os.nice(param['Hardware']['unix_niceness'])
-
-    """Torch must be imported after (!) os.environ ..."""
-    import torch
-    torch.multiprocessing.set_sharing_strategy('file_system')
 
     assert torch.cuda.device_count() == 1
     torch.set_num_threads(param['Hardware']['torch_threads'])
@@ -183,6 +180,7 @@ if __name__ == '__main__':
         """Define our noise model."""
         noise = processing.TransformSequence.parse([background.UniformBackground,
                                                     background.NonUniformBackground,
+                                                    # background.OutOfFocusEmitters,
                                                     Photon2Camera], param)
 
         structure_prior = structure_prior.RandomStructure(param['Simulation']['emitter_extent'][0],
@@ -203,12 +201,12 @@ if __name__ == '__main__':
                                                          num_frames=3,
                                                          emitter_av=param['Simulation']['emitter_av'])
 
-        simulator = simulator.Simulation(None,
-                                         param['Simulation']['emitter_extent'],
-                                         psf,
-                                         noise,
-                                         poolsize=0,
-                                         frame_range=frame_range)
+        simulator = simulator.Simulation(None, extent=param['Simulation']['emitter_extent'],
+                                         psf=psf,
+                                         background=None,
+                                         noise=noise,
+                                         frame_range=frame_range,
+                                         poolsize=0)
 
         input_preparation = N2C()
 
