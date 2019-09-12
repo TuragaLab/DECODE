@@ -91,8 +91,11 @@ class NonUniformBackground(Background):
         y = self.y + np.random.randn(self.y.shape[0]) * .2
         v = np.random.rand(x.shape[0]) * self.max_value / self.dynamic_factor
         v[2] *= self.dynamic_factor
+        # Setup interpolation function
         f = interpolate.Rbf(x, y, v, function='gaussian')
-        bg = torch.clamp(torch.from_numpy(f(self.xn, self.yn).astype('float32')), 0.)
+        # Interpolate, convert and clamp to 0
+        bg = f(self.xn, self.yn)
+        bg = torch.clamp(torch.from_numpy(bg.astype('float32')), 0.)
         return input + bg.unsqueeze(0).unsqueeze(0).repeat(1, input.size(1), 1, 1)
 
 
