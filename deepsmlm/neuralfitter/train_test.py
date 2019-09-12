@@ -26,6 +26,60 @@ LOG_FIGURES = True
 LOG = True if DEBUG else LOG
 
 
+def monitor_io(input, output, em_out, target, em_tar):
+    r_ix = random.randint(0, input.size(0))
+
+    input_ = input[r_ix]
+    out_ = output[r_ix]
+    tar_ = target[r_ix]
+
+    em_out_ = em_out[r_ix]
+    em_tar_ = em_tar[r_ix]
+
+    plt.figure(figsize=(20, 12))
+    plt.subplot(131)
+    PlotFrameCoord(input_[0], pos_tar=em_tar_.xyz).plot()
+    plt.subplot(132)
+    PlotFrameCoord(input_[1], pos_tar=em_tar_.xyz).plot()
+    plt.subplot(133)
+    PlotFrameCoord(input_[2], pos_tar=em_tar_.xyz).plot()
+    plt.show()
+
+    plt.figure(figsize=(20, 20))
+    plt.subplot(231)
+    PlotFrameCoord(input_[1], pos_out=em_out_.xyz).plot()
+    plt.subplot(232)
+    PlotFrameCoord(out_[0]).plot()
+    plt.subplot(233)
+    PlotFrameCoord(out_[1]).plot()
+    plt.subplot(234)
+    PlotFrameCoord(out_[2]).plot()
+    plt.subplot(235)
+    PlotFrameCoord(out_[3]).plot()
+    plt.subplot(236)
+    PlotFrameCoord(out_[4]).plot()
+    plt.show()
+
+    plt.figure(figsize=(20, 20))
+    plt.subplot(231)
+    PlotFrameCoord(input_[1], pos_tar=em_tar_.xyz).plot()
+    plt.subplot(232)
+    PlotFrameCoord(tar_[0]).plot()
+    plt.subplot(233)
+    PlotFrameCoord(tar_[1]).plot()
+    plt.subplot(234)
+    PlotFrameCoord(tar_[2]).plot()
+    plt.subplot(235)
+    PlotFrameCoord(tar_[3]).plot()
+    plt.subplot(236)
+    PlotFrameCoord(tar_[4]).plot()
+    plt.show()
+
+    plt.figure(figsize=(20, 20))
+    PlotFrameCoord(input_[1], pos_tar=em_tar_.xyz, pos_out=em_out_.xyz).plot()
+    plt.show()
+
+
 def plot_io_frame_model(frame, output, target, em_tar, indices, fig_str, comet_log, board_log, step):
     channel = 0 if (frame.shape[1] == 1) else 1
     figures = []
@@ -106,18 +160,11 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
     end = time.time()
     for i, (x_in, target) in enumerate(train_loader):
 
-        if (epoch == 0) and (i == 0) and LOG:
-            """Save a batch to see what we input into the network."""
-            debug_file = deepsmlm_root + 'data/debug.pt'
-            torch.save((x_in, target), debug_file)
-            print("LOG: I saved a batch for you. Look what the network sees for verification purpose.")
-
         # measure data loading time
         data_time.update(time.time() - end)
 
         x_in = x_in.to(torch.device(conf_param['Hardware']['device']))
         target = target.to(torch.device(conf_param['Hardware']['device']))
-
 
         # compute output
         output = model(x_in)
@@ -215,6 +262,10 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
             """Forward output through post-processor for eval."""
             if post_processor is not None:
                 em_outs.extend(post_processor.forward(output))
+
+            """Debug here if you want to check (uncomment)"""
+            # monitor_io(x_in.detach().cpu(), output.detach().cpu(),
+            #            post_processor.forward(output), target.detach().cpu(), em_tar)
 
             # measure elapsed time
             batch_time.update(time.time() - end)
