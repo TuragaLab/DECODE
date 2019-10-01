@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod  # abstract class
+
 import numpy as np
 import torch
-import scipy
 from scipy import interpolate
+import math
 
 import deepsmlm.generic.psf_kernel as psf_kernel
 
@@ -147,6 +148,66 @@ class OutOfFocusEmitters:
         levels = self.level_dist.sample((xyz.size(0),))
 
         return x + self.psf.forward(xyz, levels)
+
+
+class PerlinBackground(Background):
+    """
+    Taken from https://gist.github.com/vadimkantorov/ac1b097753f217c5c11bc2ff396e0a57.
+    """
+
+    def __init__(self, img_size, perlin_scale, amplitude):
+        """
+
+        :param img_size: size of the image
+        :param perlin_scale: scale of the perlin in fractions of the img_scale
+        """
+        super().__init__()
+        self.img_size = img_size
+        self.perlin_scale = perlin_scale
+        self.amplitude = amplitude
+
+        delta = (self.perlin_scale[0] / self.img_size[0], self.perlin_scale[1] / self.img_size[1])
+        self.d = (self.img_size[0] // self.perlin_scale[0], self.img_size[1] // self.perlin_scale[1])
+        self.grid = torch.stack(torch.meshgrid(torch.arange(0, self.perlin_scale[0], delta[0]),
+                                               torch.arange(0, self.perlin_scale[1], delta[1])), dim=-1) % 1
+
+    @staticmethod
+    def parse(param):
+        return PerlinBackground(img_size=param['Simulation']['img_size'],
+                                perlin_scale=param['Simulation']['bg_perlin_scale'],
+                                amplitude=param['Simulation']['bg_perlin_amplitude'])
+
+    @staticmethod
+    def fade_f(t):
+        return 6 * t ** 5 - 15 * t ** 4 + 10 * t ** 3
+
+    def calc_perlin(self, shape, res):
+
+        angles = 2 * math.pi * torch.rand(res[0] + 1, res[1] + 1)
+        gradients = torch.stack((torch.cos(angles), torch.sin(angles)), dim=-1)
+
+        tile_grads = lambda slice1, slice2: gradients[slice1[0]:slice1[1], slice2[0]:slice2[1]].repeat_interleave(self.d[0],
+                                                                                                                  0).repeat_interleave(
+            self.d[1], 1)
+        dot = lambda grad, shift: (
+                torch.stack((self.grid[:shape[0], :shape[1], 0] + shift[0], self.grid[:shape[0], :shape[1], 1] + shift[1]),
+                            dim=-1) * grad[:shape[0], :shape[1]]).sum(dim=-1)
+
+        n00 = dot(tile_grads([0, -1], [0, -1]), [0, 0])
+        n10 = dot(tile_grads([1, None], [0, -1]), [-1, 0])
+        n01 = dot(tile_grads([0, -1], [1, None]), [0, -1])
+        n11 = dot(tile_grads([1, None], [1, None]), [-1, -1])
+        t = self.fade_f(self.grid[:shape[0], :shape[1]])
+        return math.sqrt(2) * torch.lerp(torch.lerp(n00, n10, t[..., 0]), torch.lerp(n01, n11, t[..., 0]), t[..., 1])
+
+    def forward(self, x):
+        """
+        Forwards the bg.
+        :param x:
+        :return:
+        """
+        return x + self.amplitude * (self.calc_perlin(self.img_size, self.perlin_scale) + 1.) * 0.55
+
 
 
 if __name__ == '__main__':
