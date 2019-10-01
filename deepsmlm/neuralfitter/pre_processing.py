@@ -14,6 +14,16 @@ class Preprocessing(ABC):
     def __init__(self):
         super().__init__()
 
+    @staticmethod
+    def recursion_forward(x, methd_impl):
+        if isinstance(x, (tuple, list)):
+            out = [None] * x.__len__()
+            for i in range(x.__len__()):
+                out[i] = methd_impl(x[i])
+
+        return out
+
+
     @abstractmethod
     def forward(self, in_tensor):
         return in_tensor.type(torch.FloatTensor)
