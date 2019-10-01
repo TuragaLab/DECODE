@@ -1,0 +1,95 @@
+{
+    "InOut": {
+      "root": "/Users/lucasmueller/Repositories/DeepSMLM/",
+      "data_set": "online",
+      "model_out": "network/debug.pt",
+      "model_init": null,
+      "calibration_file": "data/Calibration/SMLM Challenge Beads/Coefficients Big ROI/AS-Exp_100nm_3dcal.mat"
+    },
+    "Hardware": {
+      "device": "cuda",
+      "cuda_ix": "0",
+      "num_worker_sim": 6,
+      "torch_threads": 6,
+      "unix_niceness": 0
+    },
+    "Logging": {
+      "log_comment": "",
+      "cometml_tags": []
+    },
+    "HyperParameter": {
+      "batch_size": 32,
+      "pseudo_ds_size": 64,
+      "test_size": 64,
+      "lr": 0.0001,
+      "epochs": 1000,
+      "prob_fg_weight": 1.0,
+      "ch_weight": [1.0, 1.0, 1.0, 1.0, 1.0],
+      "weight_sqrt_phot": false,
+      "fgbg_factor": null,
+      "target_roi_size": 3,
+      "photon_threshold": null,
+      "channels": 3,
+      "ds_lifetime": 2
+    },
+    "LearningRateScheduler": {
+      "mode": "min",
+      "factor": 0.1,
+      "patience": 20,
+      "threshold": 0.0001,
+      "cooldown": 10,
+      "verbose": true
+    },
+    "SimulationScheduler": {
+      "disabled": true,
+      "factor": null,
+      "patience": null,
+      "threshold": null,
+      "cooldown": null,
+      "verbose": null,
+      "max_value": null
+    },
+    "Simulation": {
+      "emitter_extent": [[-0.5, 31.5], [-0.5, 31.5], [-750, 750]],
+      "psf_extent": [[-0.5, 31.5], [-0.5, 31.5], null],
+      "img_size": [32, 32],
+      "density": 0,
+      "emitter_av": 10,
+      "photon_range": null,
+      "bg_uniform": [20.0, 250.0],
+      "bg_nonuni_intensity": 100.0,
+      "bg_nonuni_dynamic": 1.0,
+      "bg_oof_range": [0.0, 100.0],
+      "bg_num_oof_range": [0, 5],
+      "intensity_mu_sig": [10000.0, 500.0],
+      "lifetime_avg": 2.0
+    },
+    "Camera": {
+        "qe": 1.0,
+        "em_gain": 300.0,
+        "e_per_adu": 45.0,
+        "baseline": 100.0,
+        "read_sigma": 74.4,
+        "spur_noise": 0.002,
+        "px_size": [100.0, 100.0]
+    },
+    "Scaling": {
+        "dx_max": 2.5,
+        "dy_max": 2.5,
+        "z_max": 750.0,
+        "phot_max": 15000.0,
+        "linearisation_buffer": 1.2
+    },
+    "PostProcessing": {
+        "single_val_th": 0.2,
+        "total_th": 0.6,
+        "lat_th": 0.3,
+        "ax_th": 200.0,
+        "match_dims": 3
+    },
+    "Evaluation": {
+        "dist_lat": 150.0,
+        "dist_ax": 300.0,
+        "match_dims": 2
+    }
+}
