@@ -28,12 +28,8 @@ class TestDataset:
     def dataset(self):
         pointspread = psf.GaussianExpect((-0.5, 31.5), (-0.5, 31.5), None, (32, 32), 5.)
         noise = deepsmlm.generic.noise.Poisson(bg_uniform=10)
-        simulator = sim.Simulation(None,
-                                         ((-0.5, 31.5), (-0.5, 31.5), None),
-                                         pointspread,
-                                         noise,
-                                         poolsize=0,
-                                         frame_range=(-1, 1))
+        simulator = sim.Simulation(None, ((-0.5, 31.5), (-0.5, 31.5), None), pointspread, noise, frame_range=(-1, 1),
+                                   poolsize=0)
         target_generator = psf.DeltaPSF((-0.5, 31.5), (-0.5, 31.5), None, (32, 32))
 
         class Prior:

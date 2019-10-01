@@ -28,7 +28,7 @@ class TestSimulator:
 
         sp = load_calib.SMAPSplineCoefficient(csp_calib)
         psf = sp.init_spline(psf_extent[0], psf_extent[1], img_shape=img_shape)
-        return sim.Simulation(em=None, extent=None, psf=psf, background=None, poolsize=0, frame_range=(-1, 1))
+        return sim.Simulation(em=None, extent=None, psf=psf, background=None, frame_range=(-1, 1), poolsize=0)
 
     def test_forward(self, dummy_em, dummy_sim):
         x = dummy_sim.forward(dummy_em)

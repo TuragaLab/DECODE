@@ -14,18 +14,22 @@
 #define VERBOSE 0
 
 /* Spline Structure */
+/**
+ * @brief defines the cubic spline
+ * 
+ **/
 typedef struct {
-        int xsize;
-        int ysize;
-        int zsize;
+        int xsize;  // size of the spline in x
+        int ysize;  // size of the spline in y
+        int zsize;  // size of the spline in z
 
-        float x0;
+        float x0;  // reference in x, y, z
         float y0;
         float z0;
-        float dz;
+        float dz;  // delta between the z slices
 
-        float *coeff;
-        float *delta_f;
+        float *coeff;  // coefficients
+        float *delta_f;  // internal helper
 } spline;
 
 void kernel_computeDelta3D(spline *, float, float, float );
