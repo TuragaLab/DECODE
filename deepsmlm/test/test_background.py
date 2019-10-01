@@ -61,7 +61,6 @@ class TestPerlinBg:
         plt.show()
 
 
-
 def test_nonuniformbg():
 
     bg_u = background.NonUniformBackground(0.1, img_size=(32, 32))
