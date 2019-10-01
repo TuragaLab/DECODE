@@ -29,8 +29,10 @@
       "fgbg_factor": null,
       "target_roi_size": 3,
       "photon_threshold": null,
-      "channels": 3,
-      "ds_lifetime": 2
+      "channels_in": 3,
+      "channels_out": 5,
+      "ds_lifetime": 2,
+      "predict_bg": true
     },
     "LearningRateScheduler": {
       "mode": "min",

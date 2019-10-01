@@ -254,7 +254,10 @@ class SMLMDatasetOnFly(Dataset):
         sim_out = self.simulator.forward(emitter).type(torch.FloatTensor)
         frame = self.input_preperator.forward(sim_out)
         emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
-        target = self.target_generator.forward(emitter_on_tar_frame)
+        if self.simulator.out_bg:
+            target = self.target_generator.forward(emitter_on_tar_frame, sim_out[1])
+        else:
+            target = self.target_generator.forward(emitter_on_tar_frame)
         return emitter, frame, target, emitter_on_tar_frame
 
     def __len__(self):

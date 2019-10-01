@@ -4,8 +4,8 @@ from deepsmlm.neuralfitter.models.unet_model import *
 
 
 class OffsetUnet(UNet):
-    def __init__(self, n_channels):
-        super().__init__(n_channels=n_channels, n_classes=5)
+    def __init__(self, n_channels, n_classes=5):
+        super().__init__(n_channels=n_channels, n_classes=n_classes)
         # p non-linearity is in loss (BCEWithLogitsLoss)
         self.p_nl_inference = torch.sigmoid  # identity function since sigmoid is now in loss.
         self.i_nl = torch.sigmoid

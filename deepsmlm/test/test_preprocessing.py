@@ -4,6 +4,8 @@ import pytest
 import matplotlib.pyplot as plt
 
 import deepsmlm.test.utils_ci as tutil
+import deepsmlm.neuralfitter.pre_processing as prep
+
 from deepsmlm.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
 from deepsmlm.generic.psf_kernel import DeltaPSF
 from deepsmlm.neuralfitter.losscollection import OffsetROILoss
@@ -22,6 +24,17 @@ def equal_nonzero(*a):
         is_equal = is_equal * torch.equal(a[i].nonzero(), a[i + 1].nonzero())
 
     return is_equal
+
+
+def test_n2c_recursion():
+    pp = prep.N2C()
+    x = torch.rand((3, 1, 32, 32))
+    x = (x, x * 2)
+    out = pp.forward(x)
+
+    x = torch.rand((3, 1, 64, 64))
+    out = pp.forward(x)
+    print("Done")
 
 
 class TestDecodeRepresentation:

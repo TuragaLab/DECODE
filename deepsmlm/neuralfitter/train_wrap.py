@@ -22,7 +22,7 @@ import deepsmlm.generic.noise as noise_bg
 import deepsmlm.generic.psf_kernel as psf_kernel
 import deepsmlm.evaluation.evaluation as evaluation
 from deepsmlm.generic.phot_camera import Photon2Camera
-from deepsmlm.neuralfitter.pre_processing import OffsetRep, GlobalOffsetRep, ROIOffsetRep
+from deepsmlm.neuralfitter.pre_processing import OffsetRep, GlobalOffsetRep, ROIOffsetRep, CombineTargetBackground
 import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.generic.utils.data_utils import smlm_collate
 import deepsmlm.generic.utils.processing as processing
@@ -147,7 +147,11 @@ if __name__ == '__main__':
     logger.add_text('comet_ml_key', experiment.get_key())
 
     """Set target for the Neural Network."""
-    target_generator = processing.TransformSequence.parse([ROIOffsetRep, InverseOffsetRescale], param)
+    if param['HyperParameter']['predict_bg']:
+        target_generator = CombineTargetBackground(
+            processing.TransformSequence.parse([ROIOffsetRep, InverseOffsetRescale], param))
+    else:
+        target_generator = processing.TransformSequence.parse([ROIOffsetRep, InverseOffsetRescale], param)
 
     if param['InOut']['data_set'] == 'precomputed':
         """Load Data from binary."""
@@ -187,9 +191,9 @@ if __name__ == '__main__':
                                                           param['Simulation']['emitter_extent'][1],
                                                           param['Simulation']['emitter_extent'][2])
 
-        if param['HyperParameter']['channels'] == 1:
+        if param['HyperParameter']['channels_in'] == 1:
             frame_range = (0, 0)
-        elif param['HyperParameter']['channels'] == 3:
+        elif param['HyperParameter']['channels_in'] == 3:
             frame_range = (-1, 1)
         else:
             raise ValueError("Channels must be 1 (for only target frame) or 3 for one adjacent frame.")
@@ -234,10 +238,13 @@ if __name__ == '__main__':
         raise NameError("You used the wrong switch of how to get the training data.")
 
     """Set model and corresponding post-processing"""
-    model = OffsetUnet(param['HyperParameter']['channels'])
+    model = OffsetUnet(n_channels=param['HyperParameter']['channels_in'],
+                       n_classes=param['HyperParameter']['channels_out'])
 
     """Set up post processor"""
-    post_processor = processing.TransformSequence.parse([OffsetRescale, post.Offset2Coordinate, post.ConsistencyPostprocessing], param)
+    post_processor = processing.TransformSequence.parse([OffsetRescale,
+                                                         post.Offset2Coordinate,
+                                                         post.ConsistencyPostprocessing], param)
 
     """Log the model"""
     try:
@@ -257,10 +264,6 @@ if __name__ == '__main__':
     optimiser = Adam(model.parameters(), lr=param['HyperParameter']['lr'])
 
     """Loss function."""
-    # criterion = SpeiserLoss(weight_sqrt_phot=param['HyperParameter']['speiser_weight_sqrt_phot'],
-    #                         class_freq_weight=param['HyperParameter']['class_freq_weight'],
-    #                         pch_weight=param['HyperParameter']['pch_weight'], logger=logger)
-
     criterion = OffsetROILoss.parse(param, logger=logger)
 
     """Learning Rate and Simulation Scheduling"""

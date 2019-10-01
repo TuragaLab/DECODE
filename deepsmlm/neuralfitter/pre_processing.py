@@ -14,16 +14,6 @@ class Preprocessing(ABC):
     def __init__(self):
         super().__init__()
 
-    @staticmethod
-    def recursion_forward(x, methd_impl):
-        if isinstance(x, (tuple, list)):
-            out = [None] * x.__len__()
-            for i in range(x.__len__()):
-                out[i] = methd_impl(x[i])
-
-        return out
-
-
     @abstractmethod
     def forward(self, in_tensor):
         return in_tensor.type(torch.FloatTensor)
@@ -44,14 +34,28 @@ class Identity(Preprocessing):
 
 
 class N2C(Preprocessing):
+    """
+    Change from Batch to channel dimension.
+    """
     def __init__(self):
         super().__init__()
 
-    def forward(self, in_tensor):
-        in_tensor = super().forward(in_tensor)
+    def forward(self, x):
+        """
+
+        :param x: input. tensor or tuple / list of tensors.
+        :return:
+        """
+        if isinstance(x, tuple) or isinstance(x, list):
+            out = [None] * x.__len__()
+            for i in range(x.__len__()):
+                out[i] = self.forward(x[i])
+            return out
+
+        in_tensor = super().forward(x)
         if in_tensor.shape[1] != 1:
             raise ValueError("Shape is wrong.")
-        return in_tensor.transpose(0, 1).view(-1, in_tensor.shape[-2], in_tensor.shape[-1])
+        return in_tensor.squeeze(1)
 
 
 class EasyZ(Preprocessing):
@@ -85,6 +89,26 @@ class TargetGenerator(ABC):
         :return: target
         """
         return x
+
+
+class CombineTargetBackground(TargetGenerator):
+    def __init__(self, target_seq):
+        """
+
+        :param target_seq: target generator or transform sequence (which implements a forward class)
+        """
+        super().__init__()
+        self.target_seq = target_seq
+
+    def forward(self, x, bg):
+        """
+
+        :param x:
+        :param bg:
+        :return: cat of target seq and bg
+        """
+        target = self.target_seq.forward(x)
+        return torch.cat((target, bg), 0)
 
 
 class OffsetRep(TargetGenerator):
@@ -123,7 +147,7 @@ class OffsetRep(TargetGenerator):
         :return: concatenated maps, or single maps with 1 x H x W each (channel order: p, I, x  y, z)
         """
         p_map = self.delta.forward(x, torch.ones_like(x.phot))
-        """It might happen that we see that two emitters are in the same px. p_map will then be 2 or greater. 
+        """It might happen that we see that two emitters are in the same px. p_map will then be 2 or greater.
         As the offset map allows for only one emitter, set the greater than 1 px to 1."""
         p_map[p_map > 1] = 1
 

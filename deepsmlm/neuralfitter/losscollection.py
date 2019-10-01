@@ -99,6 +99,7 @@ class SpeiserLoss(Loss):
 
         self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none')
         self.phot_xyz_loss = torch.nn.MSELoss(reduction='none')
+        self.bg_loss = torch.nn.MSELoss(reduction='none')
 
         self.cmp_desc = [cmp_prefix + '/' + v for v in SpeiserLoss.cmp_suffix]
         self.cmp_val = None
@@ -180,11 +181,29 @@ class OffsetROILoss(SpeiserLoss):
                              ch_weight=torch.tensor(param['HyperParameter']['ch_weight']), logger=logger)
 
     def __call__(self, output, target):
-        return self.functional(output, target, self.roi_size, self.p_loss, self.phot_xyz_loss,
+        """
+        Wrapper method. Makes it possible to call the object / loss as one is used to.
+        :param output:
+        :param target:
+        :return:
+        """
+        return self.functional(output, target, self.roi_size, self.p_loss, self.phot_xyz_loss, self.bg_loss,
                                self.weight_sqrt_phot, self.fgbg_factor, self.ch_weight)
 
     @staticmethod
-    def functional(output, target, roi_size, p_loss, phot_xyz_loss, weight_by_phot, fgbg_factor, ch_weight):
+    def functional(output, target, roi_size, p_loss, phot_xyz_loss, bg_loss, weight_by_phot, fgbg_factor, ch_weight):
+        """
+        Actual implementation.
+        :param output:
+        :param target:
+        :param roi_size:
+        :param p_loss:
+        :param phot_xyz_loss:
+        :param weight_by_phot:
+        :param fgbg_factor:
+        :param ch_weight:
+        :return:
+        """
         mask = target[:, [0], :, :]
         is_emitter = target[:, [0], :, :].bool()  # save indexing tensor where we have an emitter
 
@@ -215,11 +234,17 @@ class OffsetROILoss(SpeiserLoss):
         if weight_by_phot:
             mask *= target[:, [1], :, :].sqrt()
 
-        """Mask and weight the loss"""
-        xyzi_loss = phot_xyz_loss(output[:, 1:, :, :], target[:, 1:, :, :])
+        """Mask and weight the xyz photon loss"""
+        xyzi_loss = phot_xyz_loss(output[:, 1:5, :, :], target[:, 1:5, :, :])
         xyzi_loss *= mask
 
-        out = torch.cat((p_loss, xyzi_loss), 1)
+        """Add the loss of the background"""
+        if output.size(1) >= 6:
+            bgl = bg_loss(output[:, [5], :, :], target[:, [5], :, :])
+            out = torch.cat((p_loss, xyzi_loss, bgl), 1)
+        else:
+            out = torch.cat((p_loss, xyzi_loss), 1)
+
         out *= ch_weight.to(out.device)
         return out
 
