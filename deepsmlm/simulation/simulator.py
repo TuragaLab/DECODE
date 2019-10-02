@@ -64,6 +64,11 @@ class Simulation:
                           "Background is defined as something which does not depend on the actual "
                           "signal whereas noise does.")
 
+        if self.out_bg and (self.background is None):  # when we want to output bg we need to define it
+            raise ValueError("If you want to output background in simulation you need to specify it. "
+                             "Currently background was None.")
+
+
     @staticmethod
     def forward_single_frame(pos, phot, psf):
         """

@@ -22,7 +22,8 @@ import deepsmlm.generic.noise as noise_bg
 import deepsmlm.generic.psf_kernel as psf_kernel
 import deepsmlm.evaluation.evaluation as evaluation
 from deepsmlm.generic.phot_camera import Photon2Camera
-from deepsmlm.neuralfitter.pre_processing import OffsetRep, GlobalOffsetRep, ROIOffsetRep, CombineTargetBackground
+from deepsmlm.neuralfitter.pre_processing import OffsetRep, GlobalOffsetRep, ROIOffsetRep, CombineTargetBackground, \
+    DiscardBackground
 import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.generic.utils.data_utils import smlm_collate
 import deepsmlm.generic.utils.processing as processing
@@ -99,7 +100,7 @@ if __name__ == '__main__':
         print("Device is not CUDA. Cuda ix not set.")
     os.nice(param['Hardware']['unix_niceness'])
 
-    assert torch.cuda.device_count() == 1
+    assert torch.cuda.device_count() <= 1
     torch.set_num_threads(param['Hardware']['torch_threads'])
 
     """If path is relative add deepsmlm root."""
@@ -148,8 +149,10 @@ if __name__ == '__main__':
 
     """Set target for the Neural Network."""
     if param['HyperParameter']['predict_bg']:
-        target_generator = CombineTargetBackground(
-            processing.TransformSequence.parse([ROIOffsetRep, InverseOffsetRescale], param))
+        target_generator = processing.TransformSequence([
+            CombineTargetBackground(ROIOffsetRep.parse(param), num_input_frames=param['HyperParameter']['channels_in']),
+            InverseOffsetRescale.parse(param)
+        ])
     else:
         target_generator = processing.TransformSequence.parse([ROIOffsetRep, InverseOffsetRescale], param)
 
@@ -182,10 +185,9 @@ if __name__ == '__main__':
                                    param['Simulation']['img_size'])
 
         """Define our noise model."""
-        noise = processing.TransformSequence.parse([background.UniformBackground,
-                                                    background.NonUniformBackground,
-                                                    # background.OutOfFocusEmitters,
-                                                    Photon2Camera], param)
+        background = processing.TransformSequence.parse([background.UniformBackground,
+                                                         background.PerlinBackground], param)
+        noise = Photon2Camera.parse(param)
 
         structure_prior = structure_prior.RandomStructure(param['Simulation']['emitter_extent'][0],
                                                           param['Simulation']['emitter_extent'][1],
@@ -207,12 +209,15 @@ if __name__ == '__main__':
 
         simulator = simulator.Simulation(None, extent=param['Simulation']['emitter_extent'],
                                          psf=psf,
-                                         background=None,
+                                         background=background,
                                          noise=noise,
                                          frame_range=frame_range,
-                                         poolsize=0)
+                                         poolsize=0,
+                                         out_bg=param['HyperParameter']['predict_bg'])
 
-        input_preparation = N2C()
+        input_preparation = processing.TransformSequence([
+            DiscardBackground(),
+            N2C()])
 
         train_data_smlm = SMLMDatasetOnFly(None, prior, simulator, param['HyperParameter']['pseudo_ds_size'], input_preparation, target_generator,
                                            None, static=False, lifetime=param['HyperParameter']['ds_lifetime'], return_em_tar=False)

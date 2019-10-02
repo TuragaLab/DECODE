@@ -251,7 +251,7 @@ class SMLMDatasetOnFly(Dataset):
                  emitters on the target frame (i.e. the middle frame)
         """
         emitter = self.prior.pop()
-        sim_out = self.simulator.forward(emitter).type(torch.FloatTensor)
+        sim_out = self.simulator.forward(emitter)
         frame = self.input_preperator.forward(sim_out)
         emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
         if self.simulator.out_bg:
@@ -272,6 +272,10 @@ class SMLMDatasetOnFly(Dataset):
             self.em_tar[index] = em_tar
 
         frame, target, em_tar = self.frame[index], self.target[index], self.em_tar[index]
+
+        """Make sure the data types are correct"""
+        if (not isinstance(frame, torch.FloatTensor)) or (not isinstance(target, torch.FloatTensor)):
+            raise ValueError("Data type in Dataset wrong.")
 
         if self.return_em_tar:
             return frame, target, em_tar

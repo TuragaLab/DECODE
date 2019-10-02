@@ -79,9 +79,9 @@ class LossLog(Loss):
 
 
 class SpeiserLoss(Loss):
-    cmp_suffix = ('p', 'phot', 'dx', 'dy', 'dz')
+    cmp_suffix = ('p', 'phot', 'dx', 'dy', 'dz', 'bg')
 
-    def __init__(self, weight_sqrt_phot, fgbg_factor=None, pch_weight=1., cmp_prefix='loss', logger=None):
+    def __init__(self, weight_sqrt_phot, model_out_ch, fgbg_factor=None, pch_weight=1., cmp_prefix='loss', logger=None):
         """
 
         :param weight_sqrt_phot: weight phot, dx, dy, dz etc. by sqrt(phot), i.e. weight the l2 loss
@@ -93,6 +93,7 @@ class SpeiserLoss(Loss):
         :param log: log? true / false
         """
         super().__init__()
+        self.model_out_ch = model_out_ch
         self.weight_sqrt_phot = weight_sqrt_phot
         self.fgbg_factor = fgbg_factor
         self.pch_weight = pch_weight
@@ -113,7 +114,7 @@ class SpeiserLoss(Loss):
                                self.weight_sqrt_phot, self.fgbg_factor, self.pch_weight)
 
     def _reset_batch_log(self):
-        self.cmp_values = torch.zeros((0, 5))
+        self.cmp_values = torch.zeros((0, self.model_out_ch))
 
     @staticmethod
     def functional(output, target, p_loss, phot_xyz_loss, weight_by_phot, fgbg_factor, pch_weight):
@@ -135,7 +136,7 @@ class SpeiserLoss(Loss):
         return torch.cat((pch_weight * p_loss, xyzi_loss), 1)
 
     def log_batch_loss_cmp(self, loss_vec):
-        self.cmp_values = torch.cat((self.cmp_values, loss_vec.mean(-1).mean(-1).mean(0).view(1, 5).cpu()), dim=0)
+        self.cmp_values = torch.cat((self.cmp_values, loss_vec.mean(-1).mean(-1).mean(0).view(1, self.model_out_ch).cpu()), dim=0)
 
     def log_components(self, ix):
 
@@ -148,7 +149,7 @@ class SpeiserLoss(Loss):
 
 
 class OffsetROILoss(SpeiserLoss):
-    def __init__(self, roi_size=3, weight_sqrt_phot=False, fgbg_factor=None, ch_weight=None, cmp_prefix='loss', logger=None):
+    def __init__(self, roi_size=3, model_out_ch=5, weight_sqrt_phot=False, fgbg_factor=None, ch_weight=None, cmp_prefix='loss', logger=None):
         """
 
         :param weight_sqrt_phot:
@@ -157,15 +158,16 @@ class OffsetROILoss(SpeiserLoss):
         :param cmp_prefix:
         :param logger:
         """
-        super().__init__(weight_sqrt_phot, fgbg_factor, None, cmp_prefix, logger)
+        super().__init__(weight_sqrt_phot, model_out_ch, fgbg_factor, None, cmp_prefix, logger)
         self.roi_size = roi_size
+
         if roi_size != 3:
             raise NotImplementedError('Only ROI size 3 supported currently.')
 
         if ch_weight is None:
-            self.ch_weight = torch.ones((1, 5, 1, 1))
+            self.ch_weight = torch.ones((1, self.model_out_ch, 1, 1))
         else:
-            self.ch_weight = ch_weight.view(1, 5, 1, 1)
+            self.ch_weight = ch_weight.view(1, self.model_out_ch, 1, 1)
 
     @staticmethod
     def parse(param: dict, logger):
@@ -176,6 +178,7 @@ class OffsetROILoss(SpeiserLoss):
         :return:
         """
         return OffsetROILoss(roi_size=param['HyperParameter']['target_roi_size'],
+                             model_out_ch=param['HyperParameter']['channels_out'],
                              weight_sqrt_phot=param['HyperParameter']['weight_sqrt_phot'],
                              fgbg_factor=param['HyperParameter']['fgbg_factor'],
                              ch_weight=torch.tensor(param['HyperParameter']['ch_weight']), logger=logger)
@@ -239,11 +242,14 @@ class OffsetROILoss(SpeiserLoss):
         xyzi_loss *= mask
 
         """Add the loss of the background"""
-        if output.size(1) >= 6:
+        if (output.size(1) == 6) and (target.size(1) == 6):
             bgl = bg_loss(output[:, [5], :, :], target[:, [5], :, :])
             out = torch.cat((p_loss, xyzi_loss, bgl), 1)
-        else:
+        elif (output.size(1) == 5) and (target.size(1) == 5):
             out = torch.cat((p_loss, xyzi_loss), 1)
+        else:
+            raise ValueError("Either output and target are of non-equal size, or of a size for which this loss is"
+                             "not implemented for.")
 
         out *= ch_weight.to(out.device)
         return out

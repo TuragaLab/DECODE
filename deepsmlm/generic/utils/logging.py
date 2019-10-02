@@ -70,55 +70,54 @@ class LogTestEpoch:
             tar_ch = 0
 
         _ = plt.figure(figsize=(12, 12))
+
         plt.subplot(231)
-        emplot.PlotFrameCoord(frame=input_frames[ix, tar_ch],
-                              pos_tar=em_tar_.xyz,
-                              phot_tar=em_tar_.phot).plot();
-        plt.legend()
-        plt.subplot(232)
         emplot.PlotFrame(frame=target_frames[ix, 0]).plot()
         plt.title('p channel')
-        plt.subplot(233)
+        plt.subplot(232)
         emplot.PlotFrame(frame=target_frames[ix, 1]).plot()
         plt.title('phot channel')
-        plt.subplot(234)
+        plt.subplot(233)
         emplot.PlotFrame(frame=target_frames[ix, 2]).plot()
         plt.title('dx channel')
-        plt.subplot(235)
+        plt.subplot(234)
         emplot.PlotFrame(frame=target_frames[ix, 3]).plot()
         plt.title('dy channel')
-        plt.subplot(236)
+        plt.subplot(235)
         emplot.PlotFrame(frame=target_frames[ix, 4]).plot()
         plt.title('z channel')
+        if target_frames.size(1) >= 6:
+            plt.subplot(236)
+            emplot.PlotFrame(frame=target_frames[ix, 5]).plot()
+            plt.title('bg channel')
 
         self._log_figure(plt.gcf(), step, "io/target")
 
         _ = plt.figure(figsize=(12, 12))
         plt.subplot(231)
-        emplot.PlotFrameCoord(frame=input_frames[ix, tar_ch],
-                              pos_tar=em_tar_.xyz,
-                              phot_tar=em_tar_.phot).plot(); plt.legend()
-        plt.title('Input')
-
-        plt.subplot(232)
         emplot.PlotFrameCoord(frame=output_frames[ix, 0], clim=(0., 1.)).plot()
         plt.title('p channel')
 
-        plt.subplot(233)
+        plt.subplot(232)
         emplot.PlotFrame(frame=output_frames[ix, 1]).plot()
         plt.title('phot channel')
 
-        plt.subplot(234)
+        plt.subplot(233)
         emplot.PlotFrame(frame=output_frames[ix, 2]).plot()
         plt.title('dx channel')
 
-        plt.subplot(235)
+        plt.subplot(234)
         emplot.PlotFrame(frame=output_frames[ix, 3]).plot()
         plt.title('dy channel')
 
-        plt.subplot(236)
+        plt.subplot(235)
         emplot.PlotFrame(frame=output_frames[ix, 4]).plot()
         plt.title('z channel')
+
+        if target_frames.size(1) >= 6:
+            plt.subplot(236)
+            emplot.PlotFrame(frame=output_frames[ix, 5]).plot()
+            plt.title('bg channel')
 
         self._log_figure(plt.gcf(), step, "io/tarframe_output")
 
@@ -133,6 +132,7 @@ class LogTestEpoch:
         dx_dist.vals = output_frames[:, 2][is_above_th]
         dy_dist.vals = output_frames[:, 3][is_above_th]
         z_dist.vals = output_frames[:, 4][is_above_th]
+
 
         _ = phot_dist.hist(fit=None, range=(0., 1.))
         plt.gca().set_xlabel(r'$phot$')

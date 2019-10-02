@@ -33,6 +33,25 @@ class Identity(Preprocessing):
         return super().forward(in_tensor)
 
 
+class DiscardBackground(Preprocessing):
+    """
+    A simple class which discards the background which comes out of the simulator because this will be target not input.
+    """
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        """
+        If x is tuple, second element (bg) will be discarded. If not nothing happens.
+        :param x: tuple or tensor.
+        :return: tensor
+        """
+        if not isinstance(x, torch.Tensor):
+            return x[0]
+        else:
+            return x
+
+
 class N2C(Preprocessing):
     """
     Change from Batch to channel dimension.
@@ -92,13 +111,16 @@ class TargetGenerator(ABC):
 
 
 class CombineTargetBackground(TargetGenerator):
-    def __init__(self, target_seq):
+    def __init__(self, target_seq, num_input_frames: int):
         """
 
         :param target_seq: target generator or transform sequence (which implements a forward class)
+        :param num_input_frames: number of frames for network input. the middle frame will be used since it is the target
         """
         super().__init__()
         self.target_seq = target_seq
+        self.num_input_frames = num_input_frames
+        self.tar_ix = ((num_input_frames - 1) // 2)
 
     def forward(self, x, bg):
         """
@@ -108,7 +130,7 @@ class CombineTargetBackground(TargetGenerator):
         :return: cat of target seq and bg
         """
         target = self.target_seq.forward(x)
-        return torch.cat((target, bg), 0)
+        return torch.cat((target, bg[self.tar_ix]), 0)
 
 
 class OffsetRep(TargetGenerator):

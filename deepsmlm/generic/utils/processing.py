@@ -20,12 +20,15 @@ class TransformSequence:
         """
         return TransformSequence([cpt.parse(param) for cpt in components])
 
-    def forward(self, x):
+    def forward(self, *x):
         """
 
         :param x: input
         :return: output
         """
         for com in self.com:
-            x = com.forward(x)
+            if isinstance(x, tuple):
+                x = com.forward(*x)
+            else:
+                x = com.forward(x)
         return x

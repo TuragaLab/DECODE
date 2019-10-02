@@ -14,6 +14,26 @@ def cc():
 def cc_offset():
     return post.CC5ChModel(0.3, 0., 2)
 
+def test_crlbdist():
+    """
+    Tests the cramer rao lower bound distance function between x and y
+    :return:
+    """
+    """Check for zero tensors and equal tensors."""
+    X = torch.zeros((32, 3))
+    Y = torch.zeros_like(X)
+
+    XCrlb = torch.ones_like(X)
+    YCrlb = torch.ones_like(Y)
+
+    out = post.crlb_squared_distance(X, Y, XCrlb, YCrlb)
+    assert tutil.tens_almeq(out, torch.zeros_like(X[:, 0]))
+
+    X = torch.rand((32, 3))
+    Y = X
+    out = post.crlb_squared_distance(X, Y, XCrlb, YCrlb)
+    assert tutil.tens_almeq(out, torch.zeros_like(X[:, 0]))
+
 
 def test_connected_components(cc):
     p_map = torch.tensor([[0., 0., 0.5], [0., 0., 0.5], [0., 0., 0.]])

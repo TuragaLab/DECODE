@@ -10,6 +10,7 @@ class OffsetUnet(UNet):
         self.p_nl_inference = torch.sigmoid  # identity function since sigmoid is now in loss.
         self.i_nl = torch.sigmoid
         self.xyz_nl = torch.tanh
+        self.bg_nl = torch.sigmoid
 
     def apply_pnl(self, output):
         output[:, [0]] = self.p_nl_inference(output[:, [0]])
@@ -36,14 +37,21 @@ class OffsetUnet(UNet):
         """Apply the non-linearities in the last layer."""
         p = x[:, [0]]
         i = x[:, [1]]
-        xyz = x[:, 2:]
+        xyz = x[:, 2:5]
 
         if not self.training:
             p = self.p_nl_inference(p)
 
         i = self.i_nl(i)
         xyz = self.xyz_nl(xyz)
-        x = torch.cat((p, i, xyz), 1)
+
+        if self.n_classes == 5:
+            x = torch.cat((p, i, xyz), 1)
+        elif self.n_classes == 6:
+            bg = self.bg_nl(x[:, [5]])
+            x = torch.cat((p, i, xyz, bg), 1)
+        else:
+            raise NotImplementedError("This model is only suitable for 5 or 6 channel output.")
 
         return x
 

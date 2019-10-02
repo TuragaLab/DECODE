@@ -256,7 +256,11 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
             criterion.log_batch_loss_cmp(loss_)
 
             # ToDo: Ugly ...
-            # apply non-linearity in the p-channel
+            """
+            Apply non-linearity in the p-channel. Why is this? Because during training non-linearity and loss is
+            computationally more efficient if it is combined into one operation. However when we test the model without
+            having it to model.eval() no non-linearity in the p channel is applied.
+            """
             output = model.apply_pnl(output)
 
             """Forward output through post-processor for eval."""
