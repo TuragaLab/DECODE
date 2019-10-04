@@ -10,6 +10,7 @@ channels:
 
 dependencies:
   - bokeh
+  - comet_ml
   - cudatoolkit=10.0
   - comet_ml
   - holoviews

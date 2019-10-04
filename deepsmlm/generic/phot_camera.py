@@ -62,8 +62,9 @@ class Photon2Camera:
         camera = self.read.forward(camera)
         """Electrons per ADU"""
         camera /= self.e_per_adu
-        """Manufacturer baseline. Make sure it's not below 0."""
+        """Add Manufacturer baseline and round the values since the camera will out int.  Make sure it's not below 0."""
         camera += self.baseline
+        camera = camera.round()
         camera = torch.max(camera, torch.tensor([0.]))
         return camera
 
