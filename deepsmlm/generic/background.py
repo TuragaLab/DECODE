@@ -6,6 +6,7 @@ from scipy import interpolate
 import math
 
 import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.generic.utils.processing as proc
 
 
 class Background(ABC):
@@ -160,11 +161,25 @@ class PerlinBackground(Background):
 
         :param img_size: size of the image
         :param perlin_scale: scale of the perlin in fractions of the img_scale
+        :param amplitude: background strength
         """
         super().__init__()
         self.img_size = img_size
         self.perlin_scale = perlin_scale
         self.amplitude = amplitude
+        self.perlin_com = None
+
+        """
+        If perlin_scale is a list of lists, and amplitude a list we can use multiple instances of this class to build up multiple scales (octaves). The instances are then in perlin_com (ponents).
+        """
+        if isinstance(amplitude, list) or isinstance(amplitude, tuple):
+            num_instances = amplitude.__len__()
+            self.perlin_com = [None] * num_instances
+            for i in range(num_instances):
+                self.perlin_com[i] = PerlinBackground(img_size, perlin_scale[i], amplitude[i])
+            return
+        else:
+            num_instances = 1
 
         delta = (self.perlin_scale[0] / self.img_size[0], self.perlin_scale[1] / self.img_size[1])
         self.d = (self.img_size[0] // self.perlin_scale[0], self.img_size[1] // self.perlin_scale[1])
@@ -173,9 +188,30 @@ class PerlinBackground(Background):
 
     @staticmethod
     def parse(param):
-        return PerlinBackground(img_size=param['Simulation']['img_size'],
-                                perlin_scale=param['Simulation']['bg_perlin_scale'],
-                                amplitude=param['Simulation']['bg_perlin_amplitude'])
+        img_size = param['Simulation']['img_size']
+        perlin_scale = param['Simulation']['bg_perlin_scale']
+        amplitude = param['Simulation']['bg_perlin_amplitude']
+
+        if isinstance(amplitude, list) or isinstance(amplitude, tuple):
+            return self.multi_scale_init(img_size, perlin_scale, amplitude)
+        else:
+            return PerlinBackground(img_size=param['Simulation']['img_size'],
+                                    perlin_scale=param['Simulation']['bg_perlin_scale'],
+                                    amplitude=param['Simulation']['bg_perlin_amplitude'])
+
+    @staticmethod
+    def multi_scale_init(img_size, perlin_scale, amplitude):
+        """
+        Generates a sequence of this class
+        """
+        num_instances = amplitude.__len__()
+        com = [None] * num_instances
+
+        for i in range(num_instances):
+            com[i] = PerlinBackground(img_size, perlin_scale[i], amplitude[i])
+
+        return proc.TransformSequence(com)
+
 
     @staticmethod
     def fade_f(t):
