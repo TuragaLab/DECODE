@@ -269,12 +269,7 @@ if __name__ == '__main__':
                           emitter_av=sim_par.emitter_av)
 
     frame_range = (0, 0)
-    simulator = Simulation(None,
-                           sim_par.emitter_extent,
-                           psf,
-                           noise,
-                           poolsize=0,
-                           frame_range=frame_range)
+    simulator = Simulation(None, sim_par.emitter_extent, psf, noise, frame_range=frame_range, poolsize=0)
 
 
     xy_helper_and_mask = DeltaPSF(xextent=sim_par.psf_extent[0],

@@ -173,11 +173,7 @@ class PerlinBackground(Background):
         If perlin_scale is a list of lists, and amplitude a list we can use multiple instances of this class to build up multiple scales (octaves). The instances are then in perlin_com (ponents).
         """
         if isinstance(amplitude, list) or isinstance(amplitude, tuple):
-            num_instances = amplitude.__len__()
-            self.perlin_com = [None] * num_instances
-            for i in range(num_instances):
-                self.perlin_com[i] = PerlinBackground(img_size, perlin_scale[i], amplitude[i])
-            return
+            pass
         else:
             num_instances = 1
 
@@ -193,24 +189,28 @@ class PerlinBackground(Background):
         amplitude = param['Simulation']['bg_perlin_amplitude']
 
         if isinstance(amplitude, list) or isinstance(amplitude, tuple):
-            return self.multi_scale_init(img_size, perlin_scale, amplitude)
+            return PerlinBackground.multi_scale_init(img_size, perlin_scale, amplitude)
         else:
             return PerlinBackground(img_size=param['Simulation']['img_size'],
                                     perlin_scale=param['Simulation']['bg_perlin_scale'],
                                     amplitude=param['Simulation']['bg_perlin_amplitude'])
 
     @staticmethod
-    def multi_scale_init(img_size, perlin_scale, amplitude):
+    def multi_scale_init(img_size, perlin_scales, amplitudes):
         """
         Generates a sequence of this class
         """
-        num_instances = amplitude.__len__()
+        num_instances = amplitudes.__len__()
         com = [None] * num_instances
 
         for i in range(num_instances):
-            com[i] = PerlinBackground(img_size, perlin_scale[i], amplitude[i])
+            com[i] = PerlinBackground(img_size, perlin_scales[i], amplitudes[i])
 
         return proc.TransformSequence(com)
+
+    def cast_sequence(self):
+        self.__class__ = proc.TransformSequence
+
 
 
     @staticmethod
@@ -249,17 +249,21 @@ class PerlinBackground(Background):
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-    extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
-    img_shape = (32, 32)
-    bg = OutOfFocusEmitters(extent[0], extent[1], img_shape, bg_range=(0., 100.), num_bgem_range=[0, 5])
+    # extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
+    # img_shape = (32, 32)
+    # bg = OutOfFocusEmitters(extent[0], extent[1], img_shape, bg_range=(0., 100.), num_bgem_range=[0, 5])
+    #
+    # x = torch.zeros((1, 1, 32, 32))
+    # x = bg.forward(x)
+    # plt.imshow(x[0, 0]); plt.colorbar(); plt.show()
+    #
+    # bg2 = NonUniformBackground(100, img_shape, 1.0)
+    # # x = torch.zeros((1, 1, 64, 64))
+    # x = bg2.forward(x)
+    # plt.imshow(x[0, 0]);
+    # plt.colorbar()
+    # plt.show()
 
-    x = torch.zeros((1, 1, 32, 32))
-    x = bg.forward(x)
-    plt.imshow(x[0, 0]); plt.colorbar(); plt.show()
 
-    bg2 = NonUniformBackground(100, img_shape, 1.0)
-    # x = torch.zeros((1, 1, 64, 64))
-    x = bg2.forward(x)
-    plt.imshow(x[0, 0]);
-    plt.colorbar()
-    plt.show()
+
+

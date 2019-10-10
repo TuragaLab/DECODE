@@ -29,7 +29,7 @@ if __name__ == '__main__':
         os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      os.pardir, os.pardir)) + '/'
 
-    file = '/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/network/2019-08-06/model_challenge_roi_10_quant_comp.pt'
+    file = '/Users/lucasmueller/Repositories/DeepSMLM/network/for_trace/model_noof_14.pt'
     traced_file = file[:-3] + '_jit_traced.pt'
 
     model = OffsetUnet(3)

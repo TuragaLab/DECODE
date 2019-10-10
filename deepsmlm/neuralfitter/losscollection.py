@@ -39,6 +39,7 @@ class FocalLoss(nn.Module):
 
         return balanced_focal_loss
 
+
 class Loss(ABC):
     """Abstract class for my loss functions."""
 
