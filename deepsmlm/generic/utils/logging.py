@@ -127,12 +127,13 @@ class LogTestEpoch:
 
         phot_dist = MetricMeter()
         dx_dist, dy_dist, z_dist = MetricMeter(), MetricMeter(), MetricMeter()
+        bg_dist = MetricMeter()
 
         phot_dist.vals = output_frames[:, 1][is_above_th]
         dx_dist.vals = output_frames[:, 2][is_above_th]
         dy_dist.vals = output_frames[:, 3][is_above_th]
         z_dist.vals = output_frames[:, 4][is_above_th]
-
+        bg_dist.vals = output_frames[:, 5].reshape(-1)
 
         _ = phot_dist.hist(fit=None, range=(0., 1.))
         plt.gca().set_xlabel(r'$phot$')
@@ -149,6 +150,10 @@ class LogTestEpoch:
         _ = z_dist.hist(fit=None)
         plt.gca().set_xlabel(r'$z$')
         self._log_figure(plt.gcf(), step, "io/z")
+
+        _ = bg_dist.hist(fit=None)
+        plt.gca().set_xlabel(r'$bg$')
+        self._log_figure(plt.gcf(), step, "io/bg")
 
         """Dx/y/z histograms"""
         _ = metrics_set.dx.hist()

@@ -52,7 +52,7 @@ class TestPerlinBg:
 
     def test_multiscale(self):
         img_size = (64, 64)
-        cand = background.PerlinBackground.multi_scale_init(img_size, [[1, 1], [2, 2]], [100, 5])
+        cand = background.PerlinBackground.multi_scale_init(img_size, [[1, 1], [2, 2], [4, 4]], [100, 50, 20])
         out = cand.forward(torch.zeros((2, 3, 64, 64)))
         PlotFrame(out[0, 0]).plot()
         plt.colorbar()
