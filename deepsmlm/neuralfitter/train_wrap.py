@@ -249,7 +249,7 @@ if __name__ == '__main__':
 
     elif param['HyperParameter']['architecture'] == 'DoubleOffsetUNet':
         model = DoubleOffsetUNet(n_channels=param['HyperParameter']['channels_in'],
-                                 n_classes=param['HyperParameter']['channels_out'], n_intermediate=256)
+                                 n_classes=param['HyperParameter']['channels_out'], n_intermediate=64)
 
     elif param['HyperParameter']['architecture'] == 'DoubleOffsetUNetDivided':
         model = DoubleOffsetUNetDivided(n_channels=param['HyperParameter']['channels_in'],

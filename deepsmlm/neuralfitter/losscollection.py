@@ -150,17 +150,22 @@ class SpeiserLoss(Loss):
 
 
 class OffsetROILoss(SpeiserLoss):
-    def __init__(self, roi_size=3, model_out_ch=5, weight_sqrt_phot=False, fgbg_factor=None, ch_weight=None, cmp_prefix='loss', logger=None):
+    def __init__(self, roi_size=3, model_out_ch=5, weight_sqrt_phot=False, fgbg_factor=None, ch_weight=None,
+                 bg_signal_penalty=None, alter_bg=False, cmp_prefix='loss', logger=None):
         """
 
         :param weight_sqrt_phot:
         :param fgbg_factor:
         :param ch_weight: tensor of size 5
+        :param bg_signal_penalty: regulariser trying to avoid artefacts where i get weird behaviour towards
+            signal in the other channels
         :param cmp_prefix:
         :param logger:
         """
         super().__init__(weight_sqrt_phot, model_out_ch, fgbg_factor, None, cmp_prefix, logger)
         self.roi_size = roi_size
+        self.bg_signal_penalty = bg_signal_penalty
+        self.alter_bg = alter_bg
 
         if roi_size != 3:
             raise NotImplementedError('Only ROI size 3 supported currently.')
@@ -182,20 +187,25 @@ class OffsetROILoss(SpeiserLoss):
                              model_out_ch=param['HyperParameter']['channels_out'],
                              weight_sqrt_phot=param['HyperParameter']['weight_sqrt_phot'],
                              fgbg_factor=param['HyperParameter']['fgbg_factor'],
+                             bg_signal_penalty=param['HyperParameter']['bg_signal_penalty'],
+                             alter_bg=param['HyperParameter']['alter_bg'],
                              ch_weight=torch.tensor(param['HyperParameter']['ch_weight']), logger=logger)
 
-    def __call__(self, output, target):
+    def __call__(self, output, target, epoch=None):
         """
         Wrapper method. Makes it possible to call the object / loss as one is used to.
         :param output:
         :param target:
         :return:
         """
-        return self.functional(output, target, self.roi_size, self.p_loss, self.phot_xyz_loss, self.bg_loss,
-                               self.weight_sqrt_phot, self.fgbg_factor, self.ch_weight)
+
+        return self.functional(output, target, epoch, self.roi_size, self.p_loss, self.phot_xyz_loss, self.bg_loss,
+                               self.weight_sqrt_phot, self.fgbg_factor, self.ch_weight.clone(), self.bg_signal_penalty,
+                               self.alter_bg)
 
     @staticmethod
-    def functional(output, target, roi_size, p_loss, phot_xyz_loss, bg_loss, weight_by_phot, fgbg_factor, ch_weight):
+    def functional(output, target, epoch, roi_size, p_loss, phot_xyz_loss, bg_loss, weight_by_phot, fgbg_factor, ch_weight,
+                   bg_signal_penalty, alter_bg):
         """
         Actual implementation.
         :param output:
@@ -206,6 +216,7 @@ class OffsetROILoss(SpeiserLoss):
         :param weight_by_phot:
         :param fgbg_factor:
         :param ch_weight:
+        :param bg_signal_penalty:
         :return:
         """
         mask = target[:, [0], :, :]
@@ -245,12 +256,25 @@ class OffsetROILoss(SpeiserLoss):
         """Add the loss of the background"""
         if (output.size(1) == 6) and (target.size(1) == 6):
             bgl = bg_loss(output[:, [5], :, :], target[:, [5], :, :])
+            if bg_signal_penalty is not None:
+                # weight background loss where we have an emitter higher because otherwise i get artifacts
+                bgl *= (1 + mask * bg_signal_penalty)
             out = torch.cat((p_loss, xyzi_loss, bgl), 1)
         elif (output.size(1) == 5) and (target.size(1) == 5):
             out = torch.cat((p_loss, xyzi_loss), 1)
         else:
             raise ValueError("Either output and target are of non-equal size, or of a size for which this loss is"
                              "not implemented for.")
+
+        if alter_bg:  # alternate between bg training and the other channels
+            if epoch is None:
+                pass
+            elif epoch % 2 == 0:
+                ch_weight[0, 5] = 0  # no bg training
+            elif epoch % 2 == 1:
+                ch_weight[0, :5] = 0  # only bg training
+            else:
+                raise ValueError("Something's wrong.")
 
         out *= ch_weight.to(out.device)
         return out

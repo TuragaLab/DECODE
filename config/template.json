@@ -28,6 +28,8 @@
       "ch_weight": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
       "weight_sqrt_phot": true,
       "fgbg_factor": null,
+      "bg_signal_penalty": 100,
+      "alter_bg": true,
       "target_roi_size": 3,
       "photon_threshold": null,
       "channels_in": 3,
