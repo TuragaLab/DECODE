@@ -22,7 +22,7 @@ dependencies:
   - opencv
   - pillow
   - python=3.6
-  - pytorch=1.2.0
+  - pytorch=1.2.*
   - pytest
   - pywavelets
   - scikit-image
@@ -32,6 +32,8 @@ dependencies:
   - scikit-learn
   - snakeviz
   - sqlite
+  - tensorflow
+  - tensorboard
   - tifffile
   - torchvision
   - tqdm
