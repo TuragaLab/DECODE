@@ -34,7 +34,7 @@ from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss, OffsetROILoss
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
-from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
+from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale
 from deepsmlm.neuralfitter.train_test import train, test
@@ -243,17 +243,32 @@ if __name__ == '__main__':
         raise NameError("You used the wrong switch of how to get the training data.")
 
     """Set model and corresponding post-processing"""
-    model = OffsetUnet(n_channels=param['HyperParameter']['channels_in'],
-                       n_classes=param['HyperParameter']['channels_out'])
+    if param['HyperParameter']['architecture'] == 'OffsetUnet':
+        model = OffsetUnet(n_channels=param['HyperParameter']['channels_in'],
+                           n_classes=param['HyperParameter']['channels_out'])
+
+    elif param['HyperParameter']['architecture'] == 'DoubleOffsetUNet':
+        model = DoubleOffsetUNet(n_channels=param['HyperParameter']['channels_in'],
+                                 n_classes=param['HyperParameter']['channels_out'], n_intermediate=256)
+
+    elif param['HyperParameter']['architecture'] == 'DoubleOffsetUNetDivided':
+        model = DoubleOffsetUNetDivided(n_channels=param['HyperParameter']['channels_in'],
+                                        n_classes=param['HyperParameter']['channels_out'])
+
+    else:
+        raise ValueError("Invalid Architecture name.")
 
     """Set up post processor"""
     post_processor = processing.TransformSequence.parse([OffsetRescale,
                                                          post.Offset2Coordinate,
                                                          post.ConsistencyPostprocessing], param)
 
+    if param['HyperParameter']['suppress_post_processing']:
+        post_processor = post.NoPostProcessing()
+
     """Log the model"""
     try:
-        dummy = torch.rand((2, param['HyperParameter']['channels'],
+        dummy = torch.rand((2, param['HyperParameter']['channels_in'],
                             *param['Simulation']['img_size']), requires_grad=True)
         logger.add_graph(model, dummy, False)
     except:

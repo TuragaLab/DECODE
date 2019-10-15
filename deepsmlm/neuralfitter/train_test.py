@@ -168,8 +168,6 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
 
         # compute output
         output = model(x_in)
-
-        """Ignore the loss of the boundary frames"""
         loss_ = criterion(output, target)
 
         loss = loss_.mean()

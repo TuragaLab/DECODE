@@ -10,7 +10,7 @@ from sklearn.cluster import AgglomerativeClustering, DBSCAN
 import torch
 from abc import ABC, abstractmethod  # abstract class
 
-from deepsmlm.generic.emitter import EmitterSet
+from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
 from deepsmlm.generic.psf_kernel import OffsetPSF
 from deepsmlm.generic.utils.warning_util import deprecated
 
@@ -571,6 +571,23 @@ class ConsistencyPostprocessing(PostProcessing):
                 return em.split_in_frames(0, p.size(0) - 1)
 
         raise ValueError("Output format not supported.")
+
+
+class NoPostProcessing(PostProcessing):
+    def __init__(self, out_format='emitters_framewise'):
+        super().__init__()
+        self.out_format = out_format
+
+    def forward(self, x):
+        em = EmptyEmitterSet()
+
+        if self.out_format == 'emitters_batch':
+            return em
+        elif self.out_format == 'emitters_framewise':
+            return em.split_in_frames(0, x.size(0) - 1)
+        else:
+            raise ValueError("Output format not supported.")
+
 
 
 class CC5ChModel(ConnectedComponents):

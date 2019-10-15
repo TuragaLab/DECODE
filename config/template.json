@@ -7,9 +7,9 @@
       "calibration_file": "data/Calibration/SMLM Challenge Beads/Coefficients Big ROI/AS-Exp_100nm_3dcal.mat"
     },
     "Hardware": {
-      "device": "cuda",
+      "device": "cpu",
       "cuda_ix": "0",
-      "num_worker_sim": 6,
+      "num_worker_sim": 0,
       "torch_threads": 6,
       "unix_niceness": 0
     },
@@ -18,21 +18,23 @@
       "cometml_tags": []
     },
     "HyperParameter": {
+      "architecture": "DoubleOffsetUNet",
       "batch_size": 32,
       "pseudo_ds_size": 64,
       "test_size": 64,
       "lr": 0.0001,
       "epochs": 1000,
       "prob_fg_weight": 1.0,
-      "ch_weight": [0.1, 1.0, 1.0, 1.0, 1.0, 0.01],
-      "weight_sqrt_phot": false,
+      "ch_weight": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+      "weight_sqrt_phot": true,
       "fgbg_factor": null,
       "target_roi_size": 3,
       "photon_threshold": null,
       "channels_in": 3,
       "channels_out": 6,
       "ds_lifetime": 2,
-      "predict_bg": true
+      "predict_bg": true,
+      "suppress_post_processing": false
     },
     "LearningRateScheduler": {
       "mode": "min",
