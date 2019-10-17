@@ -216,12 +216,86 @@ class OffsetUnet(UNet):
         return x
 
 
+class OffSetUNetBGBranch(UNet):
+    def __init__(self, n_channels, n_classes=6):
+        super().__init__(n_channels=n_channels, n_classes=n_classes)
+        if self.n_classes != 6:
+            raise ValueError("Specifically implemented for 6 classes.")
+        self.b0_c0 = double_conv(64, 64)
+        self.b0_c1 = nn.Conv2d(64, 5, (3, 3), padding=1)
+
+        self.b1_c0 = double_conv(64, 64)
+        self.b1_c1 = nn.Conv2d(64, 1, (3, 3), padding=1)
+
+        # p non-linearity is in loss (BCEWithLogitsLoss)
+        self.p_nl_inference = torch.sigmoid  # identity function since sigmoid is now in loss.
+        self.i_nl = torch.sigmoid
+        self.xyz_nl = torch.tanh
+        self.bg_nl = torch.sigmoid
+
+    def apply_pnl(self, output):
+        """
+        Apply the non-linearity in the p-channel.
+        As this is part of the loss this is usually only done if self.training is
+        False or if one wants to do it manually.
+
+        :param output:
+        :return:
+        """
+        output[:, [0]] = self.p_nl_inference(output[:, [0]])
+        return output
+
+    def forward(self, x):
+        """
+
+        :param x: input
+        :param pnl: enforce non-linearity in p even if model.eval() was not executed
+        :return:
+        """
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
+
+        """Branching"""
+        o0 = self.b0_c0(x)
+        o0 = self.b0_c1(o0)
+
+        o1 = self.b1_c0(x)
+        o1 = self.b1_c1(o1)
+
+        """Apply the non-linearities in the last layer."""
+        p = o0[:, [0]]
+        i = o0[:, [1]]
+        xyz = o0[:, 2:5]
+
+        if not self.training:
+            p = self.p_nl_inference(p)
+
+        i = self.i_nl(i)
+        xyz = self.xyz_nl(xyz)
+
+        if self.n_classes == 5:
+            x = torch.cat((p, i, xyz), 1)
+        elif self.n_classes == 6:
+            bg = self.bg_nl(o1[:, [0]])
+            x = torch.cat((p, i, xyz, bg), 1)
+        else:
+            raise NotImplementedError("This model is only suitable for 5 or 6 channel output.")
+
+        return x
+
 if __name__ == '__main__':
     img = torch.rand((2, 3, 32, 32)).cuda()
     test = torch.rand((2, 6, 32, 32)).cuda()
 
     criterion = torch.nn.MSELoss()
-    model = DoubleOffsetUNetDivided(3, 6, 256).cuda()
+    model = OffSetUNetBGBranch(3, 6).cuda()
     out = model(img)
     loss = criterion(out, test)
     loss.backward()

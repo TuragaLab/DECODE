@@ -22,20 +22,6 @@ class double_conv(nn.Module):
         x = self.conv(x)
         return x
 
-
-class double_conv_3d(double_conv):
-    def __init__(self, in_ch, out_ch, kernel=(1, 3, 3), padding=(0, 1, 1)):
-        super().__init__(in_ch, out_ch)
-        self.conv = nn.Sequential(
-            nn.Conv3d(in_ch, out_ch, kernel, padding=padding),
-            nn.BatchNorm3d(out_ch),
-            nn.ReLU(inplace=True),
-            nn.Conv3d(out_ch, out_ch, kernel, padding=padding),
-            nn.BatchNorm3d(out_ch),
-            nn.ReLU(inplace=True)
-        )
-
-
 class inconv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(inconv, self).__init__()
@@ -123,35 +109,6 @@ class up(nn.Module):
         return x
 
 
-class up_3d(up):
-    def __init__(self, in_ch, out_ch, scale_factor=(2, 2, 2), bilinear=True):
-        super().__init__(in_ch, out_ch, bilinear=bilinear)
-        if bilinear:
-            # self.up = nn.Upsample(scale_factor=scale_factor, mode='trilinear', align_corners=True)
-            self.up = Upsample(scale_factor=scale_factor, mode='trilinear', align_corners=True)
-        else:
-            self.up = nn.ConvTranspose3d(in_ch//2, in_ch//2, scale_factor, stride=2)
-
-        self.conv = double_conv_3d(in_ch, out_ch, kernel=(3, 3, 3), padding=(1, 1, 1))
-
-    def forward(self, x1, x2):
-        x1 = self.up(x1)
-        # TODO
-        diffZ = 0  #x2.shape[-3] - x1.shape[-3]
-        diffY = 0  # x2.shape[-2] - x1.shape[-2]
-        diffX = 0  # x2.shape[-1] - x1.shape[-1]
-
-        # TODO: Is this correct?!
-        x1 = F.pad(x1, (diffX // 2, diffX - diffX//2,
-                        diffY // 2, diffY - diffY//2,
-                        diffZ // 2, diffZ - diffZ//2))
-
-        # x = torch.cat([x2, x1], dim=1)
-        x = x1
-        x = self.conv(x)
-        return x
-
-
 class outconv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(outconv, self).__init__()
@@ -160,9 +117,3 @@ class outconv(nn.Module):
     def forward(self, x):
         x = self.conv(x)
         return x
-
-
-class outconv_3d(outconv):
-    def __init__(self, in_ch, out_ch):
-        super().__init__(in_ch, out_ch)
-        self.conv = nn.Conv3d(in_ch, out_ch, kernel_size=(1, 1, 1))

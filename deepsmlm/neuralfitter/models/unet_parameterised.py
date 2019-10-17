@@ -16,6 +16,7 @@ class UNet(nn.Module):
         padding=False,
         batch_norm=False,
         up_mode='upconv',
+        activation=nn.ReLU()
     ):
         """
         Implementation of
@@ -46,17 +47,18 @@ class UNet(nn.Module):
         self.padding = padding
         self.depth = depth
         prev_channels = in_channels
+        self.activation = activation
         self.down_path = nn.ModuleList()
         for i in range(depth):
             self.down_path.append(
-                UNetConvBlock(prev_channels, 2 ** (wf + i), padding, batch_norm)
+                UNetConvBlock(prev_channels, 2 ** (wf + i), padding, batch_norm, activation)
             )
             prev_channels = 2 ** (wf + i)
 
         self.up_path = nn.ModuleList()
         for i in reversed(range(depth - 1)):
             self.up_path.append(
-                UNetUpBlock(prev_channels, 2 ** (wf + i), up_mode, padding, batch_norm)
+                UNetUpBlock(prev_channels, 2 ** (wf + i), up_mode, padding, batch_norm, activation)
             )
             prev_channels = 2 ** (wf + i)
 
@@ -77,17 +79,17 @@ class UNet(nn.Module):
 
 
 class UNetConvBlock(nn.Module):
-    def __init__(self, in_size, out_size, padding, batch_norm):
+    def __init__(self, in_size, out_size, padding, batch_norm, activation):
         super(UNetConvBlock, self).__init__()
         block = []
 
         block.append(nn.Conv2d(in_size, out_size, kernel_size=3, padding=int(padding)))
-        block.append(nn.ReLU())
+        block.append(activation)
         if batch_norm:
             block.append(nn.BatchNorm2d(out_size))
 
         block.append(nn.Conv2d(out_size, out_size, kernel_size=3, padding=int(padding)))
-        block.append(nn.ReLU())
+        block.append(activation)
         if batch_norm:
             block.append(nn.BatchNorm2d(out_size))
 
@@ -99,7 +101,7 @@ class UNetConvBlock(nn.Module):
 
 
 class UNetUpBlock(nn.Module):
-    def __init__(self, in_size, out_size, up_mode, padding, batch_norm):
+    def __init__(self, in_size, out_size, up_mode, padding, batch_norm, activation):
         super(UNetUpBlock, self).__init__()
         if up_mode == 'upconv':
             self.up = nn.ConvTranspose2d(in_size, out_size, kernel_size=2, stride=2)
@@ -109,7 +111,7 @@ class UNetUpBlock(nn.Module):
                 nn.Conv2d(in_size, out_size, kernel_size=1),
             )
 
-        self.conv_block = UNetConvBlock(in_size, out_size, padding, batch_norm)
+        self.conv_block = UNetConvBlock(in_size, out_size, padding, batch_norm, activation)
 
     def center_crop(self, layer, target_size):
         _, _, layer_height, layer_width = layer.size()
