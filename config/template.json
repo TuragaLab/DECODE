@@ -7,7 +7,7 @@
       "calibration_file": "data/Calibration/SMLM Challenge Beads/Coefficients Big ROI/AS-Exp_100nm_3dcal.mat"
     },
     "Hardware": {
-      "device": "cpu",
+      "device": "cuda",
       "cuda_ix": "0",
       "num_worker_sim": 0,
       "torch_threads": 6,
@@ -29,7 +29,7 @@
       "weight_sqrt_phot": true,
       "fgbg_factor": null,
       "bg_signal_penalty": 100,
-      "alter_bg": true,
+      "alter_bg": "batch",
       "target_roi_size": 3,
       "photon_threshold": null,
       "channels_in": 3,

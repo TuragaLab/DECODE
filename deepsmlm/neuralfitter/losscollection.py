@@ -56,12 +56,12 @@ class Loss(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, output, target):
+    def __call__(self, output, target, epoch=None, batch=None):
         """
         calls functional
         """
 
-        return dummyLoss
+        return
 
 
 class LossLog(Loss):
@@ -110,7 +110,7 @@ class SpeiserLoss(Loss):
         self.cmp_values = None
         self._reset_batch_log()
 
-    def __call__(self, output, target):
+    def __call__(self, output, target, epoch=None, batch=None):
         return self.functional(output, target, self.p_loss, self.phot_xyz_loss,
                                self.weight_sqrt_phot, self.fgbg_factor, self.pch_weight)
 
@@ -191,7 +191,7 @@ class OffsetROILoss(SpeiserLoss):
                              alter_bg=param['HyperParameter']['alter_bg'],
                              ch_weight=torch.tensor(param['HyperParameter']['ch_weight']), logger=logger)
 
-    def __call__(self, output, target, epoch=None):
+    def __call__(self, output, target, epoch=None, batch=None):
         """
         Wrapper method. Makes it possible to call the object / loss as one is used to.
         :param output:
@@ -199,12 +199,12 @@ class OffsetROILoss(SpeiserLoss):
         :return:
         """
 
-        return self.functional(output, target, epoch, self.roi_size, self.p_loss, self.phot_xyz_loss, self.bg_loss,
+        return self.functional(output, target, epoch, batch, self.roi_size, self.p_loss, self.phot_xyz_loss, self.bg_loss,
                                self.weight_sqrt_phot, self.fgbg_factor, self.ch_weight.clone(), self.bg_signal_penalty,
                                self.alter_bg)
 
     @staticmethod
-    def functional(output, target, epoch, roi_size, p_loss, phot_xyz_loss, bg_loss, weight_by_phot, fgbg_factor, ch_weight,
+    def functional(output, target, epoch, batch, roi_size, p_loss, phot_xyz_loss, bg_loss, weight_by_phot, fgbg_factor, ch_weight,
                    bg_signal_penalty, alter_bg):
         """
         Actual implementation.
@@ -267,11 +267,18 @@ class OffsetROILoss(SpeiserLoss):
                              "not implemented for.")
 
         if alter_bg:  # alternate between bg training and the other channels
-            if epoch is None:
+            if alter_bg == 'epoch':
+                ix = epoch
+            elif alter_bg == 'batch':
+                ix = batch
+            else:
+                raise ValueError("Alternation in loss must be None (null), 'epoch' or 'batch'")
+
+            if ix is None:
                 pass
-            elif epoch % 2 == 0:
+            elif ix % 2 == 0:
                 ch_weight[0, 5] = 0  # no bg training
-            elif epoch % 2 == 1:
+            elif ix % 2 == 1:
                 ch_weight[0, :5] = 0  # only bg training
             else:
                 raise ValueError("Something's wrong.")

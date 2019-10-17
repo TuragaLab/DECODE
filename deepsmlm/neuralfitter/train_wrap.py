@@ -34,7 +34,8 @@ from deepsmlm.neuralfitter.dataset import SMLMDataset
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss, OffsetROILoss
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
-from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided
+from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided, \
+    OffSetUNetBGBranch
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale
 from deepsmlm.neuralfitter.train_test import train, test
@@ -254,6 +255,10 @@ if __name__ == '__main__':
     elif param['HyperParameter']['architecture'] == 'DoubleOffsetUNetDivided':
         model = DoubleOffsetUNetDivided(n_channels=param['HyperParameter']['channels_in'],
                                         n_classes=param['HyperParameter']['channels_out'])
+
+    elif param['HyperParameter']['architecture'] == 'OffSetUNetBGBranch':
+        model = OffSetUNetBGBranch(n_channels=param['HyperParameter']['channels_in'],
+                                   n_classes=param['HyperParameter']['channels_out'])
 
     else:
         raise ValueError("Invalid Architecture name.")
