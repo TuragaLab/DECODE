@@ -168,7 +168,7 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
 
         # compute output
         output = model(x_in)
-        loss_ = criterion(output, target)
+        loss_ = criterion(output, target, epoch)
 
         loss = loss_.mean()
         # record loss
