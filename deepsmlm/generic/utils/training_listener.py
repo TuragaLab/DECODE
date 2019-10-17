@@ -24,9 +24,6 @@ class Candidate:
         if not Path(self.abspath).is_dir():
             raise ValueError("Candidate must be folder not file.")
 
-        if not Path(self.config).is_file():
-            raise ValueError("Config file must be file not folder.")
-
     @property
     def candidate(self):
         return pathlib.PurePath(self.abspath).name
@@ -110,11 +107,14 @@ def launch_process(cmd_run, out_file=None, err_file=None):
     else:
         p = subprocess.Popen(cmd_run)
 
+    return p
+
 
 if __name__ == '__main__':
     folder_to_watch = '/Users/lucasmueller/Desktop/watch_folder'
     working_directory = '/Users/lucasmueller/Repositories/DeepSMLM'
-    command_part = 'python -m deepsmlm.neuralfitter.train_wrap -p '
+    command_part = 'source activate deepsmlm_deployed;'
+    command_part += 'python -m deepsmlm.neuralfitter.train_wrap -p '
 
     while True:
         os.chdir(working_directory)
@@ -124,7 +124,8 @@ if __name__ == '__main__':
         else:
             can = Candidate(os.path.join(folder_to_watch, subfolder), candidate)
             can.flag_candidate('running_')
-            command_run = command_part + candidate
+            command_run = command_part + can.config_abspath
             log_file, err_file = can.get_logs(abs=True)
-            launch_process(command_run, log_file, err_file)
+            p = launch_process(command_run, log_file, err_file)
+            p.wait()
             can.flag_candidate('finished_')
