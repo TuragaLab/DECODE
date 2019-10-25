@@ -1,4 +1,5 @@
 import torch
+import warnings
 
 import deepsmlm.generic.background
 import deepsmlm.generic.noise
@@ -6,7 +7,7 @@ import deepsmlm.generic.noise as noise
 
 
 class Photon2Camera:
-    def __init__(self, qe, spur_noise, em_gain, e_per_adu, baseline, read_sigma):
+    def __init__(self, qe, spur_noise, em_gain, e_per_adu, baseline, read_sigma, photon_units):
         """
 
         :param qe: quantum efficiency
@@ -27,12 +28,13 @@ class Photon2Camera:
         self.gain = noise.Gamma(scale=self.em_gain)
         self.read = noise.Gaussian(sigma_gaussian=self.read_sigma,
                                    bg_uniform=0)
-
+        self.photon_units = photon_units
 
     def __str__(self):
         return f"Photon to Camera Converter.\n" + \
                f"Camera: QE {self.qe} | Spur noise {self.spur} | EM Gain {self.em_gain} | " + \
-               f"e_per_adu {self.e_per_adu} | Baseline {self.baseline} | Readnoise {self.read_sigma}"
+               f"e_per_adu {self.e_per_adu} | Baseline {self.baseline} | Readnoise {self.read_sigma}" + \
+               f"Output in Photon units: {self.photon_units}"
 
     @staticmethod
     def parse(param: dict):
@@ -43,7 +45,8 @@ class Photon2Camera:
         """
         return Photon2Camera(qe=param['Camera']['qe'], spur_noise=param['Camera']['spur_noise'],
                              em_gain=param['Camera']['em_gain'], e_per_adu=param['Camera']['e_per_adu'],
-                             baseline=param['Camera']['baseline'], read_sigma=param['Camera']['read_sigma'])
+                             baseline=param['Camera']['baseline'], read_sigma=param['Camera']['read_sigma'],
+                             photon_units=param['Camera'][''])
 
     def forward(self, x):
         """
@@ -66,6 +69,12 @@ class Photon2Camera:
         camera += self.baseline
         camera = camera.round()
         camera = torch.max(camera, torch.tensor([0.]))
+
+        if self.photon_units:
+            if self.em_gain is not None:
+                camera = (camera - self.baseline) / self.em_gain * self.e_per_adu
+            else:
+                camera = camera - self.baseline * self.e_per_adu
         return camera
 
     def reverse(self, x):
@@ -74,6 +83,9 @@ class Photon2Camera:
         :param x:
         :return:
         """
+        if self.photon_units:
+            warnings.warn(UserWarning("You try to convert from ADU (camera units) back to photons although this camera simulator"
+                          "already outputs photon units. Make sure you know what you are doing."))
         out = (x - self.baseline) * self.e_per_adu / self.em_gain
         out -= self.spur
         out /= self.qe
