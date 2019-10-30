@@ -3,8 +3,10 @@ import sys
 from distutils.core import setup, Extension
 from torch.utils.cpp_extension import CppExtension, BuildExtension
 
-static_libraries = ['spline_psf']
-static_lib_dir = 'lib'
+# https://stackoverflow.com/questions/4597228/how-to-statically-link-a-library-when-compiling-a-python-module-extension
+
+static_libraries = ['spline_psf', 'multi_crlb']
+static_lib_dir = 'build'
 libraries = ['']
 library_dirs = ['']
 
@@ -29,7 +31,9 @@ setup(
     ext_modules=[
         CppExtension(
             name='torch_cpp',
-            sources=['pybind_wrapper.cpp', 'torch_boost.cpp', 'torch_cubicspline.cpp'],
+            sources=['src/pybind_wrapper.cpp', 'src/torch_boost.cpp', 'src/torch_cubicspline.cpp'],
+            include_dirs=['include'],
+            extra_include_paths=['include'],
             extra_compile_args=extra_compile_args,
             extra_objects=extra_objects)
 
@@ -58,14 +62,14 @@ $ NO_CUDA=1 python setup.py clean --all install
 Compile cubic_spline and link statically (Linux: gcc, macOS: clang):
 
 @linux workstation
-$ gcc -fPIC -g -c -Wall lib/spline_psf.c -o lib/spline_psf.o
-$ ar rcs lib/libspline_psf.a lib/spline_psf.o
+$ gcc -fPIC -g -c -Wall src/spline_psf.c -o build/spline_psf.o -Iinclude
+$ ar rcs build/libspline_psf.a build/spline_psf.o
 
 @gpu6
-$ gcc-4.9 -fPIC -g -c -std=c99 -Wall lib/spline_psf.c -o lib/spline_psf.o
-$ ar rcs lib/libspline_psf.a lib/spline_psf.o
+$ gcc-4.9 -fPIC -g -c -std=c99 -Wall src/spline_psf.c -o build/spline_psf.o -Iinclude
+$ ar rcs build/libspline_psf.a build/spline_psf.o
 
 @mac
-$ clang -o lib/spline_psf.o -c -O3 -Wall -I/usr/local/include -fPIC lib/spline_psf.c
-$ ar rcs lib/libspline_psf.a lib/spline_psf.o
+$ clang -o build/spline_psf.o -c -O3 -Wall -I/usr/local/include -Iinclude -fPIC src/spline_psf.c
+$ ar rcs build/libspline_psf.a build/spline_psf.o
 """
