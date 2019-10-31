@@ -1,3 +1,0 @@
-[submodule "deepsmlm/cpp_src/lib/eigen"]
-	path = deepsmlm/cpp_src/lib/eigen
-	url = https://github.com/eigenteam/eigen-git-mirror.git
