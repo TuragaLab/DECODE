@@ -7,7 +7,6 @@
 //
 
 #include <stdint.h>
-#include <stdbool.h> 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -56,10 +55,13 @@ void kernel_DerivativeSpline(spline *sp, int xc, int yc, int zc, float *theta, f
         dudt[2] = sp->roi_out_deriv_eps;
         dudt[3] = sp->roi_out_deriv_eps;
         dudt[4] = sp->roi_out_deriv_eps;
-        *model = sp->roi_out_eps * theta[2]; // theta[3] + theta[2] * temp;  // saves time
+        if (sp->add_bg_to_model) {
+            *model = sp->roi_out_eps * theta[2] + theta[3];
+        } else {
+            *model = sp->roi_out_eps * theta[2]; // theta[3] + theta[2] * temp;  // saves time
+        }
         return;
     }
-
 
     xc = fmax(xc, 0);
     xc = fmin(xc, sp->xsize - 1);
@@ -82,7 +84,11 @@ void kernel_DerivativeSpline(spline *sp, int xc, int yc, int zc, float *theta, f
     dudt[4] *= theta[2];
     dudt[2] = temp;
     dudt[3] = 1;
-    *model = theta[3] + theta[2] * temp;  // saves time
+    if (sp->add_bg_to_model) {
+        *model = theta[3] + theta[2] * temp;  // saves time
+    } else {
+        *model = theta[2] * temp;  // saves time
+    }
 }
 
 float fAt3Dj(spline *sp, int xc, int yc, int zc) {
@@ -242,6 +248,8 @@ spline* initSpline(float *coeff, int xsize, int ysize, int zsize, float x0, floa
     sp->roi_out_eps = 1e-10;
     sp->roi_out_deriv_eps = 0.0;
     sp->NV_PSP = 5; // number of parameters
+
+    sp->add_bg_to_model = false;
     
     sp->x0 = x0;
     sp->y0 = y0;

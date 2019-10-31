@@ -2,14 +2,16 @@
 #include <stdio.h>
 #include <vector>
 #include <array>
-
 #include <Eigen/Eigen>
 
 #include "multi_crlb.hpp"
 
+// using namespace Eigen;
 
-using namespace Eigen;
-
+/**
+ * Output format: x y phot bg z
+ * 
+ */
 auto construct_multi_fisher(spline *sp, 
                             std::vector<std::array<float, 3>> xyz, 
                             std::vector<float> phot,
@@ -46,6 +48,15 @@ auto construct_multi_fisher(spline *sp,
 
     }
 
+    // flatten and expand px derivatives
+    // float deriv_px_em_total[n_par];
+    // std::fill_n(deriv_px_em_total, n_par, 0.0);
+    // for (int i = 0; i < n_emitters; i++) {
+    //     for (int j = 0; j < sp->NV_PSP; j++) {
+    //         deriv_px_em_total[i * sp->NV_PSP + j] = deriv_px_em[i][j];
+    //     }
+    // }
+
     // fill the fisher px-wise
     for (int i = 0; i < n_emitters; i++) {  // emitter block
         for (int j = 0; j < sp->NV_PSP; j++) {  // parameter rows
@@ -71,6 +82,9 @@ auto construct_multi_fisher(spline *sp,
 
 }
 
+/** output format x y phot bg z
+ * 
+ */
 auto calc_crlb(spline *sp, 
             std::vector<std::array<float, 3>> xyz, 
             std::vector<float> phot,
@@ -87,8 +101,9 @@ auto calc_crlb(spline *sp,
     Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> hessian_block(fisher_blockmat, sp->NV_PSP * n_emitter, sp->NV_PSP * n_emitter);
     Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> crlb_(crlb, sp->NV_PSP * n_emitter, 1);
     
+    // crlb_ = hessian_block.completeOrthogonalDecomposition().pseudoInverse().diagonal();
     crlb_ = hessian_block.inverse().diagonal();
-    
+
     #if DEBUG
         std::cout << "Hessian: \n" << hessian_block << std::endl;
         std::cout << "CRLB is: \n" << crlb_ << std::endl;
