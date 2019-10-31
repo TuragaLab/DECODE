@@ -10,7 +10,7 @@ auto construct_multi_fisher(spline *sp,
                             std::vector<float> phot,
                             std::vector<float> bg,
                             std::array<float, 2> corner,
-                            int npx, float *img, float *hessian_blockmat) -> void;
+                            int npx, float *img, float *fisher_flat) -> void;
 
 auto calc_crlb(spline *sp, 
             std::vector<std::array<float, 3>> xyz, 

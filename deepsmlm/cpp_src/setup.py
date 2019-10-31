@@ -7,8 +7,8 @@ from torch.utils.cpp_extension import CppExtension, BuildExtension
 
 static_libraries = ['spline_psf', 'multi_crlb']
 static_lib_dir = 'build'
-libraries = ['']
-library_dirs = ['']
+libraries = [] #['spline_psf', 'multi_crlb']
+library_dirs = [] #['build']
 
 if sys.platform == 'win32':
 
@@ -33,6 +33,8 @@ setup(
             name='torch_cpp',
             sources=['src/pybind_wrapper.cpp', 'src/torch_boost.cpp', 'src/torch_cubicspline.cpp'],
             include_dirs=['include'],
+            libraries=libraries,
+            library_dirs=library_dirs,
             extra_include_paths=['include'],
             extra_compile_args=extra_compile_args,
             extra_objects=extra_objects)

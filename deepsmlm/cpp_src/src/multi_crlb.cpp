@@ -25,7 +25,7 @@ auto construct_multi_fisher(spline *sp,
     std::fill_n(fisher_flat, sp->NV_PSP * n_emitters * sp->NV_PSP * n_emitters, 0.0);
 
     // fisher px-wise
-    float fisher_block_px_flat[sp->NV_PSP * n_emitters][sp->NV_PSP * n_emitters][npx * npx];
+    float fisher_block_px_flat[n_par][n_par][npx * npx];
 
     for (int i = 0; i < sp->NV_PSP * n_emitters; i++) {
         for (int j = 0; j < sp->NV_PSP * n_emitters; j++) {
@@ -49,23 +49,21 @@ auto construct_multi_fisher(spline *sp,
     }
 
     // flatten and expand px derivatives
-    // float deriv_px_em_total[n_par];
-    // std::fill_n(deriv_px_em_total, n_par, 0.0);
-    // for (int i = 0; i < n_emitters; i++) {
-    //     for (int j = 0; j < sp->NV_PSP; j++) {
-    //         deriv_px_em_total[i * sp->NV_PSP + j] = deriv_px_em[i][j];
-    //     }
-    // }
+    float deriv_px_em_total[n_par * npx * npx];
+    std::fill_n(deriv_px_em_total, n_par * npx * npx, 0.0);
+    for (int i = 0; i < n_emitters; i++) {
+        for (int j = 0; j < sp->NV_PSP; j++) {
+            for (int p = 0; p < npx * npx; p++) {
+                deriv_px_em_total[i * sp->NV_PSP * npx * npx + j * npx * npx + p] = deriv_px_em[i][j * npx * npx + p];
+            }
+        }
+    }
 
     // fill the fisher px-wise
-    for (int i = 0; i < n_emitters; i++) {  // emitter block
-        for (int j = 0; j < sp->NV_PSP; j++) {  // parameter rows
-            for (int k = 0; k < sp->NV_PSP; k++) { // parameter cols
-                for (int p = 0; p < npx * npx; p++) { // px
-
-                    int block_ix = i * sp->NV_PSP;;
-                    fisher_block_px_flat[block_ix + j][block_ix + k][p] = deriv_px_em[i][j * npx * npx + p] * deriv_px_em[i][k * npx * npx + p] / img[p];
-                }
+    for (int j = 0; j < n_par; j++) {  // parameter rows
+        for (int k = 0; k < n_par; k++) { // parameter cols
+            for (int p = 0; p < npx * npx; p++) { // px
+                fisher_block_px_flat[j][k][p] = deriv_px_em_total[j * npx * npx + p] * deriv_px_em_total[k * npx * npx + p] / img[p];
             }
         }
     }
@@ -102,7 +100,7 @@ auto calc_crlb(spline *sp,
     Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> crlb_(crlb, sp->NV_PSP * n_emitter, 1);
     
     // crlb_ = hessian_block.completeOrthogonalDecomposition().pseudoInverse().diagonal();
-    crlb_ = hessian_block.inverse().diagonal();
+    crlb_ = hessian_block.fullPivLu().inverse().diagonal();
 
     #if DEBUG
         std::cout << "Hessian: \n" << hessian_block << std::endl;
