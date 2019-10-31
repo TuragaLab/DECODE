@@ -16,7 +16,7 @@
     #include <torch/torch.h>
 #endif
 
-#define DEBUG
+// #define DEBUG
 
 #include "torch_cubicspline.hpp"
 #include "multi_crlb.hpp"
