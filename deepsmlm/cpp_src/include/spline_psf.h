@@ -14,6 +14,8 @@
 #define VERBOSE 0
 #define spline_npar 5  // number of spline parameters as PSEUDO-Const. expr
 
+#include <stdbool.h>
+
 /* Spline Structure */
 /**
  * @brief defines the cubic spline
@@ -32,6 +34,8 @@ typedef struct {
         float roi_out_eps;  // epsilon value outside the roi
         float roi_out_deriv_eps; // epsilon value of derivative values outside the roi
         int NV_PSP; // number of parameters
+
+        bool add_bg_to_model;
 
         float *coeff;  // coefficients
         float *delta_f;  // internal helper
