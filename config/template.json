@@ -79,7 +79,8 @@
         "baseline": 100.0,
         "read_sigma": 74.4,
         "spur_noise": 0.002,
-        "px_size": [100.0, 100.0]
+        "px_size": [100.0, 100.0],
+        "convert2photons": false
     },
     "Scaling": {
         "dx_max": 2.5,
