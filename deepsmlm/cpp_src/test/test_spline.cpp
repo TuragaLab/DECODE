@@ -17,9 +17,11 @@ TEST_CASE( "Initialise Spline",  "[spline-init]" ) {
     float z0 = 150;
     float dz = 10;
 
-    float coeff[64 * 21 * 21 * 100] = { 0 };
+    int coeff_size = 64 * 21 * 21 * 100;
+    float coeff[coeff_size];
 
     spline* sp = initSpline(coeff, xsize, ysize, zsize, x0, y0, z0, dz);
 
-    REQUIRE(1 == 1);
+    REQUIRE(true);
 }
+
