@@ -137,7 +137,7 @@ class PredictEvalSimulation(PredictEval):
 
         if self.dataloader is None:
             self.dataloader = torch.utils.data.DataLoader(self.dataset,
-                                                          batch_size=self.param['HyperParameter']['batch_size'],
+                                                          batch_size=self.batch_size,
                                                           shuffle=False,
                                                           num_workers=self.param['Hardware']['num_worker_sim'],
                                                           pin_memory=False,

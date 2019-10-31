@@ -306,6 +306,18 @@ class SplineCPP(PSF):
     def f(self, x, y, z):
         return tp.f_spline(self.spline_c, x, y, z)
 
+    def d(self, pos, phot, bg):
+
+        return tp.f_spline_d(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+
+    def fisher(self, pos, phot, bg):
+
+        return tp.f_spline_fisher(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+
+    def crlb(self, pos, phot, bg):
+
+        return tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+
     def forward(self, pos, weight=None):
         pos, weight = super().forward(pos, weight)
 

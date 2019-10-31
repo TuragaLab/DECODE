@@ -35,7 +35,7 @@ if __name__ == '__main__':
                           param['Simulation']['img_size']),
         SpeiserPost(param['PostProcessing']['single_val_th'],
                     param['PostProcessing']['total_th'],
-                    'emitters_batch')
+                'emitters_batch')
     ])
 
     pred = PredictEvalTif(tifs, activations, model, post_processor, device='cuda')

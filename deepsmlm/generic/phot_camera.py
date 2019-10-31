@@ -46,7 +46,7 @@ class Photon2Camera:
         return Photon2Camera(qe=param['Camera']['qe'], spur_noise=param['Camera']['spur_noise'],
                              em_gain=param['Camera']['em_gain'], e_per_adu=param['Camera']['e_per_adu'],
                              baseline=param['Camera']['baseline'], read_sigma=param['Camera']['read_sigma'],
-                             photon_units=param['Camera'][''])
+                             photon_units=param['Camera']['convert2photons'])
 
     def forward(self, x):
         """

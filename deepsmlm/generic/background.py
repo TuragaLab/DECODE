@@ -211,8 +211,6 @@ class PerlinBackground(Background):
     def cast_sequence(self):
         self.__class__ = proc.TransformSequence
 
-
-
     @staticmethod
     def fade_f(t):
         return 6 * t ** 5 - 15 * t ** 4 + 10 * t ** 3

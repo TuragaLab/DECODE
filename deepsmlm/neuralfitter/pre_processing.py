@@ -101,13 +101,19 @@ class TargetGenerator(ABC):
         super().__init__()
 
     @abstractmethod
-    def forward(self, x):
+    def forward(self, x_in, weight):
         """
 
         :param x: input. Will be usually instance of emitterset.
         :return: target
         """
-        return x
+        if isinstance(x_in, EmitterSet):
+            pos = x_in.xyz
+            if weight is None:
+                weight = x_in.phot
+            return pos, weight
+        else:
+            return x_in, weight
 
 
 class CombineTargetBackground(TargetGenerator):
@@ -162,13 +168,16 @@ class OffsetRep(TargetGenerator):
         self.offset = OffsetPSF(xextent, yextent, img_shape)
         self.cat_out = cat_output
 
-    def forward(self, x):
+    def forward(self, x, weight=None):
         """
         Create 5 channel output, decode_like
         :param x: emitter instance
         :return: concatenated maps, or single maps with 1 x H x W each (channel order: p, I, x  y, z)
         """
-        p_map = self.delta.forward(x, torch.ones_like(x.phot))
+        if weight is None:
+            weight = torch.ones_like(x.phot)
+
+        p_map = self.delta.forward(x, weight)
         """It might happen that we see that two emitters are in the same px. p_map will then be 2 or greater.
         As the offset map allows for only one emitter, set the greater than 1 px to 1."""
         p_map[p_map > 1] = 1
@@ -320,6 +329,8 @@ class GlobalOffsetRep(OffsetRep):
         target[1:] *= photxyz_mask.float()
         return target
 
+
+# class ROI
 
 class ZasOneHot(TargetGenerator):
     def __init__(self, delta_psf, kernel_size=5, sigma=0.8, scale_z=1/750.):

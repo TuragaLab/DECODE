@@ -5,7 +5,7 @@ from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 from deepsmlm.neuralfitter import scale_transform as scaling
 from deepsmlm.neuralfitter import post_processing as post
 from deepsmlm.generic.utils import processing as utils
-from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
+from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, OffSetUNetBGBranch
 
 
 def trace_offset_model(model, channels=3):
@@ -29,10 +29,11 @@ if __name__ == '__main__':
         os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      os.pardir, os.pardir)) + '/'
 
-    file = '/Users/lucasmueller/Repositories/DeepSMLM/network/for_trace/model_noof_14.pt'
+    file = '/Volumes/kreshuk/lucas/GPU7_Cluster_deployment/deepsmlm/network/2019-10-17/model_singleunet_branch_nobg_32.pt'
     traced_file = file[:-3] + '_jit_traced.pt'
 
-    model = OffsetUnet(3)
+    # model = OffsetUnet(3)
+    model = OffSetUNetBGBranch(3, 6)
     model = LoadSaveModel(model,
                           output_file=None,
                           input_file=file).load_init(False)

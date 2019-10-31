@@ -387,6 +387,20 @@ class LooseEmitterSet:
         return xyz_, phot_, frame_ix_, id_
 
 
+class EmitterSetCRLB:
+    def __init__(self, em_set: EmitterSet, xyz_cr: torch.Tensor, phot_cr: torch.Tensor, psf):
+        self.em_set = em_set
+        self.xyz_cr = xyz_cr
+        self.phot_cr = phot_cr
+        self.psf = psf
+
+    def generate_weight_map(self):
+        """
+        Generates the weight map
+        :return:
+        """
+
+
 if __name__ == '__main__':
     num_emitter = 25000
     xyz = torch.rand((num_emitter, 3))
