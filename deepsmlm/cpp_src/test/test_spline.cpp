@@ -18,10 +18,9 @@ TEST_CASE( "Initialise Spline",  "[spline-init]" ) {
     float dz = 10;
 
     int coeff_size = 64 * 21 * 21 * 100;
-    float coeff[coeff_size];
+    std::vector<float> coeff(coeff_size); // go for this and then &varname[0]
 
-    spline* sp = initSpline(coeff, xsize, ysize, zsize, x0, y0, z0, dz);
+    spline* sp = initSpline(&coeff[0], xsize, ysize, zsize, x0, y0, z0, dz);
 
     REQUIRE(true);
 }
-
