@@ -1,8 +1,11 @@
 import math
 from abc import ABC, abstractmethod
 import torch
+import torch.nn
+import numpy as np
 from torch.nn import functional
 from sklearn import neighbors, datasets
+import warnings
 
 from deepsmlm.generic.coordinate_trafo import A2BTransform
 from deepsmlm.generic.emitter import EmitterSet
@@ -330,8 +333,6 @@ class GlobalOffsetRep(OffsetRep):
         return target
 
 
-# class ROI
-
 class ZasOneHot(TargetGenerator):
     def __init__(self, delta_psf, kernel_size=5, sigma=0.8, scale_z=1/750.):
         super().__init__()
@@ -432,3 +433,4 @@ class RemoveOutOfFOV:
                           phot=em_set.phot[is_emit],
                           frame_ix=em_set.frame_ix[is_emit],
                           id=(None if em_set.id is None else em_set.id[is_emit]))
+

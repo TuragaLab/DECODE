@@ -71,72 +71,6 @@ class SMLMDataset(Dataset):
         return img, target, em_tar, index
 
 
-class SMLMUnifiedDatasetLoader(Dataset):
-    """
-    Load a dataset which was calculated for multiple experiments
-    """
-    def __init__(self, folder):
-        self.folder = folder
-        self.ix = -float('inf')
-
-        self.samples = None
-        self.target = None
-
-        self.max_wait = 1800
-
-        self.step()
-
-    def _get_highest_ix_file(self):
-        """
-        Get the highest index in the folder
-        :return:
-        """
-        dataset_files = glob.glob(self.folder + '*.pt')
-        if dataset_files == []:
-            return None, None
-
-        indices = []
-        for ds in dataset_files:
-            fname_nofolder = ds.split('/')[-1]
-            indices.append(int(fname_nofolder.partition('_')[0]))
-        indices = torch.tensor(indices)
-        ix = indices.max(0)[1].item()
-        return ix, dataset_files[ix]
-
-    def step(self):
-        """
-        Check whether we got a new dataset, if yes load it.
-        :return:
-        """
-        ix, fname = self._get_highest_ix_file()
-        """If Dataset is not yet ready, sleep."""
-        time_waited = 0
-        while (ix is None) and time_waited < self.max_wait:
-            time.sleep(1)
-            time_waited += 1
-            ix, fname = self._get_highest_ix_file()
-
-        if ix > self.ix:
-            (samples, target) = torch.load(fname)
-            self.samples = samples
-            self.target = target
-            self.ix = ix
-
-    def __len__(self):
-        if self.samples is not None:
-            return self.samples.size(0)
-        else:
-            return 0
-
-    def __getitem(self, index):
-        """
-        Get a sample.
-        :param index:
-        :return:
-        """
-        return self.samples[index], self.target[index]
-
-
 class SMLMDatasetOnFly(Dataset):
     def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, dimensionality=3, static=False,
                  lifetime=1, return_em_tar=False, disk_cache=False):
@@ -172,7 +106,7 @@ class SMLMDatasetOnFly(Dataset):
         self.target_generator = tar_gen
 
         """Initialise Frame and Target. Call drop method to create list."""
-        _, frame_dummy, target_dummy, _ = self.pop_new()
+        _, frame_dummy, target_dummy, weight_dummy, _ = self.pop_new()
 
         frames_base = mp.Array(ctypes.c_float, self.__len__() * frame_dummy.numel())
         frames = np.ctypeslib.as_array(frames_base.get_obj())
@@ -182,8 +116,13 @@ class SMLMDatasetOnFly(Dataset):
         target = np.ctypeslib.as_array(target_base.get_obj())
         target = target.reshape(self.__len__(), target_dummy.size(0), target_dummy.size(1), target_dummy.size(2))
 
+        weight_base = mp.Array(ctypes.c_float, self.__len__() * weight_dummy.numel())
+        weight_mask = np.ctypeslib.as_array(weight_base.get_obj())
+        weight_mask = target.reshape(self.__len__(), weight_mask.size(0), weight_mask.size(1), weight_mask.size(2))
+
         self.frame = torch.from_numpy(frames)
         self.target = torch.from_numpy(target)
+        self.weight_mask = torch.from_numpy(weight_mask)
         self.em_tar = [None] * self.__len__()
         self.use_cache = False
 
@@ -193,9 +132,10 @@ class SMLMDatasetOnFly(Dataset):
         This is useful for the testset or the classical deep learning feeling of not limited training data."""
         if self.static_data:
             for i in range(self.__len__()):
-                _, frame, target, em_tar = self.pop_new()
+                _, frame, target, weight_mask, em_tar = self.pop_new()
                 self.frame[i] = frame
                 self.target[i] = target
+                self.weight_mask[i] = weight_mask
                 self.em_tar[i] = em_tar
 
             self.use_cache = True
@@ -254,11 +194,15 @@ class SMLMDatasetOnFly(Dataset):
         sim_out = self.simulator.forward(emitter)
         frame = self.input_preperator.forward(sim_out)
         emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
+
+        # generate the weight mask
+        weight_mask = self.weight_generator(frame, emitter_on_tar_frame, sim_out[1])
+
         if self.simulator.out_bg:
             target = self.target_generator.forward(emitter_on_tar_frame, sim_out[1])
         else:
             target = self.target_generator.forward(emitter_on_tar_frame)
-        return emitter, frame, target, emitter_on_tar_frame
+        return emitter, frame, target, weight_mask, emitter_on_tar_frame
 
     def __len__(self):
         return self.data_set_size
@@ -266,21 +210,22 @@ class SMLMDatasetOnFly(Dataset):
     def __getitem__(self, index):
 
         if not self.use_cache:
-            emitter, frame, target, em_tar = self.pop_new()
+            emitter, frame, target, weight_mask, em_tar = self.pop_new()
             self.frame[index] = frame
             self.target[index] = target
+            self.weight_mask[index] = weight_mask
             self.em_tar[index] = em_tar
 
-        frame, target, em_tar = self.frame[index], self.target[index], self.em_tar[index]
+        frame, target, weight_mask, em_tar = self.frame[index], self.target[index], self.weight_mask[index], self.em_tar[index]
 
         """Make sure the data types are correct"""
         if (not isinstance(frame, torch.FloatTensor)) or (not isinstance(target, torch.FloatTensor)):
             raise ValueError("Data type in Dataset wrong.")
 
         if self.return_em_tar:
-            return frame, target, em_tar
+            return frame, target, weight_mask, em_tar
         else:
-            return frame, target
+            return frame, target, weight_mask
 
 
 class UnsupervisedDataset(Dataset):

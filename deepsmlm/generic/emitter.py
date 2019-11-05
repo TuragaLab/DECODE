@@ -7,11 +7,31 @@ import torch
 import torch_cpp
 
 
+def same_shape_tensor(dim, *args):
+    for i in range(args.__len__() - 1):
+        if args[i].size(dim) == args[i + 1].size(dim):
+            continue
+        else:
+            return False
+
+    return True
+
+
+def same_dim_tensor(*args):
+    for i in range(args.__len__() - 1):
+        if args[i].dim() == args[i + 1].dim():
+            continue
+        else:
+            return False
+
+    return True
+
+
 class EmitterSet:
     """
     Class, storing a set of emitters. Each attribute is a torch.Tensor.
     """
-    def __init__(self, xyz, phot, frame_ix, id=None, prob=None):
+    def __init__(self, xyz, phot, frame_ix, id=None, prob=None, bg=None, xyz_cr=None, phot_cr=None, bg_cr=None):
         """
         Constructor. Coordinates, photons, frame_ix must be provided. Id is optional.
 
@@ -23,6 +43,10 @@ class EmitterSet:
         :param id: torch.Tensor of size N. id of an emitter. -1 is an arbitrary non uniquely used
          fallback id.
         :param prob: torch.Tensor of size N. probability of observation. will be 1 by default.
+        :param bg: constant assumed background value, or N x {Background - Dim}
+        :param xyz_cr: Cramer Rao Bound of xyz
+        :param phot_cr: Cramer Rao of phot
+        :param bg_cr: Cramer Rao of background
         """
         self.num_emitter = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
 
@@ -32,6 +56,10 @@ class EmitterSet:
             self.frame_ix = frame_ix.type(xyz.dtype)
             self.id = id if id is not None else -torch.ones_like(frame_ix).type(xyz.dtype)
             self.prob = prob if prob is not None else torch.ones_like(frame_ix).type(xyz.dtype)
+            self.bg = bg if bg is not None else float('nan') * torch.ones_like(frame_ix).type(xyz.dtype)
+            self.xyz_cr = xyz_cr if xyz_cr is not None else float('nan') * torch.ones_like(frame_ix).type(xyz.dtype)
+            self.phot_cr = phot_cr if phot_cr is not None else float('nan') * torch.ones_like(frame_ix).type(xyz.dtype)
+            self.bg_cr = bg_cr if bg_cr is not None else float('nan') * torch.ones_like(frame_ix).type(xyz.dtype)
 
         else:
             self.xyz = torch.zeros((0, 3), dtype=torch.float)
@@ -39,6 +67,10 @@ class EmitterSet:
             self.frame_ix = torch.zeros((0,), dtype=torch.float)
             self.id = -torch.ones((0,), dtype=torch.float)
             self.prob = torch.ones((0,), dtype=torch.float)
+            self.bg = float('nan') * torch.ones_like(self.prob)
+            self.xyz_cr = float('nan') * torch.ones_like(self.prob)
+            self.phot_cr = float('nan') * torch.ones_like(self.prob)
+            self.bg_cr = float('nan') * torch.ones_like(self.prob)
 
         self._sorted = False
 
@@ -49,16 +81,11 @@ class EmitterSet:
         Tests the integrity of the EmitterSet
         :return: None
         """
-        if not ((self.xyz.shape[0] == self.phot.shape[0])
-                and (self.phot.shape[0] == self.frame_ix.shape[0])
-                and (self.frame_ix.shape[0] == self.id.shape[0])
-                and (self.id.shape[0] == self.prob.shape[0])):
+        if not same_shape_tensor(0, self.xyz, self.phot, self.frame_ix, self.id, self.bg,
+                                 self.xyz_cr, self.phot_cr, self.bg_cr):
             raise ValueError("Coordinates, photons, frame ix, id and prob are not of equal shape in 0th dimension.")
 
-        if not ((1 == self.phot.ndimension()) and
-                (self.phot.ndimension() == self.prob.ndimension()) and
-                (self.prob.ndimension() == self.frame_ix.ndimension()) and
-                (self.frame_ix.ndimension() == self.id.ndimension())):
+        if not same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
             raise ValueError("Expected photons, probability frame index and id to be 1D.")
 
     def clone(self):
@@ -70,7 +97,11 @@ class EmitterSet:
                           self.phot.clone(),
                           self.frame_ix.clone(),
                           self.id.clone(),
-                          self.prob.clone())
+                          self.prob.clone(),
+                          self.bg.clone(),
+                          self.xyz_cr.clone(),
+                          self.phot_cr.clone(),
+                          self.bg_cr.clone())
 
     @staticmethod
     def cat_emittersets(emittersets, remap_frame_ix=None, step_frame_ix=None):
@@ -102,8 +133,12 @@ class EmitterSet:
         frame_ix = torch.cat([emittersets[i].frame_ix + shift[i] for i in range(num_emittersets)], 0)
         id = torch.cat([emittersets[i].id for i in range(num_emittersets)], 0)
         prob = torch.cat([emittersets[i].prob for i in range(num_emittersets)], 0)
+        bg = torch.cat([emittersets[i].bg for i in range(num_emittersets)], 0)
+        xyz_cr = torch.cat([emittersets[i].xyz_cr for i in range(num_emittersets)], 0)
+        phot_cr = torch.cat([emittersets[i].phot_cr for i in range(num_emittersets)], 0)
+        bg_cr = torch.cat([emittersets[i].bg_cr for i in range(num_emittersets)], 0)
 
-        return EmitterSet(xyz, phot, frame_ix, id, prob)
+        return EmitterSet(xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr)
 
     def sort_by_frame(self):
         self.frame_ix, ix = self.frame_ix.sort()
@@ -111,11 +146,16 @@ class EmitterSet:
         self.phot = self.phot[ix]
         self.id = self.id[ix]
         self.prob = self.prob[ix]
+        self.bg = self.bg[ix]
+        self.xyz_cr = self.xyz_cr[ix]
+        self.phot_cr = self.phot_cr[ix]
+        self.bg_cr = self.bg_cr[ix]
 
         self._sorted = True
 
     def get_subset(self, ix):
-        return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix], self.prob[ix])
+        return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix], self.prob[ix], self.bg[ix],
+                          self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix])
 
     def get_subset_frame(self, frame_start, frame_end, shift_to=None):
         """
@@ -162,7 +202,11 @@ class EmitterSet:
                                       self.phot[ix].unsqueeze(1),
                                       frame_ix.unsqueeze(1),
                                       self.id[ix].unsqueeze(1),
-                                      self.prob[ix].unsqueeze(1)), dim=1)
+                                      self.prob[ix].unsqueeze(1),
+                                      self.bg[ix].unsqueeze(1),
+                                      self.xyz_cr[ix].unsqueeze(1),
+                                      self.phot_cr[ix].unsqueeze(1),
+                                      self.bg_cr[ix].unsqueeze(1)), dim=1)
         else:
             raise DeprecationWarning("No Id is not supported any more.")
 
@@ -189,7 +233,8 @@ class EmitterSet:
         em_list = []
 
         for i, em in enumerate(grand_matrix_list):
-            em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5], prob=em[:, 6]))
+            em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5], prob=em[:, 6],
+                                      bg=em[:, 7], xyz_cr=em[:, 8], phot_cr=em[:, 9], bg_cr=em[:, 10]))
 
         return em_list
 
@@ -229,9 +274,13 @@ class EmitterSet:
                                   self.frame_ix.unsqueeze(1),
                                   self.xyz,
                                   self.phot.unsqueeze(1),
-                                  self.prob.unsqueeze(1)), 1)
+                                  self.prob.unsqueeze(1),
+                                  self.bg.unsqueeze(1),
+                                  self.xyz_cr.unsqueeze(1),
+                                  self.phot_cr.unsqueeze(1),
+                                  self.bg_cr.unsqueeze(1)), 1)
 
-        header = 'id, frame_ix, x, y, z, phot, prob\nThis is an export from DeepSMLM.\n' \
+        header = 'id, frame_ix, x, y, z, phot, prob, bg, xyz_cr, phot_cr, bg_cr\nThis is an export from DeepSMLM.\n' \
                  'Total number of emitters: {}'.format(self.num_emitter)
 
         if model is not None:
@@ -283,6 +332,20 @@ class EmitterSet:
         else:
             return EmitterSet(xyz=grand_matrix[:, 2:5], frame_ix=grand_matrix[:, 1],
                               phot=grand_matrix[:, 5], id=grand_matrix[:, 0])
+
+    def populate_crlb(self, psf):
+        """
+        Calculate the CRLB
+        :return:
+        """
+        em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
+        for em in em_split:
+            crlb, _ = psf.crlb(em.xyz, em.phot, em.bg)
+            em.xyz_cr = crlb[:, :3]
+            em.phot_cr = crlb[:, 3]
+            em.bg_cr = crlb[:, 4]
+
+        return self.cat_emittersets(em_split)
 
 
 class RandomEmitterSet(EmitterSet):
@@ -387,18 +450,7 @@ class LooseEmitterSet:
         return xyz_, phot_, frame_ix_, id_
 
 
-class EmitterSetCRLB:
-    def __init__(self, em_set: EmitterSet, xyz_cr: torch.Tensor, phot_cr: torch.Tensor, psf):
-        self.em_set = em_set
-        self.xyz_cr = xyz_cr
-        self.phot_cr = phot_cr
-        self.psf = psf
 
-    def generate_weight_map(self):
-        """
-        Generates the weight map
-        :return:
-        """
 
 
 if __name__ == '__main__':

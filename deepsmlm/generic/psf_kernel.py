@@ -59,7 +59,7 @@ class PSF(ABC):
             return input, weight
 
     def print_basic_properties(self):
-        print('PSF: \n xextent: {}\n yextent: {}\n zextent: {}\n img_shape: {}'.format(self.xextent,
+        print('PSF: \n\txextent: {}\n yextent: {}\n zextent: {}\n img_shape: {}'.format(self.xextent,
                                                                                        self.yextent,
                                                                                        self.zextent,
                                                                                        self.img_shape))
@@ -108,9 +108,7 @@ class DeltaPSF(PSF):
         xyz, weight = super().forward(input, weight)
 
         if self.photon_threshold is not None:
-            ix_phot_threshold = weight >= self.photon_threshold
-            weight = weight[ix_phot_threshold]
-            xyz = xyz[ix_phot_threshold, :]
+            raise DeprecationWarning("Not supported anymore. Use a fresh target generator and put it into a sequence.")
 
         if self.photon_normalise:
             weight = torch.ones_like(weight)
@@ -120,9 +118,10 @@ class DeltaPSF(PSF):
                                           bins=(self.bin_x, self.bin_y),
                                           weights=weight.numpy())
         else:
-            camera, _ = np.histogramdd((xyz[:, 0].numpy(), xyz[:, 1].numpy(), xyz[:, 2].numpy()),
-                                       bins=(self.bin_x, self.bin_z, self.bin_z),
-                                       weights=weight.numpy())
+            raise DeprecationWarning("Not tested and not developed further.")
+            # camera, _ = np.histogramdd((xyz[:, 0].numpy(), xyz[:, 1].numpy(), xyz[:, 2].numpy()),
+            #                            bins=(self.bin_x, self.bin_z, self.bin_z),
+            #                            weights=weight.numpy())
 
         camera = torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
         if self.dark_value is not None:
@@ -271,7 +270,9 @@ class SplineCPP(PSF):
     """
     Spline Function wrapper for C++ / C
     """
-    def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0, dz=None):
+    cpp_crlb_order = 'xypbz'
+
+    def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0, dz=None, crlb_order='xyzpb'):
         """
         (see abstract class constructor
 
@@ -285,7 +286,6 @@ class SplineCPP(PSF):
             raise ValueError("Image must be of equal size in x and y.")
         self.npx = img_shape[0]
 
-
         self.coeff = coeff
         self.ref0 = ref0
         if dz is None:  # if dz is None, zextent must not be None
@@ -294,14 +294,21 @@ class SplineCPP(PSF):
             dz = (self.zextent[1] - self.zextent[0]) / (self.coeff.shape[2] - 1)
 
         self.dz = dz
+        self.crlb_order = crlb_order
 
         self.spline_c = tp.initSpline(self.coeff.type(torch.FloatTensor),
                                        list(self.ref0),
                                        self.dz)
 
+        self.roi_size = (self.coeff.size(0), self.coeff.size(1), self.coeff.size(2))
+
         """Test whether extent corresponds to img shape"""
         if (img_shape[0] != (xextent[1] - xextent[0])) or (img_shape[1] != (yextent[1] - yextent[0])):
             raise ValueError("Unequal size of extent and image shape not supported.")
+
+    def print_basic_properties(self):
+        super().print_basic_properties()
+        print(f'\tROI size: {self.roi_size}')
 
     def f(self, x, y, z):
         return tp.f_spline(self.spline_c, x, y, z)
@@ -311,12 +318,23 @@ class SplineCPP(PSF):
         return tp.f_spline_d(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
 
     def fisher(self, pos, phot, bg):
+        """Outputs the Fisher matrix in CPP order"""
 
         return tp.f_spline_fisher(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
 
-    def crlb(self, pos, phot, bg):
+    def crlb(self, pos, phot, bg, crlb_order=None):
+        if crlb_order is None:
+            crlb_order = self.crlb_order
 
-        return tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+        """Outputs the CRLB"""
+        if crlb_order == self.cpp_crlb_order:
+            return tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+        elif crlb_order == 'xyzpb':
+            cr, img = tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+            cr = cr[:, [0, 1, 4, 2, 3]]
+            return cr, img
+        else:
+            raise ValueError("Not supported output type.")
 
     def forward(self, pos, weight=None):
         pos, weight = super().forward(pos, weight)
