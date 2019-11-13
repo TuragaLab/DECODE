@@ -1,0 +1,48 @@
+name: deepsmlm_source
+channels:
+  - pytorch
+  - conda-forge
+  - anaconda
+  - anaconda-fusion
+  - comet_ml
+  - pyviz
+  - defaults
+
+dependencies:
+  - bokeh
+  - comet_ml
+  - cudatoolkit=10.1
+  - comet_ml
+  - holoviews
+  - intel-openmp
+  - jupyter_contrib_nbextensions
+  - jupyterlab
+  - nb_conda
+  - matplotlib
+  - nodejs
+  - numpy
+  - opencv
+  - pillow
+  - python=3.6
+  # - pytorch=1.2.*
+  - ninja
+  - pyyaml
+  - mkl
+  - mkl-include
+  - setuptools
+  - cffi
+  - magma-cuda101
+
+  - pytest
+  - pywavelets
+  - scikit-image
+  - scipy
+  - seaborn
+  - setuptools
+  - scikit-learn
+  - snakeviz
+  - sqlite
+  - tensorflow
+  - tensorboard
+  - tifffile
+  - tqdm
