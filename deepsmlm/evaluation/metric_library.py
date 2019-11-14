@@ -205,7 +205,7 @@ class RMSEMAD:
         mad_loss = nn.L1Loss(reduction='sum')
 
         mad_vol = mad_loss(tp_, r_) / num_tp
-        mad_lat = (mad_loss(tp_[:, 0], r_[:, 0]) + mad_loss(tp_[:, 0], r_[:, 0])) / num_tp
+        mad_lat = (mad_loss(tp_[:, 0], r_[:, 0]) + mad_loss(tp_[:, 1], r_[:, 1])) / num_tp
         mad_axial = mad_loss(tp_[:, 2], r_[:, 2]) / num_tp
 
         return rmse_vol.item(), rmse_lat.item(), rmse_axial.item(), mad_vol.item(), mad_lat.item(), mad_axial.item()
