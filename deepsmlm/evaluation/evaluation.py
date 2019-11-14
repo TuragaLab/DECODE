@@ -267,9 +267,7 @@ class NNMatching:
 
         :param output: (emitterset)
         :param target: (emitterset)
-        :return tp: (emitterset) true positives
-        :return fp: (emitterset) false positives
-        :return tp_match: (emitterset) the ground truth points which are matched to the true positives.
+        :return tp, fp, fn, tp_match: (emitterset) true positives, false positives, false negatives, ground truth matched to the true pos
         """
         xyz_tar = target.xyz.numpy()
         xyz_out = output.xyz.numpy()
@@ -349,6 +347,7 @@ class SegmentationEvaluation:
         """
         """
         self.print_mode = print_mode
+        self.cached_result = [None] * 3
 
     def forward(self, tp, fp, fn):
         """
@@ -372,6 +371,10 @@ class SegmentationEvaluation:
                                                           fn.num_emitter))
             print("Jacquard: {:.3f}".format(jac))
             print("Precision: {:.3f}, Recall: {:.3f}".format(prec, rec))
+
+        self.cached_result[0] = prec
+        self.cached_result[1] = rec
+        self.cached_result[2] = jac
         return prec, rec, jac
 
 
