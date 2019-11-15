@@ -20,7 +20,7 @@ def hash_model(modelfile):
 
 
 class LoadSaveModel:
-    def __init__(self, model_instance, output_file, input_file=None, name_time_interval=(60*60), better_th=1e-6):
+    def __init__(self, model_instance, output_file, input_file=None, name_time_interval=(60*60), better_th=1e-6, max_files=10):
         """
 
         :param model_instance:
@@ -39,6 +39,7 @@ class LoadSaveModel:
         self._new_name_time = 0   # timestamp when the name changed last
         self._best_metric_val = math.inf
         self.better_th = better_th
+        self.max_files = max_files if ((max_files is not None) or (max_files != -1)) else float('inf')
 
     def load_init(self, cuda=torch.cuda.is_available()):
         model = self.model
@@ -79,8 +80,10 @@ class LoadSaveModel:
         """After a certain period, change the suffix."""
         if (time.time() > self._new_name_time + self.name_time_interval) or metric_val is None:
             self.output_file_suffix += 1
-            self._new_name_time = time.time()
+            if self.output_file_suffix > self.max_files:
+                self.output_file_suffix = 0
 
+            self._new_name_time = time.time()
 
         """Determine file name and save."""
         fname = self.output_file[:-3] + '_' + str(self.output_file_suffix) + '.pt'
