@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 import torch_cpp
+import deepsmlm.test.utils_ci as tutil
 
 
 def same_shape_tensor(dim, *args):
@@ -31,6 +32,8 @@ class EmitterSet:
     """
     Class, storing a set of emitters. Each attribute is a torch.Tensor.
     """
+    eq_precision = 1E-6
+
     def __init__(self, xyz, phot, frame_ix, id=None, prob=None, bg=None, xyz_cr=None, phot_cr=None, bg_cr=None):
         """
         Constructor. Coordinates, photons, frame_ix must be provided. Id is optional.
@@ -57,9 +60,9 @@ class EmitterSet:
             self.id = id if id is not None else -torch.ones_like(frame_ix).type(xyz.dtype)
             self.prob = prob if prob is not None else torch.ones_like(frame_ix).type(xyz.dtype)
             self.bg = bg if bg is not None else float('nan') * torch.ones_like(frame_ix).type(xyz.dtype)
-            self.xyz_cr = xyz_cr if xyz_cr is not None else float('nan') * torch.ones_like(frame_ix).type(xyz.dtype)
-            self.phot_cr = phot_cr if phot_cr is not None else float('nan') * torch.ones_like(frame_ix).type(xyz.dtype)
-            self.bg_cr = bg_cr if bg_cr is not None else float('nan') * torch.ones_like(frame_ix).type(xyz.dtype)
+            self.xyz_cr = xyz_cr if xyz_cr is not None else float('nan') * torch.ones_like(self.xyz).type(xyz.dtype)
+            self.phot_cr = phot_cr if phot_cr is not None else float('nan') * torch.ones_like(self.phot).type(xyz.dtype)
+            self.bg_cr = bg_cr if bg_cr is not None else float('nan') * torch.ones_like(self.bg).type(xyz.dtype)
 
         else:
             self.xyz = torch.zeros((0, 3), dtype=torch.float)
@@ -76,6 +79,42 @@ class EmitterSet:
 
         self._sanity_check()
 
+    @property
+    def xyz_scr(self):  # sqrt crlb
+        return self.xyz_cr.sqrt()
+
+    @property
+    def phot_scr(self):
+        return self.phot_cr.sqrt()
+
+    @property
+    def bg_scr(self):
+        return self.bg_cr.sqrt()
+
+    def _inplace_replace(self, em):
+        """If self is derived class of EmitterSet, call the constructor of the parent instead of self.
+        However, I don't know why super().__init__(...) does not work."""
+        if self.__class__ is not EmitterSet:
+            EmitterSet.__init__(self, xyz=em.xyz,
+                                phot=em.phot,
+                                frame_ix=em.frame_ix,
+                                id=em.id,
+                                prob=em.prob,
+                                bg=em.bg,
+                                xyz_cr=em.xyz_cr,
+                                phot_cr=em.phot_cr,
+                                bg_cr=em.bg_cr)
+        else:
+            self.__init__(xyz=em.xyz,
+                          phot=em.phot,
+                          frame_ix=em.frame_ix,
+                          id=em.id,
+                          prob=em.prob,
+                          bg=em.bg,
+                          xyz_cr=em.xyz_cr,
+                          phot_cr=em.phot_cr,
+                          bg_cr=em.bg_cr)
+
     def _sanity_check(self):
         """
         Tests the integrity of the EmitterSet
@@ -87,6 +126,50 @@ class EmitterSet:
 
         if not same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
             raise ValueError("Expected photons, probability frame index and id to be 1D.")
+
+    def __str__(self):
+        print_str = f"EmitterSet" \
+                    f"\n::num emitters: {self.num_emitter}"
+
+        if self.num_emitter == 0:
+            print_str += "\n::frame range: n.a." \
+                         "\n::spanned volume: n.a."
+        else:
+            print_str += f"\n::frame range: {self.frame_ix.min().item()} - {self.frame_ix.max().item()}" \
+                         f"\n::spanned volume: {self.xyz.min(0)[0].numpy()} - {self.xyz.max(0)[0].numpy()}"
+        return print_str
+
+    def __eq__(self, other):
+        """
+        Two emittersets are equal if all of it's (tensor) members are equal within a certain float precision
+        :param other: EmitterSet
+        :return: (bool)
+        """
+        is_equal = True
+        is_equal *= tutil.tens_almeq(self.xyz, other.xyz, self.eq_precision)
+        is_equal *= tutil.tens_almeq(self.frame_ix, other.frame_ix, self.eq_precision)
+        is_equal *= tutil.tens_almeq(self.phot, other.phot, self.eq_precision)
+        # is_equal *= tutil.tens_almeq(self.id, other.id, self.eq_precision)  # this is in question
+        is_equal *= tutil.tens_almeq(self.prob, other.prob, self.eq_precision)
+
+        if torch.isnan(self.bg).all():
+            is_equal *= torch.isnan(other.bg).all()
+        else:
+            is_equal *= tutil.tens_almeq(self.bg, other.bg, self.eq_precision)
+        if torch.isnan(self.xyz_cr).all():
+            is_equal *= torch.isnan(other.xyz_cr).all()
+        else:
+            is_equal *= tutil.tens_almeq(self.bg, other.bg, self.eq_precision)
+        if torch.isnan(self.phot_cr).all():
+            is_equal *= torch.isnan(other.phot_cr).all()
+        else:
+            is_equal *= tutil.tens_almeq(self.bg, other.bg, self.eq_precision)
+        if torch.isnan(self.bg_cr).all():
+            is_equal *= torch.isnan(other.bg_cr).all()
+        else:
+            is_equal *= tutil.tens_almeq(self.bg, other.bg, self.eq_precision)
+
+        return is_equal.item()
 
     def clone(self):
         """
@@ -204,7 +287,7 @@ class EmitterSet:
                                       self.id[ix].unsqueeze(1),
                                       self.prob[ix].unsqueeze(1),
                                       self.bg[ix].unsqueeze(1),
-                                      self.xyz_cr[ix].unsqueeze(1),
+                                      self.xyz_cr[ix],
                                       self.phot_cr[ix].unsqueeze(1),
                                       self.bg_cr[ix].unsqueeze(1)), dim=1)
         else:
@@ -345,7 +428,7 @@ class EmitterSet:
             em.phot_cr = crlb[:, 3]
             em.bg_cr = crlb[:, 4]
 
-        return self.cat_emittersets(em_split)
+        self._inplace_replace(self.cat_emittersets(em_split))
 
 
 class RandomEmitterSet(EmitterSet):

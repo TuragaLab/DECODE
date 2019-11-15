@@ -270,7 +270,11 @@ class SplineCPP(PSF):
     """
     Spline Function wrapper for C++ / C
     """
-    cpp_crlb_order = 'xypbz'
+    native_order = 'xypbz'
+    max_factor_nat_order = torch.tensor([10., 10., 10, 10, 10.]).unsqueeze(0) ** 2
+    max_value_nat_order = torch.tensor([5., 5., 10000., 200., 1000.]) ** 2
+    big_number_handling = 'max_value'
+    n_par = 5
 
     def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0, dz=None, crlb_order='xyzpb'):
         """
@@ -322,19 +326,74 @@ class SplineCPP(PSF):
 
         return tp.f_spline_fisher(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
 
+    def _rearange_crlb(self, cr, crlb_order=None):
+        """Outputs the CRLB"""
+        if crlb_order == self.native_order:
+            return cr
+        elif crlb_order == 'xyzpb':
+            if cr.dim() == 1:
+                cr = cr[[0, 1, 4, 2, 3]]
+            else:
+                cr = cr[:, [0, 1, 4, 2, 3]]
+            return cr
+        else:
+            cr_dict = dict()
+            cr_dict['x'] = cr[0]
+            cr_dict['y'] = cr[1]
+            cr_dict['z'] = cr[4]
+            cr_dict['phot'] = cr[2]
+            cr_dict['bg'] = cr[3]
+            return cr_dict
+
+    def single_crlb(self, pos, phot, bg, crlb_order=None, fisher=None, img=None):
+
+        if fisher is None and img is None:
+            fisher, img = self.fisher(pos, phot, bg)
+
+        n_emitter = pos.size(0)
+        crlb_ind = torch.zeros((n_emitter, self.n_par)).float()
+        for i in range(n_emitter):
+            crlb_ind[i, :] = fisher[(i*self.n_par):(i*self.n_par + 5), (i*self.n_par):(i*self.n_par + 5)].inverse().diag()
+
+        crlb_ind = self._rearange_crlb(crlb_ind, crlb_order)
+        return crlb_ind, img
+
     def crlb(self, pos, phot, bg, crlb_order=None):
         if crlb_order is None:
             crlb_order = self.crlb_order
 
-        """Outputs the CRLB"""
-        if crlb_order == self.cpp_crlb_order:
-            return tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
-        elif crlb_order == 'xyzpb':
-            cr, img = tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
-            cr = cr[:, [0, 1, 4, 2, 3]]
-            return cr, img
+        fisher, img = self.fisher(pos, phot, bg)
+        cr = fisher.pinverse().diag().view(pos.size(0), -1)
+        # cr, img = tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+
+        cr = self._rearange_crlb(cr, crlb_order)
+        cr[torch.isnan(cr)] = float('inf')
+
+        """
+        NaN and big number handling.
+        """
+        if self.big_number_handling == 'max_value':
+            max_val_tensor = self._rearange_crlb(self.max_value_nat_order, crlb_order).unsqueeze(0)
+            max_val_tensor = max_val_tensor.repeat(cr.size(0), 1)
+            is_to_big = cr >= max_val_tensor
+            cr[is_to_big] = max_val_tensor[is_to_big]
+            cr[cr < 0] = max_val_tensor[cr < 0]
+
+        elif self.big_number_handling == 'single_crlb':
+            """
+            Clamp and NaN Handling. Calculate the crlb as if the emitter was not surrounded by others. The Multi-CRLB shall
+            then not exceed the individual crlb by a given factor. NaNs are handled by single_crlb * max_factor
+            """
+            crlb_ind, _ = self.single_crlb(pos, phot, bg, crlb_order, fisher, img)
+
+            # clamp by the max values
+            max_factor_ordered = self._rearange_crlb(self.max_factor_nat_order, crlb_order)
+            max_crlb = crlb_ind * max_factor_ordered
+            cr[cr > max_crlb] = max_crlb[cr > max_crlb]
         else:
-            raise ValueError("Not supported output type.")
+            raise ValueError("Not supported big number handling in CRLB calculation.")
+
+        return cr, img
 
     def forward(self, pos, weight=None):
         pos, weight = super().forward(pos, weight)
