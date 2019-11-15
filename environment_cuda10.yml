@@ -1,4 +1,4 @@
-name: deepsmlm_deployed
+name: deepsmlm_deployed_new
 channels:
   - pytorch
   - conda-forge
@@ -12,7 +12,6 @@ dependencies:
   - bokeh
   - comet_ml
   - cudatoolkit=10.0
-  - comet_ml
   - holoviews
   - intel-openmp
   - jupyter_contrib_nbextensions
@@ -37,5 +36,6 @@ dependencies:
   - tensorflow
   - tensorboard
   - tifffile
+  - tikzplotlib
   - torchvision
   - tqdm

@@ -129,6 +129,12 @@ class TestEmitterSet:
         assert os.path.isfile(fname)
         # os.remove(fname)
 
+    def test_eq(self):
+        em = RandomEmitterSet(1000)
+        em2 = em.clone()
+
+        assert em == em2
+
 
 def test_empty_emitterset():
     em = EmptyEmitterSet()

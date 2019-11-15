@@ -39,3 +39,23 @@ class TestDerivePseudobgFromBg:
         pseudobg.forward(None, em, bg)
         em_c = em.get_subset_frame(2, 2)
         assert tutil.tens_almeq(em_c.bg, torch.ones_like(em_c.bg) * bg[2].mean(), 5.)
+
+class TestCRLBWeight:
+
+    @pytest.fixture(scope='class')
+    def pseudo_em(self):
+        em = RandomEmitterSet(20, 64)
+        em.bg = torch.rand_like(em.bg)
+        em.xyz_cr = torch.rand_like(em.xyz_cr)
+        em.phot_cr = torch.rand_like(em.phot_cr)
+        em.bg_cr = torch.rand_like(em.bg_cr)
+
+        return em
+
+    @pytest.fixture(scope='class')
+    def generator(self):
+        return wgen.GenerateWeightMaskFromCRLB((-0.5, 63.5), (-0.5, 63.5), (64, 64), 3)
+
+    def test_candidate(self, generator, pseudo_em):
+        generator.forward(torch.rand((3, 3, 64, 64)), pseudo_em, None)
+        print("Done.")

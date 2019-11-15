@@ -3,7 +3,10 @@ import pytest
 from unittest import TestCase
 
 from deepsmlm.generic.emitter import CoordinateOnlyEmitter
+import deepsmlm.generic.emitter as emc
 import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.generic.inout.load_calibration as load_cal
+import deepsmlm.test.utils_ci as tutil
 
 
 class TestGaussianExpect:
@@ -138,5 +141,37 @@ class TestOffsetPSF(TestCase):
         # self.assertTrue(torch.allclose(torch.tensor([])))
         return True
 
+
+class TestSplinePSF:
+
+    bead_cal = 'assets/bead_cal_for_testing.mat'
+
+    @pytest.fixture(scope='class')
+    def psf(self):
+        xextent = (-0.5, 63.5)
+        yextent = (-0.5, 63.5)
+        img_shape = (64, 64)
+        psf = load_cal.SMAPSplineCoefficient(self.bead_cal, psf_kernel.SplineCPP).init_spline(xextent, yextent, img_shape)
+
+        return psf
+
+    def test_crlb_one_em(self, psf):
+        em = emc.CoordinateOnlyEmitter(torch.tensor([[32., 32., 0.]]))
+        em.phot = torch.tensor([5000.])
+        em.bg = torch.tensor([10.])
+
+        em.populate_crlb(psf)
+        assert tutil.tens_seq(em.xyz_scr, torch.tensor([[0.1, 0.1, 1.5]]))
+        assert tutil.tens_seq(em.phot_cr, torch.tensor([[200.]]))
+        assert not torch.isnan(em.bg_cr).any().item()
+
+    def test_crlb_multi(self, psf):
+
+        em = emc.RandomEmitterSet(10, 64)
+        em.phot *= torch.rand((1, )) * 5000
+        em.bg = 100 * torch.ones_like(em.bg)
+
+        em_single = em.get_subset([0])
+        assert tutil.tens_almeq(psf.crlb(em_single.xyz, em_single.phot, em_single.bg, 'xyzpb')[0], psf.single_crlb(em.xyz, em.phot, em.bg, 'xyzpb')[0][0, :], 1e-4)
 
 

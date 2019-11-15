@@ -287,6 +287,36 @@ class OffsetROILoss(SpeiserLoss):
         return out
 
 
+class MaskedPxyzLoss(SpeiserLoss):
+    def __init__(self, model_out_ch, cmp_prefix='loss', logger=None):
+        super().__init__(None, model_out_ch, None, None, cmp_prefix, logger)
+        self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none')
+        self.phot_xyzbg_loss = torch.nn.MSELoss(reduction='none')
+
+    @staticmethod
+    def parse(param: dict, logger):
+        """
+
+        :param param: parameter dictionary
+        :param logger: for logging individual components
+        :return:
+        """
+        return MaskedPxyzLoss(model_out_ch=param['HyperParameter']['channels_out'], logger=logger)
+
+    @staticmethod
+    def functional(output, target, weight, p_loss, ch_loss):
+        ploss = p_loss(output[:, [0]], target[:, [0]])
+        chloss = ch_loss(output[:, 1:], target[:, 1:])
+        tot_loss = torch.cat((ploss, chloss), 1)
+
+        tot_loss = tot_loss * weight
+
+        return tot_loss
+
+    def __call__(self, output, target, mask):
+        return self.functional(output, target, mask, self.p_loss, self.phot_xyzbg_loss)
+
+
 class FocalOffsetLoss(SpeiserLoss):
     def __init__(self, alpha, gamma):
         """

@@ -131,9 +131,7 @@ class PredictEvalSimulation(PredictEval):
 
         if self.dataset is None:
             self.dataset = SMLMDatasetOnFly(None, self.prior, self.simulator, self.eval_size, input_preparation,
-                                    target_generator,
-                                    None, static=True, lifetime=self.param['HyperParameter']['ds_lifetime'],
-                                    return_em_tar=False)
+                                            target_generator, None, return_em_tar=False)
 
         if self.dataloader is None:
             self.dataloader = torch.utils.data.DataLoader(self.dataset,

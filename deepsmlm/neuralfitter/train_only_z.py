@@ -284,11 +284,10 @@ if __name__ == '__main__':
 
     train_size = sim_par.pseudo_data_size - hy_par.test_size
 
-    train_data_smlm = SMLMDatasetOnFly(None, prior, simulator, train_size, input_preparation, target_generator, None,
-                                       static=False, lifetime=hy_par.data_lifetime)
+    train_data_smlm = SMLMDatasetOnFly(None, prior, simulator, train_size, input_preparation, target_generator, None)
 
     test_data_smlm = SMLMDatasetOnFly(None, prior, simulator, hy_par.test_size, input_preparation, target_generator,
-                                      None, static=True)
+                                      None)
 
     train_loader = DataLoader(train_data_smlm,
                               batch_size=hy_par.batch_size,

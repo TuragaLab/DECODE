@@ -6,7 +6,7 @@ class OffsetRescale:
        The purpose of this class is to rescale the data from the network value world back to useful values.
        This class is used after the network output.
        """
-    def __init__(self, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, scale_bg: float, buffer=1.):
+    def __init__(self, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, scale_bg: float, buffer=1., power=1.):
         """
         Assumes scale_x, scale_y, scale_z to be symmetric ranged, scale_phot, ranged between 0-1
         :param scale_x:
@@ -25,6 +25,7 @@ class OffsetRescale:
         self.sc_phot = scale_phot
         self.sc_bg = scale_bg
         self.buffer = buffer
+        self.power = power
 
     @staticmethod
     def parse(param: dict):
@@ -54,12 +55,12 @@ class OffsetRescale:
 
         x_ = x.clone()
 
-        x_[:, 1, :, :] *= self.sc_phot * self.buffer
-        x_[:, 2, :, :] *= self.sc_x * self.buffer
-        x_[:, 3, :, :] *= self.sc_y * self.buffer
-        x_[:, 4, :, :] *= self.sc_z * self.buffer
+        x_[:, 1, :, :] *= (self.sc_phot * self.buffer) ** self.power
+        x_[:, 2, :, :] *= (self.sc_x * self.buffer) * self.power
+        x_[:, 3, :, :] *= (self.sc_y * self.buffer) * self.power
+        x_[:, 4, :, :] *= (self.sc_z * self.buffer) * self.power
         if x_.size(1) == 6:
-            x_[:, 5, :, :] *= self.sc_bg * self.buffer
+            x_[:, 5, :, :] *= (self.sc_bg * self.buffer) * self.power
 
         if squeeze_before_return:
             return x_.squeeze(0)
@@ -72,7 +73,7 @@ class InverseOffsetRescale(OffsetRescale):
     The purpose of this class is to provide the output to the network, i.e. scaling the data between -1,1 or 0,1.
     This class is used before the network.
     """
-    def __init__(self, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, scale_bg:float, buffer=1.):
+    def __init__(self, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, scale_bg:float, buffer=1., power=1.):
         """
         Assumes scale_x, scale_y, scale_z to be symmetric ranged, scale_phot, ranged between 0-1
         :param scale_x:
@@ -80,7 +81,7 @@ class InverseOffsetRescale(OffsetRescale):
         :param scale_z:
         :param scale_phot:
         """
-        super().__init__(scale_x, scale_y, scale_z, scale_phot, scale_bg, buffer)
+        super().__init__(scale_x, scale_y, scale_z, scale_phot, scale_bg, buffer, power)
 
     @staticmethod
     def parse(param):
@@ -110,12 +111,12 @@ class InverseOffsetRescale(OffsetRescale):
 
         x_ = x.clone()
 
-        x_[:, 1, :, :] /= (self.sc_phot * self.buffer)
-        x_[:, 2, :, :] /= (self.sc_x * self.buffer)
-        x_[:, 3, :, :] /= (self.sc_y * self.buffer)
-        x_[:, 4, :, :] /= (self.sc_z * self.buffer)
+        x_[:, 1, :, :] /= (self.sc_phot * self.buffer) ** self.power
+        x_[:, 2, :, :] /= (self.sc_x * self.buffer) ** self.power
+        x_[:, 3, :, :] /= (self.sc_y * self.buffer) ** self.power
+        x_[:, 4, :, :] /= (self.sc_z * self.buffer) ** self.power
         if x_.size(1) == 6:
-            x_[:, 5, :, :] /= (self.sc_bg * self.buffer)
+            x_[:, 5, :, :] /= (self.sc_bg * self.buffer) ** self.power
 
         if squeeze_before_return:
             return x_.squeeze(0)

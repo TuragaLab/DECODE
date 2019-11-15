@@ -38,7 +38,7 @@ class TestDataset:
 
         prior = Prior()
 
-        return ds.SMLMDatasetOnFly(None, prior, simulator, 32, N2C(), target_generator, None, False, lifetime=5, return_em_tar=False)
+        return ds.SMLMDatasetOnFly(None, prior, simulator, 32, N2C(), target_generator, None, return_em_tar=False)
 
     def test_lifetime(self, dataset):
         dl = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=False, num_workers=0)

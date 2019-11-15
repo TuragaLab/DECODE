@@ -6,6 +6,7 @@ import os
 import getopt
 import sys
 import torch
+import tqdm
 torch.multiprocessing.set_sharing_strategy('file_system')
 from tensorboardX import SummaryWriter
 from torch.optim import Adam
@@ -18,8 +19,10 @@ from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 from deepsmlm.generic.inout.load_save_emitter import NumpyInterface
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 import deepsmlm.generic.background as background
+import deepsmlm.neuralfitter.weight_generator as wgen
 import deepsmlm.generic.noise as noise_bg
 import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.neuralfitter.pre_processing as prepro
 import deepsmlm.evaluation.evaluation as evaluation
 from deepsmlm.generic.phot_camera import Photon2Camera
 from deepsmlm.neuralfitter.pre_processing import OffsetRep, GlobalOffsetRep, ROIOffsetRep, CombineTargetBackground, \
@@ -30,9 +33,9 @@ import deepsmlm.generic.utils.processing as processing
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParameter, SimulationParam, LoggerParameter, \
     SchedulerParameter, ScalingParam, EvaluationParam, PostProcessingParam, CameraParam
-from deepsmlm.neuralfitter.dataset import SMLMDataset
-from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
+from deepsmlm.neuralfitter.dataset import SMLMDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer, SMLMDatasetOnFlyCached
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss, OffsetROILoss
+import deepsmlm.neuralfitter.losscollection as ls
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided, \
     OffSetUNetBGBranch
@@ -101,7 +104,7 @@ if __name__ == '__main__':
         print("Device is not CUDA. Cuda ix not set.")
     os.nice(param['Hardware']['unix_niceness'])
 
-    assert torch.cuda.device_count() <= 1
+    # assert torch.cuda.device_count() <= 1
     torch.set_num_threads(param['Hardware']['torch_threads'])
 
     """If path is relative add deepsmlm root."""
@@ -120,7 +123,7 @@ if __name__ == '__main__':
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
 
     experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
-                            auto_metric_logging=False, disabled=(not WRITE_TO_LOG))
+                            auto_metric_logging=False, disabled=(not WRITE_TO_LOG), api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
 
     experiment.log_parameters(param['InOut'], prefix='IO')
     experiment.log_parameters(param['Hardware'], prefix='Hw')
@@ -161,9 +164,7 @@ if __name__ == '__main__':
         """Load Data from binary."""
         emitter, extent, frames = NumpyInterface().load_binary(param['InOut']['data_set'])
 
-        data_smlm = SMLMDataset(emitter, extent, frames, target_generator,
-                                multi_frame_output=False,
-                                dimensionality=None)
+        data_smlm = SMLMDataset(emitter, extent, frames, target_generator, multi_frame_output=False)
 
         train_size = data_smlm.__len__() - param['Hyper']['test_size']
         train_data_smlm, test_data_smlm = torch.utils.data.\
@@ -220,11 +221,25 @@ if __name__ == '__main__':
             DiscardBackground(),
             N2C()])
 
-        train_data_smlm = SMLMDatasetOnFly(None, prior, simulator, param['HyperParameter']['pseudo_ds_size'], input_preparation, target_generator,
-                                           None, static=False, lifetime=param['HyperParameter']['ds_lifetime'], return_em_tar=False)
+        weight_mask_generator = processing.TransformSequence([
+            wgen.DerivePseudobgFromBg(param['Simulation']['psf_extent'][0],
+                                      param['Simulation']['psf_extent'][1],
+                                      param['Simulation']['img_size'], psf.roi_size),
+            wgen.CalcCRLB(psf),
+            wgen.GenerateWeightMaskFromCRLB(param['Simulation']['psf_extent'][0],
+                                      param['Simulation']['psf_extent'][1],
+                                      param['Simulation']['img_size'], param['HyperParameter']['target_roi_size']),
+                                      InverseOffsetRescale.parse(param)
+        ])
+        weight_mask_generator.com[-1].power = 2.
 
-        test_data_smlm = SMLMDatasetOnFly(None, prior, simulator, param['HyperParameter']['test_size'], input_preparation, target_generator,
-                                          None, static=True, return_em_tar=True)
+        train_data_smlm = SMLMDatasetOnFly(None, prior, simulator, param['HyperParameter']['pseudo_ds_size'],
+                                           input_preparation, target_generator, weight_mask_generator,
+                                           return_em_tar=False, predict_bg=param['HyperParameter']['predict_bg'])
+
+        test_data_smlm = SMLMDatasetOneTimer(None, prior, simulator, param['HyperParameter']['test_size'],
+                                             input_preparation, target_generator, weight_mask_generator,
+                                             return_em_tar=True, predict_bg=param['HyperParameter']['predict_bg'])
 
         train_loader = DataLoader(train_data_smlm,
                                   batch_size=param['HyperParameter']['batch_size'],
@@ -289,7 +304,8 @@ if __name__ == '__main__':
     optimiser = Adam(model.parameters(), lr=param['HyperParameter']['lr'])
 
     """Loss function."""
-    criterion = OffsetROILoss.parse(param, logger=logger)
+    # criterion = OffsetROILoss.parse(param, logger=logger)
+    criterion = ls.MaskedPxyzLoss(model_out_ch=6, logger=logger)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler = ReduceLROnPlateau(optimiser, **param['LearningRateScheduler'])
@@ -311,7 +327,7 @@ if __name__ == '__main__':
         logger.add_scalar('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
         experiment.log_metric('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
 
-        _ = train(train_loader, model, optimiser, criterion, i, param, logger, experiment, train_data_smlm.calc_new_flag)
+        _ = train(train_loader, model, optimiser, criterion, i, param, logger, experiment)
 
         val_loss = test(test_loader, model, criterion, i, param, logger, experiment, post_processor, batch_ev, epoch_logger)
 

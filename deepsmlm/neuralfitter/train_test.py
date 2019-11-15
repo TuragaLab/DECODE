@@ -1,6 +1,7 @@
 import os
 import random
 import time
+import tqdm
 
 import numpy as np
 from copy import deepcopy
@@ -146,9 +147,7 @@ def plot_io_coord_model(frame, output, target, em_tar, indices, fig_str, comet_l
     return figures, figures_3d
 
 
-def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, experiment, calc_new):
-    last_print_time = 0
-    loss_values = []
+def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, experiment):
     step_batch = epoch * train_loader.__len__()
 
     batch_time = eval.MetricMeter()
@@ -158,17 +157,19 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
 
     model.train()
     end = time.time()
-    for i, (x_in, target) in enumerate(train_loader):
+    train_loader_tqdm = tqdm.tqdm(train_loader, total=train_loader.__len__(), ncols=130, smoothing=0.)
+    for i, (x_in, target, weights) in enumerate(train_loader_tqdm):
 
         # measure data loading time
         data_time.update(time.time() - end)
 
         x_in = x_in.to(torch.device(conf_param['Hardware']['device']))
         target = target.to(torch.device(conf_param['Hardware']['device']))
+        weights = weights.to(torch.device(conf_param['Hardware']['device']))
 
         # compute output
         output = model(x_in)
-        loss_ = criterion(output, target, epoch, i)  # alternate batch_wise
+        loss_ = criterion(output, target, weights)  # alternate batch_wise
 
         loss = loss_.mean()
         # record loss
@@ -186,15 +187,8 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
         batch_time.update(time.time() - end)
         end = time.time()
 
-        """Print 0th, 1st, 2nd, 10th and every 5 secs to the console."""
-        if (i in [0, 1, 2, 10]) or (time.time() > last_print_time + 5):  # print the first few batches plus after 5s
-            last_print_time = time.time()
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
-                epoch, i, len(train_loader), batch_time=batch_time,
-                data_time=data_time, loss=losses))
+        train_loader_tqdm.set_description(f'Epoche {epoch} - Time_tot: {batch_time.val:.2} - Time_data:'
+                                          f' {data_time.val:.2} Loss: {losses.val:.3}')
 
         """Log Learning Rate, Benchmarks etc."""
         if i % 10 == 0:
@@ -239,14 +233,15 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
     """Eval mode."""
     with torch.no_grad():
         end = time.time()
-        for i, (x_in, target, em_tar) in enumerate(val_loader):
+        for i, (x_in, target, weights, em_tar) in enumerate(val_loader):
 
             x_in = x_in.to(torch.device(conf_param['Hardware']['device']))
             target = target.to(torch.device(conf_param['Hardware']['device']))
+            weights = weights.to(torch.device(conf_param['Hardware']['device']))
 
             # compute output
             output = model(x_in)
-            loss_ = criterion(output, target)  # vectorised loss
+            loss_ = criterion(output, target, weights)  # vectorised loss
             loss = loss_.mean()
 
             # record loss
