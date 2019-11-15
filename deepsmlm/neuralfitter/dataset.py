@@ -2,6 +2,8 @@ import torch
 import os
 import glob
 import time
+import tqdm
+import warnings
 from torch.utils.data import Dataset
 import ctypes
 import numpy as np
@@ -15,7 +17,7 @@ class SMLMDataset(Dataset):
     """
     A SMLMDataset derived from the Dataset class.
     """
-    def __init__(self, emitter, extent, frames, tar_gen, multi_frame_output=True, dimensionality=3):
+    def __init__(self, emitter, extent, frames, tar_gen, multi_frame_output=True):
         """
 
         :param emitter: set of emitters loaded by binary loader
@@ -30,7 +32,6 @@ class SMLMDataset(Dataset):
         self.extent = extent
         self.upsampling = 1
         self.multi_frame_output = multi_frame_output
-        self.dimensionality = dimensionality
 
         # Remove the emitters which are out of the FOV.
         emitter = RemoveOutOfFOV(self.extent[0], self.extent[1]).clean_emitter_set(emitter)
@@ -72,8 +73,8 @@ class SMLMDataset(Dataset):
 
 
 class SMLMDatasetOnFly(Dataset):
-    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, dimensionality=3, static=False,
-                 lifetime=1, return_em_tar=False, disk_cache=False):
+    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar=False,
+                 predict_bg=True):
         """
 
         :param extent:
@@ -82,7 +83,6 @@ class SMLMDatasetOnFly(Dataset):
         :param data_set_size:
         :param in_prep: Prepare input to NN. Any instance with forwrard method
         :param tar_gen: Generate target for learning.
-        :param dimensionality:
         :param static:
         :param lifetime:
         :param return_em_tar: __getitem__ method returns em_target
@@ -90,20 +90,114 @@ class SMLMDatasetOnFly(Dataset):
         super().__init__()
 
         self.extent = extent
-        self.dimensionality = dimensionality
         self.data_set_size = data_set_size
-        self.static_data = static
-        self.lifetime = lifetime
-        self.time_til_death = lifetime
+
         self.return_em_tar = return_em_tar
-
-        self.calc_new_flag = True if (not static) else False
-
+        self.predict_bg = predict_bg
         self.prior = prior
         self.simulator = simulator
 
         self.input_preperator = in_prep  # N2C()
         self.target_generator = tar_gen
+        self.weight_generator = w_gen
+
+    def pop_new(self):
+        """
+        :return: emitter (all three frames)
+                 frames
+                 target frames
+                 emitters on the target frame (i.e. the middle frame)
+        """
+        emitter = self.prior.pop()
+        frame_sim, bg_sim = self.simulator.forward(emitter)
+        frame = self.input_preperator.forward(frame_sim) # C x H x W
+        emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
+
+        # generate the weight mask
+        weight_mask = self.weight_generator.forward(frame, emitter_on_tar_frame, bg_sim[0])
+
+        if self.predict_bg:
+            target = self.target_generator.forward(emitter_on_tar_frame, bg_sim)
+        else:
+            target = self.target_generator.forward(emitter_on_tar_frame)
+
+        return emitter, frame, target, weight_mask, emitter_on_tar_frame
+
+    def __len__(self):
+        return self.data_set_size
+
+    def __getitem__(self, index):
+
+        emitter, frame, target, weight_mask, em_tar = self.pop_new()
+
+        """Make sure the data types are correct"""
+        self._check_datatypes(frame, target)
+
+        if self.return_em_tar:
+            return frame, target, weight_mask, em_tar
+        return frame, target, weight_mask
+
+    @staticmethod
+    def _check_datatypes(*args):
+
+        for arg in args:
+            if not isinstance(arg, torch.FloatTensor):
+                raise ValueError("At least one of the tensors in the dataset is of wrong type.")
+
+    def step(self):
+        pass
+
+
+class SMLMDatasetOneTimer(SMLMDatasetOnFly):
+    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar=False,
+                 predict_bg=True):
+        super().__init__(extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar, predict_bg)
+
+        self.frame = [None] * self.__len__()
+        self.target = [None] * self.__len__()
+        self.weight_mask = [None] * self.__len__()
+        self.em_tar = [None] * self.__len__()
+
+        """Pre-Calculcate the complete dataset and use the same data as one draws samples.
+                This is useful for the testset or the classical deep learning feeling of not limited training data."""
+        for i in tqdm.trange(self.__len__(), desc='Pre-Calculate Dataset'):
+            _, frame, target, weight_mask, em_tar = self.pop_new()
+            self.frame[i] = frame
+            self.target[i] = target
+            self.weight_mask[i] = weight_mask
+            self.em_tar[i] = em_tar
+
+    def get_gt_emitter(self, output_format='list'):
+        """
+        Get the complete ground truth. Should only be used for static data.
+        :param output_format: either list (list of emittersets) or concatenated Emittersets.
+        :return:
+        """
+        if not self.static_data:
+            warnings.warn("WARNING: Ground truth extraction may not be valid for non-static data. Please be aware.")
+
+        if output_format == 'list':
+            return self.em_tar
+        elif output_format == 'cat':
+            return EmitterSet.cat_emittersets(self.em_tar, step_frame_ix=1)
+
+    def __getitem(self, index):
+
+        self._check_datatypes(self.frame[index], self.target[index])
+
+        if self.return_em_tar:
+            return self.frame[index], self.target[index], self.weight_mask[index], self.em_tar[index]
+        return self.frame[index], self.target[index], self.weight_mask[index]
+
+
+class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
+    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar=False,
+                 predict_bg=True):
+
+        super().__init__(extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar, predict_bg)
+
+        self.lifetime = lifetime
+        self.time_til_death = lifetime
 
         """Initialise Frame and Target. Call drop method to create list."""
         _, frame_dummy, target_dummy, weight_dummy, _ = self.pop_new()
@@ -117,43 +211,16 @@ class SMLMDatasetOnFly(Dataset):
         target = target.reshape(self.__len__(), target_dummy.size(0), target_dummy.size(1), target_dummy.size(2))
 
         weight_base = mp.Array(ctypes.c_float, self.__len__() * weight_dummy.numel())
-        weight_mask = np.ctypeslib.as_array(weight_base.get_obj())
-        weight_mask = target.reshape(self.__len__(), weight_mask.size(0), weight_mask.size(1), weight_mask.size(2))
+        weight = np.ctypeslib.as_array(weight_base.get_obj())
+        weight = weight.reshape(self.__len__(), weight_dummy.size(0), weight_dummy.size(1), weight_dummy.size(2))
 
         self.frame = torch.from_numpy(frames)
         self.target = torch.from_numpy(target)
-        self.weight_mask = torch.from_numpy(weight_mask)
+        self.weight_mask = torch.from_numpy(weight)
         self.em_tar = [None] * self.__len__()
         self.use_cache = False
 
         self.drop_data_set(verbose=False)
-
-        """Pre-Calculcate the complete dataset and use the same data as one draws samples.
-        This is useful for the testset or the classical deep learning feeling of not limited training data."""
-        if self.static_data:
-            for i in range(self.__len__()):
-                _, frame, target, weight_mask, em_tar = self.pop_new()
-                self.frame[i] = frame
-                self.target[i] = target
-                self.weight_mask[i] = weight_mask
-                self.em_tar[i] = em_tar
-
-            self.use_cache = True
-            print("Pre-calculation of dataset done.")
-
-    def get_gt_emitter(self, output_format='list'):
-        """
-        Get the complete ground truth. Should only be used for static data.
-        :param output_format: either list (list of emittersets) or concatenated Emittersets.
-        :return:
-        """
-        if not self.static_data:
-            print("WARNING: Ground truth extraction may not be valid for non-static data. Please be aware.")
-
-        if output_format == 'list':
-            return self.em_tar
-        elif output_format == 'cat':
-            return EmitterSet.cat_emittersets(self.em_tar, step_frame_ix=1)
 
     def step(self):
         """
@@ -174,6 +241,7 @@ class SMLMDatasetOnFly(Dataset):
         """
         self.frame *= float('nan')
         self.target *= float('nan')
+        self.weight_mask *= float('nan')
         self.em_tar = [None] * self.__len__()
 
         self.use_cache = False
@@ -181,31 +249,6 @@ class SMLMDatasetOnFly(Dataset):
 
         if verbose:
             print("Dataset dropped. Will calculate a new one in next epoch.")
-
-    def pop_new(self):
-        """
-
-        :return: emitter (all three frames)
-                 frames
-                 target frames
-                 emitters on the target frame (i.e. the middle frame)
-        """
-        emitter = self.prior.pop()
-        sim_out = self.simulator.forward(emitter)
-        frame = self.input_preperator.forward(sim_out)
-        emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
-
-        # generate the weight mask
-        weight_mask = self.weight_generator(frame, emitter_on_tar_frame, sim_out[1])
-
-        if self.simulator.out_bg:
-            target = self.target_generator.forward(emitter_on_tar_frame, sim_out[1])
-        else:
-            target = self.target_generator.forward(emitter_on_tar_frame)
-        return emitter, frame, target, weight_mask, emitter_on_tar_frame
-
-    def __len__(self):
-        return self.data_set_size
 
     def __getitem__(self, index):
 
@@ -219,8 +262,7 @@ class SMLMDatasetOnFly(Dataset):
         frame, target, weight_mask, em_tar = self.frame[index], self.target[index], self.weight_mask[index], self.em_tar[index]
 
         """Make sure the data types are correct"""
-        if (not isinstance(frame, torch.FloatTensor)) or (not isinstance(target, torch.FloatTensor)):
-            raise ValueError("Data type in Dataset wrong.")
+        self._check_datatypes(frame, target)
 
         if self.return_em_tar:
             return frame, target, weight_mask, em_tar
