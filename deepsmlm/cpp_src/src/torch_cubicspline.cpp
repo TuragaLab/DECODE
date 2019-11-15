@@ -120,7 +120,7 @@ auto fPSF_fisher(spline *sp, torch::Tensor xyz, torch::Tensor phot, torch::Tenso
     #endif
 
     torch::Tensor hessian_tensor = torch::empty({sp->NV_PSP * n_emitter, sp->NV_PSP * n_emitter}, torch::kFloat);
-    torch::Tensor img_tensor = torch::empty({img_size, img_size}, torch::kFloat);
+    torch::Tensor img_tensor = torch::empty({1, img_size, img_size}, torch::kFloat);
 
     std::memcpy(img_tensor.data_ptr(), img, img_tensor.numel() * sizeof(float));
     std::memcpy(hessian_tensor.data_ptr(), hessian_blocked_matrix, hessian_tensor.numel() * sizeof(float));
@@ -159,7 +159,7 @@ auto fPSF_crlb(spline *sp, torch::Tensor xyz, torch::Tensor phot, torch::Tensor 
     calc_crlb(sp, xyz_, phot_, bg_, corner_coord, img_size, img, crlb);
 
     torch::Tensor crlb_tensor = torch::empty({n_emitter, sp->NV_PSP}, torch::kFloat);
-    torch::Tensor img_tensor = torch::empty({img_size, img_size}, torch::kFloat);
+    torch::Tensor img_tensor = torch::empty({1, img_size, img_size}, torch::kFloat);
 
     std::memcpy(img_tensor.data_ptr(), img, img_tensor.numel() * sizeof(float));
     std::memcpy(crlb_tensor.data_ptr(), crlb, crlb_tensor.numel() * sizeof(float));
