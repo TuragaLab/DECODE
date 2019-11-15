@@ -107,11 +107,6 @@ class Simulation:
             self.em_split = self.em.split_in_frames(self.frame_range[0], self.frame_range[1])
 
         if self.poolsize != 0:
-            # with multiprocessing.Pool(processes=self.poolsize) as pool:
-            #     # pool = ThreadPool(self.poolsize)
-            #     frame_list = pool.starmap(self.forward_single_frame_wrapper, zip(self.em_split,
-            #                                                                      iter.repeat(self.psf),
-            #                                                                      iter.repeat(self.background)))
             raise NotImplementedError("Does not work at the moment.")
 
         else:
@@ -129,18 +124,16 @@ class Simulation:
         that background is assumed to be independent of the emitter position / signal.
         """
         if self.background is not None:
-            bg_frames = self.background.forward(torch.zeros_like(frames))
+            bg_frames = self.background.forward(torch.zeros((frames.size(0), 1, frames.size(2), frames.size(3))))
             frames += bg_frames
+        else:
+            bg_frames = None
 
         if self.noise is not None:
             frames = self.noise.forward(frames)
 
         self.frames = frames
-
-        if self.out_bg:
-            return frames, bg_frames
-        else:
-            return frames
+        return frames, bg_frames
 
     def write_to_binary(self, outfile):
             """
