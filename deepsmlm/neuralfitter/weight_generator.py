@@ -39,9 +39,15 @@ class Delta2ROI:
         return is_overlap, xn_count
 
     def forward(self, x):
+        """
+
+        :param x:
+        :return:
+        """
 
         xctr = x.clone()
-        xrep = torch.nn.functional.conv2d(self.pad(x), self.rep_kernel, groups=self.channels)
+        input = self.pad(x).clone()
+        xrep = torch.nn.functional.conv2d(input, self.rep_kernel, groups=self.channels)
         overlap_mask, overlap_count = self.is_overlap(x)
 
         if self.overlap_mode == 'zero':
@@ -56,6 +62,7 @@ class Delta2ROI:
 class WeightGenerator(ABC):
     def __init__(self):
         super().__init__()
+        self.squeeze_return = None
 
     @abstractmethod
     def forward(self, frames: torch.Tensor, target_em: emc.EmitterSet, target_opt):
@@ -66,8 +73,60 @@ class WeightGenerator(ABC):
         :param target_opt: optional targets (e.g. background)
         :return:
         """
+        if frames.dim() == 3:
+            frames = frames.unsqueeze(0)
+            self.squeeze_return = True
+        else:
+            self.squeeze_return = False
+        return frames
 
-        return frames, target_em, target_opt
+
+class SimpleWeight(WeightGenerator):
+    def __init__(self, xextent, yextent, img_shape, target_roi_size, channels, weight_base='constant'):
+        super().__init__()
+        self.target_roi_size = target_roi_size
+        self.channels = channels
+        self.weight_psf = DeltaPSF(xextent, yextent, None, img_shape, None)
+        self.delta2roi = Delta2ROI(roi_size=self.target_roi_size,
+                                   channels=4,
+                                   overlap_mode='zero')
+        if weight_base not in ('constant', 'sqrt_phot'):
+            raise ValueError("Weight base can only be constant or sqrt photons.")
+        self.weight_base = weight_base
+
+    @staticmethod
+    def parse(param):
+        return SimpleWeight(xextent=param['Simulation']['psf_extent'][0],
+                            yextent=param['Simulation']['psf_extent'][1],
+                            img_shape=param['Simulation']['img_size'],
+                            target_roi_size=param['HyperParameter']['target_roi_size'],
+                            channels=param['HyperParameter']['channels_out'],
+                            weight_base=param['HyperParameter']['weight_base'])
+
+    def forward(self, frames, tar_em, tar_bg):
+
+        frames = super().forward(frames, None, None)
+
+        # The weights
+        weight = torch.zeros((frames.size(0), self.channels, frames.size(2), frames.size(3)))
+        weight[:, 0] = 1.
+
+        if self.weight_base == 'constant':
+            weight_pxyz = self.weight_psf.forward(tar_em.xyz, torch.ones_like(tar_em.xyz[:, 0]))
+        elif self.weight_base == 'sqrt_phot':
+            weight_pxyz = self.weight_psf.forward(tar_em.xyz, 1/tar_em.phot.sqrt())
+
+        weight[:, 1:5] = weight_pxyz.unsqueeze(1).repeat(1, 4, 1, 1)
+
+        if weight.size(1) >= 6:
+            weight[:, 5] = 1.
+
+        weight[:, 1:5] = self.delta2roi.forward(weight[:, 1:5])
+
+        if self.squeeze_return:
+            return weight.squeeze(0)
+        else:
+            return weight
 
 
 class DerivePseudobgFromBg(WeightGenerator):
@@ -143,24 +202,18 @@ class CalcCRLB(WeightGenerator):
 
     def forward(self, frames, tar_em, tar_bg):
         tar_em.populate_crlb(self.psf)
-
-        #ToDo: Change this as it's ugly
-        tar_em.xyz_cr[:, 2] * self.psf.dz**2
-        tar_em.xyz_cr[:, 0:2] = torch.clamp(tar_em.xyz_cr[:, 0:2], 0.15**2)
-        tar_em.xyz_cr[:, 2] = torch.clamp(tar_em.xyz_cr[:, 2],  50**2)
-        torch.clamp_(tar_em.phot_cr, 2000**2)
-
         return frames, tar_em, tar_bg
 
 
 class GenerateWeightMaskFromCRLB(WeightGenerator):
-    def __init__(self, xextent, yextent, img_shape, roi_size):
+    def __init__(self, xextent, yextent, img_shape, roi_size, chwise_rescale=True):
         super().__init__()
 
         self.weight_psf = DeltaPSF(xextent, yextent, None, img_shape, None)
         self.rep_kernel = torch.ones((1, 1, roi_size, roi_size))
 
         self.roi_increaser = Delta2ROI(roi_size, channels=6, overlap_mode='zero')
+        self.chwise_rescale = chwise_rescale
 
     def forward(self, frames, tar_em, tar_bg):
 

@@ -22,7 +22,8 @@ class LogTestEpoch:
         self.tb.add_figure(label, fig, step)
         self.cml.log_figure(label, fig)
 
-    def forward(self, metrics_set, input_frames, output_frames, target_frames, em_out, em_tar, step):
+    def forward(self, metrics_set, input_frames, output_frames, target_frames, em_out, em_tar, step,
+                weight_frames=None):
         self._log_metric(metrics_set.prec.avg, step, "eval/precision")
         self._log_metric(metrics_set.rec.avg, step, "eval/recall")
         self._log_metric(metrics_set.jac.avg, step, "eval/jac")
@@ -120,6 +121,40 @@ class LogTestEpoch:
             plt.title('bg channel')
 
         self._log_figure(plt.gcf(), step, "io/tarframe_output")
+
+        if weight_frames is not None:
+            _ = plt.figure(figsize=(12, 12))
+            plt.subplot(231)
+            emplot.PlotFrameCoord(frame=weight_frames[ix, 0], clim=(0., 1.)).plot()
+            plt.colorbar(fraction=0.046, pad=0.04)
+            plt.title('p channel')
+
+            plt.subplot(232)
+            emplot.PlotFrame(frame=weight_frames[ix, 1]).plot()
+            plt.colorbar(fraction=0.046, pad=0.04)
+            plt.title('phot channel')
+
+            plt.subplot(233)
+            emplot.PlotFrame(frame=weight_frames[ix, 2]).plot()
+            plt.colorbar(fraction=0.046, pad=0.04)
+            plt.title('dx channel')
+
+            plt.subplot(234)
+            emplot.PlotFrame(frame=weight_frames[ix, 3]).plot()
+            plt.colorbar(fraction=0.046, pad=0.04)
+            plt.title('dy channel')
+
+            plt.subplot(235)
+            emplot.PlotFrame(frame=weight_frames[ix, 4]).plot()
+            plt.colorbar(fraction=0.046, pad=0.04)
+            plt.title('z channel')
+
+            plt.subplot(236)
+            emplot.PlotFrame(frame=weight_frames[ix, 5]).plot()
+            plt.colorbar(fraction=0.046, pad=0.04)
+            plt.title('bg channel')
+
+            self._log_figure(plt.gcf(), step, "io/weight_map")
 
         """Raw output distributions where we have signal above a threshold"""
         th = 0.1

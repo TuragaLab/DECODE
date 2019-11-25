@@ -13,7 +13,7 @@ from deepsmlm.generic.emitter import EmitterSet
 from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV, N2C, Identity
 
 
-class SMLMDataset(Dataset):
+class SMLMStaticDataset(Dataset):
     """
     A SMLMDataset derived from the Dataset class.
     """
@@ -73,14 +73,14 @@ class SMLMDataset(Dataset):
 
 
 class SMLMDatasetOnFly(Dataset):
-    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar=False,
+    def __init__(self, extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, return_em_tar=False,
                  predict_bg=True):
         """
 
         :param extent:
         :param prior:
         :param simulator:
-        :param data_set_size:
+        :param ds_size:
         :param in_prep: Prepare input to NN. Any instance with forwrard method
         :param tar_gen: Generate target for learning.
         :param static:
@@ -90,7 +90,7 @@ class SMLMDatasetOnFly(Dataset):
         super().__init__()
 
         self.extent = extent
-        self.data_set_size = data_set_size
+        self.data_set_size = ds_size
 
         self.return_em_tar = return_em_tar
         self.predict_bg = predict_bg
@@ -149,9 +149,9 @@ class SMLMDatasetOnFly(Dataset):
 
 
 class SMLMDatasetOneTimer(SMLMDatasetOnFly):
-    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar=False,
+    def __init__(self, extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, return_em_tar=False,
                  predict_bg=True):
-        super().__init__(extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar, predict_bg)
+        super().__init__(extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, return_em_tar, predict_bg)
 
         self.frame = [None] * self.__len__()
         self.target = [None] * self.__len__()
@@ -191,10 +191,10 @@ class SMLMDatasetOneTimer(SMLMDatasetOnFly):
 
 
 class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
-    def __init__(self, extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar=False,
+    def __init__(self, extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, lifetime, return_em_tar=False,
                  predict_bg=True):
 
-        super().__init__(extent, prior, simulator, data_set_size, in_prep, tar_gen, w_gen, return_em_tar, predict_bg)
+        super().__init__(extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, return_em_tar, predict_bg)
 
         self.lifetime = lifetime
         self.time_til_death = lifetime

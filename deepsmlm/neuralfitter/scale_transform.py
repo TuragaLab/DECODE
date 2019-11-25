@@ -1,6 +1,21 @@
 import torch
 
 
+class InputFrameRescale:
+    """
+    Simple U-Net that rescales the frame counts, i.e. divides over the expected max.
+    """
+    def __init__(self, max_frame_count: float):
+        self.max_frame_count = max_frame_count
+
+    @staticmethod
+    def parse(param):
+        return InputFrameRescale(max_frame_count=param['Scaling']['in_count_max'])
+
+    def forward(self, frames):
+        return frames / self.max_frame_count
+
+
 class OffsetRescale:
     """
        The purpose of this class is to rescale the data from the network value world back to useful values.
