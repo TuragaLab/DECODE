@@ -4,6 +4,8 @@ import sys
 from abc import ABC, abstractmethod  # abstract class
 
 import numpy as np
+import scipy
+from scipy.stats import binned_statistic_2d
 import torch
 from torch.autograd import Function
 from deepsmlm.generic.emitter import EmitterSet
@@ -58,11 +60,14 @@ class PSF(ABC):
         else:
             return input, weight
 
-    def print_basic_properties(self):
-        print('PSF: \n\txextent: {}\n yextent: {}\n zextent: {}\n img_shape: {}'.format(self.xextent,
+    def __str__(self):
+        return 'PSF: \n xextent: {}\n yextent: {}\n zextent: {}\n img_shape: {}'.format(self.xextent,
                                                                                        self.yextent,
                                                                                        self.zextent,
-                                                                                       self.img_shape))
+                                                                                       self.img_shape)
+
+    def print_basic_properties(self):
+        print(self)
 
 
 class DeltaPSF(PSF):
@@ -74,7 +79,8 @@ class DeltaPSF(PSF):
     def __init__(self, xextent, yextent, zextent, img_shape,
                  photon_threshold=None,
                  photon_normalise=False,
-                 dark_value=None):
+                 dark_value=None,
+                 ambigous_default='max'):
         """
         (See abstract class constructor.)
         :param photon_normalise: normalised photon count, i.e. probabilities
@@ -94,8 +100,7 @@ class DeltaPSF(PSF):
                                  img_shape[1] + 1, endpoint=True)
 
         if self.zextent is not None:
-            self.bin_z = np.linspace(zextent[0], zextent[1],
-                                     img_shape[2] + 1, endpoint=True)
+            raise DeprecationWarning("Not tested and not developed further.")
 
     def forward(self, input, weight=None):
         """
@@ -105,6 +110,12 @@ class DeltaPSF(PSF):
 
         :return:  torch tensor of size 1 x H x W
         """
+        def max_0(values):
+            if values.__len__() == 0:
+                return 0
+            else:
+                return np.max(values)
+
         xyz, weight = super().forward(input, weight)
 
         if self.photon_threshold is not None:
@@ -113,15 +124,12 @@ class DeltaPSF(PSF):
         if self.photon_normalise:
             weight = torch.ones_like(weight)
 
-        if self.zextent is None:
-            camera, _, _ = np.histogram2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(),  # reverse order
-                                          bins=(self.bin_x, self.bin_y),
-                                          weights=weight.numpy())
-        else:
-            raise DeprecationWarning("Not tested and not developed further.")
-            # camera, _ = np.histogramdd((xyz[:, 0].numpy(), xyz[:, 1].numpy(), xyz[:, 2].numpy()),
-            #                            bins=(self.bin_x, self.bin_z, self.bin_z),
-            #                            weights=weight.numpy())
+        # camera, _, _ = np.histogram2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(),  # reverse order
+        #                               bins=(self.bin_x, self.bin_y),
+        #                               weights=weight.numpy())
+
+        camera, _, _, _ = binned_statistic_2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(), weight.numpy(),
+                                              bins=(self.bin_x, self.bin_y), statistic=max_0)
 
         camera = torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
         if self.dark_value is not None:
@@ -312,7 +320,7 @@ class SplineCPP(PSF):
 
     def print_basic_properties(self):
         super().print_basic_properties()
-        print(f'\tROI size: {self.roi_size}')
+        print(f' ROI size: {self.roi_size}')
 
     def f(self, x, y, z):
         return tp.f_spline(self.spline_c, x, y, z)
@@ -324,7 +332,9 @@ class SplineCPP(PSF):
     def fisher(self, pos, phot, bg):
         """Outputs the Fisher matrix in CPP order"""
 
-        return tp.f_spline_fisher(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+        fisher = tp.f_spline_fisher(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+        # ToDo: warning because z in the fisher is not in nm but in multiples of dz
+        return fisher
 
     def _rearange_crlb(self, cr, crlb_order=None):
         """Outputs the CRLB"""
@@ -347,16 +357,20 @@ class SplineCPP(PSF):
 
     def single_crlb(self, pos, phot, bg, crlb_order=None, fisher=None, img=None):
 
-        if fisher is None and img is None:
-            fisher, img = self.fisher(pos, phot, bg)
+        # if fisher is None and img is None:
+        #     fisher, img = self.fisher(pos, phot, bg)
+        #
+        # n_emitter = pos.size(0)
+        # crlb_ind = torch.zeros((n_emitter, self.n_par)).float()
+        # for i in range(n_emitter):
+        #     crlb_ind[i, :] = fisher[(i*self.n_par):(i*self.n_par + 5), (i*self.n_par):(i*self.n_par + 5)].inverse().diag()
+        #
+        #
+        # crlb_ind = self._rearange_crlb(crlb_ind, crlb_order)
+        # return crlb_ind, img
 
-        n_emitter = pos.size(0)
-        crlb_ind = torch.zeros((n_emitter, self.n_par)).float()
-        for i in range(n_emitter):
-            crlb_ind[i, :] = fisher[(i*self.n_par):(i*self.n_par + 5), (i*self.n_par):(i*self.n_par + 5)].inverse().diag()
-
-        crlb_ind = self._rearange_crlb(crlb_ind, crlb_order)
-        return crlb_ind, img
+        raise NotImplementedError("The commented out approach above was wrong. If you want single crlb, "
+                                  "split the emitterset and redo it.")
 
     def crlb(self, pos, phot, bg, crlb_order=None):
         if crlb_order is None:
@@ -365,6 +379,9 @@ class SplineCPP(PSF):
         fisher, img = self.fisher(pos, phot, bg)
         cr = fisher.pinverse().diag().view(pos.size(0), -1)
         # cr, img = tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+
+        # rescale the cr in z by dz because we input z in nm not in multiples of dz.
+        cr[:, 4] *= self.dz**2
 
         cr = self._rearange_crlb(cr, crlb_order)
         cr[torch.isnan(cr)] = float('inf')

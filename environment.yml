@@ -10,6 +10,7 @@ channels:
 
 dependencies:
   - bokeh
+  - click
   - comet_ml
   - holoviews
   - intel-openmp

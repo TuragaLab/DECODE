@@ -9,32 +9,32 @@
     "Hardware": {
       "device": "cuda",
       "cuda_ix": "0",
-      "num_worker_sim": 0,
-      "torch_threads": 6,
+      "num_worker_sim": 12,
+      "torch_threads": 1,
       "unix_niceness": 0
     },
     "Logging": {
-      "log_comment": "",
+      "log_comment": "_thesis_1frame",
       "cometml_tags": []
     },
     "HyperParameter": {
-      "architecture": "DoubleOffsetUNet",
-      "batch_size": 32,
-      "pseudo_ds_size": 64,
-      "test_size": 64,
+      "architecture": "OffSetUNetBGBranch",
+      "batch_size": 64,
+      "pseudo_ds_size": 8192,
+      "test_size": 128,
       "lr": 0.0001,
       "epochs": 1000,
       "prob_fg_weight": 1.0,
       "ch_weight": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-      "weight_sqrt_phot": true,
+      "weight_base": "constant",
       "fgbg_factor": null,
-      "bg_signal_penalty": 100,
-      "alter_bg": "batch",
+      "bg_signal_penalty": null,
+      "alter_bg": null,
       "target_roi_size": 3,
       "photon_threshold": null,
       "channels_in": 3,
       "channels_out": 6,
-      "ds_lifetime": 2,
+      "ds_lifetime": 5,
       "predict_bg": true,
       "suppress_post_processing": false
     },
@@ -83,6 +83,7 @@
         "convert2photons": false
     },
     "Scaling": {
+        "in_count_max": 10000.0,
         "dx_max": 2.5,
         "dy_max": 2.5,
         "z_max": 750.0,
