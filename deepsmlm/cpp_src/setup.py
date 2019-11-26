@@ -18,12 +18,13 @@ if sys.platform == 'win32':
     extra_compile_args = []
 
 elif sys.platform == 'darwin':
-    extra_compile_args = ['-v', '-g', '-stdlib=libc++', '-std=c++11']
-    extra_linker_args = ['-v']
+    extra_compile_args = ['-O3', '-g', '-stdlib=libc++', '-std=c++11']
+    extra_linker_args = []
     extra_objects = ['{}/lib{}.a'.format(static_lib_dir, l) for l in static_libraries]
 
 elif sys.platform == 'linux':
-    extra_compile_args = []
+    extra_compile_args = ['-O3']
+    extra_linker_args = []
     extra_objects = ['{}/lib{}.a'.format(static_lib_dir, l) for l in static_libraries]
 
 setup(
