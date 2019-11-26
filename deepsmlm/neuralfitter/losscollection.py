@@ -288,10 +288,11 @@ class OffsetROILoss(SpeiserLoss):
 
 
 class MaskedPxyzLoss(SpeiserLoss):
-    def __init__(self, model_out_ch, cmp_prefix='loss', logger=None):
+    def __init__(self, model_out_ch, ch_rescale=True, cmp_prefix='loss', logger=None):
         super().__init__(None, model_out_ch, None, None, cmp_prefix, logger)
         self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none')
         self.phot_xyzbg_loss = torch.nn.MSELoss(reduction='none')
+        self.ch_rescale = ch_rescale
 
     @staticmethod
     def parse(param: dict, logger):
@@ -302,6 +303,19 @@ class MaskedPxyzLoss(SpeiserLoss):
         :return:
         """
         return MaskedPxyzLoss(model_out_ch=param['HyperParameter']['channels_out'], logger=logger)
+
+    def _rescale_weights(self, weight):
+        """
+        Rescale the weights channelwise per batch to max. 1, this is inplace (I guess?)
+        :param weight:
+        :return:
+        """
+        if weight.dim() != 4:
+            raise ValueError("Expected N x C x H x W")
+        for i in range(weight.size(1)):
+            rel = weight[:, i][weight[:, i] != 0.]  # non zero elements in the ith channel
+            weight[:, i] = weight[:, i] / rel.median()  # scale by median of non zero elements
+        return weight
 
     @staticmethod
     def functional(output, target, weight, p_loss, ch_loss):
@@ -314,6 +328,8 @@ class MaskedPxyzLoss(SpeiserLoss):
         return tot_loss
 
     def __call__(self, output, target, mask):
+        if self.ch_rescale:
+            mask = self._rescale_weights(mask)
         return self.functional(output, target, mask, self.p_loss, self.phot_xyzbg_loss)
 
 

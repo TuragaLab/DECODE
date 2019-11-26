@@ -59,3 +59,22 @@ class TestCRLBWeight:
     def test_candidate(self, generator, pseudo_em):
         generator.forward(torch.rand((3, 3, 64, 64)), pseudo_em, None)
         print("Done.")
+
+
+class TestSimpleWeight:
+
+    @pytest.fixture(scope='class')
+    def weighter(self):
+        return wgen.SimpleWeight((-0.5, 4.5), (-0.5, 4.5), (5, 5), 3, 6, 'constant')
+
+    def test_const_weight(self, weighter):
+        em = CoordinateOnlyEmitter(torch.tensor([[1., 1., 0], [3., 3., 0.]]))
+        mask = weighter.forward(torch.zeros((1, 5, 5)), em, None)
+        assert tutil.tens_almeq(mask[[0, 5]], torch.ones_like(mask[[0, 5]]))  # p channel and bg are all weight 1
+        mask_tar = torch.ones((5, 5))
+        mask_tar[2, 2] = 0.
+        mask_tar[3:, :2] = 0.
+        mask_tar[:2, 3:] = 0.
+        for i in [1, 2, 3, 4]:
+            assert tutil.tens_almeq(mask[i], mask_tar)
+

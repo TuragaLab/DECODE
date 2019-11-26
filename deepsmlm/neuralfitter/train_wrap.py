@@ -33,14 +33,15 @@ import deepsmlm.generic.utils.processing as processing
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParameter, SimulationParam, LoggerParameter, \
     SchedulerParameter, ScalingParam, EvaluationParam, PostProcessingParam, CameraParam
-from deepsmlm.neuralfitter.dataset import SMLMDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer, SMLMDatasetOnFlyCached
+from deepsmlm.neuralfitter.dataset import SMLMStaticDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer, SMLMDatasetOnFlyCached
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss, OffsetROILoss
 import deepsmlm.neuralfitter.losscollection as ls
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided, \
     OffSetUNetBGBranch
+from deepsmlm.neuralfitter.models.unet_parameterised import MUNet
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
-from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale
+from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale, InputFrameRescale
 from deepsmlm.neuralfitter.train_test import train, test
 from deepsmlm.generic.inout.util import add_root_relative
 
@@ -123,7 +124,7 @@ if __name__ == '__main__':
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
 
     experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
-                            auto_metric_logging=False, disabled=(not WRITE_TO_LOG), api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
+                            auto_metric_logging=False, disabled=True, api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
 
     experiment.log_parameters(param['InOut'], prefix='IO')
     experiment.log_parameters(param['Hardware'], prefix='Hw')
@@ -158,13 +159,13 @@ if __name__ == '__main__':
             InverseOffsetRescale.parse(param)
         ])
     else:
-        target_generator = processing.TransformSequence.parse([ROIOffsetRep, InverseOffsetRescale], param)
+        target_generator = processing.TransformSequence.parse([ROIOffsetRep, InveryseOffsetRescale], param)
 
     if param['InOut']['data_set'] == 'precomputed':
         """Load Data from binary."""
         emitter, extent, frames = NumpyInterface().load_binary(param['InOut']['data_set'])
 
-        data_smlm = SMLMDataset(emitter, extent, frames, target_generator, multi_frame_output=False)
+        data_smlm = SMLMStaticDataset(emitter, extent, frames, target_generator, multi_frame_output=False)
 
         train_size = data_smlm.__len__() - param['Hyper']['test_size']
         train_data_smlm, test_data_smlm = torch.utils.data.\
@@ -219,23 +220,45 @@ if __name__ == '__main__':
 
         input_preparation = processing.TransformSequence([
             DiscardBackground(),
-            N2C()])
-
-        weight_mask_generator = processing.TransformSequence([
-            wgen.DerivePseudobgFromBg(param['Simulation']['psf_extent'][0],
-                                      param['Simulation']['psf_extent'][1],
-                                      param['Simulation']['img_size'], psf.roi_size),
-            wgen.CalcCRLB(psf),
-            wgen.GenerateWeightMaskFromCRLB(param['Simulation']['psf_extent'][0],
-                                      param['Simulation']['psf_extent'][1],
-                                      param['Simulation']['img_size'], param['HyperParameter']['target_roi_size']),
-                                      InverseOffsetRescale.parse(param)
+            N2C(),
+            InputFrameRescale.parse(param)
         ])
-        weight_mask_generator.com[-1].power = 2.
 
-        train_data_smlm = SMLMDatasetOnFly(None, prior, simulator, param['HyperParameter']['pseudo_ds_size'],
-                                           input_preparation, target_generator, weight_mask_generator,
-                                           return_em_tar=False, predict_bg=param['HyperParameter']['predict_bg'])
+        class DummyWgen:
+            def forward(self, *args):
+                return torch.rand((1, 6, 32, 32))
+
+        if param['HyperParameter']['weight_base'] == 'crlb':
+            weight_mask_generator = processing.TransformSequence([
+                wgen.DerivePseudobgFromBg(param['Simulation']['psf_extent'][0],
+                                          param['Simulation']['psf_extent'][1],
+                                          param['Simulation']['img_size'], psf.roi_size),
+                wgen.CalcCRLB(psf),
+                wgen.GenerateWeightMaskFromCRLB(param['Simulation']['psf_extent'][0],
+                                          param['Simulation']['psf_extent'][1],
+                                          param['Simulation']['img_size'], param['HyperParameter']['target_roi_size'])
+            ])
+        else:
+            weight_mask_generator = wgen.SimpleWeight.parse(param)
+
+
+        if param['HyperParameter']['ds_lifetime'] >= 2:
+            train_data_smlm = SMLMDatasetOnFlyCached(extent=None,
+                                                     prior=prior,
+                                                     simulator=simulator,
+                                                     ds_size=param['HyperParameter']['pseudo_ds_size'],
+                                                     in_prep=input_preparation,
+                                                     tar_gen=target_generator,
+                                                     w_gen=weight_mask_generator,
+                                                     lifetime=param['HyperParameter']['ds_lifetime'],
+                                                     return_em_tar=False,
+                                                     predict_bg=param['HyperParameter']['predict_bg'])
+
+        else:
+            train_data_smlm = SMLMDatasetOnFly(extent=None, prior=prior, simulator=simulator,
+                                               ds_size=param['HyperParameter']['pseudo_ds_size'], in_prep=input_preparation,
+                                               tar_gen=target_generator, w_gen=weight_mask_generator, return_em_tar=False,
+                                               predict_bg=param['HyperParameter']['predict_bg'])
 
         test_data_smlm = SMLMDatasetOneTimer(None, prior, simulator, param['HyperParameter']['test_size'],
                                              input_preparation, target_generator, weight_mask_generator,
@@ -274,6 +297,8 @@ if __name__ == '__main__':
     elif param['HyperParameter']['architecture'] == 'OffSetUNetBGBranch':
         model = OffSetUNetBGBranch(n_channels=param['HyperParameter']['channels_in'],
                                    n_classes=param['HyperParameter']['channels_out'])
+    elif param['HyperParameter']['architecture'] == "MUNet":
+        model = MUNet.parse(param)
 
     else:
         raise ValueError("Invalid Architecture name.")
@@ -305,7 +330,7 @@ if __name__ == '__main__':
 
     """Loss function."""
     # criterion = OffsetROILoss.parse(param, logger=logger)
-    criterion = ls.MaskedPxyzLoss(model_out_ch=6, logger=logger)
+    criterion = ls.MaskedPxyzLoss(ch_rescale=True, model_out_ch=6, logger=logger)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler = ReduceLROnPlateau(optimiser, **param['LearningRateScheduler'])

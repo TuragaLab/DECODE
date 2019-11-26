@@ -157,7 +157,7 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
 
     model.train()
     end = time.time()
-    train_loader_tqdm = tqdm.tqdm(train_loader, total=train_loader.__len__(), ncols=130, smoothing=0.)
+    train_loader_tqdm = tqdm.tqdm(train_loader, total=train_loader.__len__(), ncols=110, smoothing=0.)
     for i, (x_in, target, weights) in enumerate(train_loader_tqdm):
 
         # measure data loading time
@@ -187,8 +187,8 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
         batch_time.update(time.time() - end)
         end = time.time()
 
-        train_loader_tqdm.set_description(f'Epoche {epoch} - Time_tot: {batch_time.val:.2} - Time_data:'
-                                          f' {data_time.val:.2} Loss: {losses.val:.3}')
+        train_loader_tqdm.set_description(f'Ep {epoch} - T {batch_time.val:.2} - T_dat'
+                                          f' {data_time.val:.2} L {losses.val:.3}')
 
         """Log Learning Rate, Benchmarks etc."""
         if i % 10 == 0:
@@ -227,6 +227,7 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
     inputs = []
     outputs = []
     target_frames = []
+    weight_frames = []
     em_outs = []
     tars = []
 
@@ -271,6 +272,7 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
             inputs.append(x_in.clone().cpu())
             outputs.append(output.detach().clone().cpu())
             target_frames.append(target.detach().clone().cpu())
+            weight_frames.append(weights.detach().clone().cpu())
             tars.extend(deepcopy(em_tar))
 
             del x_in
@@ -284,11 +286,14 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
     inputs = torch.cat(inputs, 0)
     outputs = torch.cat(outputs, 0)
     target_frames = torch.cat(target_frames, 0)
+    weight_frames = torch.cat(weight_frames, 0)
 
     """Batch evaluation and log"""
     batch_ev.forward(em_outs, tars)
     criterion.log_components(epoch)
-    epoch_logger.forward(batch_ev.values, inputs, outputs, target_frames, em_outs, tars, epoch)
+    epoch_logger.forward(batch_ev.values, inputs, outputs, target_frames, em_outs, tars, epoch, weight_frames)
+    """Plot immediately"""
+    # epoch_logger.forward(batch_ev.values, inputs, outputs, target_frames, em_outs, tars, epoch, weight_frames, show=True)
 
     experiment.log_metric('learning/test_epoch_loss', losses.avg, step=epoch)
     logger.add_scalar('learning/test_epoch_loss', losses.avg, epoch)

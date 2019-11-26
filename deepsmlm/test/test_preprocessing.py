@@ -100,8 +100,8 @@ class TestROIOffsetRep(TestDecodeRepresentation):
     def em_set(self):
         """An easy emitter, two adjacent emitters, two overlaying emitters"""
         return CoordinateOnlyEmitter(torch.tensor([[14.9, 17.2, 300.],
-                                                   [0., 0., 250.],
-                                                   [1., 1., -250.],
+                                                   [0.01, 0.01, 250.],
+                                                   [0.99, 0.99, -250.],
                                                    [25., 25., 500.],
                                                    [25.2, 25.2, 700.],
                                                    [10., 10., 200.],

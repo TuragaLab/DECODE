@@ -20,7 +20,7 @@ from deepsmlm.generic.psf_kernel import ListPseudoPSFInSize, DeltaPSF
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParameter, SimulationParam, LoggerParameter, \
     SchedulerParameter
-from deepsmlm.neuralfitter.dataset import SMLMDataset
+from deepsmlm.neuralfitter.dataset import SMLMStaticDataset
 from deepsmlm.generic.utils.data_utils import smlm_collate
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, MaskedOnlyZLoss

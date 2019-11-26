@@ -114,7 +114,7 @@ class TestSpeiser:
 class TestConsistentPostProcessing:
     @pytest.fixture(scope='class')
     def post(self):
-        return post.ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_batch')
+        return post.ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_framewise')
 
     def test_easy(self, post):
         p = torch.zeros((2, 1, 32, 32)).cuda()
