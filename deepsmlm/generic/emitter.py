@@ -8,6 +8,12 @@ import torch_cpp
 import deepsmlm.test.utils_ci as tutil
 
 
+def at_least_one_dim(*args):
+    for arg in args:
+        if arg.dim() == 0:
+            arg.unsqueeze_(0)
+
+
 def same_shape_tensor(dim, *args):
     for i in range(args.__len__() - 1):
         if args[i].size(dim) == args[i + 1].size(dim):
@@ -34,7 +40,8 @@ class EmitterSet:
     """
     eq_precision = 1E-6
 
-    def __init__(self, xyz, phot, frame_ix, id=None, prob=None, bg=None, xyz_cr=None, phot_cr=None, bg_cr=None):
+    def __init__(self, xyz, phot, frame_ix, id=None, prob=None, bg=None, xyz_cr=None, phot_cr=None, bg_cr=None,
+                 sanity_check=True):
         """
         Constructor. Coordinates, photons, frame_ix must be provided. Id is optional.
 
@@ -51,9 +58,9 @@ class EmitterSet:
         :param phot_cr: Cramer Rao of phot
         :param bg_cr: Cramer Rao of background
         """
-        self.num_emitter = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
+        num_emitter_input = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
 
-        if self.num_emitter != 0:
+        if num_emitter_input != 0:
             self.xyz = xyz if xyz.shape[1] == 3 else torch.cat((xyz, torch.zeros_like(xyz[:, [0]])), 1)
             self.phot = phot.type(xyz.dtype)
             self.frame_ix = frame_ix.type(xyz.dtype)
@@ -71,13 +78,28 @@ class EmitterSet:
             self.id = -torch.ones((0,), dtype=torch.float)
             self.prob = torch.ones((0,), dtype=torch.float)
             self.bg = float('nan') * torch.ones_like(self.prob)
-            self.xyz_cr = float('nan') * torch.ones_like(self.prob)
+            self.xyz_cr = float('nan') * torch.ones((0, 3), dtype=torch.float)
             self.phot_cr = float('nan') * torch.ones_like(self.prob)
             self.bg_cr = float('nan') * torch.ones_like(self.prob)
 
         self._sorted = False
+        # get at least one_dim tensors
+        at_least_one_dim(self.xyz,
+                         self.phot,
+                         self.frame_ix,
+                         self.id,
+                         self.prob,
+                         self.bg,
+                         self.xyz_cr,
+                         self.phot_cr,
+                         self.bg_cr)
 
-        self._sanity_check()
+        if sanity_check:
+            self._sanity_check()
+
+    @property
+    def num_emitter(self):
+        return int(self.xyz.shape[0]) if self.xyz.shape[0] != 0 else 0
 
     @property
     def xyz_scr(self):  # sqrt crlb
@@ -94,18 +116,7 @@ class EmitterSet:
     def _inplace_replace(self, em):
         """If self is derived class of EmitterSet, call the constructor of the parent instead of self.
         However, I don't know why super().__init__(...) does not work."""
-        if self.__class__ is not EmitterSet:
-            EmitterSet.__init__(self, xyz=em.xyz,
-                                phot=em.phot,
-                                frame_ix=em.frame_ix,
-                                id=em.id,
-                                prob=em.prob,
-                                bg=em.bg,
-                                xyz_cr=em.xyz_cr,
-                                phot_cr=em.phot_cr,
-                                bg_cr=em.bg_cr)
-        else:
-            self.__init__(xyz=em.xyz,
+        self.__init__(xyz=em.xyz,
                           phot=em.phot,
                           frame_ix=em.frame_ix,
                           id=em.id,
@@ -113,7 +124,8 @@ class EmitterSet:
                           bg=em.bg,
                           xyz_cr=em.xyz_cr,
                           phot_cr=em.phot_cr,
-                          bg_cr=em.bg_cr)
+                          bg_cr=em.bg_cr,
+                          sanity_check=True)
 
     def _sanity_check(self):
         """
@@ -287,7 +299,7 @@ class EmitterSet:
                                       self.id[ix].unsqueeze(1),
                                       self.prob[ix].unsqueeze(1),
                                       self.bg[ix].unsqueeze(1),
-                                      self.xyz_cr[ix],
+                                      self.xyz_cr[ix, :],
                                       self.phot_cr[ix].unsqueeze(1),
                                       self.bg_cr[ix].unsqueeze(1)), dim=1)
         else:
@@ -317,7 +329,7 @@ class EmitterSet:
 
         for i, em in enumerate(grand_matrix_list):
             em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5], prob=em[:, 6],
-                                      bg=em[:, 7], xyz_cr=em[:, 8], phot_cr=em[:, 9], bg_cr=em[:, 10]))
+                                      bg=em[:, 7], xyz_cr=em[:, 8:11], phot_cr=em[:, 11], bg_cr=em[:, 12]))
 
         return em_list
 
@@ -421,9 +433,12 @@ class EmitterSet:
         Calculate the CRLB
         :return:
         """
+        if self.num_emitter == 0:
+            return
+
         em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
         for em in em_split:
-            crlb, _ = psf.crlb(em.xyz, em.phot, em.bg)
+            crlb, _ = psf.crlb(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
             em.xyz_cr = crlb[:, :3]
             em.phot_cr = crlb[:, 3]
             em.bg_cr = crlb[:, 4]
@@ -443,6 +458,18 @@ class RandomEmitterSet(EmitterSet):
         xyz = torch.rand((num_emitters, 3)) * extent
         super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]))
 
+    def _inplace_replace(self, em):
+        super().__init__(xyz=em.xyz,
+                         phot=em.phot,
+                         frame_ix=em.frame_ix,
+                         id=em.id,
+                         prob=em.prob,
+                         bg=em.bg,
+                         xyz_cr=em.xyz_cr,
+                         phot_cr=em.phot_cr,
+                         bg_cr=em.bg_cr,
+                         sanity_check=False)
+
 
 class CoordinateOnlyEmitter(EmitterSet):
     """
@@ -461,6 +488,9 @@ class EmptyEmitterSet(CoordinateOnlyEmitter):
     """An empty emitter set."""
     def __init__(self):
         super().__init__(torch.zeros((0, 3)))
+
+    def _inplace_replace(self, em):
+        raise NotImplementedError("Inplace not yet implemented.")
 
 
 class LooseEmitterSet:
@@ -532,8 +562,8 @@ class LooseEmitterSet:
                 c += 1
         return xyz_, phot_, frame_ix_, id_
 
-
-
+    def _inplace_replace(self, em):
+        raise NotImplementedError("Inplace not yet implemented.")
 
 
 if __name__ == '__main__':

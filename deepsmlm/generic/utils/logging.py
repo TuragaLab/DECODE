@@ -18,12 +18,16 @@ class LogTestEpoch:
         self.tb.add_scalar(label, value, step)
         self.cml.log_metric(label, value, step)
 
-    def _log_figure(self, fig, step, label):
+    def _log_figure(self, fig, step, label, show=False):
+        if show:
+            plt.show(fig=fig)
+            return
+
         self.tb.add_figure(label, fig, step)
         self.cml.log_figure(label, fig)
 
     def forward(self, metrics_set, input_frames, output_frames, target_frames, em_out, em_tar, step,
-                weight_frames=None):
+                weight_frames=None, show=False):
         self._log_metric(metrics_set.prec.avg, step, "eval/precision")
         self._log_metric(metrics_set.rec.avg, step, "eval/recall")
         self._log_metric(metrics_set.jac.avg, step, "eval/jac")
@@ -62,7 +66,7 @@ class LogTestEpoch:
                                   pos_tar=em_tar_.xyz,
                                   phot_tar=em_tar_.phot).plot()
 
-        self._log_figure(plt.gcf(), step, "io/frames_in")
+        self._log_figure(plt.gcf(), step, "io/frames_in", show)
 
         """Plot Target"""
         if input_frames.size(1) == 3:
@@ -92,7 +96,7 @@ class LogTestEpoch:
             emplot.PlotFrame(frame=target_frames[ix, 5]).plot()
             plt.title('bg channel')
 
-        self._log_figure(plt.gcf(), step, "io/target")
+        self._log_figure(plt.gcf(), step, "io/target", show)
 
         _ = plt.figure(figsize=(12, 12))
         plt.subplot(231)
@@ -120,7 +124,7 @@ class LogTestEpoch:
             emplot.PlotFrame(frame=output_frames[ix, 5]).plot()
             plt.title('bg channel')
 
-        self._log_figure(plt.gcf(), step, "io/tarframe_output")
+        self._log_figure(plt.gcf(), step, "io/tarframe_output", show)
 
         if weight_frames is not None:
             _ = plt.figure(figsize=(12, 12))
@@ -154,7 +158,7 @@ class LogTestEpoch:
             plt.colorbar(fraction=0.046, pad=0.04)
             plt.title('bg channel')
 
-            self._log_figure(plt.gcf(), step, "io/weight_map")
+            self._log_figure(plt.gcf(), step, "io/weight_map", show)
 
         """Raw output distributions where we have signal above a threshold"""
         th = 0.1
@@ -172,52 +176,52 @@ class LogTestEpoch:
 
         _ = phot_dist.hist(fit=None, range=(0., 1.))
         plt.gca().set_xlabel(r'$phot$')
-        self._log_figure(plt.gcf(), step, "io/phot")
+        self._log_figure(plt.gcf(), step, "io/phot", show)
 
         _ = dx_dist.hist(fit=None)
         plt.gca().set_xlabel(r'$dx$')
-        self._log_figure(plt.gcf(), step, "io/dx")
+        self._log_figure(plt.gcf(), step, "io/dx", show)
 
         _ = dy_dist.hist(fit=None)
         plt.gca().set_xlabel(r'$dy$')
-        self._log_figure(plt.gcf(), step, "io/dy")
+        self._log_figure(plt.gcf(), step, "io/dy", show)
 
         _ = z_dist.hist(fit=None)
         plt.gca().set_xlabel(r'$z$')
-        self._log_figure(plt.gcf(), step, "io/z")
+        self._log_figure(plt.gcf(), step, "io/z", show)
 
         _ = bg_dist.hist(fit=None)
         plt.gca().set_xlabel(r'$bg$')
-        self._log_figure(plt.gcf(), step, "io/bg")
+        self._log_figure(plt.gcf(), step, "io/bg", show)
 
         """Dx/y/z histograms"""
         _ = metrics_set.dx.hist()
         plt.gca().set_xlabel(r'$\Delta x$')
-        self._log_figure(plt.gcf(), step, "eval/dx")
+        self._log_figure(plt.gcf(), step, "eval/dx", show)
         # self.tb.add_histogram('eval.dx', metrics_set.dx.vals.numpy(), step)
 
         _ = metrics_set.dy.hist()
         plt.gca().set_xlabel(r'$\Delta y$')
-        self._log_figure(plt.gcf(), step, "eval/dy")
+        self._log_figure(plt.gcf(), step, "eval/dy", show)
         # self.tb.add_histogram('eval.dx', metrics_set.dy.vals.numpy(), step)
 
         _ = metrics_set.dz.hist()
         plt.gca().set_xlabel(r'$\Delta z$')
-        self._log_figure(plt.gcf(), step, "eval/dz")
+        self._log_figure(plt.gcf(), step, "eval/dz", show)
         # self.tb.add_histogram('eval.dz', metrics_set.dz.vals.numpy(), step)
 
         _ = metrics_set.dxw.hist()
         plt.gca().set_xlabel(r'$\Delta x \cdot \sqrt{N}$')
-        self._log_figure(plt.gcf(), step, "eval/dxw")
+        self._log_figure(plt.gcf(), step, "eval/dxw", show)
         # self.tb.add_histogram('eval.dxw', metrics_set.dxw.vals.numpy(), step)
 
         _ = metrics_set.dyw.hist()
         plt.gca().set_xlabel(r'$\Delta y \cdot \sqrt{N}$')
-        self._log_figure(plt.gcf(), step, "eval/dyw")
+        self._log_figure(plt.gcf(), step, "eval/dyw", show)
         # self.tb.add_histogram('eval.dyw', metrics_set.dyw.vals.numpy(), step)
 
         _ = metrics_set.dzw.hist()
         plt.gca().set_xlabel(r'$\Delta z \cdot \sqrt{N}$')
-        self._log_figure(plt.gcf(), step, "eval/dzw")
+        self._log_figure(plt.gcf(), step, "eval/dzw", show)
         # self.tb.add_histogram('eval.dzw', metrics_set.dzw.vals.numpy(), step)
 

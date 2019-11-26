@@ -234,8 +234,8 @@ class ROIOffsetRep(OffsetRep):
 
             # leave p_channel unchanged, all others use addition kernel
             target[1, ix_x, ix_y] = offset_target_pad[1, is_emitter[i, 0], is_emitter[i, 1]]
-            target[2, ix_x, ix_y] += self.kern_dx + offset_target_pad[2, is_emitter[i, 0], is_emitter[i, 1]]
-            target[3, ix_x, ix_y] += self.kern_dy + offset_target_pad[3, is_emitter[i, 0], is_emitter[i, 1]]
+            target[2, ix_x, ix_y] = self.kern_dx + offset_target_pad[2, is_emitter[i, 0], is_emitter[i, 1]]
+            target[3, ix_x, ix_y] = self.kern_dy + offset_target_pad[3, is_emitter[i, 0], is_emitter[i, 1]]
             target[4, ix_x, ix_y] = offset_target_pad[4, is_emitter[i, 0], is_emitter[i, 1]]
 
         # set px centres to original value

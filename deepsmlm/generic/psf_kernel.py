@@ -127,9 +127,11 @@ class DeltaPSF(PSF):
         # camera, _, _ = np.histogram2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(),  # reverse order
         #                               bins=(self.bin_x, self.bin_y),
         #                               weights=weight.numpy())
-
-        camera, _, _, _ = binned_statistic_2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(), weight.numpy(),
-                                              bins=(self.bin_x, self.bin_y), statistic=max_0)
+        if xyz.size(0) == 0:
+            camera = torch.zeros(self.img_shape).numpy()
+        else:
+            camera, _, _, _ = binned_statistic_2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(), weight.numpy(),
+                                                  bins=(self.bin_x, self.bin_y), statistic=max_0)
 
         camera = torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
         if self.dark_value is not None:
