@@ -302,7 +302,8 @@ class MaskedPxyzLoss(SpeiserLoss):
         :param logger: for logging individual components
         :return:
         """
-        return MaskedPxyzLoss(model_out_ch=param['HyperParameter']['channels_out'], logger=logger)
+        return MaskedPxyzLoss(model_out_ch=param['HyperParameter']['channels_out'],
+                              ch_rescale=param['HyperParameter']['dynamic_weight'], logger=logger)
 
     def _rescale_weights(self, weight):
         """

@@ -38,6 +38,7 @@
       "test_size": 128,
       "lr": 0.0001,
       "epochs": 1000,
+      "epoch_0": null,
       "prob_fg_weight": 1.0,
       "ch_weight": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
       "weight_base": "crlb",

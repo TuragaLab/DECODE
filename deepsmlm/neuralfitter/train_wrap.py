@@ -188,8 +188,12 @@ if __name__ == '__main__':
                                    param['Simulation']['img_size'])
 
         """Define our noise model."""
-        background = processing.TransformSequence.parse([background.UniformBackground,
-                                                         background.PerlinBackground], param)
+        if param['Simulation']['bg_perlin_amplitude'] == 0:
+            bg = background.UniformBackground.parse(param)
+        else:
+            bg = processing.TransformSequence.parse([background.UniformBackground,
+                                                     background.PerlinBackground], param)
+
         noise = Photon2Camera.parse(param)
 
         structure_prior = structure_prior.RandomStructure(param['Simulation']['emitter_extent'][0],
@@ -212,7 +216,7 @@ if __name__ == '__main__':
 
         simulator = simulator.Simulation(None, extent=param['Simulation']['emitter_extent'],
                                          psf=psf,
-                                         background=background,
+                                         background=bg,
                                          noise=noise,
                                          frame_range=frame_range,
                                          poolsize=0,
@@ -348,7 +352,8 @@ if __name__ == '__main__':
     epoch_logger = log_utils.LogTestEpoch(logger, experiment)
 
     """Ask if everything is correct before we start."""
-    for i in range(param['HyperParameter']['epochs']):
+    first_epoch = param['HyperParameter']['epoch_0'] if param['HyperParameter']['epoch_0'] is not None else 0
+    for i in range(first_epoch, param['HyperParameter']['epochs']):
         logger.add_scalar('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
         experiment.log_metric('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
 
