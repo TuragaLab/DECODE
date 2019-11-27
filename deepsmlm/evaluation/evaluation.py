@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 from math import sqrt
+from functools import partial
 from scipy import stats
 import seaborn as sns
 
@@ -231,6 +232,121 @@ class BatchEvaluation:
                               rmse_vol, rmse_lat, rmse_axial,
                               mad_vol, mad_lat, mad_axial,
                               dx, dy, dz, dxw, dyw, dzw)
+
+
+class GreedyHungarianMatching:
+    """
+    A class to match outputs and targets based on pairwise distance matrix
+    """
+
+    def __init__(self, dist_lat:float = None, dist_vol: float = None):
+        """
+        :param dist_lat: (float) lateral distance threshold
+        :param dist_vol: (float) volumetric distance threshold
+        """
+        self.dist_thresh = None
+        self._match_dims = None
+
+        if ((dist_lat is not None) and (dist_vol is not None)) or ((dist_lat is None) and (dist_vol is None)):
+            raise ValueError("You need to specify exactly exclusively either dist_lat or dist_vol.")
+
+        if dist_lat is not None:
+            self.dist_thresh = dist_lat
+            self._match_dims = 2
+        elif dist_vol is not None:
+            self.dist_thresh = dist_vol
+            self._match_dims = 2
+
+        self.cdist_kernel = partial(torch.cdist, p=2)  # does not take the square root
+
+    @staticmethod
+    def rule_out_dist_match(dists, threshold):
+        match_list = []
+        while dists.min() < threshold:
+            ix = np.unravel_index(dists.argmin(), dists.shape)
+            dists[ix[0]] = float('inf')
+            dists[:, ix[1]] = float('inf')
+
+            match_list.append(ix)
+        return torch.tensor(match_list)
+
+    def assign_kernel(self, out, tar):
+        """
+        Assigns out and tar, blind to a frame index. Therefore, split in frames beforehand
+        :param out:
+        :param tar:
+        :return:
+        """
+        """If no emitter has been found, all are false negatives. No tp, no fp."""
+        if out.num_emitter == 0:
+            tp, fp, tp_match = emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet()
+            fn = tar
+            return tp, fp, fn, tp_match
+
+        """If there were no positives, no tp, no fn, all fp, no match."""
+        if tar.num_emitter == 0:
+            tp, fn, tp_match = emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet()
+            fp = out
+            return tp, fp, fn, tp_match
+
+        if self._match_dims == 2:
+            dists = self.cdist_kernel(out.xyz[:, :2], tar.xyz[:, :2])
+        elif self._match_dims == 3:
+            dists = self.cdist_kernel(out.xyz, tar.xyz)
+
+        match_ix = self.rule_out_dist_match(dists, self.dist_thresh).numpy()
+        all_ix_out = np.arange(out.num_emitter)
+        all_ix_tar = np.arange(tar.num_emitter)
+
+        tp = out.get_subset(match_ix[:, 0])
+        tp_match = tar.get_subset(match_ix[:, 1])
+
+        fp_ix = torch.from_numpy(np.setdiff1d(all_ix_out, match_ix[:, 0]))
+        fn_ix = torch.from_numpy(np.setdiff1d(all_ix_tar, match_ix[:, 1]))
+
+        fp = out.get_subset(fp_ix)
+        fn = tar.get_subset(fn_ix)
+
+        return tp, fp, fn, tp_match
+
+    def forward(self, output, target):
+        """
+        Assign outputs to targets. Make sure that the frame indices of target and output match.
+
+        :param output:
+        :param target:
+        :return:
+        """
+
+        """Split in Frames based on the target"""
+        frame_low = target.frame_ix.min()
+        frame_high = target.frame_ix.max()
+
+        out_pframe = output.split_in_frames(frame_low, frame_high)
+        tar_pframe = target.split_in_frames(frame_low, frame_high)
+
+        tpl, fpl, fnl, tpml = [], [], [], []  # true positive list, false positive list, false neg. ...
+
+        """Assign the emitters framewise"""
+        for i in range(out_pframe.__len__()):
+            tp, fp, fn, tp_match = self.assign_kernel(out_pframe[i], tar_pframe[i])
+            tpl.append(tp)
+            fpl.append(fp)
+            fnl.append(fn)
+            tpml.append(tp_match)
+
+        """Concat them back"""
+        tp = emitter.EmitterSet.cat_emittersets(tpl)
+        fp = emitter.EmitterSet.cat_emittersets(fpl)
+        fn = emitter.EmitterSet.cat_emittersets(fnl)
+        tp_match = emitter.EmitterSet.cat_emittersets(tpml)
+
+        """Let tp and tp_match share the same id's"""
+        if (tp_match.id == -1).all().item():
+            tp_match.id = torch.arange(tp_match.num_emitter)
+        tp.id = tp_match.id
+
+        return tp, fp, fn, tp_match
 
 
 class NNMatching:

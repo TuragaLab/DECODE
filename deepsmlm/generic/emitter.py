@@ -250,7 +250,7 @@ class EmitterSet:
 
     def get_subset(self, ix):
         return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix], self.prob[ix], self.bg[ix],
-                          self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix])
+                          self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix], sanity_check=False)
 
     def get_subset_frame(self, frame_start, frame_end, shift_to=None):
         """
@@ -329,7 +329,7 @@ class EmitterSet:
 
         for i, em in enumerate(grand_matrix_list):
             em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5], prob=em[:, 6],
-                                      bg=em[:, 7], xyz_cr=em[:, 8:11], phot_cr=em[:, 11], bg_cr=em[:, 12]))
+                                      bg=em[:, 7], xyz_cr=em[:, 8:11], phot_cr=em[:, 11], bg_cr=em[:, 12], sanity_check=False))
 
         return em_list
 
