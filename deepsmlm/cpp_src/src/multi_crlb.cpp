@@ -25,20 +25,11 @@ auto construct_multi_fisher(spline *sp,
     std::fill_n(img, npx * npx, 0.0);
     std::fill_n(fisher_flat, sp->NV_PSP * n_emitters * sp->NV_PSP * n_emitters, 0.0);
 
-    #if DEBUG
-        std::cout << "Before 3D init." << std::endl;
-    #endif // DEBUG
-
     // fisher px-wise
     float* fisher_px_ma = new float[n_par * n_par * npxpx]();
-
-    #if DEBUG
-        std::cout << "Finished initialising fisher block px flat." << std::endl;
-    #endif // DEBUG
     
-    // derivatives
+    // calculate derivatives per emitter
     std::vector<float*> deriv_px_em; // derivatives of emitters by px
-
     for (int i = 0; i < n_emitters; i++) {
         // initialise derivatives
         deriv_px_em.push_back((float *)malloc(sizeof(float) * sp->NV_PSP * npx * npx));
@@ -49,13 +40,13 @@ auto construct_multi_fisher(spline *sp,
 
     }
 
-    #if DEBUG
-        std::cout << "Finished calc. derivates" << std::endl;
-    #endif // DEBUG
-
-    // flatten and expand px derivatives
+    /**
+    * write the derivatives per emitter in a big matrix
+    * 
+    */
     float deriv_px_em_total[n_par * npx * npx];
     std::fill_n(deriv_px_em_total, n_par * npx * npx, 0.0);
+    
     for (int i = 0; i < n_emitters; i++) {
         for (int j = 0; j < sp->NV_PSP; j++) {
             for (int p = 0; p < npx * npx; p++) {
@@ -63,10 +54,6 @@ auto construct_multi_fisher(spline *sp,
             }
         }
     }
-
-    #if DEBUG
-        std::cout << "Finished flattening and expansion." << std::endl;
-    #endif // DEBUG
 
     // fill the fisher px-wise
     for (int j = 0; j < n_par; j++) {  // parameter rows
@@ -76,10 +63,6 @@ auto construct_multi_fisher(spline *sp,
             }
         }
     }
-
-    #if DEBUG
-        std::cout << "Finished filling the px-wise fisher." << std::endl;
-    #endif // DEBUG
 
     // flatten out the fisher by aggregating the sample dimension
     for (int i = 0; i < n_par; i++) {
@@ -91,10 +74,6 @@ auto construct_multi_fisher(spline *sp,
     }
 
     delete[] fisher_px_ma;
-
-    #if DEBUG
-        std::cout << "Finished aggregating to normal fisher." << std::endl;
-    #endif // DEBUG
 
 }
 
@@ -109,20 +88,15 @@ auto calc_crlb(spline *sp,
             int npx, float *img, float *crlb) -> void {
     
     int n_emitter = phot.size();
-    float fisher_blockmat[sp->NV_PSP * n_emitter * sp->NV_PSP * n_emitter];
+    float fisher_raw[sp->NV_PSP * n_emitter * sp->NV_PSP * n_emitter];
 
-    construct_multi_fisher(sp, xyz, phot, bg, corner, npx, img, fisher_blockmat);
+    construct_multi_fisher(sp, xyz, phot, bg, corner, npx, img, fisher_raw);
 
     // map the matrices
-    Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> hessian_block(fisher_blockmat, sp->NV_PSP * n_emitter, sp->NV_PSP * n_emitter);
+    Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> fisher_eigen(fisher_raw, sp->NV_PSP * n_emitter, sp->NV_PSP * n_emitter);
     Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> crlb_(crlb, sp->NV_PSP * n_emitter, 1);
     
-    // crlb_ = hessian_block.completeOrthogonalDecomposition().pseudoInverse().diagonal();
-    // crlb_ = hessian_block.fullPivLu().inverse().diagonal();
-    crlb_ = hessian_block.inverse().diagonal();
-
-    #if DEBUG
-        std::cout << "Hessian: \n" << hessian_block << std::endl;
-        std::cout << "CRLB is: \n" << crlb_ << std::endl;
-    #endif
+    // crlb_ = fisher_eigen.completeOrthogonalDecomposition().pseudoInverse().diagonal();
+    // crlb_ = fisher_eigen.fullPivLu().inverse().diagonal();
+    crlb_ = fisher_eigen.inverse().diagonal();
 }

@@ -63,16 +63,7 @@ $ NO_CUDA=1 python setup.py clean --all install
 
 
 Compile cubic_spline and link statically (Linux: gcc, macOS: clang):
-
-@linux workstation
-$ gcc -fPIC -g -c -Wall src/spline_psf.c -o build/spline_psf.o -Iinclude
-$ ar rcs build/libspline_psf.a build/spline_psf.o
-
-@gpu6
-$ gcc-4.9 -fPIC -g -c -std=c99 -Wall src/spline_psf.c -o build/spline_psf.o -Iinclude
-$ ar rcs build/libspline_psf.a build/spline_psf.o
-
-@mac
-$ clang -o build/spline_psf.o -c -O3 -Wall -I/usr/local/include -Iinclude -fPIC src/spline_psf.c
-$ ar rcs build/libspline_psf.a build/spline_psf.o
+navigate to cpp_src/build (mkdir if needed)
+$ cmake -DCMAKE_BUILD_TYPE=Release ..
+$ make
 """
