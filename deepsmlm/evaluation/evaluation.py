@@ -190,8 +190,8 @@ class BatchEvaluation:
                                     CumulantMeter(), CumulantMeter(), CumulantMeter()
 
         if self.px_size is not None:
-            output.convert_em_(factor=self.px_size)
-            target.convert_em_(factor=self.px_size)
+            output = output.convert_em(factor=self.px_size)
+            target = target.convert_em(factor=self.px_size)
 
         # for i in range(output.__len__()):
         #     out = output[i].clone()

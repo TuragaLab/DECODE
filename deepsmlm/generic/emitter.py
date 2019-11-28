@@ -353,7 +353,30 @@ class EmitterSet:
             xyz = xyz[:, axis]
         return xyz
 
+    def convert_em(self, factor=None, shift=None, axis=None, frame_shift=0):
+        """
+        Convert a clone of the current emitter
+        :param factor:
+        :param shift:
+        :param axis:
+        :param frame_shift:
+        :return:
+        """
+
+        emn = self.clone()
+        emn.xyz = emn.convert_coordinates(factor, shift, axis)
+        emn.frame_ix += frame_shift
+        return emn
+
     def convert_em_(self, factor=None, shift=None, axis=None, frame_shift=0):
+        """
+        Inplace conversion of emitter
+        :param factor:
+        :param shift:
+        :param axis:
+        :param frame_shift:
+        :return:
+        """
         self.xyz = self.convert_coordinates(factor, shift, axis)
         self.frame_ix += frame_shift
 
