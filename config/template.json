@@ -41,8 +41,9 @@
       "epoch_0": null,
       "prob_fg_weight": 1.0,
       "ch_weight": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-      "weight_base": "crlb",
-      "fgbg_factor": null,
+      "weight_base": "constant",
+      "dynamic_weight": false,
+      "fgbg_factor": 1.0,
       "bg_signal_penalty": null,
       "alter_bg": null,
       "target_roi_size": 3,
@@ -109,11 +110,13 @@
         "total_th": 0.6,
         "lat_th": 0.3,
         "ax_th": 200.0,
-        "match_dims": 3
+        "match_dims": 3,
+        "skip_if_p_rel": 0.1
     },
     "Evaluation": {
         "dist_lat": 150.0,
-        "dist_ax": 300.0,
-        "match_dims": 2
+        "dist_ax": null,
+        "dist_vol": null,
+        "match_dims": null
     }
 }

@@ -9,7 +9,7 @@ import torch
 torch.multiprocessing.set_sharing_strategy('file_system')
 from matplotlib import pyplot as plt
 
-from deepsmlm.generic.emitter import EmitterSet
+from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
 from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord, PlotCoordinates3D, PlotFrame
 import deepsmlm.evaluation.evaluation as eval
 
@@ -228,8 +228,8 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
     outputs = []
     target_frames = []
     weight_frames = []
-    em_outs = []
-    tars = []
+    em_outs = [] # list of emitterset per batch
+    tars = [] # list of emitterset per batch
 
     """Eval mode."""
     with torch.no_grad():
@@ -257,9 +257,20 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
             """
             output = model.apply_pnl(output)
 
-            """Forward output through post-processor for eval."""
-            if post_processor is not None:
-                em_outs.extend(post_processor.forward(output))
+            """
+            Forward output through post-processor for eval.
+            If too many in the p channel are bright, skip post processing.
+            """
+            if conf_param['PostProcessing']['skip_if_p_rel'] is not None:
+                if (((output[:, 0] > conf_param['PostProcessing']['single_val_th'])).sum() / output[:, 0].numel()) > \
+                        conf_param['PostProcessing']['skip_if_p_rel']:
+                    em_outs.append(EmptyEmitterSet())
+                else:
+                    if post_processor is not None:
+                        em_outs.append(post_processor.forward(output))  # returns an emittersets with frame_ix to batch
+                        # element
+                    else:
+                        em_outs.append(EmptyEmitterSet())
 
             """Debug here if you want to check (uncomment)"""
             # monitor_io(x_in.detach().cpu(), output.detach().cpu(),
@@ -273,7 +284,7 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
             outputs.append(output.detach().clone().cpu())
             target_frames.append(target.detach().clone().cpu())
             weight_frames.append(weights.detach().clone().cpu())
-            tars.extend(deepcopy(em_tar))
+            tars.append(deepcopy(EmitterSet.cat_emittersets(em_tar, step_frame_ix=1)))  # returns emittersets
 
             del x_in
             del output
@@ -287,6 +298,10 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
     outputs = torch.cat(outputs, 0)
     target_frames = torch.cat(target_frames, 0)
     weight_frames = torch.cat(weight_frames, 0)
+
+    """Construct 'epoch' emittersets"""
+    em_outs = EmitterSet.cat_emittersets(em_outs, step_frame_ix=val_loader.batch_size)
+    tars = EmitterSet.cat_emittersets(tars, step_frame_ix=val_loader.batch_size)
 
     """Batch evaluation and log"""
     batch_ev.forward(em_outs, tars)

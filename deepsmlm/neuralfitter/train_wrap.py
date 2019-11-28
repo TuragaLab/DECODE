@@ -7,6 +7,9 @@ import getopt
 import sys
 import torch
 import tqdm
+
+import deepsmlm.evaluation.match_emittersets
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 from tensorboardX import SummaryWriter
 from torch.optim import Adam
@@ -334,7 +337,7 @@ if __name__ == '__main__':
 
     """Loss function."""
     # criterion = OffsetROILoss.parse(param, logger=logger)
-    criterion = ls.MaskedPxyzLoss(ch_rescale=True, model_out_ch=6, logger=logger)
+    criterion = ls.MaskedPxyzLoss.parse(param, logger)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler = ReduceLROnPlateau(optimiser, **param['LearningRateScheduler'])
@@ -343,11 +346,13 @@ if __name__ == '__main__':
     last_new_model_name_time = time.time()
 
     """Evaluation Specification"""
-    matcher = evaluation.NNMatching.parse(param)
+    # matcher = deepsmlm.evaluation.match_emittersets.NNMatching.parse(param)
+    matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
     segmentation_eval = evaluation.SegmentationEvaluation(False)
     distance_eval = evaluation.DistanceEvaluation(print_mode=False)
 
     batch_ev = evaluation.BatchEvaluation(matcher, segmentation_eval, distance_eval,
+                                          batch_size=param['HyperParameter']['batch_size'],
                                           px_size=torch.tensor(param['Camera']['px_size']))
     epoch_logger = log_utils.LogTestEpoch(logger, experiment)
 

@@ -383,7 +383,7 @@ class ConsistencyPostprocessing(PostProcessing):
         self.num_workers = num_workers
 
     @staticmethod
-    def parse(param: dict, out_format='emitters_framewise'):
+    def parse(param: dict, out_format='emitters_batch'):
         return ConsistencyPostprocessing(svalue_th=param['PostProcessing']['single_val_th'],
                                          final_th=param['PostProcessing']['total_th'],
                                          lat_threshold=param['PostProcessing']['lat_th'],
