@@ -1,9 +1,8 @@
-import torch
 import unittest
 from unittest import TestCase
 
+from deepsmlm.evaluation.match_emittersets import NNMatching
 from deepsmlm.generic.emitter import EmitterSet
-from deepsmlm.evaluation.evaluation import *
 from deepsmlm.evaluation.metric_library import *
 
 

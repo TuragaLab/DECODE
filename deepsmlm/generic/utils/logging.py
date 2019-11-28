@@ -44,8 +44,8 @@ class LogTestEpoch:
 
         """Plot input / output. Random sample."""
         ix = random.randint(0, output_frames.shape[0] - 1)
-        em_tar_ = em_tar[ix]
-        em_out_ = em_out[ix]
+        em_tar_ = em_tar.get_subset_frame(ix, ix)
+        em_out_ = em_out.get_subset_frame(ix, ix)
 
         _ = plt.figure(figsize=(12, 6))
         if input_frames.size(1) == 3:

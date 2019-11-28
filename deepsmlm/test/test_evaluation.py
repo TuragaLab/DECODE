@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import pytest
 import torch
 
+import deepsmlm.evaluation.match_emittersets
 import deepsmlm.generic.emitter
 import deepsmlm.evaluation.evaluation as evaluation
 import deepsmlm.test.utils_ci as tutil
@@ -28,7 +29,7 @@ class TestGreedyMatching:
 
     @pytest.fixture(scope='class')
     def matcher(self):
-        return evaluation.GreedyHungarianMatching(dist_lat=100.)
+        return deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching(dist_lat=100.)
 
     @pytest.fixture(scope='class')
     def set_1ref_4pred(self):

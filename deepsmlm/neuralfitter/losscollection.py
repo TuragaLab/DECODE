@@ -288,9 +288,10 @@ class OffsetROILoss(SpeiserLoss):
 
 
 class MaskedPxyzLoss(SpeiserLoss):
-    def __init__(self, model_out_ch, ch_rescale=True, cmp_prefix='loss', logger=None):
+    def __init__(self, model_out_ch, device, pos_weight=1., ch_rescale=True, cmp_prefix='loss', logger=None):
         super().__init__(None, model_out_ch, None, None, cmp_prefix, logger)
-        self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none')
+        self._pos_weight = torch.tensor([pos_weight]).to(device) if pos_weight is not None else None
+        self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none', pos_weight=self._pos_weight)
         self.phot_xyzbg_loss = torch.nn.MSELoss(reduction='none')
         self.ch_rescale = ch_rescale
 
@@ -303,6 +304,8 @@ class MaskedPxyzLoss(SpeiserLoss):
         :return:
         """
         return MaskedPxyzLoss(model_out_ch=param['HyperParameter']['channels_out'],
+                              device=torch.device(param['Hardware']['device']),
+                              pos_weight=param['HyperParameter']['fgbg_factor'],
                               ch_rescale=param['HyperParameter']['dynamic_weight'], logger=logger)
 
     def _rescale_weights(self, weight):
