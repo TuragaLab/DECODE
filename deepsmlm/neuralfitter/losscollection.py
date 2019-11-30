@@ -510,7 +510,7 @@ class BumpMSELoss(Loss):
         self.kernel_mode = kernel_mode
         self.padding_same_v = math.ceil((self.kernel_size - 1) / 2)
 
-        def padding(x): return functional.pad(x, [self.padding_same_v,
+        def padding(x): return F.pad(x, [self.padding_same_v,
                                                   self.padding_same_v,
                                                   self.padding_same_v,
                                                   self.padding_same_v], mode='reflect')

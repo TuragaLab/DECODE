@@ -12,7 +12,7 @@ import deepsmlm.evaluation.match_emittersets
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 from tensorboardX import SummaryWriter
-from torch.optim import Adam
+from torch.optim import Adam, AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
@@ -127,7 +127,7 @@ if __name__ == '__main__':
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
 
     experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
-                            auto_metric_logging=False, disabled=True, api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
+                            auto_metric_logging=False, disabled=WRITE_TO_LOG, api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
 
     experiment.log_parameters(param['InOut'], prefix='IO')
     experiment.log_parameters(param['Hardware'], prefix='Hw')
@@ -333,7 +333,8 @@ if __name__ == '__main__':
     model = model_ls.load_init()
     model = model.to(torch.device(param['Hardware']['device']))
 
-    optimiser = Adam(model.parameters(), lr=param['HyperParameter']['lr'])
+    optimiser = eval(param['HyperParameter']['optimizer'])
+    optimiser = optimiser(model.parameters(), **param['HyperParameter']['opt_param'])
 
     """Loss function."""
     # criterion = OffsetROILoss.parse(param, logger=logger)

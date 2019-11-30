@@ -171,6 +171,11 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
         output = model(x_in)
         loss_ = criterion(output, target, weights)  # alternate batch_wise
 
+        if conf_param['HyperParameter']['moeller_gradient_rescale']:
+            # ensure that the gradients in the last multi-task heads are of same scale
+            weight, _, _ = model.rescale_last_layer_grad(loss_, optimizer)
+            loss_ = loss_ * weight
+
         loss = loss_.mean()
         # record loss
         losses.update(loss.item())

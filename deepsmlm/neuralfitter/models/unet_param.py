@@ -245,12 +245,7 @@ class DoubleMUnet(nn.Module):
 
         assert ch_out in (5, 6)
         self.ch_out = ch_out
-        self.mt_p = self._make_mlt_head(inter_features, 1, gn=use_gn)
-        self.mt_phot = self._make_mlt_head(inter_features, 1, gn=use_gn)
-        self.mt_x = self._make_mlt_head(inter_features, 1, gn=use_gn)
-        self.mt_y = self._make_mlt_head(inter_features, 1, gn=use_gn)
-        self.mt_z = self._make_mlt_head(inter_features, 1, gn=use_gn)
-        self.mt_bg = self._make_mlt_head(inter_features, 1, gn=use_gn)
+        self.mt_heads = nn.ModuleList([MLTHeads(inter_features, group_norm=use_gn) for _ in range(self.ch_out)])
 
         self._use_last_nl = use_last_nl
 
@@ -272,6 +267,34 @@ class DoubleMUnet(nn.Module):
             use_last_nl=param['HyperParameter']['arch_param']['use_last_nl'],
             use_gn=param['HyperParameter']['arch_param']['group_normalisation']
         )
+
+    def rescale_last_layer_grad(self, loss, optimizer):
+        """
+
+        :param loss: non-reduced loss of size N x C x H x W
+        :param optimizer:
+        :return: weight, channelwise loss, channelwise weighted loss
+        """
+        """
+        Reduce NCHW channel wise. Division over numel and multiply by ch_out is not needed inside this method, but if
+        you want to use loss_wch, or loss_ch directly the numbers would be off by a factor
+        """
+        loss_ch = loss.sum(-1).sum(-1).sum(0) / loss.numel() * self.ch_out
+        head_grads = torch.zeros((self.ch_out, )).to(loss.device)
+        weighting = torch.ones_like(head_grads).to(loss.device)
+
+        for i in range(self.ch_out):
+            head_grads[i] = torch.autograd.grad(loss_ch[i], self.mt_heads[i].out_conv.weight, retain_graph=True)[
+                0].abs().sum()
+        optimizer.zero_grad()
+        N = (1 / head_grads).sum()
+        weighting = weighting / head_grads
+        weighting = weighting / N
+
+        loss_wch = (loss_ch * weighting).sum()
+        weight_cX_h1_w1 = weighting.unsqueeze(0).unsqueeze(-1).unsqueeze(-1)  # weight tensor of size 1 x C x 1 x 1
+
+        return weight_cX_h1_w1, loss_ch, loss_wch
 
     def apply_pnl(self, o):
         """
@@ -310,49 +333,18 @@ class DoubleMUnet(nn.Module):
             o = torch.cat((p, phot, xyz, bg), 1)
             return o
 
-    def _make_mlt_head(self, in_channels, out_channels, activation=nn.ReLU(), last_kernel=1, gn=True):
-        num_groups1 = min(in_channels, 32)
-        num_groups2 = min(out_channels, 32)
-        padding = True
-        if gn:
-            return nn.Sequential(nn.GroupNorm(num_groups1, in_channels),
-                                 nn.Conv2d(in_channels, out_channels,
-                                           kernel_size=3, padding=padding),
-                                 activation,
-                                 nn.GroupNorm(num_groups2, out_channels),
-                                 nn.Conv2d(out_channels, out_channels,
-                                           kernel_size=last_kernel, padding=False))
-        else:
-            return nn.Sequential(nn.Conv2d(in_channels, out_channels,
-                                           kernel_size=3, padding=padding),
-                                 activation,
-                                 nn.Conv2d(out_channels, out_channels,
-                                           kernel_size=last_kernel, padding=False))
-
     def forward(self, x):
         o0 = self.unet_shared.forward(x[:, [0]])
         o1 = self.unet_shared.forward(x[:, [1]])
         o2 = self.unet_shared.forward(x[:, [2]])
         o = torch.cat((o0, o1, o2), 1)
 
-        # x_union = torch.cat((x, o), 1)  # cat original frames again
-        x_union = o
-        o = self.unet_union.forward(x_union)
+        o = self.unet_union.forward(o)
 
-        # o_p, o_phot, o_x, o_y, o_z = o[:, [0]], o[:, [1]], o[:, [2]], o[:, [3]], o[:, [4]]
-        o_p = self.mt_p.forward(o)
-        o_phot = self.mt_phot.forward(o)
-        o_x = self.mt_x.forward(o)
-        o_y = self.mt_y.forward(o)
-        o_z = self.mt_z.forward(o)
-        o_not_bg = torch.cat((o_p, o_phot, o_x, o_y, o_z), 1)
-
-        if self.ch_out == 5:
-            o = o_not_bg
-
-        elif self.ch_out == 6:
-            o_bg = self.mt_bg.forward(o)
-            o = torch.cat((o_not_bg, o_bg), 1)
+        o_head = []
+        for i in range(self.ch_out):
+            o_head.append(self.mt_heads[i].forward(o))
+        o = torch.cat(o_head, 1)
 
         """Apply the final non-linearities"""
         if self._use_last_nl:
@@ -360,14 +352,48 @@ class DoubleMUnet(nn.Module):
 
         return o
 
+
+class MLTHeads(nn.Module):
+    def __init__(self, in_channels, activation=nn.ReLU(), last_kernel=1, group_norm=True, padding=True):
+        super().__init__()
+        groups_1 = min(in_channels, 32)
+        groups_2 = min(1, 32)
+        padding = True
+        
+        self.core = self._make_core(in_channels, groups_1, groups_2, activation, padding, group_norm)
+        self.out_conv = nn.Conv2d(in_channels, 1, kernel_size=last_kernel, padding=False)
+
+    def forward(self, x):
+        o = self.core.forward(x)
+        o = self.out_conv.forward(o)
+
+        return o
+
+    @staticmethod
+    def _make_core(in_channels, groups_1, groups_2, activation, padding, group_norm):
+        if group_norm:
+            return nn.Sequential(nn.GroupNorm(groups_1, in_channels),
+                                 nn.Conv2d(in_channels, in_channels,
+                                           kernel_size=3, padding=padding),
+                                 activation,
+                                 nn.GroupNorm(groups_2, in_channels))
+        else:
+            return nn.Sequential(nn.Conv2d(in_channels, in_channels,
+                                           kernel_size=3, padding=padding),
+                                 activation)
+
+
 if __name__ == '__main__':
 
-    model = DoubleMUnet(3, 6, 3, use_last_nl=True)
+    model = DoubleMUnet(3, 6, depth=2, use_last_nl=True)
     x = torch.rand((10, 3, 64, 64))
     y = torch.rand((10, 6, 64, 64))
-    criterion = torch.nn.MSELoss()
+    optimiser = torch.optim.Adam(model.parameters(), lr=0.0001)
+    criterion = torch.nn.MSELoss(reduction='none')
     out = model.forward(x)
     loss = criterion(out, y)
-    loss.backward()
+
+    w, lch, lwch = model.rescale_last_layer_grad(loss, optimiser)
+    lwch.backward()
 
     print('Done')
