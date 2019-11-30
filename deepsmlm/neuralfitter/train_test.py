@@ -262,7 +262,7 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
             If too many in the p channel are bright, skip post processing.
             """
             if conf_param['PostProcessing']['skip_if_p_rel'] is not None:
-                if (((output[:, 0] > conf_param['PostProcessing']['single_val_th'])).sum() / output[:, 0].numel()) > \
+                if (((output[:, 0] > conf_param['PostProcessing']['single_val_th'])).sum().float() / output[:, 0].numel()) > \
                         conf_param['PostProcessing']['skip_if_p_rel']:
                     em_outs.append(EmptyEmitterSet())
                 else:

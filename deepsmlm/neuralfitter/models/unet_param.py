@@ -79,7 +79,8 @@ class UNetBase(nn.Module):
     def __init__(self, in_channels, out_channels, depth=4,
                  initial_features=64, gain=2, pad_convs=False,
                  norm=None, p_dropout=0.0,
-                 final_activation=None):
+                 final_activation=None,
+                 activation=nn.ReLU()):
         super().__init__()
 
         self.depth = depth
@@ -96,7 +97,7 @@ class UNetBase(nn.Module):
         n_features = [in_channels] + [initial_features * gain ** level
                                       for level in range(self.depth)]
         self.encoder = nn.ModuleList([self._conv_block(n_features[level], n_features[level + 1],
-                                                       level, part='encoder')
+                                                       level, part='encoder', activation=activation)
                                       for level in range(self.depth)])
 
         # the base convolution block
@@ -107,7 +108,7 @@ class UNetBase(nn.Module):
                       for level in range(self.depth + 1)]
         n_features = n_features[::-1]
         self.decoder = nn.ModuleList([self._conv_block(n_features[level], n_features[level + 1],
-                                                       self.depth - level - 1, part='decoder')
+                                                       self.depth - level - 1, part='decoder', activation=activation)
                                       for level in range(self.depth)])
 
         # the pooling layers;
@@ -173,14 +174,14 @@ class UNet2d(UNetBase):
     """
     # Convolutional block for single layer of the decoder / encoder
     # we apply to 2d convolutions with relu activation
-    def _conv_block(self, in_channels, out_channels, level, part):
+    def _conv_block(self, in_channels, out_channels, level, part, activation=nn.ReLU()):
         padding = 1 if self.pad_convs else 0
         return nn.Sequential(nn.Conv2d(in_channels, out_channels,
                                        kernel_size=3, padding=padding),
-                             nn.ReLU(),
+                             activation,
                              nn.Conv2d(out_channels, out_channels,
                                        kernel_size=3, padding=padding),
-                             nn.ReLU())
+                             activation)
 
     # upsampling via transposed 2d convolutions
     def _upsampler(self, in_channels, out_channels, level):
@@ -202,18 +203,18 @@ class UNet2dGN(UNet2d):
     """
     # Convolutional block for single layer of the decoder / encoder
     # we apply to 2d convolutions with relu activation
-    def _conv_block(self, in_channels, out_channels, level, part):
+    def _conv_block(self, in_channels, out_channels, level, part, activation=nn.ReLU()):
         num_groups1 = min(in_channels, 32)
         num_groups2 = min(out_channels, 32)
         padding = 1 if self.pad_convs else 0
         return nn.Sequential(nn.GroupNorm(num_groups1, in_channels),
                              nn.Conv2d(in_channels, out_channels,
                                        kernel_size=3, padding=padding),
-                             nn.ReLU(),
+                             activation,
                              nn.GroupNorm(num_groups2, out_channels),
                              nn.Conv2d(out_channels, out_channels,
                                        kernel_size=3, padding=padding),
-                             nn.ReLU())
+                             activation)
 
 
 def unet_2d(pretrained=None, **kwargs):
@@ -224,11 +225,109 @@ def unet_2d(pretrained=None, **kwargs):
     return net
 
 
-class DoubleUnet(nn.Module):
-    def __init__(self):
-        # ToDo: Make modifiable activation
-        self.unet_shared = UNet2dGN(3, 64, depth=3, pad_convs=True)
-        self.unet_union = UNet2dGN(3 * 64 + 3, 64, depth=3, initial_features=64)
+class DoubleMUnet(nn.Module):
+    def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, activation=nn.ReLU(),
+                 use_last_nl=True, use_gn=True):
+        super().__init__()
+        if use_gn:
+            self.unet_shared = UNet2dGN(1, inter_features, depth=depth, pad_convs=True, initial_features=initial_features,
+                                        activation=activation)
+            self.unet_union = UNet2dGN(ch_in * inter_features, inter_features, depth=depth, pad_convs=True,
+                                       initial_features=initial_features,
+                                       activation=activation)
+        else:
+            self.unet_shared = UNet2d(1, inter_features, depth=depth, pad_convs=True,
+                                        initial_features=initial_features,
+                                        activation=activation)
+            self.unet_union = UNet2d(ch_in * inter_features, inter_features, depth=depth, pad_convs=True,
+                                       initial_features=initial_features,
+                                       activation=activation)
+
+        assert ch_out in (5, 6)
+        self.ch_out = ch_out
+        self.mt_p = self._make_mlt_head(inter_features, 1, gn=use_gn)
+        self.mt_phot = self._make_mlt_head(inter_features, 1, gn=use_gn)
+        self.mt_x = self._make_mlt_head(inter_features, 1, gn=use_gn)
+        self.mt_y = self._make_mlt_head(inter_features, 1, gn=use_gn)
+        self.mt_z = self._make_mlt_head(inter_features, 1, gn=use_gn)
+        self.mt_bg = self._make_mlt_head(inter_features, 1, gn=use_gn)
+
+        self._use_last_nl = use_last_nl
+
+        self.p_nl = torch.sigmoid  # only in inference, during training
+        self.phot_nl = torch.sigmoid
+        self.xyz_nl = torch.tanh
+        self.bg_nl = torch.sigmoid
+
+    @staticmethod
+    def parse(param):
+        activation = eval(param['HyperParameter']['arch_param']['activation'])
+        return DoubleMUnet(
+            ch_in=param['HyperParameter']['channels_in'],
+            ch_out=param['HyperParameter']['channels_out'],
+            depth=param['HyperParameter']['arch_param']['depth'],
+            initial_features=param['HyperParameter']['arch_param']['initial_features'],
+            inter_features=param['HyperParameter']['arch_param']['inter_features'],
+            activation=activation,
+            use_last_nl=param['HyperParameter']['arch_param']['use_last_nl'],
+            use_gn=param['HyperParameter']['arch_param']['group_normalisation']
+        )
+
+    def apply_pnl(self, o):
+        """
+        Apply nonlinearity (sigmoid) to p channel. This is combined during training in the loss function.
+        Only use when not training
+        :param o:
+        :return:
+        """
+        o[:, [0]] = self.p_nl(o[:, [0]])
+        return o
+
+    def apply_nonlin(self, o):
+        """
+        Apply non linearity in all the other channels
+        :param o: 
+        :return: 
+        """
+        # Apply for phot, xyz
+        p = o[:, [0]]  # leave unused
+        phot = o[:, [1]]
+        xyz = o[:, 2:5]
+
+        if not self.training:
+            p = self.p_nl(p)
+
+        phot = self.phot_nl(phot)
+        xyz = self.xyz_nl(xyz)
+
+        if self.ch_out == 5:
+            o = torch.cat((p, phot, xyz), 1)
+            return o
+        elif self.ch_out == 6:
+            bg = o[:, [5]]
+            bg = self.bg_nl(bg)
+
+            o = torch.cat((p, phot, xyz, bg), 1)
+            return o
+
+    def _make_mlt_head(self, in_channels, out_channels, activation=nn.ReLU(), last_kernel=1, gn=True):
+        num_groups1 = min(in_channels, 32)
+        num_groups2 = min(out_channels, 32)
+        padding = True
+        if gn:
+            return nn.Sequential(nn.GroupNorm(num_groups1, in_channels),
+                                 nn.Conv2d(in_channels, out_channels,
+                                           kernel_size=3, padding=padding),
+                                 activation,
+                                 nn.GroupNorm(num_groups2, out_channels),
+                                 nn.Conv2d(out_channels, out_channels,
+                                           kernel_size=last_kernel, padding=False))
+        else:
+            return nn.Sequential(nn.Conv2d(in_channels, out_channels,
+                                           kernel_size=3, padding=padding),
+                                 activation,
+                                 nn.Conv2d(out_channels, out_channels,
+                                           kernel_size=last_kernel, padding=False))
 
     def forward(self, x):
         o0 = self.unet_shared.forward(x[:, [0]])
@@ -236,13 +335,39 @@ class DoubleUnet(nn.Module):
         o2 = self.unet_shared.forward(x[:, [2]])
         o = torch.cat((o0, o1, o2), 1)
 
-        x_union = torch.cat((x, o), 1)
+        # x_union = torch.cat((x, o), 1)  # cat original frames again
+        x_union = o
         o = self.unet_union.forward(x_union)
-        return o
 
+        # o_p, o_phot, o_x, o_y, o_z = o[:, [0]], o[:, [1]], o[:, [2]], o[:, [3]], o[:, [4]]
+        o_p = self.mt_p.forward(o)
+        o_phot = self.mt_phot.forward(o)
+        o_x = self.mt_x.forward(o)
+        o_y = self.mt_y.forward(o)
+        o_z = self.mt_z.forward(o)
+        o_not_bg = torch.cat((o_p, o_phot, o_x, o_y, o_z), 1)
+
+        if self.ch_out == 5:
+            o = o_not_bg
+
+        elif self.ch_out == 6:
+            o_bg = self.mt_bg.forward(o)
+            o = torch.cat((o_not_bg, o_bg), 1)
+
+        """Apply the final non-linearities"""
+        if self._use_last_nl:
+            o = self.apply_nonlin(o)
+
+        return o
 
 if __name__ == '__main__':
 
-    model = UNet2dGN(3, 6, pad_convs=True)
+    model = DoubleMUnet(3, 6, 3, use_last_nl=True)
     x = torch.rand((10, 3, 64, 64))
+    y = torch.rand((10, 6, 64, 64))
+    criterion = torch.nn.MSELoss()
     out = model.forward(x)
+    loss = criterion(out, y)
+    loss.backward()
+
+    print('Done')
