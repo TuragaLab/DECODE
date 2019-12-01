@@ -46,7 +46,10 @@ class GreedyHungarianMatching:
             dists[:, ix[1]] = float('inf')
 
             match_list.append(ix)
-        return torch.tensor(match_list)
+        if match_list.__len__() >= 1:
+            return torch.tensor(match_list)
+        else:
+            return torch.zeros((0, 2)).int()
 
     def assign_kernel(self, out, tar):
         """
