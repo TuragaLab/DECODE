@@ -78,13 +78,13 @@ class PredictEval(ABC):
             print("No Evaluator provided. Cannot perform evaluation.")
             return
 
-        gt_fix = int(self.gt.frame_ix.min().item())  # first index
-        gt_lix = int(self.gt.frame_ix.max().item())  # last index
+        # gt_fix = int(self.gt.frame_ix.min().item())  # first index
+        # gt_lix = int(self.gt.frame_ix.max().item())  # last index
+        #
+        # gt_frames = self.gt.split_in_frames(gt_fix, gt_lix)
+        # pred_frames = self.prediction.split_in_frames(gt_fix, gt_lix)
 
-        gt_frames = self.gt.split_in_frames(gt_fix, gt_lix)
-        pred_frames = self.prediction.split_in_frames(gt_fix, gt_lix)
-
-        self.evaluator.forward(pred_frames, gt_frames)
+        self.evaluator.forward(self.prediction, self.gt)
 
 
 class PredictEvalSimulation(PredictEval):
@@ -173,7 +173,7 @@ class PredictEvalTif(PredictEval):
         if frames is None:
             frames = self.frames
 
-        ds = UnsupervisedDataset(((-0.5, 63.5), (-0.5, 63.5), (-750., 750.)), frames=frames,
+        ds = UnsupervisedDataset(None, frames=frames,
                                  multi_frame_output=self.multi_frame)
         self.dataloader = torch.utils.data.DataLoader(ds,
                                                       batch_size=self.batch_size, shuffle=False,
@@ -205,9 +205,75 @@ class PredictEvalTif(PredictEval):
         gt.sort_by_frame()
 
         # nm to px
-        gt.convert_em_(factor=torch.tensor([1/self.px_size, 1/self.px_size, 1.]))
+        # gt.convert_em_(factor=torch.tensor([1/self.px_size, 1/self.px_size, 1.]))
         self.gt = gt
 
     def load_tif_csv(self):
         self.load_tif()
         self.load_csv()
+
+
+if __name__ == '__main__':
+    from deepsmlm.simulation.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
+    from deepsmlm.generic.emitter import *
+    from deepsmlm.generic.plotting.frame_coord import *
+    from deepsmlm.generic.inout.load_calibration import *
+    from deepsmlm.generic.psf_kernel import *
+    from deepsmlm.generic.noise import *
+    from deepsmlm.generic.utils.data_utils import *
+    from deepsmlm.simulation.simulator import *
+    from deepsmlm.generic.background import *
+    from deepsmlm.simulation.structure_prior import *
+    from deepsmlm.neuralfitter.dataset import *
+    from deepsmlm.neuralfitter.models.model import *
+    from deepsmlm.neuralfitter.models.model_offset import *
+    from deepsmlm.neuralfitter.models.model_beta import *
+    from deepsmlm.neuralfitter.models.unet_param import *
+    from deepsmlm.neuralfitter.pre_processing import *
+    from deepsmlm.neuralfitter.post_processing import *
+    from deepsmlm.neuralfitter.scale_transform import *
+    from deepsmlm.generic.inout.load_save_model import *
+    from deepsmlm.neuralfitter.pred_tif import *
+    from deepsmlm.evaluation.evaluation import *
+    import deepsmlm.generic.utils.processing as processing
+    from deepsmlm.neuralfitter.arguments import *
+    from deepsmlm.generic.phot_camera import *
+    from deepsmlm.evaluation.match_emittersets import GreedyHungarianMatching
+    import deepsmlm.generic.inout.write_load_param as wlp
+
+    deepsmlm_root = '/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/'
+    os.chdir(deepsmlm_root)
+
+    tifs = 'data/thesis/SMLM_Challenge/T_MT0.N1.HD/sequence-as-stack-MT0.N1.HD-AS-Exp.tif'
+    activations = 'data/thesis/SMLM_Challenge/T_MT0.N1.HD/activations.csv'
+    model_file = 'network/2019-11-30/dmunet_wd_no_moell_9.pt'
+    param_file = 'network/2019-11-30/dmunet_wd_no_moell_param.json'
+
+    param = wlp.load_params(param_file)
+    param['Hardware']['num_worker_sim'] = 6
+    model = LoadSaveModel(DoubleMUnet.parse(param), None, input_file=model_file).load_init(cuda=True)
+
+    post_processor = processing.TransformSequence.parse([OffsetRescale,
+                                                         Offset2Coordinate,
+                                                         ConsistencyPostprocessing], param)
+
+    matcher = GreedyHungarianMatching.parse(param)
+    segmentation_eval = SegmentationEvaluation(False)
+    distance_eval = DistanceEvaluation(print_mode=False)
+    batch_ev = BatchEvaluation(matcher, segmentation_eval, distance_eval,
+                                          batch_size=param['HyperParameter']['batch_size'],
+                                          px_size=torch.tensor(param['Camera']['px_size']))
+
+    predictor = PredictEvalTif(tifs, activations, model, post_processor, batch_ev, None)
+    predictor.load_tif()
+    predictor.load_csv()
+    predictor.gt.convert_em_(factor=torch.tensor([0.01, 0.01, 1.]), shift=torch.tensor([-0.5, -1.5, 0.]), axis=[1, 0, 2])
+    predictor.gt.frame_ix -= 1
+    # convert photons
+    predictor.frames = InputFrameRescale.parse(param).forward(predictor.frames)
+    predictor.init_dataset()
+    _, output = predictor.forward(True)
+    predictor.evaluate()
+    print("Done.")
+
+

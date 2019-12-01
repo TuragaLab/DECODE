@@ -278,7 +278,7 @@ class UnsupervisedDataset(Dataset):
         self.image_shape = None
         self.multi_frame_output = multi_frame_output
 
-        self.extent = (extent[0], extent[1], None)
+        # self.extent = (extent[0], extent[1], None)
         self.image_shape = tuple(self.frames.shape[2:])
 
         print("Dataset initialised. N: {} samples.".format(self.__len__()))

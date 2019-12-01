@@ -349,6 +349,9 @@ class DoubleMUnet(nn.Module):
         """Apply the final non-linearities"""
         if self._use_last_nl:
             o = self.apply_nonlin(o)
+        else:
+            if not self.training:
+                o[:, [0]] = self.p_nl(o[:, [0]])
 
         return o
 
@@ -385,7 +388,7 @@ class MLTHeads(nn.Module):
 
 if __name__ == '__main__':
 
-    model = DoubleMUnet(3, 6, depth=2, use_last_nl=True)
+    model = DoubleMUnet(3, 6, depth=2, use_last_nl=True, activation=nn.ELU())
     x = torch.rand((10, 3, 64, 64))
     y = torch.rand((10, 6, 64, 64))
     optimiser = torch.optim.Adam(model.parameters(), lr=0.0001)
