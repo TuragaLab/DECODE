@@ -387,9 +387,6 @@ class MLTHeads(nn.Module):
                                            kernel_size=3, padding=padding),
                                  activation)
 
-
-=======
->>>>>>> be4bc5bd4f22b1178344e5d305a71493fe6e9a1d
 if __name__ == '__main__':
     from deepsmlm.neuralfitter.models.model_param import DoubleMUnet
 
