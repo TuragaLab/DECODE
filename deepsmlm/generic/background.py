@@ -156,14 +156,17 @@ class PerlinBackground(Background):
     Taken from https://gist.github.com/vadimkantorov/ac1b097753f217c5c11bc2ff396e0a57.
     """
 
-    def __init__(self, img_size, perlin_scale, amplitude):
+    def __init__(self, img_size, perlin_scale: int, amplitude):
         """
 
         :param img_size: size of the image
-        :param perlin_scale: scale of the perlin in fractions of the img_scale
+        :param perlin_scale: scale of the perlin in fraction of the img_scale
         :param amplitude: background strength
         """
         super().__init__()
+        if img_size[0] != img_size[1]:
+            raise ValueError("Currently only equal img-size supported.")
+
         self.img_size = img_size
         self.perlin_scale = perlin_scale
         self.amplitude = amplitude
@@ -177,10 +180,10 @@ class PerlinBackground(Background):
         else:
             num_instances = 1
 
-        delta = (self.perlin_scale[0] / self.img_size[0], self.perlin_scale[1] / self.img_size[1])
-        self.d = (self.img_size[0] // self.perlin_scale[0], self.img_size[1] // self.perlin_scale[1])
-        self.grid = torch.stack(torch.meshgrid(torch.arange(0, self.perlin_scale[0], delta[0]),
-                                               torch.arange(0, self.perlin_scale[1], delta[1])), dim=-1) % 1
+        delta = (self.perlin_scale / self.img_size[0], self.perlin_scale / self.img_size[1])
+        self.d = (self.img_size[0] // self.perlin_scale, self.img_size[1] // self.perlin_scale)
+        self.grid = torch.stack(torch.meshgrid(torch.arange(0, self.perlin_scale, delta[0]),
+                                               torch.arange(0, self.perlin_scale, delta[1])), dim=-1) % 1
 
     @staticmethod
     def parse(param):
@@ -196,15 +199,19 @@ class PerlinBackground(Background):
                                     amplitude=param['Simulation']['bg_perlin_amplitude'])
 
     @staticmethod
-    def multi_scale_init(img_size, perlin_scales, amplitudes):
+    def multi_scale_init(img_size, perlin_scales, amplitudes, norm_amplitudes=True):
         """
         Generates a sequence of this class
         """
         num_instances = amplitudes.__len__()
         com = [None] * num_instances
+        if norm_amplitudes:
+            normfactor = 1. / num_instances
+        else:
+            normfactor = 1.
 
         for i in range(num_instances):
-            com[i] = PerlinBackground(img_size, perlin_scales[i], amplitudes[i])
+            com[i] = PerlinBackground(img_size, perlin_scales[i], amplitudes[i] * normfactor)
 
         return proc.TransformSequence(com)
 
@@ -216,6 +223,9 @@ class PerlinBackground(Background):
         return 6 * t ** 5 - 15 * t ** 4 + 10 * t ** 3
 
     def calc_perlin(self, shape, res):
+
+        if shape[0] == res[0] and shape[1] == res[1]:
+            return torch.rand(*shape) * 2 - 1
 
         angles = 2 * math.pi * torch.rand(res[0] + 1, res[1] + 1)
         gradients = torch.stack((torch.cos(angles), torch.sin(angles)), dim=-1)
@@ -240,20 +250,27 @@ class PerlinBackground(Background):
         :param x:
         :return:
         """
-        return x + self.amplitude * (self.calc_perlin(self.img_size, self.perlin_scale) + 1.) * 0.55
-
+        # return x + self.amplitude * (self.calc_perlin(self.img_size, self.perlin_scale) + 1.) * 0.55
+        return x + self.amplitude * (self.calc_perlin(self.img_size, [self.perlin_scale, self.perlin_scale]) + 1) / 2.0
 
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
-    # extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
-    # img_shape = (32, 32)
+    extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
+    img_shape = (32, 32)
     # bg = OutOfFocusEmitters(extent[0], extent[1], img_shape, bg_range=(0., 100.), num_bgem_range=[0, 5])
-    #
-    # x = torch.zeros((1, 1, 32, 32))
-    # x = bg.forward(x)
-    # plt.imshow(x[0, 0]); plt.colorbar(); plt.show()
+    bg = PerlinBackground.multi_scale_init(img_shape, [32, 16, 8, 4], [1., 1., 1., 1.])
+    x = torch.zeros((1, 1, 32, 32))
+    x = bg.forward(x)
+
+    plt.imshow(x[0, 0], interpolation='lanczos')
+    plt.colorbar()
+    plt.show()
+
+    plt.imshow(x[0, 0])
+    plt.colorbar()
+    plt.show()
     #
     # bg2 = NonUniformBackground(100, img_shape, 1.0)
     # # x = torch.zeros((1, 1, 64, 64))
