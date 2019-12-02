@@ -5,6 +5,7 @@ import torch.nn.functional as F
 # by constantin pape
 # from https://github.com/constantinpape/mu-net
 
+
 def get_activation(activation):
     """ Get activation from str or nn.Module
     """
@@ -225,6 +226,7 @@ def unet_2d(pretrained=None, **kwargs):
     return net
 
 
+<<<<<<< HEAD
 class DoubleMUnet(nn.Module):
     def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, activation=nn.ReLU(),
                  use_last_nl=True, use_gn=True):
@@ -386,7 +388,10 @@ class MLTHeads(nn.Module):
                                  activation)
 
 
+=======
+>>>>>>> be4bc5bd4f22b1178344e5d305a71493fe6e9a1d
 if __name__ == '__main__':
+    from deepsmlm.neuralfitter.models.model_param import DoubleMUnet
 
     model = DoubleMUnet(3, 6, depth=2, use_last_nl=True, activation=nn.ELU())
     x = torch.rand((10, 3, 64, 64))

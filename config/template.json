@@ -18,14 +18,17 @@
       "cometml_tags": []
     },
     "HyperParameter": {
-      "architecture": "DoubleMUnet",
+      "architecture": "DoubleMUNetSeperateBG",
       "arch_param": {
-        "depth": 3,
+        "depth": 2,
+        "depth_bg": 2,
         "initial_features": 64,
+        "initial_features_bg": 32,
+        "recpt_bg": 16,
         "inter_features": 64,
         "up_mode": "upsample",
         "use_last_nl": false,
-        "group_normalisation": false,
+        "group_normalisation": true,
         "activation": "nn.ReLU()"
       },
       "optimizer": "AdamW",
@@ -36,8 +39,8 @@
       "channels_in": 3,
       "channels_out": 6,
       "batch_size": 32,
-      "pseudo_ds_size": 256,
-      "test_size": 64,
+      "pseudo_ds_size": 32768,
+      "test_size": 256,
       "epochs": 1000,
       "epoch_0": null,
       "ch_weight": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
@@ -75,13 +78,9 @@
       "density": 0,
       "emitter_av": 40,
       "photon_range": null,
-      "bg_uniform": [80.0, 120.0],
-      "bg_nonuni_intensity": null,
-      "bg_nonuni_dynamic": null,
-      "bg_oof_range": null,
-      "bg_num_oof_range": null,
-      "bg_perlin_scale": [1, 1],
-      "bg_perlin_amplitude": 30,
+      "bg_uniform": [60.0, 120.0],
+      "bg_perlin_scale": [32, 16, 8, 4],
+      "bg_perlin_amplitude": [30.0, 30.0, 30.0, 30.0],
       "intensity_mu_sig": [10000.0, 500.0],
       "lifetime_avg": 2.0
     },
@@ -101,7 +100,7 @@
         "dy_max": 2.5,
         "z_max": 750.0,
         "phot_max": 15000.0,
-        "range_bg": [80.0, 150.0],
+        "mu_sig_bg": [100.0, 60.0],
         "linearisation_buffer": 1.2
     },
     "PostProcessing": {

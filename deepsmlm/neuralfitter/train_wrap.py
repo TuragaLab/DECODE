@@ -42,7 +42,7 @@ import deepsmlm.neuralfitter.losscollection as ls
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided, \
     OffSetUNetBGBranch
-from deepsmlm.neuralfitter.models.unet_param import DoubleMUnet
+from deepsmlm.neuralfitter.models.model_param import DoubleMUnet, DoubleMUNetSeperateBG
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale, InputFrameRescale
 from deepsmlm.neuralfitter.train_test import train, test
@@ -304,11 +304,12 @@ if __name__ == '__main__':
     elif param['HyperParameter']['architecture'] == 'OffSetUNetBGBranch':
         model = OffSetUNetBGBranch(n_channels=param['HyperParameter']['channels_in'],
                                    n_classes=param['HyperParameter']['channels_out'])
-    elif param['HyperParameter']['architecture'] == "DoubleMUnet":
-        model = DoubleMUnet.parse(param)
-
     else:
-        raise ValueError("Invalid Architecture name.")
+        try:
+            model = eval(param['HyperParameter']['architecture'])
+        except:
+            raise ValueError("Invalid Architecture name.")
+        model = model.parse(param)
 
     """Set up post processor"""
     post_processor = processing.TransformSequence.parse([OffsetRescale,
