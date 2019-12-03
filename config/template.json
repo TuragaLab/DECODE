@@ -18,13 +18,13 @@
       "cometml_tags": []
     },
     "HyperParameter": {
-      "architecture": "DoubleMUNetSeperateBG",
+      "architecture": "BGNet",
       "arch_param": {
         "depth": 2,
         "depth_bg": 2,
         "initial_features": 64,
         "initial_features_bg": 32,
-        "recpt_bg": 16,
+        "recpt_bg": 32,
         "inter_features": 64,
         "up_mode": "upsample",
         "use_last_nl": false,
@@ -33,7 +33,7 @@
       },
       "optimizer": "AdamW",
       "opt_param": {
-        "lr": 0.0001,
+        "lr": 0.002,
         "weight_decay": 0.01
       },
       "channels_in": 3,
@@ -43,7 +43,7 @@
       "test_size": 256,
       "epochs": 1000,
       "epoch_0": null,
-      "ch_weight": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+      "ch_static_scale": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
       "weight_base": "constant",
       "dynamic_weight": false,
       "fgbg_factor": 2.0,
@@ -56,7 +56,7 @@
     },
     "LearningRateScheduler": {
       "mode": "min",
-      "factor": 0.1,
+      "factor": 0.5,
       "patience": 20,
       "threshold": 0.0001,
       "cooldown": 10,
@@ -72,16 +72,16 @@
       "max_value": null
     },
     "Simulation": {
-      "emitter_extent": [[-0.5, 63.5], [-0.5, 63.5], [-750, 750]],
-      "psf_extent": [[-0.5, 63.5], [-0.5, 63.5], null],
-      "img_size": [64, 64],
+      "emitter_extent": [[-0.5, 31.5], [-0.5, 31.5], [-750, 750]],
+      "psf_extent": [[-0.5, 31.5], [-0.5, 31.5], null],
+      "img_size": [32, 32],
       "density": 0,
-      "emitter_av": 40,
+      "emitter_av": 15,
       "photon_range": null,
       "bg_uniform": [60.0, 120.0],
       "bg_perlin_scale": [32, 16, 8, 4],
       "bg_perlin_amplitude": [30.0, 30.0, 30.0, 30.0],
-      "intensity_mu_sig": [10000.0, 500.0],
+      "intensity_mu_sig": [10000.0, 1000.0],
       "lifetime_avg": 2.0
     },
     "Camera": {
