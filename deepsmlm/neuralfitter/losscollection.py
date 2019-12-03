@@ -288,12 +288,15 @@ class OffsetROILoss(SpeiserLoss):
 
 
 class MaskedPxyzLoss(SpeiserLoss):
-    def __init__(self, model_out_ch, device, pos_weight=1., ch_rescale=True, cmp_prefix='loss', logger=None):
+    def __init__(self, model_out_ch, device, pos_weight=1., ch_static_scale=None, ch_rescale=True,
+                 cmp_prefix='loss',
+                 logger=None):
         super().__init__(None, model_out_ch, None, None, cmp_prefix, logger)
         self._pos_weight = torch.tensor([pos_weight]).to(device) if pos_weight is not None else None
         self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none', pos_weight=self._pos_weight)
         self.phot_xyzbg_loss = torch.nn.MSELoss(reduction='none')
         self.ch_rescale = ch_rescale
+        self.ch_static_scale = ch_static_scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).to(device)
 
     @staticmethod
     def parse(param: dict, logger):
@@ -306,6 +309,7 @@ class MaskedPxyzLoss(SpeiserLoss):
         return MaskedPxyzLoss(model_out_ch=param['HyperParameter']['channels_out'],
                               device=torch.device(param['Hardware']['device']),
                               pos_weight=param['HyperParameter']['fgbg_factor'],
+                              ch_static_scale=torch.tensor(param['HyperParameter']['ch_static_scale']).float(),
                               ch_rescale=param['HyperParameter']['dynamic_weight'], logger=logger)
 
     def _rescale_weights(self, weight):
@@ -322,19 +326,21 @@ class MaskedPxyzLoss(SpeiserLoss):
         return weight
 
     @staticmethod
-    def functional(output, target, weight, p_loss, ch_loss):
+    def functional(output, target, weight, p_loss, ch_loss, static_scale=None):
         ploss = p_loss(output[:, [0]], target[:, [0]])
         chloss = ch_loss(output[:, 1:], target[:, 1:])
         tot_loss = torch.cat((ploss, chloss), 1)
 
         tot_loss = tot_loss * weight
+        if static_scale is not None:
+            tot_loss = tot_loss * static_scale
 
         return tot_loss
 
-    def __call__(self, output, target, mask):
+    def __call__(self, output, target, weight):
         if self.ch_rescale:
-            mask = self._rescale_weights(mask)
-        return self.functional(output, target, mask, self.p_loss, self.phot_xyzbg_loss)
+            weight = self._rescale_weights(weight)
+        return self.functional(output, target, weight, self.p_loss, self.phot_xyzbg_loss, self.ch_static_scale)
 
 
 class FocalOffsetLoss(SpeiserLoss):

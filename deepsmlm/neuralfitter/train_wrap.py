@@ -42,7 +42,7 @@ import deepsmlm.neuralfitter.losscollection as ls
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided, \
     OffSetUNetBGBranch
-from deepsmlm.neuralfitter.models.model_param import DoubleMUnet, DoubleMUNetSeperateBG
+from deepsmlm.neuralfitter.models.model_param import DoubleMUnet, DoubleMUNetSeperateBG, BGNet
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale, InputFrameRescale
 from deepsmlm.neuralfitter.train_test import train, test

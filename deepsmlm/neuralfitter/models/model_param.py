@@ -237,6 +237,54 @@ class DoubleMUNetSeperateBG(DoubleMUnet):
         return torch.cat((out, bg_out), 1)
 
 
+class BGNet(nn.Module):
+    def __init__(self, ch_in, ch_out, depth=3, initial_features=64, recpt_bg=16, inter_features=64, depth_bg=2,
+                 initial_features_bg=16, activation=nn.ReLU(), use_last_nl=True, use_gn=True):
+        super().__init__()
+        self.ch_out = ch_out  # pseudo channels for easier trainig
+        if use_gn:
+            self.net = UNet2dGN(in_channels=ch_in,
+                                out_channels=1,
+                                depth=depth_bg,
+                                initial_features=initial_features_bg,
+                                pad_convs=True,
+                                activation=activation)
+        else:
+            self.net = UNet2d(in_channels=ch_in,
+                                out_channels=1,
+                                depth=depth_bg,
+                                initial_features=initial_features_bg,
+                                pad_convs=True,
+                                activation=activation)
+
+    @staticmethod
+    def parse(param):
+        activation = eval(param['HyperParameter']['arch_param']['activation'])
+        return BGNet(
+            ch_in=param['HyperParameter']['channels_in'],
+            ch_out=param['HyperParameter']['channels_out'],
+            depth=param['HyperParameter']['arch_param']['depth'],
+            initial_features=param['HyperParameter']['arch_param']['initial_features'],
+            recpt_bg=param['HyperParameter']['arch_param']['recpt_bg'],
+            depth_bg=param['HyperParameter']['arch_param']['depth_bg'],
+            initial_features_bg=param['HyperParameter']['arch_param']['initial_features_bg'],
+            inter_features=param['HyperParameter']['arch_param']['inter_features'],
+            activation=activation,
+            use_last_nl=param['HyperParameter']['arch_param']['use_last_nl'],
+            use_gn=param['HyperParameter']['arch_param']['group_normalisation']
+        )
+
+    def apply_pnl(self, x):
+        return x
+
+    def forward(self, x):
+        o = self.net.forward(x)
+        if self.ch_out >= 2:
+            o = torch.cat((torch.zeros((o.size(0), self.ch_out -1, o.size(-2), o.size(-1))).to(o.device), o), 1)
+
+        return o
+
+
 if __name__ == '__main__':
 
     model = DoubleMUNetSeperateBG(3, 6, depth=2, depth_bg=2, initial_features_bg=32, recpt_bg=16, use_last_nl=False)

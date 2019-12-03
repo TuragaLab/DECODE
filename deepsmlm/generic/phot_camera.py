@@ -63,18 +63,18 @@ class Photon2Camera:
             camera = self.gain.forward(camera)
         """Gaussian for read-noise. Takes camera and adds zero centred gaussian noise."""
         camera = self.read.forward(camera)
-        """Electrons per ADU"""
+        """Electrons per ADU, (floor function)"""
         camera /= self.e_per_adu
-        """Add Manufacturer baseline and round the values since the camera will out int.  Make sure it's not below 0."""
+        camera = camera.floor()
+        """Add Manufacturer baseline. Make sure it's not below 0."""
         camera += self.baseline
-        camera = camera.round()
         camera = torch.max(camera, torch.tensor([0.]))
 
         if self.photon_units:
             if self.em_gain is not None:
-                camera = (camera - self.baseline) / self.em_gain * self.e_per_adu
+                camera = ((camera - self.baseline) / self.em_gain * self.e_per_adu - self.spur) / self.qe
             else:
-                camera = camera - self.baseline * self.e_per_adu
+                camera = ((camera - self.baseline) * self.e_per_adu - self.spur) / self.qe
         return camera
 
     def reverse(self, x):

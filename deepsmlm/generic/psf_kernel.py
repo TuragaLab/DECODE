@@ -282,7 +282,7 @@ class SplineCPP(PSF):
     """
     native_order = 'xypbz'
     max_factor_nat_order = torch.tensor([10., 10., 10, 10, 10.]).unsqueeze(0) ** 2
-    max_value_nat_order = torch.tensor([5., 5., 10000., 200., 1000.]) ** 2
+    max_value_nat_order = torch.tensor([3., 3., 10000., 200., 1000.]) ** 2
     big_number_handling = 'max_value'
     n_par = 5
 
