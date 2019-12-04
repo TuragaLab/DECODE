@@ -96,7 +96,7 @@ class GreedyHungarianMatching:
 
         :param output:
         :param target:
-        :return:
+        :return: tp, fp, fn, tp_match (true positives, false positives, false negatives, gt matched with tp)
         """
 
         """Split in Frames based on the target"""
