@@ -178,15 +178,19 @@ class PredictEvalTif(PredictEval):
         self.dataloader = torch.utils.data.DataLoader(ds,
                                                       batch_size=self.batch_size, shuffle=False,
                                                       num_workers=8, pin_memory=False)
+    def load_csv_(self):
+        gt = self.load_csv(self.activation_file)
+        self.gt = gt
 
-    def load_csv(self):
+    @staticmethod
+    def load_csv(activation_file):
 
-        if self.activation_file is None:
+        if activation_file is None:
             print("WARNING: No activations loaded since file not specified; i.e. there is no ground truth.")
             return
 
         # read csv
-        with open(self.activation_file) as csv_file:
+        with open(activation_file) as csv_file:
             csv_reader = csv.reader(csv_file)
             line_count = 0
             id_frame_xyz_camval = []
@@ -204,9 +208,8 @@ class PredictEvalTif(PredictEval):
                            phot=id_frame_xyz_camval[:, -1], id=id_frame_xyz_camval[:, 0])
         gt.sort_by_frame()
 
-        # nm to px
-        # gt.convert_em_(factor=torch.tensor([1/self.px_size, 1/self.px_size, 1.]))
-        self.gt = gt
+        return gt
+
 
     def load_tif_csv(self):
         self.load_tif()
