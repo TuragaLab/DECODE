@@ -28,7 +28,10 @@
         "inter_features": 64,
         "up_mode": "upsample",
         "use_last_nl": false,
-        "group_normalisation": true,
+        "norm": "GroupNorm",
+        "norm_groups": 32,
+        "norm_bg": "GroupNorm",
+        "norm_bg_groups": 32,
         "activation": "nn.ReLU()"
       },
       "optimizer": "AdamW",
