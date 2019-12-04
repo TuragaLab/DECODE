@@ -79,7 +79,7 @@ class UNetBase(nn.Module):
 
     def __init__(self, in_channels, out_channels, depth=4,
                  initial_features=64, gain=2, pad_convs=False,
-                 norm=None, p_dropout=0.0,
+                 norm=None, norm_groups=None, p_dropout=0.0,
                  final_activation=None,
                  activation=nn.ReLU()):
         super().__init__()
@@ -91,6 +91,7 @@ class UNetBase(nn.Module):
         if norm is not None:
             assert norm in self.norms
         self.norm = norm
+        self.norm_groups = norm_groups
         assert isinstance(p_dropout, (float, dict))
         self.p_dropout = p_dropout
 
@@ -143,6 +144,34 @@ class UNetBase(nn.Module):
         cropped = self._crop_tensor(from_encoder, from_decoder.shape)
         return torch.cat((cropped, from_decoder), dim=1)
 
+    def forward_parts(self, parts):
+        if 'encoder' in parts:
+            x = input
+            # apply encoder path
+            encoder_out = []
+            for level in range(self.depth):
+                x = self.encoder[level](x)
+                encoder_out.append(x)
+                x = self.poolers[level](x)
+
+        if 'base' in parts:
+            x = self.base(x)
+
+        if 'decoder' in parts:
+            # apply decoder path
+            encoder_out = encoder_out[::-1]
+            for level in range(self.depth):
+                x = self.upsamplers[level](x)
+                x = self.decoder[level](self._crop_and_concat(x,
+                                                              encoder_out[level]))
+
+            # apply output conv and activation (if given)
+            x = self.out_conv(x)
+            if self.activation is not None:
+                x = self.activation(x)
+
+        return x
+
     def forward(self, input):
         x = input
         # apply encoder path
@@ -177,12 +206,26 @@ class UNet2d(UNetBase):
     # we apply to 2d convolutions with relu activation
     def _conv_block(self, in_channels, out_channels, level, part, activation=nn.ReLU()):
         padding = 1 if self.pad_convs else 0
-        return nn.Sequential(nn.Conv2d(in_channels, out_channels,
-                                       kernel_size=3, padding=padding),
-                             activation,
-                             nn.Conv2d(out_channels, out_channels,
-                                       kernel_size=3, padding=padding),
-                             activation)
+        num_groups1 = min(in_channels, self.norm_groups)
+        num_groups2 = min(out_channels, self.norm_groups)
+        if self.norm is None:
+            return nn.Sequential(nn.Conv2d(in_channels, out_channels,
+                                           kernel_size=3, padding=padding),
+                                 activation,
+                                 nn.Conv2d(out_channels, out_channels,
+                                           kernel_size=3, padding=padding),
+                                 activation)
+        elif self.norm == 'GroupNorm':
+            return nn.Sequential(nn.GroupNorm(num_groups1, in_channels),
+                                 nn.Conv2d(in_channels, out_channels,
+                                           kernel_size=3, padding=padding),
+                                 activation,
+                                 nn.GroupNorm(num_groups2, out_channels),
+                                 nn.Conv2d(out_channels, out_channels,
+                                           kernel_size=3, padding=padding),
+                                 activation)
+        else:
+            raise NotImplementedError("Not Implemented.")
 
     # upsampling via transposed 2d convolutions
     def _upsampler(self, in_channels, out_channels, level):
@@ -199,37 +242,9 @@ class UNet2d(UNetBase):
         return nn.Conv2d(in_channels, out_channels, 1)
 
 
-class UNet2dGN(UNet2d):
-    """ 2d U-Net with GroupNorm
-    """
-    # Convolutional block for single layer of the decoder / encoder
-    # we apply to 2d convolutions with relu activation
-    def _conv_block(self, in_channels, out_channels, level, part, activation=nn.ReLU()):
-        num_groups1 = min(in_channels, 32)
-        num_groups2 = min(out_channels, 32)
-        padding = 1 if self.pad_convs else 0
-        return nn.Sequential(nn.GroupNorm(num_groups1, in_channels),
-                             nn.Conv2d(in_channels, out_channels,
-                                       kernel_size=3, padding=padding),
-                             activation,
-                             nn.GroupNorm(num_groups2, out_channels),
-                             nn.Conv2d(out_channels, out_channels,
-                                       kernel_size=3, padding=padding),
-                             activation)
-
-
-def unet_2d(pretrained=None, **kwargs):
-    net = UNet2dGN(**kwargs)
-    if pretrained is not None:
-        assert pretrained in ('isbi',)
-        # TODO implement download
-    return net
-
-
 if __name__ == '__main__':
-    from deepsmlm.neuralfitter.models.model_param import DoubleMUnet
 
-    model = DoubleMUnet(3, 6, depth=2, use_last_nl=True, activation=nn.ELU())
+    model = UNet2d(3, 6, depth=2, activation=nn.ELU(), norm='GroupNorm')
     x = torch.rand((10, 3, 64, 64))
     y = torch.rand((10, 6, 64, 64))
     optimiser = torch.optim.Adam(model.parameters(), lr=0.0001)
