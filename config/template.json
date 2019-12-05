@@ -18,35 +18,40 @@
       "cometml_tags": []
     },
     "HyperParameter": {
-      "architecture": "BGNet",
+      "architecture": "SimpleSMLMNet",
       "arch_param": {
+        "activation": "nn.ReLU()",
         "depth": 2,
         "depth_bg": 2,
         "initial_features": 64,
         "initial_features_bg": 32,
-        "recpt_bg": 32,
         "inter_features": 64,
         "up_mode": "upsample",
         "use_last_nl": false,
-        "norm": "GroupNorm",
-        "norm_groups": 32,
-        "norm_bg": "GroupNorm",
-        "norm_bg_groups": 32,
-        "activation": "nn.ReLU()"
+        "norm": null,
+        "norm_groups": null,
+        "norm_head": null,
+        "norm_head_groups": null,
+        "norm_bg": null,
+        "norm_bg_groups": null,
+        "p_dropout": 0.0,
+        "pool_mode": "MaxPool",
+        "recpt_bg": null
       },
       "optimizer": "AdamW",
       "opt_param": {
         "lr": 0.002,
         "weight_decay": 0.01
       },
+      "bg_perlin_prob_disable": 0.3,
       "channels_in": 3,
       "channels_out": 6,
       "batch_size": 32,
-      "pseudo_ds_size": 32768,
+      "pseudo_ds_size": 256,
       "test_size": 256,
       "epochs": 1000,
       "epoch_0": null,
-      "ch_static_scale": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+      "ch_static_scale": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
       "weight_base": "constant",
       "dynamic_weight": false,
       "fgbg_factor": 2.0,
@@ -84,6 +89,7 @@
       "bg_uniform": [60.0, 120.0],
       "bg_perlin_scale": [32, 16, 8, 4],
       "bg_perlin_amplitude": [30.0, 30.0, 30.0, 30.0],
+      "bg_perlin_normalise_amplitudes": true,
       "intensity_mu_sig": [10000.0, 1000.0],
       "lifetime_avg": 2.0
     },
@@ -103,7 +109,7 @@
         "dy_max": 2.5,
         "z_max": 750.0,
         "phot_max": 15000.0,
-        "mu_sig_bg": [100.0, 60.0],
+        "mu_sig_bg": [60.0, 60.0],
         "linearisation_buffer": 1.2
     },
     "PostProcessing": {

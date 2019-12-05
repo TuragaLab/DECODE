@@ -42,7 +42,7 @@ import deepsmlm.neuralfitter.losscollection as ls
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided, \
     OffSetUNetBGBranch
-from deepsmlm.neuralfitter.models.model_param import DoubleMUnet, DoubleMUNetSeperateBG, BGNet
+import deepsmlm.neuralfitter.models.model_param as model_zoo
 from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale, InputFrameRescale
 from deepsmlm.neuralfitter.train_test import train, test
@@ -99,7 +99,7 @@ if __name__ == '__main__':
     if param_file is None:
         raise ValueError("Parameters not specified. "
                          "Parse the parameter file via -p [Your parameeter.json]")
-    param = wlp.load_params(param_file)
+    param = wlp.ParamHandling().load_params(param_file)
 
     """Some Server stuff"""
     if param['Hardware']['device'] == 'cuda':
@@ -120,26 +120,30 @@ if __name__ == '__main__':
                                                            deepsmlm_root)
 
     # write params to folder where the network weights are
-    param_file = param['InOut']['model_out'][:-3] + '_param.json'
-    wlp.write_params(param_file, param)
+    param_file_out = param['InOut']['model_out'][:-3] + '_param.json'
+    wlp.ParamHandling().write_params(param_file_out, param)
 
     """Log System"""
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
 
     experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
-                            auto_metric_logging=False, disabled=WRITE_TO_LOG, api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
+                            auto_metric_logging=False, disabled=(~WRITE_TO_LOG), api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
 
-    experiment.log_parameters(param['InOut'], prefix='IO')
-    experiment.log_parameters(param['Hardware'], prefix='Hw')
-    experiment.log_parameters(param['Logging'], prefix='Log')
-    experiment.log_parameters(param['HyperParameter'], prefix='Hyp')
-    experiment.log_parameters(param['LearningRateScheduler'], prefix='Sched')
-    experiment.log_parameters(param['SimulationScheduler'], prefix='Sched')
-    experiment.log_parameters(param['Simulation'], prefix='Sim')
-    experiment.log_parameters(param['Scaling'], prefix='Scale')
-    experiment.log_parameters(param['Camera'], prefix='Cam')
-    experiment.log_parameters(param['PostProcessing'], prefix='Post')
-    experiment.log_parameters(param['Evaluation'], prefix='Eval')
+    experiment.log_asset(param_file, file_name='config_in')
+    experiment.log_asset(param_file_out, file_name='config_out')
+
+    param_comet = param.toDict()
+    experiment.log_parameters(param_comet['InOut'], prefix='IO')
+    experiment.log_parameters(param_comet['Hardware'], prefix='Hw')
+    experiment.log_parameters(param_comet['Logging'], prefix='Log')
+    experiment.log_parameters(param_comet['HyperParameter'], prefix='Hyp')
+    experiment.log_parameters(param_comet['LearningRateScheduler'], prefix='Sched')
+    experiment.log_parameters(param_comet['SimulationScheduler'], prefix='Sched')
+    experiment.log_parameters(param_comet['Simulation'], prefix='Sim')
+    experiment.log_parameters(param_comet['Scaling'], prefix='Scale')
+    experiment.log_parameters(param_comet['Camera'], prefix='Cam')
+    experiment.log_parameters(param_comet['PostProcessing'], prefix='Post')
+    experiment.log_parameters(param_comet['Evaluation'], prefix='Eval')
 
     """Add some tags as specified above."""
     for tag in param['Logging']['cometml_tags']:
@@ -162,7 +166,7 @@ if __name__ == '__main__':
             InverseOffsetRescale.parse(param)
         ])
     else:
-        target_generator = processing.TransformSequence.parse([ROIOffsetRep, InveryseOffsetRescale], param)
+        target_generator = processing.TransformSequence.parse([ROIOffsetRep, InverseOffsetRescale], param)
 
     if param['InOut']['data_set'] == 'precomputed':
         """Load Data from binary."""
@@ -289,27 +293,12 @@ if __name__ == '__main__':
         raise NameError("You used the wrong switch of how to get the training data.")
 
     """Set model and corresponding post-processing"""
-    if param['HyperParameter']['architecture'] == 'OffsetUnet':
-        model = OffsetUnet(n_channels=param['HyperParameter']['channels_in'],
-                           n_classes=param['HyperParameter']['channels_out'])
-
-    elif param['HyperParameter']['architecture'] == 'DoubleOffsetUNet':
-        model = DoubleOffsetUNet(n_channels=param['HyperParameter']['channels_in'],
-                                 n_classes=param['HyperParameter']['channels_out'], n_intermediate=64)
-
-    elif param['HyperParameter']['architecture'] == 'DoubleOffsetUNetDivided':
-        model = DoubleOffsetUNetDivided(n_channels=param['HyperParameter']['channels_in'],
-                                        n_classes=param['HyperParameter']['channels_out'])
-
-    elif param['HyperParameter']['architecture'] == 'OffSetUNetBGBranch':
-        model = OffSetUNetBGBranch(n_channels=param['HyperParameter']['channels_in'],
-                                   n_classes=param['HyperParameter']['channels_out'])
-    else:
-        try:
-            model = eval(param['HyperParameter']['architecture'])
-        except:
-            raise ValueError("Invalid Architecture name.")
-        model = model.parse(param)
+    models_ava = {
+        'SimpleSMLMNet': model_zoo.SimpleSMLMNet,
+        'SMLMNetBG': model_zoo.SMLMNetBG
+    }
+    model = models_ava[param.HyperParameter.architecture]
+    model = model.parse(param)
 
     """Set up post processor"""
     post_processor = processing.TransformSequence.parse([OffsetRescale,

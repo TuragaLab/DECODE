@@ -14,6 +14,7 @@ dependencies:
   - comet_ml
   - cudatoolkit=10.1
   - comet_ml
+  - dotmap
   - holoviews
   - intel-openmp
   - jupyter_contrib_nbextensions
@@ -24,6 +25,7 @@ dependencies:
   - numpy
   - opencv
   - pillow
+  - pyyaml
   - python=3.6
   # - pytorch=1.2.*
   - ninja
