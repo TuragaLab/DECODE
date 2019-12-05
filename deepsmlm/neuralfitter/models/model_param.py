@@ -7,20 +7,23 @@ import deepsmlm.neuralfitter.utils.last_layer_dynamics as lyd
 
 class SimpleSMLMNet(UNet2d):
     def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, p_dropout=0.,
-                 activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None):
+                 activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
+                 norm_head_groups=None, pool_mode='StrideConv'):
         super().__init__(in_channels=ch_in,
-                         out_channels=ch_out,
+                         out_channels=inter_features,
                          depth=depth,
                          initial_features=initial_features,
                          pad_convs=True,
                          norm=norm,
                          norm_groups=norm_groups,
                          p_dropout=p_dropout,
+                         pool_mode=pool_mode,
                          activation=activation)
 
         assert ch_out in (5, 6)
         self.ch_out = ch_out
-        self.mt_heads = nn.ModuleList([MLTHeads(inter_features, norm=norm) for _ in range(self.ch_out)])
+        self.mt_heads = nn.ModuleList(
+            [MLTHeads(inter_features, norm=norm_head, norm_groups=norm_head_groups) for _ in range(self.ch_out)])
 
         self._use_last_nl = use_last_nl
 
@@ -39,10 +42,13 @@ class SimpleSMLMNet(UNet2d):
             initial_features=param['HyperParameter']['arch_param']['initial_features'],
             inter_features=param['HyperParameter']['arch_param']['inter_features'],
             p_dropout=param['HyperParameter']['arch_param']['p_dropout'],
+            pool_mode=param['HyperParameter']['arch_param']['pool_mode'],
             activation=activation,
             use_last_nl=param['HyperParameter']['arch_param']['use_last_nl'],
             norm=param['HyperParameter']['arch_param']['norm'],
-            norm_groups=param['HyperParameter']['arch_param']['norm_groups']
+            norm_groups=param['HyperParameter']['arch_param']['norm_groups'],
+            norm_head=param['HyperParameter']['arch_param']['norm_head'],
+            norm_head_groups=param['HyperParameter']['arch_param']['norm_head_groups']
         )
 
     def apply_pnl(self, o):
@@ -89,7 +95,7 @@ class SimpleSMLMNet(UNet2d):
 
         """Apply the final non-linearities"""
         if not self.training:
-            p = self.p_nl(p)
+            o[:, [0]] = self.p_nl(o[:, [0]])
 
         if self._use_last_nl:
             o = self.apply_nonlin(o)
@@ -100,11 +106,12 @@ class SimpleSMLMNet(UNet2d):
 class SMLMNetBG(SimpleSMLMNet):
     def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, p_dropout=0.,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_bg=None,
-                 norm_bg_groups=None, detach_bg=False):
+                 norm_bg_groups=None, norm_head=None, norm_head_groups=None, pool_mode='MaxPool', detach_bg=False):
 
         super().__init__(ch_in + 1, ch_out - 1, depth, initial_features, inter_features, p_dropout, activation,
                          use_last_nl,
-                         norm, norm_groups)
+                         norm, norm_groups,
+                         pool_mode=pool_mode)
         assert ch_out == 6
         self.total_ch_out = ch_out
         self.detach_bg = detach_bg
@@ -122,6 +129,7 @@ class SMLMNetBG(SimpleSMLMNet):
             initial_features=param['HyperParameter']['arch_param']['initial_features'],
             inter_features=param['HyperParameter']['arch_param']['inter_features'],
             p_dropout=param['HyperParameter']['arch_param']['p_dropout'],
+            pool_mode=param['HyperParameter']['arch_param']['pool_mode'],
             activation=activation,
             use_last_nl=param['HyperParameter']['arch_param']['use_last_nl'],
             norm=param['HyperParameter']['arch_param']['norm'],
@@ -144,19 +152,21 @@ class SMLMNetBG(SimpleSMLMNet):
 
 class DoubleMUnet(nn.Module):
     def __init__(self, ch_in, ch_out, ext_features=0, depth=3, initial_features=64, inter_features=64,
-                 activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None):
+                 activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
+                 norm_head_groups=None, pool_mode='Conv2d'):
         super().__init__()
 
         self.unet_shared = UNet2d(1 + ext_features, inter_features, depth=depth, pad_convs=True,
                                   initial_features=initial_features,
-                                  activation=activation, norm=norm, norm_groups=norm_groups)
+                                  activation=activation, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode)
         self.unet_union = UNet2d(ch_in * inter_features, inter_features, depth=depth, pad_convs=True,
                                  initial_features=initial_features,
-                                 activation=activation, norm=norm, norm_groups=norm_groups)
+                                 activation=activation, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode)
 
         assert ch_out in (5, 6)
         self.ch_out = ch_out
-        self.mt_heads = nn.ModuleList([MLTHeads(inter_features, norm=norm) for _ in range(self.ch_out)])
+        self.mt_heads = nn.ModuleList(
+            [MLTHeads(inter_features, norm=norm_head, norm_groups=norm_head_groups) for _ in range(self.ch_out)])
 
         self._use_last_nl = use_last_nl
 
@@ -178,7 +188,10 @@ class DoubleMUnet(nn.Module):
             activation=activation,
             use_last_nl=param['HyperParameter']['arch_param']['use_last_nl'],
             norm=param['HyperParameter']['arch_param']['norm'],
-            norm_groups=param['HyperParameter']['arch_param']['norm_groups']
+            norm_groups=param['HyperParameter']['arch_param']['norm_groups'],
+            norm_head=param['HyperParameter']['arch_param']['norm_head'],
+            norm_head_groups=param['HyperParameter']['arch_param']['norm_head_groups'],
+            pool_mode=param['HyperParameter']['arch_param']['pool_mode']
         )
 
     def rescale_last_layer_grad(self, loss, optimizer):
@@ -223,11 +236,16 @@ class MLTHeads(nn.Module):
         super().__init__()
         self.norm = norm
         self.norm_groups = norm_groups
-        groups_1 = min(in_channels, self.norm_groups)
-        groups_2 = min(1, self.norm_groups)
+        if self.norm is not None:
+            groups_1 = min(in_channels, self.norm_groups)
+            groups_2 = min(1, self.norm_groups)
+        else:
+            groups_1 = None
+            groups_2 = None
+
         padding = padding
 
-        self.core = self._make_core(in_channels, groups_1, groups_2, activation, padding, norm)
+        self.core = self._make_core(in_channels, groups_1, groups_2, activation, padding, self.norm)
         self.out_conv = nn.Conv2d(in_channels, 1, kernel_size=last_kernel, padding=False)
 
     def forward(self, x):
@@ -256,13 +274,13 @@ class MLTHeads(nn.Module):
 class DoubleMUNetSeperateBG(SimpleSMLMNet):
     def __init__(self, ch_in, ch_out, depth=3, initial_features=64, recpt_bg=16, inter_features=64, depth_bg=2,
                  initial_features_bg=16, activation=nn.ReLU(), use_last_nl=True, norm=None,  norm_groups=None,
-                 norm_bg=None, norm_bg_groups=None):
+                 norm_bg=None, norm_bg_groups=None, pool_mode='Conv2d'):
         super().__init__(ch_in=ch_in, ch_out=5, depth=depth, initial_features=initial_features,
                          inter_features=inter_features, activation=activation,
-                         use_last_nl=use_last_nl, norm=norm, norm_groups=norm_groups)
+                         use_last_nl=use_last_nl, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode)
 
         self.bg_net = UNet2d(ch_in, 1, depth=depth_bg, pad_convs=True, initial_features=initial_features_bg,
-                             activation=activation, norm=norm_bg, norm_groups=norm_bg_groups)
+                             activation=activation, norm=norm_bg, norm_groups=norm_bg_groups, pool_mode=pool_mode)
 
         self.bg_nl = torch.tanh
         self.bg_recpt = recpt_bg
@@ -284,7 +302,8 @@ class DoubleMUNetSeperateBG(SimpleSMLMNet):
             norm=param['HyperParameter']['arch_param']['norm'],
             norm_groups=param['HyperParameter']['arch_param']['norm_groups'],
             norm_bg=param['HyperParameter']['arch_param']['norm_bg'],
-            norm_bg_groups=param['HyperParameter']['arch_param']['norm_bg_groups']
+            norm_bg_groups=param['HyperParameter']['arch_param']['norm_bg_groups'],
+            pool_mode=param['HyperParameter']['arch_param']['pool_mode']
         )
 
     def forward(self, x):
@@ -315,7 +334,8 @@ class DoubleMUNetSeperateBG(SimpleSMLMNet):
 
 
 class BGNet(nn.Module):
-    def __init__(self, ch_in, ch_out, depth_bg=2, initial_features_bg=16, activation=nn.ReLU(), norm=None):
+    def __init__(self, ch_in, ch_out, depth_bg=2, initial_features_bg=16, activation=nn.ReLU(),
+                 norm=None, norm_groups=None, pool_mode='MaxPool'):
         super().__init__()
         self.ch_out = ch_out  # pseudo channels for easier trainig
         self.net = UNet2d(in_channels=ch_in,
@@ -324,7 +344,9 @@ class BGNet(nn.Module):
                           initial_features=initial_features_bg,
                           pad_convs=True,
                           activation=activation,
-                          norm=norm)
+                          norm=norm,
+                          norm_groups=norm_groups,
+                          pool_mode=pool_mode)
 
     @staticmethod
     def parse(param):
@@ -335,7 +357,9 @@ class BGNet(nn.Module):
             depth_bg=param['HyperParameter']['arch_param']['depth_bg'],
             initial_features_bg=param['HyperParameter']['arch_param']['initial_features_bg'],
             activation=activation,
-            norm=param['HyperParameter']['arch_param']['norm']
+            norm=param['HyperParameter']['arch_param']['norm'],
+            norm_groups=param['HyperParameter']['arch_param']['norm_groups'],
+            pool_mode=param['HyperParameter']['arch_param']['pool_mode']
         )
 
     def apply_pnl(self, x):
@@ -350,8 +374,9 @@ class BGNet(nn.Module):
 
 
 if __name__ == '__main__':
-    model = DoubleMUNetSeperateBG(3, 6, depth=2, depth_bg=2, initial_features_bg=32, recpt_bg=16, use_last_nl=False,
-                                  norm='GroupNorm')
+    from deepsmlm.generic.inout.write_load_param import load_params
+    param = load_params('/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/config/template.json')
+    model = SimpleSMLMNet.parse(param)
     x = torch.rand((10, 3, 32, 32))
     y = torch.rand((10, 6, 32, 32))
     optimiser = torch.optim.Adam(model.parameters(), lr=0.0001)
