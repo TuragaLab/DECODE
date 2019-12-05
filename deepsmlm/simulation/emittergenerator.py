@@ -3,6 +3,7 @@ import math
 import numpy as np
 import random
 from random import randint
+import warnings
 import torch
 from torch.distributions.exponential import Exponential
 
@@ -132,7 +133,7 @@ class EmitterPopperMultiFrame(EmitterPopper):
         Search for the correct total emitter average (since the users specifies it on the 0th frame but we have more)
         :return:
         """
-        actual_emitters = torch.zeros(20)
+        actual_emitters = torch.zeros(50)
         for i in range(actual_emitters.shape[0]):
             actual_emitters[i] = self._test_actual_number()
         actual_emitters = actual_emitters.mean().item()
@@ -148,59 +149,6 @@ class EmitterPopperMultiFrame(EmitterPopper):
          loose_em = self.gen_loose_emitter()
 
          return loose_em.return_emitterset().get_subset_frame(-1, 1)
-
-
-class RandomPhysical(EmitterGenerator):
-
-    def __init__(self, xextent, yextent, zextent, zsigma, l_exp, num_emitter, act_pd, ep_time):
-        """
-
-        :param xextent:     extent, where to place emitters
-        :param yextent:
-        :param zextent:
-        :param num_emitter: number of samples
-        :param act_pd:  probability density (dp/dt) of initial activation
-        :param ep_time: exposure time in units which correspond to act_pd
-        """
-        super().__init__()
-
-        self.xextent = xextent
-        self.yextent = yextent
-        self.zextent = zextent
-        self.zsigma = zsigma
-        self.l_exp = l_exp
-
-        self.num_emitter = num_emitter
-        self.act_pd = act_pd
-        self.ep_time = ep_time
-
-        self.total_set = None
-
-    def generate_set(self):
-        xyz = torch.rand(self.num_emitter, 3)
-
-        if z_sigma is not None:
-            xyz *= torch.tensor([self.xextent[1] - self.xextent[0],
-                                 self.yextent[1] - self.yextent[0],
-                                 self.zextent[1] - self.zextent[0]])
-        else:
-            xyz *= torch.tensor([self.xextent[1] - self.xextent[0],
-                                 self.yextent[1] - self.yextent[0],
-                                 1])
-            xyz[:, 2] = (self.zextent[1] + self.zextent[0]) / 2 + torch.randn_like(xyz[:, 2]) * self.zsigma
-
-        phot_total = torch.zeros_like(self.num_emitter).exponential_(self.l_exp)
-        frame_ix = torch.ones_like(phot_total) * float('NaN')
-        id = torch.arange(0, self.num_emitter)
-
-        self.set_total = EmitterSet(xyz=xyz,
-                                    phot=phot_total,
-                                    frame_ix=frame_ix,
-                                    id=id)
-        return self.set_total
-
-    def activation_physics(self, ):
-        pass
 
 
 def emitters_from_csv(csv_file, img_size, cont_radius=3):
@@ -257,20 +205,21 @@ def pairwise_distances(x, y=None):  # not numerically stable but fast
 
 
 if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    from deepsmlm.simulation.structure_prior import RandomStructure
     extent = ((-0.5, 31.5), (-0.5, 31.5), (-5, 5))
-    density = 0.001
-    photon_range = (800, 4000)
+    structure = RandomStructure(*extent)
 
     runs = torch.zeros(1000)
-    for i in range(1000):
-        # em = EmitterPopper(extent[0], extent[1], extent[2], density, photon_range, 5).pop()
-        em = EmitterPopperMultiFrame(extent[0], extent[1], extent[2], density, photon_range,
-                                      lifetime=1, num_frames=3, emitter_av=1).pop()
+    for i in range(runs.numel()):
+
+        em = EmitterPopperMultiFrame(structure=structure, density=None, intensity_mu_sig=[10000., 500.],
+                                      lifetime=1, num_frames=3, emitter_av=15).pop()
         em_on_0 = em.split_in_frames(-1, 1)
         em = em_on_0[1]
         runs[i] = em.num_emitter
 
-    import matplotlib.pyplot as plt
+    plt.figure()
     plt.hist(runs)
     plt.show()
     print(runs.mean())
