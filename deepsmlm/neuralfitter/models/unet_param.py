@@ -76,12 +76,13 @@ class UNetBase(nn.Module):
       final_activation: activation applied to the network output
     """
     norms = ('BatchNorm', 'GroupNorm')
+    pool_modules = ('MaxPool', 'StrideConv')
 
     def __init__(self, in_channels, out_channels, depth=4,
                  initial_features=64, gain=2, pad_convs=False,
                  norm=None, norm_groups=None, p_dropout=0.0,
-                 final_activation=None,
-                 activation=nn.ReLU()):
+                 final_activation=None, activation=nn.ReLU(),
+                 pool_mode='MaxPool'):
         super().__init__()
 
         self.depth = depth
@@ -90,6 +91,8 @@ class UNetBase(nn.Module):
         self.pad_convs = pad_convs
         if norm is not None:
             assert norm in self.norms
+        assert pool_mode in self.pool_modules
+        self.pool_mode = pool_mode
         self.norm = norm
         self.norm_groups = norm_groups
         assert isinstance(p_dropout, (float, dict))
@@ -98,6 +101,7 @@ class UNetBase(nn.Module):
         # modules of the encoder path
         n_features = [in_channels] + [initial_features * gain ** level
                                       for level in range(self.depth)]
+        self.features_per_level = n_features
         self.encoder = nn.ModuleList([self._conv_block(n_features[level], n_features[level + 1],
                                                        level, part='encoder', activation=activation)
                                       for level in range(self.depth)])
@@ -206,8 +210,12 @@ class UNet2d(UNetBase):
     # we apply to 2d convolutions with relu activation
     def _conv_block(self, in_channels, out_channels, level, part, activation=nn.ReLU()):
         padding = 1 if self.pad_convs else 0
-        num_groups1 = min(in_channels, self.norm_groups)
-        num_groups2 = min(out_channels, self.norm_groups)
+        if self.norm is not None:
+            num_groups1 = min(in_channels, self.norm_groups)
+            num_groups2 = min(out_channels, self.norm_groups)
+        else:
+            num_groups1 = None
+            num_groups2 = None
         if self.norm is None:
             return nn.Sequential(nn.Conv2d(in_channels, out_channels,
                                            kernel_size=3, padding=padding),
@@ -236,7 +244,11 @@ class UNet2d(UNetBase):
 
     # pooling via maxpool2d
     def _pooler(self, level):
-        return nn.MaxPool2d(2)
+        if self.pool_mode == 'MaxPool':
+            return nn.MaxPool2d(2)
+        elif self.pool_mode == 'StrideConv':
+            return nn.Conv2d(self.features_per_level[level], self.features_per_level[level],
+                             kernel_size=2, stride=2, padding=0)
 
     def _out_conv(self, in_channels, out_channels):
         return nn.Conv2d(in_channels, out_channels, 1)
