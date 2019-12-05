@@ -156,12 +156,13 @@ class PerlinBackground(Background):
     Taken from https://gist.github.com/vadimkantorov/ac1b097753f217c5c11bc2ff396e0a57.
     """
 
-    def __init__(self, img_size, perlin_scale: int, amplitude):
+    def __init__(self, img_size, perlin_scale: int, amplitude, prob_disable=None):
         """
 
         :param img_size: size of the image
         :param perlin_scale: scale of the perlin in fraction of the img_scale
         :param amplitude: background strength
+        :param prob_disable: disable perlin background in prob_disable fraction of calls.
         """
         super().__init__()
         if img_size[0] != img_size[1]:
@@ -171,6 +172,7 @@ class PerlinBackground(Background):
         self.perlin_scale = perlin_scale
         self.amplitude = amplitude
         self.perlin_com = None
+        self.prob_disable = prob_disable
 
         """
         If perlin_scale is a list of lists, and amplitude a list we can use multiple instances of this class to build up multiple scales (octaves). The instances are then in perlin_com (ponents).
@@ -190,16 +192,23 @@ class PerlinBackground(Background):
         img_size = param['Simulation']['img_size']
         perlin_scale = param['Simulation']['bg_perlin_scale']
         amplitude = param['Simulation']['bg_perlin_amplitude']
+        norm_amps = param['Simulation']['bg_perlin_normalise_amplitudes']
+        prob_disable = param['HyperParameter']['bg_perlin_prob_disable']
 
         if isinstance(amplitude, list) or isinstance(amplitude, tuple):
-            return PerlinBackground.multi_scale_init(img_size, perlin_scale, amplitude)
+            return PerlinBackground.multi_scale_init(img_size=img_size,
+                                                     perlin_scales=perlin_scale,
+                                                     amplitudes=amplitude,
+                                                     norm_amplitudes=norm_amps,
+                                                     prob_disable=prob_disable)
         else:
             return PerlinBackground(img_size=param['Simulation']['img_size'],
                                     perlin_scale=param['Simulation']['bg_perlin_scale'],
-                                    amplitude=param['Simulation']['bg_perlin_amplitude'])
+                                    amplitude=param['Simulation']['bg_perlin_amplitude'],
+                                    prob_disable=prob_disable)
 
     @staticmethod
-    def multi_scale_init(img_size, perlin_scales, amplitudes, norm_amplitudes=True):
+    def multi_scale_init(img_size, perlin_scales, amplitudes, norm_amplitudes=True, prob_disable=None):
         """
         Generates a sequence of this class
         """
@@ -211,7 +220,7 @@ class PerlinBackground(Background):
             normfactor = 1.
 
         for i in range(num_instances):
-            com[i] = PerlinBackground(img_size, perlin_scales[i], amplitudes[i] * normfactor)
+            com[i] = PerlinBackground(img_size, perlin_scales[i], amplitudes[i] * normfactor, prob_disable)
 
         return proc.TransformSequence(com)
 
@@ -250,7 +259,15 @@ class PerlinBackground(Background):
         :param x:
         :return:
         """
-        # return x + self.amplitude * (self.calc_perlin(self.img_size, self.perlin_scale) + 1.) * 0.55
+        """
+        Probabilistically disable perlin background. VW Abgastest style
+        Note: In MultiScale Perlin, this only disables one component / scale. The likelihood that all / none are
+        on / off is therefore (1-p)^num_scales, or p^(num_scales)
+        """
+        if self.prob_disable is not None:
+            if torch.rand(1).item() <= self.prob_disable:
+                return x
+
         return x + self.amplitude * (self.calc_perlin(self.img_size, [self.perlin_scale, self.perlin_scale]) + 1) / 2.0
 
 
