@@ -53,18 +53,24 @@ class LogTestEpoch:
             emplot.PlotFrameCoord(frame=input_frames[ix, 0],
                                   pos_tar=em_tar_.xyz,
                                   phot_tar=em_tar_.phot).plot()
+            # plt.colorbar(fraction=0.046, pad=0.04)
+
             plt.subplot(132)
             emplot.PlotFrameCoord(frame=input_frames[ix, 1],
                                   pos_tar=em_tar_.xyz,
                                   phot_tar=em_tar_.phot).plot()
+            # plt.colorbar(fraction=0.046, pad=0.04)
+
             plt.subplot(133)
             emplot.PlotFrameCoord(frame=input_frames[ix, 2],
                                   pos_tar=em_tar_.xyz,
                                   phot_tar=em_tar_.phot).plot()
+            # plt.colorbar(fraction=0.046, pad=0.04)
         else:
             emplot.PlotFrameCoord(frame=input_frames[ix, 0],
                                   pos_tar=em_tar_.xyz,
                                   phot_tar=em_tar_.phot).plot()
+            # plt.colorbar(fraction=0.046, pad=0.04)
 
         self._log_figure(plt.gcf(), step, "io/frames_in", show)
 
@@ -78,22 +84,28 @@ class LogTestEpoch:
 
         plt.subplot(231)
         emplot.PlotFrame(frame=target_frames[ix, 0]).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('p channel')
         plt.subplot(232)
         emplot.PlotFrame(frame=target_frames[ix, 1]).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('phot channel')
         plt.subplot(233)
         emplot.PlotFrame(frame=target_frames[ix, 2]).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('dx channel')
         plt.subplot(234)
         emplot.PlotFrame(frame=target_frames[ix, 3]).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('dy channel')
         plt.subplot(235)
         emplot.PlotFrame(frame=target_frames[ix, 4]).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('z channel')
         if target_frames.size(1) >= 6:
             plt.subplot(236)
             emplot.PlotFrame(frame=target_frames[ix, 5]).plot()
+            plt.colorbar(fraction=0.046, pad=0.04)
             plt.title('bg channel')
 
         self._log_figure(plt.gcf(), step, "io/target", show)
@@ -101,27 +113,33 @@ class LogTestEpoch:
         _ = plt.figure(figsize=(12, 12))
         plt.subplot(231)
         emplot.PlotFrameCoord(frame=output_frames[ix, 0], clim=(0., 1.)).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('p channel')
 
         plt.subplot(232)
         emplot.PlotFrame(frame=output_frames[ix, 1]).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('phot channel')
 
         plt.subplot(233)
         emplot.PlotFrame(frame=output_frames[ix, 2]).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('dx channel')
 
         plt.subplot(234)
         emplot.PlotFrame(frame=output_frames[ix, 3]).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('dy channel')
 
         plt.subplot(235)
         emplot.PlotFrame(frame=output_frames[ix, 4]).plot()
+        plt.colorbar(fraction=0.046, pad=0.04)
         plt.title('z channel')
 
         if target_frames.size(1) >= 6:
             plt.subplot(236)
             emplot.PlotFrame(frame=output_frames[ix, 5]).plot()
+            plt.colorbar(fraction=0.046, pad=0.04)
             plt.title('bg channel')
 
         self._log_figure(plt.gcf(), step, "io/tarframe_output", show)
@@ -160,19 +178,27 @@ class LogTestEpoch:
 
             self._log_figure(plt.gcf(), step, "io/weight_map", show)
 
+        """Raw distribution of the input frames"""
+        in_dist = MetricMeter()
+        in_dist.vals = input_frames
+        _ = in_dist.hist(fit=None)
+        plt.gca().set_xlabel(r'raw_in')
+        self._log_figure(plt.gcf(), step, "io/raw_in", show)
+
         """Raw output distributions where we have signal above a threshold"""
-        th = 0.1
+        th = 0.05
         is_above_th = output_frames[:, 0] > th
 
         phot_dist = MetricMeter()
         dx_dist, dy_dist, z_dist = MetricMeter(), MetricMeter(), MetricMeter()
-        bg_dist = MetricMeter()
+        bg_dist_out, bg_dist_tar = MetricMeter(), MetricMeter()
 
         phot_dist.vals = output_frames[:, 1][is_above_th]
         dx_dist.vals = output_frames[:, 2][is_above_th]
         dy_dist.vals = output_frames[:, 3][is_above_th]
         z_dist.vals = output_frames[:, 4][is_above_th]
-        bg_dist.vals = output_frames[:, 5].reshape(-1)
+        bg_dist_out.vals = output_frames[:, 5].reshape(-1)
+        bg_dist_tar.vals = target_frames[:, 5].reshape(-1)
 
         _ = phot_dist.hist(fit=None, range=(0., 1.))
         plt.gca().set_xlabel(r'$phot$')
@@ -190,9 +216,13 @@ class LogTestEpoch:
         plt.gca().set_xlabel(r'$z$')
         self._log_figure(plt.gcf(), step, "io/z", show)
 
-        _ = bg_dist.hist(fit=None)
-        plt.gca().set_xlabel(r'$bg$')
-        self._log_figure(plt.gcf(), step, "io/bg", show)
+        _ = bg_dist_out.hist(fit=None)
+        plt.gca().set_xlabel(r'$bg_{out}$')
+        self._log_figure(plt.gcf(), step, "io/bg_out", show)
+
+        _ = bg_dist_tar.hist(fit=None)
+        plt.gca().set_xlabel(r'$bg_{tar}$')
+        self._log_figure(plt.gcf(), step, "io/bg_tar", show)
 
         """Dx/y/z histograms"""
         _ = metrics_set.dx.hist()
