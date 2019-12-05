@@ -15,7 +15,7 @@ v
 
 
 class PlotFrame:
-    def __init__(self, frame, extent=None, norm=None, clim=None):
+    def __init__(self, frame, extent=None, norm=None, clim=None, plot_colorbar=False):
         """
         :param frame: torch tensor.
         """
@@ -24,6 +24,7 @@ class PlotFrame:
         self.extent = extent
         self.norm = LogNorm() if norm is 'log' else None
         self.clim = clim
+        self.plot_colorbar = plot_colorbar
 
     def plot(self):
         """
@@ -40,7 +41,8 @@ class PlotFrame:
         if self.clim is not None:
             plt.clim(self.clim[0], self.clim[1])
             # safety measure
-            # plt.colorbar()
+        if self.plot_colorbar:
+            plt.colorbar(fraction=0.046, pad=0.04)
         plt.xlabel('x')
         plt.ylabel('y')
 
