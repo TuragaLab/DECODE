@@ -57,6 +57,16 @@ class ParamHandling:
             with open(filename, "w") as yaml_file:
                 yaml.dump(param, yaml_file)
 
+    def convert_param_file(self, file_in, file_out):
+        """
+        Simple Wrapper to change yml to json or the other way around.
+        :param file_in:
+        :param file_out:
+        :return:
+        """
+        params = self.load_params(file_in)
+        self.write_params(file_out, params)
+
 
 def write_params(filename, param):
     warnings.warn(
