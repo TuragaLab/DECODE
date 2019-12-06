@@ -20,7 +20,8 @@ def unet():
 @pytest.fixture
 def model_interface(unet):
     """Inits the i/o interface."""
-    return io_model.LoadSaveModel(unet, deepsmlm_root + 'deepsmlm/test/assets/test_load_save.pt', None, 1, 1e-3)
+    return io_model.LoadSaveModel(unet, deepsmlm_root + 'deepsmlm/test/assets/test_load_save.pt', None,
+                                  1, 1e-3)
 
 
 def test_save(model_interface, unet):
@@ -35,6 +36,9 @@ def test_save(model_interface, unet):
     exists = os.path.isfile(deepsmlm_root + 'deepsmlm/test/assets/test_load_save_1.pt')
     if not exists:
         pytest.fail("Model could not be found after saving.")
+
+    os.remove(deepsmlm_root + 'deepsmlm/test/assets/test_load_save_0.pt')
+    os.remove(deepsmlm_root + 'deepsmlm/test/assets/test_load_save_1.pt')
 
 
 def test_load_init(model_interface):

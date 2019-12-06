@@ -2,6 +2,7 @@ import math
 import time
 import torch
 import hashlib
+import pathlib
 
 
 def hash_model(modelfile):
@@ -40,6 +41,21 @@ class LoadSaveModel:
         self._best_metric_val = math.inf
         self.better_th = better_th
         self.max_files = max_files if ((max_files is not None) or (max_files != -1)) else float('inf')
+
+        # create folder if does not exists
+        self._create_target_folder()
+
+    def _create_target_folder(self):
+        """
+        Creates the target folder for the network output .pt file, if it does not exists already
+        :return:
+        """
+        p = pathlib.Path(self.output_file)
+        try:
+            pathlib.Path(p.parents[0]).mkdir(parents=False, exist_ok=True)
+        except FileNotFoundError:
+            raise FileNotFoundError("I will only create the last folder for model saving. But the path you specified "
+                                    "lacks more folders or is completely wrong.")
 
     def load_init(self, cuda=torch.cuda.is_available()):
         model = self.model
