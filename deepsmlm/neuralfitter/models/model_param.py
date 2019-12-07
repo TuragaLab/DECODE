@@ -393,8 +393,8 @@ class BGNet(nn.Module):
             depth_bg=param['HyperParameter']['arch_param']['depth_bg'],
             initial_features_bg=param['HyperParameter']['arch_param']['initial_features_bg'],
             activation=activation,
-            norm=param['HyperParameter']['arch_param']['norm'],
-            norm_groups=param['HyperParameter']['arch_param']['norm_groups'],
+            norm=param['HyperParameter']['arch_param']['norm_bg'],
+            norm_groups=param['HyperParameter']['arch_param']['norm_bg_groups'],
             pool_mode=param['HyperParameter']['arch_param']['pool_mode']
         )
 

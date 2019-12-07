@@ -50,6 +50,15 @@ class ParamHandling:
     def write_params(self, filename, param):
         extension = self._check_return_extension(filename)
         param = param.toDict()
+
+        """Create Folder if not exists."""
+        p = pathlib.Path(filename)
+        try:
+            pathlib.Path(p.parents[0]).mkdir(parents=False, exist_ok=True)
+        except FileNotFoundError:
+            raise FileNotFoundError("I will only create the last folder for parameter saving. "
+                                    "But the path you specified lacks more folders or is completely wrong.")
+
         if extension == '.json':
             with open(filename, "w") as write_file:
                 json.dump(param, write_file, indent=4)
@@ -71,6 +80,7 @@ class ParamHandling:
     def convert_param_debug(param):
         param.HyperParameter.pseudo_ds_size = 1024
         param.HyperParameter.test_size = 128
+        param.InOut.model_out = 'network/debug.pt'
 
 
 def write_params(filename, param):

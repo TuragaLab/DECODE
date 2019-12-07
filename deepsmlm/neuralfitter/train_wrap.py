@@ -1,3 +1,4 @@
+import comet_ml
 from comet_ml import Experiment, OfflineExperiment
 
 import click
@@ -8,6 +9,9 @@ import getopt
 import sys
 import torch
 import tqdm
+import pathlib
+import socket
+from datetime import datetime
 
 import deepsmlm.evaluation.match_emittersets
 
@@ -69,10 +73,21 @@ WRITE_TO_LOG = True
 @click.option('--no_log', '-n', default=False, is_flag=True, help='Set no log if you do not want to log the current run.')
 @click.option('--param_file', '-p', required=True, help='Specify your parameter file (.yml or .json).')
 @click.option('--debug_param', '-d', default=False, is_flag=True, help='Debug the specified parameter file. Will reduce ds size for example.')
-def train_wrap(param_file, no_log, debug_param):
+@click.option('--log_folder', '-l', default='runs', help='Specify the folder you want to log to. If rel-path, relative to DeepSMLM root.')
+def train_wrap(param_file, no_log, debug_param, log_folder):
 
     if no_log:
         WRITE_TO_LOG = False
+    else:
+        WRITE_TO_LOG = True
+
+    """
+    From SummaryWriter. Mimics the usual subfolder stuff.
+    """
+    current_time = datetime.now().strftime('%b%d_%H-%M-%S')
+    log_folder = os.path.join(log_folder, current_time + '_' + socket.gethostname())
+    if not pathlib.Path(log_folder).is_absolute():
+        log_folder = deepsmlm_root + log_folder
 
     """Load Parameters"""
     param_file = add_root_relative(param_file, deepsmlm_root)
@@ -107,8 +122,6 @@ def train_wrap(param_file, no_log, debug_param):
     wlp.ParamHandling().write_params(param_file_out, param)
 
     """Log System"""
-    log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
-
     experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
                             auto_metric_logging=False, disabled=(not WRITE_TO_LOG), api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
 
@@ -135,10 +148,11 @@ def train_wrap(param_file, no_log, debug_param):
     if not WRITE_TO_LOG:
         log_comment = 'debug_'
     else:
+        assert log_folder is not None
         log_comment = param['Logging']['log_comment']
+        log_folder = log_folder + log_comment
 
-    logger = SummaryWriter(comment=log_comment,
-                           write_to_disk=WRITE_TO_LOG)
+    logger = SummaryWriter(write_to_disk=WRITE_TO_LOG, log_dir=log_folder)
 
     logger.add_text('comet_ml_key', experiment.get_key())
 
@@ -272,9 +286,10 @@ def train_wrap(param_file, no_log, debug_param):
 
     """Set model and corresponding post-processing"""
     models_ava = {
+        'BGNet': model_zoo.BGNet,
+        'DoubleMUnet': model_zoo.DoubleMUnet,
         'SimpleSMLMNet': model_zoo.SimpleSMLMNet,
-        'SMLMNetBG': model_zoo.SMLMNetBG,
-        'DoubleMUnet': model_zoo.DoubleMUnet
+        'SMLMNetBG': model_zoo.SMLMNetBG
     }
     model = models_ava[param.HyperParameter.architecture]
     model = model.parse(param)
@@ -306,17 +321,13 @@ def train_wrap(param_file, no_log, debug_param):
     optimiser = optimiser(model.parameters(), **param['HyperParameter']['opt_param'])
 
     """Loss function."""
-    # criterion = OffsetROILoss.parse(param, logger=logger)
     criterion = ls.MaskedPxyzLoss.parse(param, logger)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler = ReduceLROnPlateau(optimiser, **param['LearningRateScheduler'])
     sim_scheduler = ScheduleSimulation.parse(prior, [train_loader.dataset, test_loader.dataset], optimiser, param)
 
-    last_new_model_name_time = time.time()
-
     """Evaluation Specification"""
-    # matcher = deepsmlm.evaluation.match_emittersets.NNMatching.parse(param)
     matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
     segmentation_eval = evaluation.SegmentationEvaluation(False)
     distance_eval = evaluation.DistanceEvaluation(print_mode=False)
