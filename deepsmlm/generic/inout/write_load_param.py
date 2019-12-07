@@ -67,6 +67,11 @@ class ParamHandling:
         params = self.load_params(file_in)
         self.write_params(file_out, params)
 
+    @staticmethod
+    def convert_param_debug(param):
+        param.HyperParameter.pseudo_ds_size = 1024
+        param.HyperParameter.test_size = 128
+
 
 def write_params(filename, param):
     warnings.warn(

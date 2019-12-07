@@ -1,5 +1,6 @@
 from comet_ml import Experiment, OfflineExperiment
 
+import click
 import datetime
 import time
 import os
@@ -64,42 +65,24 @@ WRITE_TO_LOG = True
 
 """Load Parameters here, import torch afterwards"""
 
-if __name__ == '__main__':
+@click.command()
+@click.option('--no_log', '-n', default=False, is_flag=True, help='Set no log if you do not want to log the current run.')
+@click.option('--param_file', '-p', required=True, help='Specify your parameter file (.yml or .json).')
+@click.option('--debug_param', '-d', default=False, is_flag=True, help='Debug the specified parameter file. Will reduce ds size for example.')
+def train_wrap(param_file, no_log, debug_param):
 
-    """
-    Parsing parameters from command line. 
-    Valid options are p for specifying the parameter file and n for not logging the stuff.
-    """
-    param_file = None
-    unixOptions = "p:n"
-    gnuOptions = ["params=", "no_log"]
-
-    # read commandline arguments, first
-    argumentList = sys.argv[1:]
-
-    try:
-        arguments, values = getopt.getopt(argumentList, unixOptions, gnuOptions)
-    except getopt.error as err:
-        # output error, and return with an error code
-        print(str(err))
-        sys.exit(2)
-
-    for currentArgument, currentValue in arguments:
-        if currentArgument in ("-n", "--no_log"):
-            WRITE_TO_LOG = False
-            print("Not logging the current run.")
-
-        elif currentArgument in ("-p", "--params"):
-            print("Parameter file is in: {}".format(currentValue))
-            param_file = currentValue
-
-    param_file = add_root_relative(param_file, deepsmlm_root)
+    if no_log:
+        WRITE_TO_LOG = False
 
     """Load Parameters"""
+    param_file = add_root_relative(param_file, deepsmlm_root)
     if param_file is None:
         raise ValueError("Parameters not specified. "
                          "Parse the parameter file via -p [Your parameeter.json]")
     param = wlp.ParamHandling().load_params(param_file)
+    
+    if debug_param:
+        wlp.ParamHandling.convert_param_debug(param)
 
     """Some Server stuff"""
     if param['Hardware']['device'] == 'cuda':
@@ -108,7 +91,7 @@ if __name__ == '__main__':
         print("Device is not CUDA. Cuda ix not set.")
     os.nice(param['Hardware']['unix_niceness'])
 
-    # assert torch.cuda.device_count() <= 1
+    assert torch.cuda.device_count() <= 1
     torch.set_num_threads(param['Hardware']['torch_threads'])
 
     """If path is relative add deepsmlm root."""
@@ -127,7 +110,7 @@ if __name__ == '__main__':
     log_dir = deepsmlm_root + 'log/' + str(datetime.datetime.now())[:16]
 
     experiment = Experiment(project_name='deepsmlm', workspace='haydnspass',
-                            auto_metric_logging=False, disabled=(~WRITE_TO_LOG), api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
+                            auto_metric_logging=False, disabled=(not WRITE_TO_LOG), api_key="PaCYtLsZ40Apm5CNOHxBuuJvF")
 
     experiment.log_asset(param_file, file_name='config_in')
     experiment.log_asset(param_file_out, file_name='config_out')
@@ -203,7 +186,7 @@ if __name__ == '__main__':
 
         noise = Photon2Camera.parse(param)
 
-        structure_prior = structure_prior.RandomStructure(param['Simulation']['emitter_extent'][0],
+        prior_struct = structure_prior.RandomStructure(param['Simulation']['emitter_extent'][0],
                                                           param['Simulation']['emitter_extent'][1],
                                                           param['Simulation']['emitter_extent'][2])
 
@@ -214,14 +197,14 @@ if __name__ == '__main__':
         else:
             raise ValueError("Channels must be 1 (for only target frame) or 3 for one adjacent frame.")
 
-        prior = emittergenerator.EmitterPopperMultiFrame(structure_prior,
+        prior = emittergenerator.EmitterPopperMultiFrame(prior_struct,
                                                          density=param['Simulation']['density'],
                                                          intensity_mu_sig=param['Simulation']['intensity_mu_sig'],
                                                          lifetime=param['Simulation']['lifetime_avg'],
                                                          num_frames=3,
                                                          emitter_av=param['Simulation']['emitter_av'])
 
-        simulator = simulator.Simulation(None, extent=param['Simulation']['emitter_extent'],
+        sim = simulator.Simulation(None, extent=param['Simulation']['emitter_extent'],
                                          psf=psf,
                                          background=bg,
                                          noise=noise,
@@ -234,10 +217,6 @@ if __name__ == '__main__':
             N2C(),
             InputFrameRescale.parse(param)
         ])
-
-        class DummyWgen:
-            def forward(self, *args):
-                return torch.rand((1, 6, 32, 32))
 
         if param['HyperParameter']['weight_base'] == 'crlb':
             weight_mask_generator = processing.TransformSequence([
@@ -252,11 +231,10 @@ if __name__ == '__main__':
         else:
             weight_mask_generator = wgen.SimpleWeight.parse(param)
 
-
         if param['HyperParameter']['ds_lifetime'] >= 2:
             train_data_smlm = SMLMDatasetOnFlyCached(extent=None,
                                                      prior=prior,
-                                                     simulator=simulator,
+                                                     simulator=sim,
                                                      ds_size=param['HyperParameter']['pseudo_ds_size'],
                                                      in_prep=input_preparation,
                                                      tar_gen=target_generator,
@@ -266,12 +244,12 @@ if __name__ == '__main__':
                                                      predict_bg=param['HyperParameter']['predict_bg'])
 
         else:
-            train_data_smlm = SMLMDatasetOnFly(extent=None, prior=prior, simulator=simulator,
+            train_data_smlm = SMLMDatasetOnFly(extent=None, prior=prior, simulator=sim,
                                                ds_size=param['HyperParameter']['pseudo_ds_size'], in_prep=input_preparation,
                                                tar_gen=target_generator, w_gen=weight_mask_generator, return_em_tar=False,
                                                predict_bg=param['HyperParameter']['predict_bg'])
 
-        test_data_smlm = SMLMDatasetOneTimer(None, prior, simulator, param['HyperParameter']['test_size'],
+        test_data_smlm = SMLMDatasetOneTimer(None, prior, sim, param['HyperParameter']['test_size'],
                                              input_preparation, target_generator, weight_mask_generator,
                                              return_em_tar=True, predict_bg=param['HyperParameter']['predict_bg'])
 
@@ -295,7 +273,8 @@ if __name__ == '__main__':
     """Set model and corresponding post-processing"""
     models_ava = {
         'SimpleSMLMNet': model_zoo.SimpleSMLMNet,
-        'SMLMNetBG': model_zoo.SMLMNetBG
+        'SMLMNetBG': model_zoo.SMLMNetBG,
+        'DoubleMUnet': model_zoo.DoubleMUnet
     }
     model = models_ava[param.HyperParameter.architecture]
     model = model.parse(param)
@@ -371,3 +350,7 @@ if __name__ == '__main__':
         model_ls.save(model, val_loss)
 
     experiment.end()
+
+
+if __name__ == '__main__':
+    train_wrap()
