@@ -203,6 +203,40 @@ class DoubleMUnet(nn.Module):
         """
         return lyd.rescale_last_layer_grad(self.mt_heads, loss, optimizer)
 
+    def apply_pnl(self, o):
+        """
+        Apply nonlinearity (sigmoid) to p channel. This is combined during training in the loss function.
+        Only use when not training
+        :param o:
+        :return:
+        """
+        o[:, [0]] = self.p_nl(o[:, [0]])
+        return o
+
+    def apply_nonlin(self, o):
+        """
+        Apply non linearity in all the other channels
+        :param o:
+        :return:
+        """
+        # Apply for phot, xyz
+        p = o[:, [0]]  # leave unused
+        phot = o[:, [1]]
+        xyz = o[:, 2:5]
+
+        phot = self.phot_nl(phot)
+        xyz = self.xyz_nl(xyz)
+
+        if self.ch_out == 5:
+            o = torch.cat((p, phot, xyz), 1)
+            return o
+        elif self.ch_out == 6:
+            bg = o[:, [5]]
+            bg = self.bg_nl(bg)
+
+            o = torch.cat((p, phot, xyz, bg), 1)
+            return o
+
     def forward(self, x, external=None):
         x0 = x[:, [0]]
         x1 = x[:, [1]]
@@ -225,6 +259,8 @@ class DoubleMUnet(nn.Module):
         o = torch.cat(o_head, 1)
 
         """Apply the final non-linearities"""
+        if not self.training:
+            o[:, [0]] = self.p_nl(o[:, [0]])
         if self._use_last_nl:
             o = self.apply_nonlin(o)
 
