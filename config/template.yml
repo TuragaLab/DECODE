@@ -28,18 +28,19 @@ HyperParameter:
     initial_features: 64
     initial_features_bg: 32
     inter_features: 64
-    norm: null
+    norm: 'GroupNorm'
     norm_bg: null
     norm_bg_groups: null
-    norm_groups: null
+    norm_groups: 32
     norm_head: null
     norm_head_groups: null
-    p_dropout: 0.0
+    p_dropout: 0.5
     pool_mode: MaxPool
     recpt_bg: null
+    skip_gn_level: null
     up_mode: upsample
     use_last_nl: false
-  architecture: SimpleSMLMNet
+  architecture: DoubleMUnet
   batch_size: 32
   bg_perlin_prob_disable: 0.3
   ch_static_scale:

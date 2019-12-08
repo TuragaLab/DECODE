@@ -82,7 +82,7 @@ class UNetBase(nn.Module):
                  initial_features=64, gain=2, pad_convs=False,
                  norm=None, norm_groups=None, p_dropout=0.0,
                  final_activation=None, activation=nn.ReLU(),
-                 pool_mode='MaxPool'):
+                 pool_mode='MaxPool', skip_gn_level=None):
         super().__init__()
 
         self.depth = depth
@@ -95,8 +95,10 @@ class UNetBase(nn.Module):
         self.pool_mode = pool_mode
         self.norm = norm
         self.norm_groups = norm_groups
-        assert isinstance(p_dropout, (float, dict))
+        if p_dropout is not None:
+            assert isinstance(p_dropout, (float, dict))
         self.p_dropout = p_dropout
+        self.skip_gn_level=skip_gn_level
 
         # modules of the encoder path
         n_features = [in_channels] + [initial_features * gain ** level
@@ -107,7 +109,7 @@ class UNetBase(nn.Module):
                                       for level in range(self.depth)])
 
         # the base convolution block
-        self.base = self._conv_block(n_features[-1], gain * n_features[-1], part='base', level=0)
+        self.base = self._conv_block(n_features[-1], gain * n_features[-1], part='base', level=depth)
 
         # modules of the decoder path
         n_features = [initial_features * gain ** level
@@ -206,9 +208,20 @@ class UNet2d(UNetBase):
     """ 2d U-Net for segmentation as described in
     https://arxiv.org/abs/1505.04597
     """
+
     # Convolutional block for single layer of the decoder / encoder
     # we apply to 2d convolutions with relu activation
     def _conv_block(self, in_channels, out_channels, level, part, activation=nn.ReLU()):
+        """
+        Returns a 'double' conv block as described in the paper.
+        Group Norm can be skipped until specified level
+        :param in_channels:
+        :param out_channels:
+        :param level:
+        :param part:
+        :param activation:
+        :return:
+        """
         padding = 1 if self.pad_convs else 0
         if self.norm is not None:
             num_groups1 = min(in_channels, self.norm_groups)
@@ -216,24 +229,27 @@ class UNet2d(UNetBase):
         else:
             num_groups1 = None
             num_groups2 = None
-        if self.norm is None:
-            return nn.Sequential(nn.Conv2d(in_channels, out_channels,
-                                           kernel_size=3, padding=padding),
-                                 activation,
-                                 nn.Conv2d(out_channels, out_channels,
-                                           kernel_size=3, padding=padding),
-                                 activation)
+        if self.norm is None or (self.skip_gn_level is not None and self.skip_gn_level >= level):
+            sequence = nn.Sequential(nn.Conv2d(in_channels, out_channels,
+                                               kernel_size=3, padding=padding),
+                                     activation,
+                                     nn.Conv2d(out_channels, out_channels,
+                                               kernel_size=3, padding=padding),
+                                     activation)
         elif self.norm == 'GroupNorm':
-            return nn.Sequential(nn.GroupNorm(num_groups1, in_channels),
-                                 nn.Conv2d(in_channels, out_channels,
-                                           kernel_size=3, padding=padding),
-                                 activation,
-                                 nn.GroupNorm(num_groups2, out_channels),
-                                 nn.Conv2d(out_channels, out_channels,
-                                           kernel_size=3, padding=padding),
-                                 activation)
-        else:
-            raise NotImplementedError("Not Implemented.")
+            sequence = nn.Sequential(nn.GroupNorm(num_groups1, in_channels),
+                                     nn.Conv2d(in_channels, out_channels,
+                                               kernel_size=3, padding=padding),
+                                     activation,
+                                     nn.GroupNorm(num_groups2, out_channels),
+                                     nn.Conv2d(out_channels, out_channels,
+                                               kernel_size=3, padding=padding),
+                                     activation)
+
+        if self.p_dropout is not None:
+            sequence.add_module('droupout', nn.Dropout2d(p=self.p_dropout))
+
+        return sequence
 
     # upsampling via transposed 2d convolutions
     def _upsampler(self, in_channels, out_channels, level):
