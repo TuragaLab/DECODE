@@ -189,10 +189,10 @@ class PerlinBackground(Background):
 
     @staticmethod
     def parse(param):
-        img_size = param.Simulation.img_size,
-        perlin_scale = param.Simulation.bg_perlin_scale,
-        amplitude = param.Simulation.bg_perlin_amplitude,
-        norm_amps = param.Simulation.bg_perlin_normalise_amplitudes,
+        img_size = param.Simulation.img_size
+        perlin_scale = param.Simulation.bg_perlin_scale
+        amplitude = param.Simulation.bg_perlin_amplitude
+        norm_amps = param.Simulation.bg_perlin_normalise_amplitudes
         prob_disable = param.HyperParameter.bg_perlin_prob_disable
 
         if isinstance(amplitude, list) or isinstance(amplitude, tuple):
