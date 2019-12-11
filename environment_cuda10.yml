@@ -11,6 +11,7 @@ channels:
 dependencies:
   - bokeh
   - click
+  - cmake=3.15
   - comet_ml
   - cudatoolkit=10.0
   - dotmap
