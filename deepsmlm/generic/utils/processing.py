@@ -20,6 +20,13 @@ class TransformSequence:
         """
         return TransformSequence([cpt.parse(param) for cpt in components])
 
+    def numel(self):
+        """
+        Returns the number of components
+        :return:
+        """
+        return self.com.__len__()
+
     def forward(self, *x):
         """
 
