@@ -42,8 +42,6 @@ class LoadSaveModel:
         self.better_th = better_th
         self.max_files = max_files if ((max_files is not None) or (max_files != -1)) else float('inf')
 
-        # create folder if does not exists
-        self._create_target_folder()
 
     def _create_target_folder(self):
         """
@@ -85,6 +83,9 @@ class LoadSaveModel:
         :param metric_val:
         :return:
         """
+        # create folder if does not exists
+        self._create_target_folder()
+
         if metric_val is not None:
             """If relative difference to previous value is less than threshold difference, do not save."""
             rel_diff = metric_val / self._best_metric_val
