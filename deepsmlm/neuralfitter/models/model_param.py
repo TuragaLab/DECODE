@@ -35,7 +35,7 @@ class SimpleSMLMNet(UNet2d):
 
     @staticmethod
     def parse(param):
-        activation = eval(param['HyperParameter']['arch_param']['activation'])
+        activation = eval(param.HyperParameter.arch_param.activation)
         return SimpleSMLMNet(
             ch_in=param.HyperParameter.channels_in,
             ch_out=param.HyperParameter.channels_out,

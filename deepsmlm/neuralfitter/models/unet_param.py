@@ -120,7 +120,7 @@ class UNetBase(nn.Module):
                                       for level in range(self.depth)])
 
         # the pooling layers;
-        self.poolers = nn.ModuleList([self._pooler(level) for level in range(self.depth)])
+        self.poolers = nn.ModuleList([self._pooler(level + 1) for level in range(self.depth)])
         # the upsampling layers
         self.upsamplers = nn.ModuleList([self._upsampler(n_features[level],
                                                          n_features[level + 1],
