@@ -7,6 +7,7 @@ from deepsmlm.generic.utils.processing import TransformSequence
 
 import deepsmlm.test.utils_ci as tutil
 
+
 class TestExperimentBg:
 
     @pytest.fixture(scope='class')
@@ -31,7 +32,7 @@ class TestPerlinBg:
     @pytest.fixture(scope='class')
     def perlin_default(self):
         img_size = (64, 64)
-        return background.PerlinBackground(img_size, (2, 2), 20)
+        return background.PerlinBackground(img_size, 2, 20)
 
     def test_bypass(self, perlin_default):
         """
@@ -50,6 +51,7 @@ class TestPerlinBg:
         assert x_out.min() >= 0.
         assert x_out.max() <= perlin_default.amplitude * 1.
 
+    @pytest.mark.skip('Test MultiScale only for plotting.')
     def test_multiscale(self):
         img_size = (64, 64)
         cand = background.PerlinBackground.multi_scale_init(img_size, [[1, 1], [2, 2], [4, 4]], [100, 50, 20])
@@ -68,7 +70,7 @@ class TestPerlinBg:
         plt.colorbar()
         plt.show()
 
-
+@pytest.mark.skip("Only for checking the plotting.")
 def test_nonuniformbg():
 
     bg_u = background.NonUniformBackground(0.1, img_size=(32, 32))
