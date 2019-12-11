@@ -505,6 +505,18 @@ class CoordinateOnlyEmitter(EmitterSet):
         :param xyz: (torch.tensor) N x 2, N x 3
         """
         super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]))
+    
+    def _inplace_replace(self, em):
+        super().__init__(xyz=em.xyz,
+                         phot=em.phot,
+                         frame_ix=em.frame_ix,
+                         id=em.id,
+                         prob=em.prob,
+                         bg=em.bg,
+                         xyz_cr=em.xyz_cr,
+                         phot_cr=em.phot_cr,
+                         bg_cr=em.bg_cr,
+                         sanity_check=False)
 
 
 class EmptyEmitterSet(CoordinateOnlyEmitter):
