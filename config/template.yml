@@ -34,13 +34,13 @@ HyperParameter:
     norm_groups: 32
     norm_head: null
     norm_head_groups: null
-    p_dropout: 0.5
-    pool_mode: MaxPool
+    p_dropout: null
+    pool_mode: StrideConv
     recpt_bg: null
     skip_gn_level: null
     up_mode: upsample
-    use_last_nl: false
-  architecture: DoubleMUnet
+    use_last_nl: true
+  architecture: SimpleSMLMNet
   batch_size: 32
   bg_perlin_prob_disable: 0.3
   ch_static_scale:
@@ -99,7 +99,7 @@ Scaling:
   linearisation_buffer: 1.2
   mu_sig_bg:
   - 60.0
-  - 60.0
+  - 120.0
   phot_max: 15000.0
   z_max: 750.0
 Simulation:
@@ -108,6 +108,7 @@ Simulation:
   - 30.0
   - 30.0
   - 30.0
+  bg_perlin_draw_amps: true
   bg_perlin_normalise_amplitudes: true
   bg_perlin_scale:
   - 32

@@ -51,21 +51,13 @@ class TestPerlinBg:
         assert x_out.min() >= 0.
         assert x_out.max() <= perlin_default.amplitude * 1.
 
-    @pytest.mark.skip('Test MultiScale only for plotting.')
+    # @pytest.mark.skip('Test MultiScale only for plotting.')
     def test_multiscale(self):
         img_size = (64, 64)
-        cand = background.PerlinBackground.multi_scale_init(img_size, [[1, 1], [2, 2], [4, 4]], [100, 50, 20])
+        cand = background.PerlinBackground.multi_scale_init(img_size, [64, 32, 16, 8], [1, 1, 1, 1],
+                                                            norm_amplitudes=False,
+                                                            draw_amps=True)
         out = cand.forward(torch.zeros((2, 3, 64, 64)))
-        PlotFrame(out[0, 0]).plot()
-        plt.colorbar()
-        plt.show()
-
-    @pytest.mark.skip("Only for checking the plotting.")
-    def test_plotting(self, perlin_default):
-
-        x = torch.zeros((2, 3, 64, 64))
-        out = perlin_default.forward(x)
-        plt.figure(figsize=(12, 12))
         PlotFrame(out[0, 0]).plot()
         plt.colorbar()
         plt.show()

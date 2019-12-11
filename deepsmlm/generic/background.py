@@ -156,13 +156,13 @@ class PerlinBackground(Background):
     Taken from https://gist.github.com/vadimkantorov/ac1b097753f217c5c11bc2ff396e0a57.
     """
 
-    def __init__(self, img_size, perlin_scale: int, amplitude, prob_disable=None):
+    def __init__(self, img_size, perlin_scale: int, amplitude, draw_amp: bool = False):
         """
 
         :param img_size: size of the image
         :param perlin_scale: scale of the perlin in fraction of the img_scale
         :param amplitude: background strength
-        :param prob_disable: disable perlin background in prob_disable fraction of calls.
+        :param draw_amp: draw the perlin amplitude from a uniform distribution
         """
         super().__init__()
         if img_size[0] != img_size[1]:
@@ -172,15 +172,8 @@ class PerlinBackground(Background):
         self.perlin_scale = perlin_scale
         self.amplitude = amplitude
         self.perlin_com = None
-        self.prob_disable = prob_disable
+        self.draw_amp = draw_amp
 
-        """
-        If perlin_scale is a list of lists, and amplitude a list we can use multiple instances of this class to build up multiple scales (octaves). The instances are then in perlin_com (ponents).
-        """
-        if isinstance(amplitude, list) or isinstance(amplitude, tuple):
-            pass
-        else:
-            num_instances = 1
 
         delta = (self.perlin_scale / self.img_size[0], self.perlin_scale / self.img_size[1])
         self.d = (self.img_size[0] // self.perlin_scale, self.img_size[1] // self.perlin_scale)
@@ -193,39 +186,32 @@ class PerlinBackground(Background):
         perlin_scale = param.Simulation.bg_perlin_scale
         amplitude = param.Simulation.bg_perlin_amplitude
         norm_amps = param.Simulation.bg_perlin_normalise_amplitudes
-        prob_disable = param.HyperParameter.bg_perlin_prob_disable
+        draw_amps = param.Simulation.bg_perlin_draw_amps
 
         if isinstance(amplitude, list) or isinstance(amplitude, tuple):
             return PerlinBackground.multi_scale_init(img_size=img_size,
                                                      perlin_scales=perlin_scale,
                                                      amplitudes=amplitude,
                                                      norm_amplitudes=norm_amps,
-                                                     prob_disable=prob_disable)
+                                                     draw_amps=draw_amps)
         else:
-            return PerlinBackground(img_size=param['Simulation']['img_size'],
-                                    perlin_scale=param['Simulation']['bg_perlin_scale'],
-                                    amplitude=param['Simulation']['bg_perlin_amplitude'],
-                                    prob_disable=prob_disable)
+            return PerlinBackground(img_size=img_size,
+                                    perlin_scale=perlin_scale,
+                                    amplitude=amplitude,
+                                    draw_amp=draw_amps)
 
     @staticmethod
-    def multi_scale_init(img_size, perlin_scales, amplitudes, norm_amplitudes=True, prob_disable=None):
+    def multi_scale_init(img_size, perlin_scales, amplitudes, norm_amplitudes, draw_amps=False):
         """
         Generates a sequence of this class
         """
-        num_instances = amplitudes.__len__()
-        com = [None] * num_instances
-        if norm_amplitudes:
-            normfactor = 1. / num_instances
-        else:
-            normfactor = 1.
+        bg_model = MultiPerlin(img_size=img_size,
+                               scales=perlin_scales,
+                               amps=amplitudes,
+                               draw_amps=draw_amps,
+                               norm_amps=norm_amplitudes)
 
-        for i in range(num_instances):
-            com[i] = PerlinBackground(img_size, perlin_scales[i], amplitudes[i] * normfactor, prob_disable)
-
-        return proc.TransformSequence(com)
-
-    def cast_sequence(self):
-        self.__class__ = proc.TransformSequence
+        return bg_model
 
     @staticmethod
     def fade_f(t):
@@ -264,11 +250,61 @@ class PerlinBackground(Background):
         Note: In MultiScale Perlin, this only disables one component / scale. The likelihood that all / none are
         on / off is therefore (1-p)^num_scales, or p^(num_scales)
         """
-        if self.prob_disable is not None:
-            if torch.rand(1).item() <= self.prob_disable:
-                return x
+        if self.draw_amp:
+            amp_factor = torch.rand(1)
+        else:
+            amp_factor = 1.
 
-        return x + self.amplitude * (self.calc_perlin(self.img_size, [self.perlin_scale, self.perlin_scale]) + 1) / 2.0
+        return x + self.amplitude * amp_factor * (self.calc_perlin(self.img_size, [self.perlin_scale,
+                                                                                self.perlin_scale]) + 1) / 2.0
+
+
+class MultiPerlin:
+    def __init__(self, img_size, scales, amps, draw_amps: bool, norm_amps: bool):
+        """
+
+        :param img_size: tuple of ints
+        :param scales: perlin scales
+        :param amps: amplitudes
+        :param dist_uniform: sample the amplitude in the respective scale range in every forward
+        """
+
+        self.img_size = img_size
+        self.scales = scales if not isinstance(scales, torch.Tensor) else torch.tensor(scales)
+        self.amps = amps if isinstance(amps, torch.Tensor) else torch.tensor(amps)
+        self.amps = self.amps.float()
+        self.draw_amps = draw_amps
+        self.num_freq = self.scales.__len__()   # number of frequencies
+        self.norm_amps = norm_amps
+
+        if self.norm_amps:
+            self.amps /= self.num_freq
+
+        self.perlin_com = [PerlinBackground(self.img_size,
+                                            self.scales[i],
+                                            self.amps[i],
+                                            draw_amp=self.draw_amps) for i in range(self.num_freq)]
+
+    @staticmethod
+    def parse(param):
+        """
+        Parse a param file. This dummy method calls the PerlinBackground Parser which is the unified version.
+        :param param:
+        :return:
+        """
+        return PerlinBackground.parse(param)
+
+    def forward(self, x):
+        """
+
+        :param x:
+        :return:
+        """
+
+        for i in range(self.num_freq):
+            x = self.perlin_com[i].forward(x)
+
+        return x
 
 
 if __name__ == '__main__':
