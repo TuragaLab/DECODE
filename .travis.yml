@@ -21,10 +21,11 @@ install:
   - source activate deepsmlm_deployed
 
   # build the C and C++ libraries
-  - cd $TRAVIS_BUILD_DIR/deepsmlm/cpp_src/libtorchInterface
-  - gcc -fPIC -g -c -std=c99 -Wall lib/spline_psf.c -o lib/spline_psf.o
-  - ar rcs lib/libspline_psf.a lib/spline_psf.o
-
+  - mkdir $TRAVIS_BUILD_DIR/deepsmlm/cpp_src/build
+  - cd $TRAVIS_BUILD_DIR/deepsmlm/cpp_src/build
+  - cmake -DCMAKE_BUILD_TYPE=Release ..
+  - make
+  - cd ..
   - NO_CUDA=1 python setup.py clean --all install
 
   - cd $TRAVIS_BUILD_DIR
