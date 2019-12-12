@@ -19,7 +19,7 @@ Hardware:
   device: cuda
   num_worker_sim: 12
   torch_threads: 1
-  unix_niceness: 0
+  unix_niceness: 20
 HyperParameter:
   arch_param:
     activation: nn.ReLU()
