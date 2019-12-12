@@ -130,4 +130,3 @@ class TestConsistentPostProcessing:
         out[1, 2, 2, 6] = 1.2
 
         em = post.forward(torch.cat((p, out),1))
-        print('Done')

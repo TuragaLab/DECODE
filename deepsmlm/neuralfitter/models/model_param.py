@@ -53,6 +53,15 @@ class SimpleSMLMNet(UNet2d):
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
         )
 
+    def rescale_last_layer_grad(self, loss, optimizer):
+        """
+
+        :param loss: non-reduced loss of size N x C x H x W
+        :param optimizer:
+        :return: weight, channelwise loss, channelwise weighted loss
+        """
+        return lyd.rescale_last_layer_grad(self.mt_heads, loss, optimizer)
+
     def apply_pnl(self, o):
         """
         Apply nonlinearity (sigmoid) to p channel. This is combined during training in the loss function.

@@ -80,7 +80,7 @@ class UNetBase(nn.Module):
 
     def __init__(self, in_channels, out_channels, depth=4,
                  initial_features=64, gain=2, pad_convs=False,
-                 norm=None, norm_groups=None, p_dropout=0.0,
+                 norm=None, norm_groups=None, p_dropout=None,
                  final_activation=None, activation=nn.ReLU(),
                  pool_mode='MaxPool', skip_gn_level=None):
         super().__init__()

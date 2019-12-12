@@ -9,9 +9,9 @@ from tqdm import tqdm
 import deepsmlm.generic.emitter as em
 from deepsmlm.generic.utils.data_utils import smlm_collate
 from deepsmlm.generic.utils.processing import TransformSequence
-from deepsmlm.neuralfitter.dataset import UnsupervisedDataset, SMLMDatasetOnFly
+from deepsmlm.neuralfitter.dataset import UnsupervisedDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer
 from deepsmlm.neuralfitter.pre_processing import ROIOffsetRep, N2C
-from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale
+from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, InputFrameRescale
 
 
 class PredictEval(ABC):
@@ -49,7 +49,7 @@ class PredictEval(ABC):
 
         """Eval mode."""
         with torch.no_grad():
-            for (x_in, ix) in tqdm(self.dataloader):
+            for (x_in, _, _, _) in tqdm(self.dataloader):
                 x_in = x_in.to(self.device)
 
                 # compute output
@@ -78,18 +78,14 @@ class PredictEval(ABC):
             print("No Evaluator provided. Cannot perform evaluation.")
             return
 
-        # gt_fix = int(self.gt.frame_ix.min().item())  # first index
-        # gt_lix = int(self.gt.frame_ix.max().item())  # last index
-        #
-        # gt_frames = self.gt.split_in_frames(gt_fix, gt_lix)
-        # pred_frames = self.prediction.split_in_frames(gt_fix, gt_lix)
-
         self.evaluator.forward(self.prediction, self.gt)
 
 
 class PredictEvalSimulation(PredictEval):
-    def __init__(self, eval_size, prior, simulator, model, post_processor, evaluator=None, param=None, px_size=100.,
-                 device='cuda', batch_size=32, multi_frame=True, dataset=None, data_loader=None):
+    def __init__(self, eval_size, prior, simulator, model, post_processor, evaluator=None, param=None,
+                 px_size=100.,
+                 device='cuda', batch_size=32, input_preparation=None, multi_frame=True, dataset=None,
+                 data_loader=None):
         """
 
         :param eval_size: how many samples to use for evaluation
@@ -118,20 +114,27 @@ class PredictEvalSimulation(PredictEval):
         self.dataloader = data_loader
         self.param = param
         self.evaluator = evaluator
+        self.input_preparation = input_preparation
 
         if ((self.param is None) and (self.dataset is None) and (self.dataloader) is None):
             raise ValueError("You need to provide the parameters or you need to provide a dataset and a data loader."
                              "Do the latter if the former fails.")
 
+        if self.input_preparation is None:
+            self.input_preparation = TransformSequence([
+                N2C(),
+                InputFrameRescale.parse(param)
+            ])
+            print("Setting Input Preparation to: Order Sample axis, Rescale Input Frame.")
+
         self._init_dataset()
 
     def _init_dataset(self):
         input_preparation = N2C()
-        target_generator = TransformSequence.parse([ROIOffsetRep, InverseOffsetRescale], self.param)
 
         if self.dataset is None:
-            self.dataset = SMLMDatasetOnFly(None, self.prior, self.simulator, self.eval_size, input_preparation,
-                                            target_generator, None, return_em_tar=False)
+            self.dataset = SMLMDatasetOneTimer(None, self.prior, self.simulator, self.eval_size, self.input_preparation,
+                                               tar_gen=None, w_gen=None, return_em_tar=True)
 
         if self.dataloader is None:
             self.dataloader = torch.utils.data.DataLoader(self.dataset,
@@ -218,6 +221,7 @@ class PredictEvalTif(PredictEval):
 
 if __name__ == '__main__':
     from deepsmlm.simulation.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
+    from deepsmlm.generic.background import *
     from deepsmlm.generic.emitter import *
     from deepsmlm.generic.plotting.frame_coord import *
     from deepsmlm.generic.inout.load_calibration import *
@@ -225,15 +229,15 @@ if __name__ == '__main__':
     from deepsmlm.generic.noise import *
     from deepsmlm.generic.utils.data_utils import *
     from deepsmlm.simulation.simulator import *
-    from deepsmlm.generic.background import *
     from deepsmlm.simulation.structure_prior import *
     from deepsmlm.neuralfitter.dataset import *
     from deepsmlm.neuralfitter.models.model import *
     from deepsmlm.neuralfitter.models.model_offset import *
     from deepsmlm.neuralfitter.models.model_beta import *
-    from deepsmlm.neuralfitter.models.unet_param import *
+    from deepsmlm.neuralfitter.models.model_param import *
     from deepsmlm.neuralfitter.pre_processing import *
     from deepsmlm.neuralfitter.post_processing import *
+    from deepsmlm.evaluation.match_emittersets import *
     from deepsmlm.neuralfitter.scale_transform import *
     from deepsmlm.generic.inout.load_save_model import *
     from deepsmlm.neuralfitter.pred_tif import *
@@ -241,42 +245,69 @@ if __name__ == '__main__':
     import deepsmlm.generic.utils.processing as processing
     from deepsmlm.neuralfitter.arguments import *
     from deepsmlm.generic.phot_camera import *
-    from deepsmlm.evaluation.match_emittersets import GreedyHungarianMatching
     import deepsmlm.generic.inout.write_load_param as wlp
 
     deepsmlm_root = '/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/'
     os.chdir(deepsmlm_root)
 
-    tifs = 'data/thesis/SMLM_Challenge/T_MT0.N1.HD/sequence-as-stack-MT0.N1.HD-AS-Exp.tif'
-    activations = 'data/thesis/SMLM_Challenge/T_MT0.N1.HD/activations.csv'
-    model_file = 'network/2019-11-30/dmunet_wd_no_moell_9.pt'
-    param_file = 'network/2019-11-30/dmunet_wd_no_moell_param.json'
+    calibration_file = deepsmlm_root + 'data/Calibration/SMLM Challenge Beads/Coefficients Big ROI/AS-Exp_100nm_3dcal.mat'
 
-    param = wlp.load_params(param_file)
-    param['Hardware']['num_worker_sim'] = 6
-    model = LoadSaveModel(DoubleMUnet.parse(param), None, input_file=model_file).load_init(cuda=True)
+    model_file = 'network_central/2019-12-08/simple_net_3steps_40em_gnskip0_strongwd_7.pt'
+    param_file = 'network_central/2019-12-08/simple_net_3steps_40em_gnskip0_strongwd_param.json'
+
+    param = wlp.ParamHandling().load_params(param_file)
+    model = SimpleSMLMNet.parse(param)
+    model = LoadSaveModel(model, None, input_file=model_file).load_init()
 
     post_processor = processing.TransformSequence.parse([OffsetRescale,
                                                          Offset2Coordinate,
                                                          ConsistencyPostprocessing], param)
 
-    matcher = GreedyHungarianMatching.parse(param)
-    segmentation_eval = SegmentationEvaluation(False)
-    distance_eval = DistanceEvaluation(print_mode=False)
-    batch_ev = BatchEvaluation(matcher, segmentation_eval, distance_eval,
-                                          batch_size=param['HyperParameter']['batch_size'],
-                                          px_size=torch.tensor(param['Camera']['px_size']))
+    # setup evaluation
 
-    predictor = PredictEvalTif(tifs, activations, model, post_processor, batch_ev, None)
-    predictor.load_tif()
-    predictor.load_csv()
-    predictor.gt.convert_em_(factor=torch.tensor([0.01, 0.01, 1.]), shift=torch.tensor([-0.5, -1.5, 0.]), axis=[1, 0, 2])
-    predictor.gt.frame_ix -= 1
-    # convert photons
-    predictor.frames = InputFrameRescale.parse(param).forward(predictor.frames)
-    predictor.init_dataset()
-    _, output = predictor.forward(True)
-    predictor.evaluate()
+    matcher = GreedyHungarianMatching(dist_lat=150.)
+    segmentation_eval = SegmentationEvaluation(False)
+    distance_eval = DistanceEvaluation(False)
+
+    batch_size = 64
+    evaluation = BatchEvaluation(matcher, segmentation_eval, distance_eval, px_size=torch.tensor([100., 100., 1.]),
+                                 batch_size=batch_size)
+
+    # specify how big the evaluation set should be
+    ds_size = 256
+
+    smap_psf = SMAPSplineCoefficient(calibration_file)
+    psf = smap_psf.init_spline(param['Simulation']['psf_extent'][0],
+                               param['Simulation']['psf_extent'][1],
+                               param['Simulation']['img_size'])
+
+    structure_prior = RandomStructure(param['Simulation']['emitter_extent'][0],
+                                      param['Simulation']['emitter_extent'][1],
+                                      param['Simulation']['emitter_extent'][2])
+    frame_range = (-1, 1)
+    prior = EmitterPopperMultiFrame(structure_prior,
+                                    density=param['Simulation']['density'],
+                                    intensity_mu_sig=param['Simulation']['intensity_mu_sig'],
+                                    lifetime=param['Simulation']['lifetime_avg'],
+                                    num_frames=3,
+                                    emitter_av=2)
+
+    bg = processing.TransformSequence.parse([UniformBackground,
+                                             PerlinBackground], param)
+
+    noise = Photon2Camera.parse(param)
+    simulator = Simulation(None,
+                           param['Simulation']['emitter_extent'],
+                           psf,
+                           background=bg,
+                           noise=noise,
+                           poolsize=0,
+                           frame_range=frame_range)
+
+    pred = PredictEvalSimulation(ds_size, prior, simulator, model, post_processor, evaluation, param=param,
+                                 px_size=100.)
+
+    _, raw = pred.forward(True)
     print("Done.")
 
 

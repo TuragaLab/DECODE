@@ -37,7 +37,6 @@ def test_n2c_recursion():
 
     x = torch.rand((3, 1, 64, 64))
     out = pp.forward(x)
-    print("Done")
 
 
 class TestDecodeRepresentation:
@@ -158,7 +157,7 @@ class TestGlobalOffsetRep:
         prediction_ix = classyclassclass.assign_emitter(two_em)
         assert tutil.tens_almeq(gt, prediction_ix)
 
-    # @pytest.mark.skip("Only for plotting.")
+    @pytest.mark.skip("Only for plotting.")
     def test_diag_em(self, classyclassclass):
         em = CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.], [31., 31., 0.]]))
         prediction_ix = classyclassclass.assign_emitter(em)
@@ -184,6 +183,7 @@ class TestGlobalOffsetRep:
         plt.show()
         assert True
 
+    @pytest.mark.skip("Only for plotting.")
     def test_mask(self, classyclassclass):
         classyclassclass.masked = True
 

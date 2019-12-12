@@ -14,7 +14,6 @@ import deepsmlm.simulation.simulator as sim
 import deepsmlm.simulation.structure_prior as structure_prior
 import deepsmlm.generic.emitter as em
 from deepsmlm.neuralfitter.pre_processing import N2C
-from deepsmlm.neuralfitter.dataset import SMLMUnifiedDatasetLoader
 from deepsmlm.neuralfitter.unifed_data_generator import UnifiedDataset
 
 deepsmlm_root = os.path.abspath(
@@ -49,35 +48,3 @@ class TestDataset:
                 print('Epoch {}, idx {}, data.shape {}'.format(epoch, idx, sample.shape))
 
             dl.dataset.step()
-
-
-class TestUnifiedDataset:
-
-    @pytest.fixture(scope='class')
-    def generator_dataset(self):
-
-        class DummyDataset(torch.utils.data.Dataset):
-            def __init__(self, ds_size):
-                super().__init__()
-                self.ds_size = ds_size
-
-            def __len__(self):
-                return self.ds_size
-
-            def __getitem__(self, index):
-                # time.sleep(0.05)
-                return torch.rand((32, 32)), torch.rand(32)
-
-        return UnifiedDataset(folder=deepsmlm_root + 'deepsmlm/test/assets/', fname='dataset.pt',
-                              ds_onfly=DummyDataset(128), num_workers=4, max_iter=10)
-
-    @pytest.fixture(scope='class')
-    def loader_dataset(self):
-        return SMLMUnifiedDatasetLoader(folder=deepsmlm_root)
-
-    def test_generator(self, generator_dataset):
-       generator_dataset.launch()
-
-       # now we should have created 10 datasets
-       ds = SMLMUnifiedDatasetLoader(folder=deepsmlm_root + 'deepsmlm/test/assets/')
-
