@@ -95,7 +95,7 @@ def train_wrap(param_file, no_log, debug_param, log_folder):
         raise ValueError("Parameters not specified. "
                          "Parse the parameter file via -p [Your parameeter.json]")
     param = wlp.ParamHandling().load_params(param_file)
-    
+
     if debug_param:
         wlp.ParamHandling.convert_param_debug(param)
 

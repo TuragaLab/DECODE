@@ -463,19 +463,3 @@ class BGNet(nn.Module):
             o = torch.cat((torch.zeros((o.size(0), self.ch_out - 1, o.size(-2), o.size(-1))).to(o.device), o), 1)
 
         return o
-
-
-if __name__ == '__main__':
-    from deepsmlm.generic.inout.write_load_param import load_params
-    param = load_params('/home/lucas/RemoteDeploy/DeepSMLM/config/template.yml')
-    model = SimpleSMLMNet.parse(param)
-    x = torch.rand((10, 3, 32, 32))
-    y = torch.rand((10, 6, 32, 32))
-    optimiser = torch.optim.Adam(model.parameters(), lr=0.0001)
-    criterion = torch.nn.MSELoss(reduction='none')
-    model.train()
-    out = model.forward(x)
-    loss = criterion(out, y)
-    optimiser.zero_grad()
-
-    print('Done')

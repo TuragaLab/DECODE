@@ -42,7 +42,7 @@ HyperParameter:
     use_last_nl: true
   architecture: SimpleSMLMNet
   batch_size: 32
-  bg_perlin_prob_disable: 0.3
+  bg_perlin_prob_disable: 0.5
   ch_static_scale:
   - 1.0
   - 1.0
@@ -83,7 +83,7 @@ LearningRateScheduler:
   threshold: 0.0001
   verbose: true
 Logging:
-  cometml_tags: []
+  cometml_tags:
   log_comment: _thesis_1frame
 PostProcessing:
   ax_th: 200.0
@@ -108,7 +108,7 @@ Simulation:
   - 30.0
   - 30.0
   - 30.0
-  bg_perlin_draw_amps: true
+  bg_perlin_draw_amps: false
   bg_perlin_normalise_amplitudes: true
   bg_perlin_scale:
   - 32

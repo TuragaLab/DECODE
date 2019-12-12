@@ -1,12 +1,11 @@
+import math
 from abc import ABC, abstractmethod  # abstract class
 
 import numpy as np
 import torch
 from scipy import interpolate
-import math
 
 import deepsmlm.generic.psf_kernel as psf_kernel
-import deepsmlm.generic.utils.processing as proc
 
 
 class Background(ABC):
@@ -63,6 +62,7 @@ class NonUniformBackground(Background):
     A class to produce nonuniform background which is done by placing 5 points with 5 different values
     on somewhat random positions and then interpolate an image.
     """
+
     def __init__(self, intensity, img_size, dynamic_factor=1.3):
         super().__init__()
         self.max_value = intensity
@@ -103,6 +103,7 @@ class NonUniformBackground(Background):
 
 class OutOfFocusEmitters:
     """Simulate out of focus emitters by using huge z values."""
+
     def __init__(self, xextent, yextent, img_shape, bg_range=(15, 15), num_bgem_range=0):
         """
 
@@ -142,8 +143,8 @@ class OutOfFocusEmitters:
         """Sample emitters. Place them randomly over the image."""
         num_bg_em = self.num_emitter_dist.sample((1,)).int().item()
         xyz = torch.rand((num_bg_em, 3)) * torch.tensor([self.xextent[1] - self.xextent[0],
-                                                 self.yextent[1] - self.yextent[0],
-                                                 1.]) - torch.tensor([self.xextent[0], self.yextent[0], 0.])
+                                                         self.yextent[1] - self.yextent[0],
+                                                         1.]) - torch.tensor([self.xextent[0], self.yextent[0], 0.])
         xyz[:, 2] = torch.randint_like(xyz[:, 2], low=2000, high=8000)
         xyz[:, 2] *= torch.from_numpy(np.random.choice([-1., 1.], xyz.shape[0])).type(torch.FloatTensor)
         levels = self.level_dist.sample((xyz.size(0),))
@@ -174,7 +175,6 @@ class PerlinBackground(Background):
         self.perlin_com = None
         self.draw_amp = draw_amp
 
-
         delta = (self.perlin_scale / self.img_size[0], self.perlin_scale / self.img_size[1])
         self.d = (self.img_size[0] // self.perlin_scale, self.img_size[1] // self.perlin_scale)
         self.grid = torch.stack(torch.meshgrid(torch.arange(0, self.perlin_scale, delta[0]),
@@ -187,13 +187,15 @@ class PerlinBackground(Background):
         amplitude = param.Simulation.bg_perlin_amplitude
         norm_amps = param.Simulation.bg_perlin_normalise_amplitudes
         draw_amps = param.Simulation.bg_perlin_draw_amps
+        prob_disable = param.HyperParameter.bg_perlin_prob_disable
 
         if isinstance(amplitude, list) or isinstance(amplitude, tuple):
             return PerlinBackground.multi_scale_init(img_size=img_size,
-                                                     perlin_scales=perlin_scale,
-                                                     amplitudes=amplitude,
-                                                     norm_amplitudes=norm_amps,
-                                                     draw_amps=draw_amps)
+                                                     scales=perlin_scale,
+                                                     amps=amplitude,
+                                                     norm_amps=norm_amps,
+                                                     draw_amps=draw_amps,
+                                                     prob_disable=prob_disable)
         else:
             return PerlinBackground(img_size=img_size,
                                     perlin_scale=perlin_scale,
@@ -201,17 +203,11 @@ class PerlinBackground(Background):
                                     draw_amp=draw_amps)
 
     @staticmethod
-    def multi_scale_init(img_size, perlin_scales, amplitudes, norm_amplitudes, draw_amps=False):
+    def multi_scale_init(**kwargs):
         """
         Generates a sequence of this class
         """
-        bg_model = MultiPerlin(img_size=img_size,
-                               scales=perlin_scales,
-                               amps=amplitudes,
-                               draw_amps=draw_amps,
-                               norm_amps=norm_amplitudes)
-
-        return bg_model
+        return MultiPerlin(**kwargs)
 
     @staticmethod
     def fade_f(t):
@@ -225,12 +221,14 @@ class PerlinBackground(Background):
         angles = 2 * math.pi * torch.rand(res[0] + 1, res[1] + 1)
         gradients = torch.stack((torch.cos(angles), torch.sin(angles)), dim=-1)
 
-        tile_grads = lambda slice1, slice2: gradients[slice1[0]:slice1[1], slice2[0]:slice2[1]].repeat_interleave(self.d[0],
-                                                                                                                  0).repeat_interleave(
+        tile_grads = lambda slice1, slice2: gradients[slice1[0]:slice1[1], slice2[0]:slice2[1]].repeat_interleave(
+            self.d[0],
+            0).repeat_interleave(
             self.d[1], 1)
         dot = lambda grad, shift: (
-                torch.stack((self.grid[:shape[0], :shape[1], 0] + shift[0], self.grid[:shape[0], :shape[1], 1] + shift[1]),
-                            dim=-1) * grad[:shape[0], :shape[1]]).sum(dim=-1)
+                torch.stack(
+                    (self.grid[:shape[0], :shape[1], 0] + shift[0], self.grid[:shape[0], :shape[1], 1] + shift[1]),
+                    dim=-1) * grad[:shape[0], :shape[1]]).sum(dim=-1)
 
         n00 = dot(tile_grads([0, -1], [0, -1]), [0, 0])
         n10 = dot(tile_grads([1, None], [0, -1]), [-1, 0])
@@ -256,17 +254,19 @@ class PerlinBackground(Background):
             amp_factor = 1.
 
         return x + self.amplitude * amp_factor * (self.calc_perlin(self.img_size, [self.perlin_scale,
-                                                                                self.perlin_scale]) + 1) / 2.0
+                                                                                   self.perlin_scale]) + 1) / 2.0
 
 
 class MultiPerlin:
-    def __init__(self, img_size, scales, amps, draw_amps: bool, norm_amps: bool):
+    def __init__(self, img_size, scales, amps, draw_amps: bool, norm_amps: bool, prob_disable=None):
         """
 
         :param img_size: tuple of ints
         :param scales: perlin scales
         :param amps: amplitudes
-        :param dist_uniform: sample the amplitude in the respective scale range in every forward
+        :param draw_amps: sample the amplitude in the respective scale range in every forward (from a uniform)
+        :param norm_amps: normalise the amplitudes
+        :param prob_disable: disable a frequency probabilistically
         """
 
         self.img_size = img_size
@@ -274,8 +274,9 @@ class MultiPerlin:
         self.amps = amps if isinstance(amps, torch.Tensor) else torch.tensor(amps)
         self.amps = self.amps.float()
         self.draw_amps = draw_amps
-        self.num_freq = self.scales.__len__()   # number of frequencies
+        self.num_freq = self.scales.__len__()  # number of frequencies
         self.norm_amps = norm_amps
+        self.prob_disable = prob_disable
 
         if self.norm_amps:
             self.amps /= self.num_freq
@@ -302,36 +303,8 @@ class MultiPerlin:
         """
 
         for i in range(self.num_freq):
+            if (self.prob_disable is not None) and (torch.rand(1).item() <= self.prob_disable):
+                continue
             x = self.perlin_com[i].forward(x)
 
         return x
-
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-
-    extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
-    img_shape = (32, 32)
-    # bg = OutOfFocusEmitters(extent[0], extent[1], img_shape, bg_range=(0., 100.), num_bgem_range=[0, 5])
-    bg = PerlinBackground.multi_scale_init(img_shape, [32, 16, 8, 4], [1., 1., 1., 1.])
-    x = torch.zeros((1, 1, 32, 32))
-    x = bg.forward(x)
-
-    plt.imshow(x[0, 0], interpolation='lanczos')
-    plt.colorbar()
-    plt.show()
-
-    plt.imshow(x[0, 0])
-    plt.colorbar()
-    plt.show()
-    #
-    # bg2 = NonUniformBackground(100, img_shape, 1.0)
-    # # x = torch.zeros((1, 1, 64, 64))
-    # x = bg2.forward(x)
-    # plt.imshow(x[0, 0]);
-    # plt.colorbar()
-    # plt.show()
-
-
-
-

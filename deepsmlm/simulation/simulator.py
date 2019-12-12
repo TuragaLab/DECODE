@@ -149,32 +149,3 @@ class Simulation:
                                 frame_ix=self.em.frame_ix,
                                 extent=self.extent)
             print("Saving simulation to {}.".format(outfile))
-
-
-class SimulationArgs:
-    def __init__(self, extent, img_shape, bg_value):
-        self.extent = extent
-        self.img_shape = img_shape
-        self.bg_value = bg_value
-
-
-if __name__ == '__main__':
-    """Get root folder of this package."""
-    deepsmlm_root = os.path.abspath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     os.pardir, os.pardir)) + '/'
-
-    # load spline calibration
-    calib_file = deepsmlm_root + 'data/Calibration/SMLM Challenge Beads/Coefficients Big ROI/AS-Exp_100nm_3dcal.mat'
-    psf = SMAPSplineCoefficient(calib_file).init_spline((-0.5, 63.5), (-0.5, 63.5), (64, 64))
-
-    noise = Photon2Camera(0.9, 0., 300., 100., 10., 0.)
-
-    simulator = Simulation(None, ((-0.5, 63.5), (-0.5, 63.5), None), psf, noise, frame_range=(0, 0), poolsize=0)
-
-    em = RandomEmitterSet(5, 64)
-    em.phot *= 1000000
-
-    img = simulator.forward(em_new=em)
-    PlotFrame(img[0]).plot()
-    plt.show()
