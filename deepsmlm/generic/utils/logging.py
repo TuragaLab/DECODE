@@ -192,6 +192,7 @@ class LogTestEpoch:
         phot_dist = MetricMeter()
         dx_dist, dy_dist, z_dist = MetricMeter(), MetricMeter(), MetricMeter()
         bg_dist_out, bg_dist_tar = MetricMeter(), MetricMeter()
+        bg_dist_out_rsample, bg_dist_tar_rsample = MetricMeter(), MetricMeter()
 
         phot_dist.vals = output_frames[:, 1][is_above_th]
         dx_dist.vals = output_frames[:, 2][is_above_th]
@@ -199,6 +200,8 @@ class LogTestEpoch:
         z_dist.vals = output_frames[:, 4][is_above_th]
         bg_dist_out.vals = output_frames[:, 5].reshape(-1)
         bg_dist_tar.vals = target_frames[:, 5].reshape(-1)
+        bg_dist_out_rsample.vals = output_frames[ix, 5].reshape(-1)
+        bg_dist_tar_rsample.vals = target_frames[ix, 5].reshape(-1)
 
         _ = phot_dist.hist(fit=None, range=(0., 1.))
         plt.gca().set_xlabel(r'$phot$')
@@ -223,6 +226,14 @@ class LogTestEpoch:
         _ = bg_dist_tar.hist(fit=None)
         plt.gca().set_xlabel(r'$bg_{tar}$')
         self._log_figure(plt.gcf(), step, "io/bg_tar", show)
+
+        _ = bg_dist_out_rsample.hist(fit=None)
+        plt.gca().set_xlabel(r'$bg_{out,rsample}$')
+        self._log_figure(plt.gcf(), step, "io/bg_out_rsample", show)
+
+        _ = bg_dist_tar_rsample.hist(fit=None)
+        plt.gca().set_xlabel(r'$bg_{tar,rsample}$')
+        self._log_figure(plt.gcf(), step, "io/bg_tar_rsample", show)
 
         """Dx/y/z histograms"""
         _ = metrics_set.dx.hist()
