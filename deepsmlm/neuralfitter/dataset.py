@@ -113,13 +113,18 @@ class SMLMDatasetOnFly(Dataset):
         frame = self.input_preperator.forward(frame_sim) # C x H x W
         emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
 
-        # generate the weight mask
-        weight_mask = self.weight_generator.forward(frame, emitter_on_tar_frame, bg_sim[0])
-
-        if self.predict_bg:
-            target = self.target_generator.forward(emitter_on_tar_frame, bg_sim)
+        if self.weight_generator is not None:
+            # generate the weight mask
+            weight_mask = self.weight_generator.forward(frame, emitter_on_tar_frame, bg_sim[0])
         else:
+            weight_mask = torch.zeros(0)
+
+        if self.predict_bg and self.target_generator is not None:
+            target = self.target_generator.forward(emitter_on_tar_frame, bg_sim)
+        elif self.target_generator is not None:
             target = self.target_generator.forward(emitter_on_tar_frame)
+        else:
+            target = torch.zeros(0)
 
         return emitter, frame, target, weight_mask, emitter_on_tar_frame
 
@@ -138,11 +143,15 @@ class SMLMDatasetOnFly(Dataset):
         return frame, target, weight_mask
 
     @staticmethod
-    def _check_datatypes(*args):
+    def _check_datatypes(*args, none_okay=True):
 
         for arg in args:
-            if not isinstance(arg, torch.FloatTensor):
-                raise ValueError("At least one of the tensors in the dataset is of wrong type.")
+            if isinstance(arg, torch.FloatTensor):
+                continue
+            if (arg is None or arg == [None]) and none_okay:
+                continue
+            raise ValueError(f"At least one of the tensors in the dataset is of wrong type. The datatype is "
+                             f"{type(arg)}")
 
     def step(self):
         pass
@@ -173,15 +182,13 @@ class SMLMDatasetOneTimer(SMLMDatasetOnFly):
         :param output_format: either list (list of emittersets) or concatenated Emittersets.
         :return:
         """
-        if not self.static_data:
-            warnings.warn("WARNING: Ground truth extraction may not be valid for non-static data. Please be aware.")
 
         if output_format == 'list':
             return self.em_tar
         elif output_format == 'cat':
             return EmitterSet.cat_emittersets(self.em_tar, step_frame_ix=1)
 
-    def __getitem(self, index):
+    def __getitem__(self, index):
 
         self._check_datatypes(self.frame[index], self.target[index])
 
