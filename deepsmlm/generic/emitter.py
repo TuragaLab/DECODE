@@ -418,19 +418,28 @@ class EmitterSet:
 
         return grand_matrix
 
-    def write_csv_smap(self, filename, model=None, comments=None, factor=torch.tensor([100., 100., 1.]), shift=torch.tensor([50., -50., 0.]), axis=[1, 0, 2]):
+    def write_csv_smap(self, filename, px_size=None, model=None, comments=None, factor=None,
+                       shift=torch.tensor([50., -50., 0.]), axis=[1, 0, 2]):
         """
-        Write to SMAP compatible csv (i.e. plain header for easier import in MATLAB)
+        Write to SMAP compatible csv (i.e. plain header for easier import in MATLAB).
+        Note that the order of transformation is factor, shift, axis. Therefore specify the px size in the order of
+        DeepSMLM and not the order after transformation.
         :param filename:
-        :param mdoel:
+        :param px_size: specify the px size of the camera for transformation
+        :param model:
         :param comments:
         :param factor:
         :param shift:
         :param axis:
         :return:
         """
-        pseudo_em = self.clone()
-        pseudo_em.convert_em_(factor, shift, axis, 1)
+        if (px_size is None and factor is None) or (px_size is not None and factor is not None):
+            raise ValueError("You must specify either the px size XOR a factor.")
+
+        if px_size is not None:
+            factor = torch.tensor([px_size[0], px_size[1], 1.]).float()
+
+        pseudo_em = self.convert_em(factor, shift, axis, frame_shift=1)
 
         if comments is None:
             comments = 'Export for SMAP'
