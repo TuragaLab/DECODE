@@ -355,9 +355,10 @@ class SpeiserPost:
 
 class ConsistencyPostprocessing(PostProcessing):
 
-    p_aggregation = 'sum'
+    p_aggregations = ('max', 'sum')
 
-    def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=0.3, ax_threshold=200., match_dims=2, out_format='emitters', num_workers=0):
+    def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=0.3, ax_threshold=200., match_dims=2,
+                 out_format='emitters', num_workers=0, p_aggregation='max'):
         """
 
         :param svalue_th: single value threshold
@@ -369,6 +370,7 @@ class ConsistencyPostprocessing(PostProcessing):
         self.svalue_th = svalue_th
         self.final_th = final_th
         self.out_format = out_format
+        self.p_aggregation = p_aggregation
 
         self.lat_th = lat_threshold
         self.ax_th = ax_threshold
