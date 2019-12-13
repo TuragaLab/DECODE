@@ -10,6 +10,7 @@ import torch
 from deepsmlm.evaluation.metric_library import PrecisionRecallJaccard, RMSEMAD
 import deepsmlm.evaluation.metric_library as metric_lib
 import deepsmlm.generic.emitter as emitter
+from scipy.stats import gaussian_kde
 
 
 class MetricMeter:
@@ -193,11 +194,6 @@ class BatchEvaluation:
             output = output.convert_em(factor=self.px_size)
             target = target.convert_em(factor=self.px_size)
 
-        # for i in range(output.__len__()):
-        #     out = output[i].clone()
-        #     tar = target[i].clone()
-        #
-
         tp, fp, fn, tp_match = self._matching.forward(output, target)
         prec_, rec_, jaq_ = self._segmentation_eval.forward(tp, fp, fn)
         rmse_vol_, rmse_lat_, rmse_axial_, mad_vol_, mad_lat_, mad_axial_ = self._distance_eval.forward(tp, tp_match)
@@ -228,6 +224,16 @@ class BatchEvaluation:
                               rmse_vol, rmse_lat, rmse_axial,
                               mad_vol, mad_lat, mad_axial,
                               dx, dy, dz, dxw, dyw, dzw)
+
+    def plot_sophisticated(self, output, target):
+        """
+        Plots more interesting stuff.
+        """
+        if self.px_size is not None:
+            output = output.convert_em(factor=self.px_size)
+            target = target.convert_em(factor=self.px_size)
+
+
 
 
 class SegmentationEvaluation:
