@@ -278,10 +278,6 @@ class BatchEvaluation:
         """
         Plots more interesting stuff.
         """
-        import deepsmlm.generic.plotting.frame_coord as fplot
-        # if self.px_size is not None:
-        #     output_nm = output.convert_em(factor=self.px_size)
-        #     target_nm = target.convert_em(factor=self.px_size)
 
         # plot errors
         self.values.dx.hist()
@@ -316,7 +312,7 @@ class BatchEvaluation:
 
         phm = MetricMeter()
         phm.vals = self.tp.phot
-        phm.hist(bins=200, range_hist=[0., 1.], fit=None)
+        phm.hist(bins=200, fit=None)
         plt.title('Photon Distribution of Prediction')
         plt.xlabel('phot')
         plt.show()
