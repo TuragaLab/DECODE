@@ -203,7 +203,7 @@ class LogTestEpoch:
         bg_dist_out_rsample.vals = output_frames[ix, 5].reshape(-1)
         bg_dist_tar_rsample.vals = target_frames[ix, 5].reshape(-1)
 
-        _ = phot_dist.hist(fit=None, range=(0., 1.))
+        _ = phot_dist.hist(fit=None, range_hist=(0., 1.))
         plt.gca().set_xlabel(r'$phot$')
         self._log_figure(plt.gcf(), step, "io/phot", show)
 

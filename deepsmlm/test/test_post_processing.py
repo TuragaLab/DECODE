@@ -116,6 +116,9 @@ class TestConsistentPostProcessing:
     def post(self):
         return post.ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_framewise')
 
+    def test_init_sanity_check(self):
+        post.ConsistencyPostprocessing(0.1, 0.6, lat_threshold=30, ax_threshold=200., vol_threshold=None, match_dims=3)
+
     def test_easy(self, post):
         p = torch.zeros((2, 1, 32, 32)).cuda()
         out = torch.zeros((2, 4, 32, 32)).cuda()
