@@ -1,6 +1,7 @@
 import os
 import sys
 import hashlib
+import warnings
 import numpy as np
 import torch
 
@@ -39,9 +40,10 @@ class EmitterSet:
     Class, storing a set of emitters. Each attribute is a torch.Tensor.
     """
     eq_precision = 1E-6
+    xy_units = ('px', 'nm')
 
     def __init__(self, xyz, phot, frame_ix, id=None, prob=None, bg=None, xyz_cr=None, phot_cr=None, bg_cr=None,
-                 sanity_check=True):
+                 sanity_check=True, xy_unit=None, px_size=None):
         """
         Constructor. Coordinates, photons, frame_ix must be provided. Id is optional.
 
@@ -94,12 +96,38 @@ class EmitterSet:
                          self.phot_cr,
                          self.bg_cr)
 
+        self.xy_unit = xy_unit
+        self.px_size = px_size
+        if self.px_size is not None:
+            if not isinstance(self.px_size, torch.Tensor):
+                self.px_size = torch.Tensor(self.px_size)
+
         if sanity_check:
             self._sanity_check()
 
     @property
     def num_emitter(self):
         return int(self.xyz.shape[0]) if self.xyz.shape[0] != 0 else 0
+
+    @property
+    def xyz_px(self):
+        if self.xy_unit is None:
+            warnings.warn("If unit is unspecified, can not convert to px coordinates.")
+            return
+        elif self.xy_unit == 'nm':
+            return self.convert_coordinates(factor=1/self.px_size)
+        else:
+            return self.xyz
+
+    @property
+    def xyz_nm(self):
+        if self.xy_unit is None:
+            warnings.warn("If unit is unspecified, can not convert to px coordinates.")
+            return
+        elif self.xy_unit == 'px':
+            return self.convert_coordinates(factor=self.px_size)
+        else:
+            return self.xyz
 
     @property
     def xyz_scr(self):  # sqrt crlb
@@ -117,15 +145,17 @@ class EmitterSet:
         """If self is derived class of EmitterSet, call the constructor of the parent instead of self.
         However, I don't know why super().__init__(...) does not work."""
         self.__init__(xyz=em.xyz,
-                          phot=em.phot,
-                          frame_ix=em.frame_ix,
-                          id=em.id,
-                          prob=em.prob,
-                          bg=em.bg,
-                          xyz_cr=em.xyz_cr,
-                          phot_cr=em.phot_cr,
-                          bg_cr=em.bg_cr,
-                          sanity_check=True)
+                      phot=em.phot,
+                      frame_ix=em.frame_ix,
+                      id=em.id,
+                      prob=em.prob,
+                      bg=em.bg,
+                      xyz_cr=em.xyz_cr,
+                      phot_cr=em.phot_cr,
+                      bg_cr=em.bg_cr,
+                      sanity_check=True,
+                      xy_unit=em.xy_unit,
+                      px_size=em.px_size)
 
     def _sanity_check(self):
         """
@@ -139,6 +169,10 @@ class EmitterSet:
         if not same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
             raise ValueError("Expected photons, probability frame index and id to be 1D.")
 
+        if self.xy_unit is not None:
+            if self.xy_unit not in self.xy_units:
+                warnings.warn("XY unit not known.")
+
     def __str__(self):
         print_str = f"EmitterSet" \
                     f"\n::num emitters: {self.num_emitter}"
@@ -147,6 +181,7 @@ class EmitterSet:
             print_str += "\n::frame range: n.a." \
                          "\n::spanned volume: n.a."
         else:
+            print_str += f"\n::xy unit: {self.xy_unit}"
             print_str += f"\n::frame range: {self.frame_ix.min().item()} - {self.frame_ix.max().item()}" \
                          f"\n::spanned volume: {self.xyz.min(0)[0].numpy()} - {self.xyz.max(0)[0].numpy()}"
         return print_str
@@ -196,7 +231,10 @@ class EmitterSet:
                           self.bg.clone(),
                           self.xyz_cr.clone(),
                           self.phot_cr.clone(),
-                          self.bg_cr.clone())
+                          self.bg_cr.clone(),
+                          sanity_check=False,
+                          xy_unit=self.xy_unit,
+                          px_size=self.px_size)
 
     @staticmethod
     def cat_emittersets(emittersets, remap_frame_ix=None, step_frame_ix=None):
@@ -233,7 +271,20 @@ class EmitterSet:
         phot_cr = torch.cat([emittersets[i].phot_cr for i in range(num_emittersets)], 0)
         bg_cr = torch.cat([emittersets[i].bg_cr for i in range(num_emittersets)], 0)
 
-        return EmitterSet(xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr)
+        # px_size and xy unit is taken from the first element that is not None
+        xy_unit = None
+        px_size = None
+        for i in range(num_emittersets):
+            if emittersets[i].xy_unit is not None:
+                xy_unit = emittersets[i].xy_unit
+                break
+        for i in range(num_emittersets):
+            if emittersets[i].px_size is not None:
+                px_size = emittersets[i].px_size
+                break
+
+        return EmitterSet(xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr, sanity_check=True,
+                          xy_unit=xy_unit, px_size=px_size)
 
     def sort_by_frame(self):
         self.frame_ix, ix = self.frame_ix.sort()
@@ -250,7 +301,8 @@ class EmitterSet:
 
     def get_subset(self, ix):
         return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix], self.prob[ix], self.bg[ix],
-                          self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix], sanity_check=False)
+                          self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix], sanity_check=False,
+                          xy_unit=self.xy_unit, px_size=self.px_size)
 
     def get_subset_frame(self, frame_start, frame_end, shift_to=None):
         """
@@ -329,7 +381,8 @@ class EmitterSet:
 
         for i, em in enumerate(grand_matrix_list):
             em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5], prob=em[:, 6],
-                                      bg=em[:, 7], xyz_cr=em[:, 8:11], phot_cr=em[:, 11], bg_cr=em[:, 12], sanity_check=False))
+                                      bg=em[:, 7], xyz_cr=em[:, 8:11], phot_cr=em[:, 11], bg_cr=em[:, 12],
+                                      sanity_check=False, xy_unit=self.xy_unit, px_size=self.px_size))
 
         return em_list
 
@@ -353,32 +406,38 @@ class EmitterSet:
             xyz = xyz[:, axis]
         return xyz
 
-    def convert_em(self, factor=None, shift=None, axis=None, frame_shift=0):
+    def convert_em(self, factor=None, shift=None, axis=None, frame_shift=0, new_xy_unit=None):
         """
         Convert a clone of the current emitter
         :param factor:
         :param shift:
         :param axis:
         :param frame_shift:
+        :param new_xy_unit: set the name of the unit
         :return:
         """
 
         emn = self.clone()
         emn.xyz = emn.convert_coordinates(factor, shift, axis)
         emn.frame_ix += frame_shift
+        if new_xy_unit is not None:
+            emn.xy_unit = new_xy_unit
         return emn
 
-    def convert_em_(self, factor=None, shift=None, axis=None, frame_shift=0):
+    def convert_em_(self, factor=None, shift=None, axis=None, frame_shift=0, new_xy_unit=None):
         """
         Inplace conversion of emitter
         :param factor:
         :param shift:
         :param axis:
         :param frame_shift:
+        :param new_xy_unit: set the name of the xy unit
         :return:
         """
         self.xyz = self.convert_coordinates(factor, shift, axis)
         self.frame_ix += frame_shift
+        if new_xy_unit is not None:
+            self.xy_unit = new_xy_unit
 
     def write_to_csv(self, filename, model=None, comments=None, plain_header=False):
         """
@@ -500,7 +559,9 @@ class RandomEmitterSet(EmitterSet):
                          xyz_cr=em.xyz_cr,
                          phot_cr=em.phot_cr,
                          bg_cr=em.bg_cr,
-                         sanity_check=False)
+                         sanity_check=False,
+                         xy_unit=em.xy_unit,
+                         px_size=em.px_size)
 
 
 class CoordinateOnlyEmitter(EmitterSet):
@@ -525,7 +586,9 @@ class CoordinateOnlyEmitter(EmitterSet):
                          xyz_cr=em.xyz_cr,
                          phot_cr=em.phot_cr,
                          bg_cr=em.bg_cr,
-                         sanity_check=False)
+                         sanity_check=False,
+                         xy_unit=em.xy_unit,
+                         px_size=em.px_size)
 
 
 class EmptyEmitterSet(CoordinateOnlyEmitter):
