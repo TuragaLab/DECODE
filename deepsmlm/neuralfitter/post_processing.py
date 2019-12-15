@@ -4,6 +4,7 @@ import math
 import warnings
 
 import numpy as np
+import joblib
 import torch.multiprocessing as mp
 import scipy
 from sklearn.cluster import AgglomerativeClustering, DBSCAN
@@ -354,13 +355,17 @@ class SpeiserPost:
 
 
 class ConsistencyPostprocessing(PostProcessing):
-
+    """
+    PostProcessing which divides output in easy and hard examples.
+    Hard examples are non-zero px where adjacent px are also non-zero.
+    """
     p_aggregations = ('max', 'sum')
 
-    def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=0.3, ax_threshold=200., match_dims=2,
-                 out_format='emitters', num_workers=0, p_aggregation='max'):
+    def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=30, ax_threshold=200., vol_threshold=None,
+                 match_dims=2, out_format='emitters', num_workers=0, p_aggregation='max', diag=0, px_size=None):
         """
-
+        Constructor. If volumetric matching is used, it is assumed that coordinate maps are already in nm!
+        Do not change attributes after construction!
         :param svalue_th: single value threshold
         :param sep_th: threshold when to assume that we have 2 emitters
         :param out_format: either 'emitters' or 'image'. If 'emitter' we output instance of EmitterSet, if 'frames' we output post_processed frames.
@@ -372,26 +377,56 @@ class ConsistencyPostprocessing(PostProcessing):
         self.out_format = out_format
         self.p_aggregation = p_aggregation
 
-        self.lat_th = lat_threshold
-        self.ax_th = ax_threshold
+        self._match_dims = match_dims
+        self._lat_th = lat_threshold
+        self._ax_th = ax_threshold
+        self._vol_th = vol_threshold
+        self._th = None
 
-        diag = 0
+        self._px_size = px_size
+        self._convert_nm = True if self._px_size is not None else False
+
+        # Check arguments
+        if self._match_dims == 2:
+            if not (self._lat_th is not None and
+                    self._ax_th is None and
+                    self._vol_th is None):
+                raise ValueError("Invalid arguments for 2D / lateral matching.")
+        elif self._match_dims == 2.1:
+            if not (self._lat_th is not None and
+                    self._ax_th is not None and
+                    self._vol_th is None):
+                raise ValueError("Invalid arguments for lateral plus kickout axial matching.")
+        elif self._match_dims == 3:
+            if not (self._lat_th is None and
+                    self._ax_th is None and
+                    self._vol_th is not None):
+                raise ValueError("Invalid arguments for volumetric matching.")
+
+        if self._match_dims in (2, 2.1):
+            self._th = self._lat_th
+        elif self._match_dims == 3:
+            self._th = self._vol_th
+
+        # diag = 0
         self.neighbor_kernel = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).float().view(1, 1, 3, 3)
         self.clusterer = AgglomerativeClustering(n_clusters=None,
-                                                 distance_threshold=self.lat_th,
+                                                 distance_threshold=self._th,
                                                  affinity='precomputed',
                                                  linkage='single')
-        self.match_dims = match_dims
+
         self.num_workers = num_workers
 
     @staticmethod
-    def parse(param: dict, out_format='emitters_batch'):
-        return ConsistencyPostprocessing(svalue_th=param['PostProcessing']['single_val_th'],
-                                         final_th=param['PostProcessing']['total_th'],
-                                         lat_threshold=param['PostProcessing']['lat_th'],
-                                         ax_threshold=param['PostProcessing']['ax_th'],
-                                         match_dims=param['PostProcessing']['match_dims'],
-                                         out_format=out_format)
+    def parse(param, out_format='emitters_batch'):
+        return ConsistencyPostprocessing(svalue_th=param.PostProcessing.single_val_th,
+                                         final_th=param.PostProcessing.total_th,
+                                         lat_threshold=param.PostProcessing.lat_th,
+                                         ax_threshold=param.PostProcessing.ax_th,
+                                         vol_threshold=param.PostProcessing.vol_th,
+                                         match_dims=param.PostProcessing.match_dims,
+                                         out_format=out_format,
+                                         px_size=param.Camera.px_size)
 
     @staticmethod
     def _cluster_batch_functional(p, features, clusterer, p_aggregation, match_dims, ax_th):
@@ -411,31 +446,35 @@ class ConsistencyPostprocessing(PostProcessing):
             f_frame = features[i, :, ix]
             # flatten samples and put them in the first dim
             f_frame = f_frame.reshape(f_frame.size(0), -1).permute(1, 0)
-            if match_dims == 2:
+            if match_dims == 2:  # only lateral matching
                 coord = f_frame[:, 1:3]
-                dist_mat_lat = scipy.spatial.distance.pdist(coord.cpu().numpy())
-                dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
-            elif match_dims == 3:
+                dist_mat = scipy.spatial.distance.pdist(coord.cpu().numpy())
+                dist_mat = scipy.spatial.distance.squareform(dist_mat)
+            elif match_dims == 2.1:  # lateral match, kick out not matching z
                 coord_lat = f_frame[:, 1:3]
-                dist_mat_lat = scipy.spatial.distance.pdist(coord_lat.cpu().numpy())
-                dist_mat_lat = scipy.spatial.distance.squareform(dist_mat_lat)
+                dist_mat = scipy.spatial.distance.pdist(coord_lat.cpu().numpy())
+                dist_mat = scipy.spatial.distance.squareform(dist_mat)
 
                 coord_ax = f_frame[:, [3]]
                 dist_mat_ax = scipy.spatial.distance.pdist(coord_ax.cpu().numpy())
                 dist_mat_ax = scipy.spatial.distance.squareform(dist_mat_ax)
 
                 # where the z values are too different, don't merge
-                dist_mat_lat[dist_mat_ax > ax_th] = 999999999999.
+                dist_mat[dist_mat_ax > ax_th] = 999999999999.
 
+            elif match_dims == 3:  # volumetric match
+                coord_vol = f_frame[:, 1:4]
+                dist_mat = scipy.spatial.distance.pdist(coord_vol.cpu().numpy())
+                dist_mat = scipy.spatial.distance.squareform(dist_mat)
             else:
                 raise ValueError("Match dims must be 2 or 3.")
 
-            if dist_mat_lat.shape[0] == 1:
+            if dist_mat.shape[0] == 1:
                 warnings.warn("I don't know how this can happen but there seems to be a single an isolated difficult case ...", stacklevel=3)
                 n_clusters = 1
                 labels = torch.tensor([0])
             else:
-                clusterer.fit(dist_mat_lat)
+                clusterer.fit(dist_mat)
                 n_clusters = clusterer.n_clusters_
                 labels = torch.from_numpy(clusterer.labels_)
 
@@ -457,7 +496,11 @@ class ConsistencyPostprocessing(PostProcessing):
         return p_out.reshape(p.size()), feat_out.reshape(features.size())
 
     def _cluster_batch(self, p, features):
-        return self._cluster_batch_functional(p, features, self.clusterer, self. p_aggregation, self.match_dims, self.ax_th)
+        return self._cluster_batch_functional(p, features,
+                                              self.clusterer,
+                                              self. p_aggregation,
+                                              self._match_dims,
+                                              self._ax_th)
 
     def _cluster_mp(self, p, features):
         """
@@ -478,7 +521,7 @@ class ConsistencyPostprocessing(PostProcessing):
         with mp.Pool(processes=self.num_workers) as pool:
 
             # itertools map p and f
-            args = iter.zip_longest(p_split, feat_split, [self.clusterer], [self.p_aggregation], [self.match_dims], [self.ax_th])
+            args = iter.zip_longest(p_split, feat_split, [self.clusterer], [self.p_aggregation], [self._match_dims], [self._ax_th])
             results = pool.starmap_async(self._cluster_batch_functional, args)
             results = results.get()
 
@@ -496,7 +539,7 @@ class ConsistencyPostprocessing(PostProcessing):
     def forward_(self, p, features):
         """
         :param p: N x H x W probability map
-        :param features: N x C x H x W features
+        :param features: N x C x H x W features.
         :return: feature averages N x (1 + C) x H x W final probabilities plus features
         """
         with torch.no_grad():
@@ -551,12 +594,23 @@ class ConsistencyPostprocessing(PostProcessing):
 
     def forward(self, features):
         """
-        Wrapper to output either the actual frames or emittersets
+        Wrapper to output either the actual frames or emittersets.
+        For volumetric matching make sure that the coordinates are in nm.
         :param features:
         :return:
         """
         p = features[:, [0], :, :]
-        features = features[:, 1:, :, :]
+        features = features[:, 1:, :, :]  # phot, x, y, z, bg
+
+        """Convert px to nm if px_size specified."""
+        if self._convert_nm:
+            features[:, 1] *= self._px_size[0]
+            features[:, 2] *= self._px_size[1]
+
+            xy_unit = 'nm'
+        else:
+            xy_unit = 'px'
+
         p_out, feat_out = self.forward_(p, features)
 
         if self.out_format == 'frames':
@@ -566,7 +620,8 @@ class ConsistencyPostprocessing(PostProcessing):
 
         elif self.out_format[:8] == 'emitters':
             feature_list, prob_final, frame_ix = super().frame2emitter(p_out, feat_out)
-            em = EmitterSet(feature_list[:, 1:4], feature_list[:, 0], frame_ix.squeeze(), prob=prob_final)
+            em = EmitterSet(feature_list[:, 1:4], feature_list[:, 0], frame_ix.squeeze(), prob=prob_final,
+                            xy_unit=xy_unit, px_size=self._px_size)
             if self.out_format[8:] == '_batch':
                 return em
             elif self.out_format[8:] == '_framewise':
@@ -589,7 +644,6 @@ class NoPostProcessing(PostProcessing):
             return em.split_in_frames(0, x.size(0) - 1)
         else:
             raise ValueError("Output format not supported.")
-
 
 
 class CC5ChModel(ConnectedComponents):
@@ -754,7 +808,9 @@ class CCDirectPMap(CC5ChModel):
 
 
 class Offset2Coordinate:
-    """Postprocesses the offset model to return a list of emitters."""
+    """
+    Postprocesses the offset model to return a list of emitters.
+    """
     def __init__(self, xextent, yextent, img_shape):
 
         off_psf = OffsetPSF(xextent=xextent,

@@ -192,7 +192,7 @@ def train_wrap(param_file, no_log, debug_param, log_folder):
                                    param['Simulation']['img_size'])
 
         """Define our noise model."""
-        if param.Simulation.bg_perlin_amplitude == 0:
+        if param.Simulation.bg_perlin_amplitude is None:
             bg = background.UniformBackground.parse(param)
         else:
             bg = processing.TransformSequence.parse([background.UniformBackground,

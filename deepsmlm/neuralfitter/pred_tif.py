@@ -49,7 +49,8 @@ class PredictEval(ABC):
 
         """Eval mode."""
         with torch.no_grad():
-            for (x_in, _, _, _) in tqdm(self.dataloader):
+            for sample in tqdm(self.dataloader):
+                x_in = sample[0]
                 x_in = x_in.to(self.device)
 
                 # compute output
@@ -116,7 +117,7 @@ class PredictEvalSimulation(PredictEval):
         self.evaluator = evaluator
         self.input_preparation = input_preparation
 
-        if ((self.param is None) and (self.dataset is None) and (self.dataloader) is None):
+        if (self.param is None) and (self.dataset is None) and (self.dataloader) is None:
             raise ValueError("You need to provide the parameters or you need to provide a dataset and a data loader."
                              "Do the latter if the former fails.")
 
@@ -158,6 +159,8 @@ class PredictEvalTif(PredictEval):
 
         self.prediction = None
         self.frames = None
+        self.dataset = None
+        self.dataloader = None
 
     def load_tif(self):
         im = tifffile.imread(self.tif_stack)
@@ -176,11 +179,12 @@ class PredictEvalTif(PredictEval):
         if frames is None:
             frames = self.frames
 
-        ds = UnsupervisedDataset(None, frames=frames,
-                                 multi_frame_output=self.multi_frame)
-        self.dataloader = torch.utils.data.DataLoader(ds,
+        self.dataset = UnsupervisedDataset(None, frames=frames,
+                                           multi_frame_output=self.multi_frame)
+        self.dataloader = torch.utils.data.DataLoader(self.dataset,
                                                       batch_size=self.batch_size, shuffle=False,
                                                       num_workers=8, pin_memory=False)
+
     def load_csv_(self):
         gt = self.load_csv(self.activation_file)
         self.gt = gt
@@ -213,10 +217,9 @@ class PredictEvalTif(PredictEval):
 
         return gt
 
-
     def load_tif_csv(self):
         self.load_tif()
-        self.load_csv()
+        self.load_csv_()
 
 
 if __name__ == '__main__':
