@@ -18,7 +18,8 @@ install:
   # Replace dep1 dep2 ... with your dependencies
   # - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION pytest
   - conda env create -q -f environment.yml
-  - source activate deepsmlm_deployed
+  - conda activate deepsmlm_deployed
+  - pip install tensorboardX
 
   # build the C and C++ libraries
   - mkdir $TRAVIS_BUILD_DIR/deepsmlm/cpp_src/build

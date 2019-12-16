@@ -14,7 +14,6 @@ import deepsmlm.simulation.simulator as sim
 import deepsmlm.simulation.structure_prior as structure_prior
 import deepsmlm.generic.emitter as em
 from deepsmlm.neuralfitter.pre_processing import N2C
-from deepsmlm.neuralfitter.unifed_data_generator import UnifiedDataset
 
 deepsmlm_root = os.path.abspath(
         os.path.join(os.path.dirname(os.path.abspath(__file__)),

@@ -21,7 +21,8 @@ def hash_model(modelfile):
 
 
 class LoadSaveModel:
-    def __init__(self, model_instance, output_file, input_file=None, name_time_interval=(60*60), better_th=1e-6, max_files=10):
+    def __init__(self, model_instance, output_file, input_file=None, name_time_interval=(60*60), better_th=1e-6,
+                 max_files=3):
         """
 
         :param model_instance:
@@ -41,7 +42,6 @@ class LoadSaveModel:
         self._best_metric_val = math.inf
         self.better_th = better_th
         self.max_files = max_files if ((max_files is not None) or (max_files != -1)) else float('inf')
-
 
     def _create_target_folder(self):
         """
@@ -97,7 +97,7 @@ class LoadSaveModel:
         """After a certain period, change the suffix."""
         if (time.time() > self._new_name_time + self.name_time_interval) or metric_val is None:
             self.output_file_suffix += 1
-            if self.output_file_suffix > self.max_files:
+            if self.output_file_suffix > self.max_files - 1:
                 self.output_file_suffix = 0
 
             self._new_name_time = time.time()
