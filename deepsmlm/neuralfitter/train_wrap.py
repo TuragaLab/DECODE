@@ -232,7 +232,7 @@ def train_wrap(param_file, no_log, debug_param, log_folder):
             InputFrameRescale.parse(param)
         ])
 
-        if param['HyperParameter']['weight_base'] == 'crlb':
+        if param.HyperParameter.weight_base == 'crlb':
             weight_mask_generator = processing.TransformSequence([
                 wgen.DerivePseudobgFromBg(param['Simulation']['psf_extent'][0],
                                           param['Simulation']['psf_extent'][1],
@@ -245,7 +245,7 @@ def train_wrap(param_file, no_log, debug_param, log_folder):
         else:
             weight_mask_generator = wgen.SimpleWeight.parse(param)
 
-        if param['HyperParameter']['ds_lifetime'] >= 2:
+        if param.HyperParameter.ds_lifetime >= 2:
             train_data_smlm = SMLMDatasetOnFlyCached(extent=None,
                                                      prior=prior,
                                                      simulator=sim,

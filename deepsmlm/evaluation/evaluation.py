@@ -3,16 +3,13 @@ from matplotlib.ticker import AutoMinorLocator
 from scipy import stats
 import seaborn as sns
 
-import deepsmlm
 import numpy as np
-from joblib import Parallel, delayed
 import random
 import math
 import torch
 
-from deepsmlm.evaluation.metric_library import PrecisionRecallJaccard, RMSEMAD
+from deepsmlm.evaluation.metric_library import PrecisionRecallJaccard, RMSEMAD, efficiency
 import deepsmlm.evaluation.metric_library as metric_lib
-import deepsmlm.generic.emitter as emitter
 from scipy.stats import gaussian_kde
 
 
@@ -32,12 +29,14 @@ def kde_sorted(x, y, plot=False):
 
 class MetricMeter:
     """Computes and stores the average and current value"""
-    def __init__(self, reduce_nan=True):
+    def __init__(self, vals=torch.zeros((0, )), reduce_nan=True):
         self.val = None
-        self.vals = None
-        self.count = None
-        self.reset()
+        self.vals = vals
         self.reduce_nan = reduce_nan
+
+    @property
+    def count(self):
+        return self.vals.numel()
 
     @property
     def std(self):
@@ -106,8 +105,7 @@ class MetricMeter:
         :return:
         """
         self.val = None
-        self.vals = []
-        self.count = 0
+        self.vals = torch.zeros((0,))
 
     def update(self, val):
         """
@@ -121,15 +119,64 @@ class MetricMeter:
         if math.isnan(val) and self.reduce_nan:
             return
 
+        # convert to torch.tensor
         self.val = val
-        self.vals.append(val)
-        self.count += 1
+        self.vals = torch.cat((self.vals, torch.Tensor([val])), 0)
 
     def __str__(self):
         if self.count >= 2:
             return "{:.3f} +/- {:.3f}".format(self.avg, self.std)
         else:
             return "{:.3f}".format(self.avg)
+
+    def __neg__(self):
+        m = MetricMeter(reduce_nan=self.reduce_nan)
+        m.vals = -self.vals
+        return m
+
+    def __add__(self, other):
+        m = MetricMeter(reduce_nan=self.reduce_nan)
+        if isinstance(other, MetricMeter):
+            m.vals = self.vals + other.vals
+        else:
+            m.vals = self.vals + other
+        return m
+
+    def __radd__(self, other):
+        return self + other
+
+    def __sub__(self, other):
+        return -other + self
+
+    def __rsub__(self, other):
+        return -self + other
+
+    def __mul__(self, other):
+        m = MetricMeter(reduce_nan=self.reduce_nan)
+        if isinstance(other, MetricMeter):
+            m.vals = self.vals * other.vals
+        else:
+            m.vals = self.vals * other
+        return m
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __pow__(self, other):
+        m = MetricMeter(reduce_nan=self.reduce_nan)
+        if isinstance(other, MetricMeter):
+            raise ValueError("Power not implemented for both operands being MetricMeters.")
+        else:
+            m.vals = self.vals ** other
+        return m
+
+    def __truediv__(self, other):
+        m = MetricMeter(reduce_nan=self.reduce_nan)
+        if isinstance(other, MetricMeter):
+            m.vals = self.vals / other.vals
+        else:
+            m.vals = self.vals / other
+        return m
 
 
 class CumulantMeter(MetricMeter):
@@ -148,6 +195,10 @@ class CumulantMeter(MetricMeter):
 
 
 class EvalSet:
+
+    alpha_lat = 1  # nm
+    alpha_ax = 0.5  # nm
+
     """Just a dummy class to combine things into one object."""
     def __init__(self, prec, rec, jac,
                  delta_num,
@@ -167,6 +218,10 @@ class EvalSet:
         self.mad_lat = mad_lat
         self.mad_axial = mad_axial
 
+        """Efficiency as in the challenge"""
+        self.effcy_lat = efficiency(self.jac, self.rmse_lat, self.alpha_lat)
+        self.effcy_ax = efficiency(self.jac, self.rmse_axial, self.alpha_ax)
+
         self.dx = dx
         self.dy = dy
         self.dz = dz
@@ -175,7 +230,6 @@ class EvalSet:
         self.dzw = dzw
 
     def __str__(self):
-        # when more than 1 value, print std, otherwise only the estimate
         str = "------------------------ Evaluation Set ------------------------\n"
         str += "Precision {}\n".format(self.prec.__str__())
         str += "Recall {}\n".format(self.rec.__str__())
@@ -187,6 +241,8 @@ class EvalSet:
         str += "MAD lat. {}\n".format(self.mad_lat.__str__())
         str += "MAD ax. {}\n".format(self.mad_axial.__str__())
         str += "MAD vol. {}\n".format(self.mad_vol.__str__())
+        str += "Efficiency lat. {}\n".format(self.effcy_lat.__str__())
+        str += "Efficiency ax. {}\n".format(self.effcy_ax.__str__())
         str += "-----------------------------------------------------------------"
         return str
 

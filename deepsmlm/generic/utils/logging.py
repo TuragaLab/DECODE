@@ -40,6 +40,9 @@ class LogTestEpoch:
         self._log_metric(metrics_set.mad_lat.avg, step, "eval/mad_lat")
         self._log_metric(metrics_set.mad_axial.avg, step, "eval/mad_axial")
 
+        self._log_metric(metrics_set.effcy_lat.avg, step, "eval/effcy_lat")
+        self._log_metric(metrics_set.effcy_ax.avg, step, "eval/effcy_ax")
+
         self._log_metric(metrics_set.delta_num.avg, step, "eval/del_num_em")
 
         """Plot input / output. Random sample."""

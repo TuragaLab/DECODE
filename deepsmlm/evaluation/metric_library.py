@@ -213,3 +213,12 @@ class RMSEMAD:
 
 if __name__ == '__main__':
     pass
+
+
+def efficiency(jac, rmse, alpha):
+    """
+    Calculate efficiency following Sage et al. 2019, superres fight club.
+    Alpha_lat = 1, Alpha_ax = 0.5nm
+    :return efficiency in 0...1 range.
+    """
+    return (100 - ((100 * (1 - jac)) ** 2 + alpha ** 2 * rmse ** 2) ** 0.5) / 100
