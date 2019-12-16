@@ -118,7 +118,7 @@ Simulation:
   bg_uniform:
   - 60.0
   - 120.0
-  density: 0
+  density:
   emitter_av: 15
   emitter_extent:
   - - -0.5
