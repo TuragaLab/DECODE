@@ -28,12 +28,15 @@ class EmitterGenerator(ABC):
 
 class EmitterPopper:
 
-    def __init__(self, structure, density, photon_range, emitter_av=None):
+    def __init__(self, structure, photon_range, density=None, emitter_av=None):
         self.structure = structure
         self.density = density
         self.photon_range = photon_range
 
-        """Manually override emitter number when provided. Area is not needed then."""
+        """U shall not pa(rse)! (Emitter Average and Density at the same time!"""
+        if (density is None and emitter_av is None) or (density is not None and emitter_av is not None):
+            raise ValueError("You must XOR parse either density or emitter average. Not both or none.")
+
         if emitter_av is not None:
             self.area = self.structure.get_area
             self.emitter_av = emitter_av
@@ -63,7 +66,7 @@ class EmitterPopper:
 
 
 class EmitterPopperMultiFrame(EmitterPopper):
-    def __init__(self, structure, density, intensity_mu_sig, lifetime, num_frames=3, emitter_av=None):
+    def __init__(self, structure, intensity_mu_sig, lifetime, num_frames=3, density=None, emitter_av=None):
         """
 
         :param structure: structure to sample locations frame
@@ -73,7 +76,11 @@ class EmitterPopperMultiFrame(EmitterPopper):
         :param num_frames: number of frames
         :param emitter_av: average number of emitters (note that this overrides the density)
         """
-        super().__init__(structure, density, None, emitter_av)
+        super().__init__(structure=structure,
+                         photon_range=None,
+                         density=density,
+                         emitter_av=emitter_av)
+
         self.num_frames = num_frames
         self.intensity_mu_sig = intensity_mu_sig
         self.intensity_dist = torch.distributions.normal.Normal(self.intensity_mu_sig[0],

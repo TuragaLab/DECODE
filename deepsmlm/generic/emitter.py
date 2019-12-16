@@ -453,7 +453,7 @@ class EmitterSet:
                                   self.phot.unsqueeze(1),
                                   self.prob.unsqueeze(1),
                                   self.bg.unsqueeze(1),
-                                  self.xyz_cr.unsqueeze(1),
+                                  self.xyz_cr,
                                   self.phot_cr.unsqueeze(1),
                                   self.bg_cr.unsqueeze(1)), 1)
 
@@ -492,13 +492,16 @@ class EmitterSet:
         :param axis:
         :return:
         """
-        if (px_size is None and factor is None) or (px_size is not None and factor is not None):
-            raise ValueError("You must specify either the px size XOR a factor.")
+        if self.xy_unit != 'nm':
+            if (px_size is None and factor is None) or (px_size is not None and factor is not None):
+                raise ValueError("You must specify either the px size XOR a factor.")
 
-        if px_size is not None:
-            factor = torch.tensor([px_size[0], px_size[1], 1.]).float()
+            if px_size is not None:
+                factor = torch.tensor([px_size[0], px_size[1], 1.]).float()
 
-        pseudo_em = self.convert_em(factor, shift, axis, frame_shift=1)
+            pseudo_em = self.convert_em(factor, shift, axis, frame_shift=1)
+        else:
+            pseudo_em = self.clone()
 
         if comments is None:
             comments = 'Export for SMAP'
