@@ -12,7 +12,7 @@ class GreedyHungarianMatching:
     A class to match outputs and targets based on pairwise distance matrix
     """
 
-    def __init__(self, dist_lat:float = None, dist_vol: float = None):
+    def __init__(self, dist_lat: float = None, dist_vol: float = None):
         """
         :param dist_lat: (float) lateral distance threshold
         :param dist_vol: (float) volumetric distance threshold
