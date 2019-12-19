@@ -69,12 +69,19 @@ WRITE_TO_LOG = True
 
 """Load Parameters here, import torch afterwards"""
 
+
 @click.command()
-@click.option('--no_log', '-n', default=False, is_flag=True, help='Set no log if you do not want to log the current run.')
-@click.option('--param_file', '-p', required=True, help='Specify your parameter file (.yml or .json).')
-@click.option('--debug_param', '-d', default=False, is_flag=True, help='Debug the specified parameter file. Will reduce ds size for example.')
-@click.option('--log_folder', '-l', default='runs', help='Specify the folder you want to log to. If rel-path, relative to DeepSMLM root.')
-def train_wrap(param_file, no_log, debug_param, log_folder):
+@click.option('--no_log', '-n', default=False, is_flag=True,
+              help='Set no log if you do not want to log the current run.')
+@click.option('--param_file', '-p', required=True,
+              help='Specify your parameter file (.yml or .json).')
+@click.option('--debug_param', '-d', default=False, is_flag=True,
+              help='Debug the specified parameter file. Will reduce ds size for example.')
+@click.option('--log_folder', '-l', default='runs',
+              help='Specify the folder you want to log to. If rel-path, relative to DeepSMLM root.')
+@click.option('--num_worker_override', '-w', default=None, type=int,
+              help='Override the number of workers for the dataloaders.')
+def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override):
 
     if no_log:
         WRITE_TO_LOG = False
@@ -98,6 +105,9 @@ def train_wrap(param_file, no_log, debug_param, log_folder):
 
     if debug_param:
         wlp.ParamHandling.convert_param_debug(param)
+
+    if num_worker_override is not None:
+        param.Hardware.num_worker_sim = num_worker_override
 
     """Some Server stuff"""
     if param['Hardware']['device'] == 'cuda':

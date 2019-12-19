@@ -53,8 +53,6 @@ class LogTestEpoch:
         em_per_frame = [e.num_emitter for e in em_per_frame]
         nem_std = torch.tensor(em_per_frame).float().std().item()
 
-        print(f'{nem_av} - {nem_std}')
-
         self._log_metric(nem_av, step, "data/num_em_avg")
         self._log_metric(nem_std, step, "data/num_em_std")
 

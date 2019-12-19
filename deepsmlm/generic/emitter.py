@@ -1,4 +1,5 @@
 import os
+import pickle
 import sys
 import hashlib
 import warnings
@@ -327,6 +328,32 @@ class EmitterSet:
     def single_frame(self):
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
+    def compute_grand_matrix(self, ix=None):
+        """
+        Computes a 'grand matrix' to put all information in one thing.
+        """
+
+        if ix is None:
+            ix = slice(self.xyz.size(0))
+
+        grand_matrix = torch.cat((self.xyz[ix, :],
+                                  self.phot[ix].unsqueeze(1),
+                                  self.frame_ix[ix].unsqueeze(1),
+                                  self.id[ix].unsqueeze(1),
+                                  self.prob[ix].unsqueeze(1),
+                                  self.bg[ix].unsqueeze(1),
+                                  self.xyz_cr[ix, :],
+                                  self.phot_cr[ix].unsqueeze(1),
+                                  self.bg_cr[ix].unsqueeze(1)), dim=1)
+
+        return grand_matrix
+
+    @staticmethod
+    def _construct_from_grand_matrix(gmat):
+        return EmitterSet(xyz=gmat[:, :3], phot=gmat[:, 3], frame_ix=gmat[:, 4], id=gmat[:, 5], prob=gmat[:, 6],
+                          bg=gmat[:, 7], xyz_cr=gmat[:, 8:11], phot_cr=gmat[:, 11], bg_cr=gmat[:, 12],
+                          sanity_check=False)
+
     def split_in_frames(self, ix_low=0, ix_up=None):
         """
         plit an EmitterSet into list of emitters (framewise).
@@ -361,9 +388,6 @@ class EmitterSet:
         if self.num_emitter != 0:
             ix_low_ = ix_low if ix_low is not None else frame_ix.min()
             ix_up_ = ix_up if ix_up is not None else frame_ix.max()
-
-            # if not np.diff(frame_ix.numpy()) >= 0:
-            #     raise ValueError("Array is not sorted even though it is supposed to be.")
 
             grand_matrix_list = torch_cpp.split_tensor(grand_matrix, frame_ix, ix_low_, ix_up_)
 
@@ -439,6 +463,35 @@ class EmitterSet:
         if new_xy_unit is not None:
             self.xy_unit = new_xy_unit
 
+    def write_to_binary(self, filename):
+        """
+        Writes the "grand_matrix" representation to a binary using pickle.
+
+        Args:
+            filename: output file
+
+        Returns:
+
+        """
+
+        gmat = self.compute_grand_matrix().clone()
+        torch.save(gmat, filename)
+
+    @staticmethod
+    def load_from_binary(filename):
+        """
+        Loads a grand matrix and converts it into an EmitterSet
+        
+        Args:
+            filename:
+
+        Returns:
+            EmitterSet without px size and xy unit
+
+        """
+        gmat = torch.load(filename)
+        return EmitterSet._construct_from_grand_matrix(gmat)
+
     def write_to_csv(self, filename, model=None, comments=None, plain_header=False):
         """
         Write the prediction to a csv file. If shift, factor and axis are set, the order is shift->factor->axis.
@@ -447,15 +500,7 @@ class EmitterSet:
         :param plain_header: uncomment the first line (which is where the column names are).
         :return:
         """
-        grand_matrix = torch.cat((self.id.unsqueeze(1),
-                                  self.frame_ix.unsqueeze(1),
-                                  self.xyz,
-                                  self.phot.unsqueeze(1),
-                                  self.prob.unsqueeze(1),
-                                  self.bg.unsqueeze(1),
-                                  self.xyz_cr,
-                                  self.phot_cr.unsqueeze(1),
-                                  self.bg_cr.unsqueeze(1)), 1)
+        grand_matrix = self.compute_grand_matrix()
 
         header = 'id, frame_ix, x, y, z, phot, prob, bg, xyz_cr, phot_cr, bg_cr\nThis is an export from DeepSMLM.\n' \
                  'Total number of emitters: {}'.format(self.num_emitter)

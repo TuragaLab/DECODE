@@ -311,7 +311,6 @@ class MaskedPxyzLoss(SpeiserLoss):
                               pos_weight=param['HyperParameter']['fgbg_factor'],
                               ch_static_scale=torch.tensor(param['HyperParameter']['ch_static_scale']).float(),
                               ch_rescale=param['HyperParameter']['dynamic_weight'], logger=logger)
-
     def _rescale_weights(self, weight):
         """
         Rescale the weights channelwise per batch to max. 1, this is inplace (I guess?)

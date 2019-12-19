@@ -236,6 +236,8 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
     em_outs = [] # list of emitterset per batch
     tars = [] # list of emitterset per batch
 
+    model.eval()
+
     """Eval mode."""
     with torch.no_grad():
         end = time.time()
@@ -246,7 +248,7 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
             weights = weights.to(torch.device(conf_param['Hardware']['device']))
 
             # compute output
-            output = model(x_in)
+            output = model(x_in, force_no_p_nl=True)
             loss_ = criterion(output, target, weights)  # vectorised loss
             loss = loss_.mean()
 

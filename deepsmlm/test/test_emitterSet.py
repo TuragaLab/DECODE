@@ -102,7 +102,6 @@ class TestEmitterSet:
         with pytest.raises(ValueError):
             EmitterSet(xyz, phot, frame_ix)
 
-
     def test_write_to_csv(self):
         """
         Test to write to csv file.
@@ -125,7 +124,7 @@ class TestEmitterSet:
 
         random_em = RandomEmitterSet(1000)
         fname = deepsmlm_root + 'deepsmlm/test/assets/dummy_csv.txt'
-        random_em.write_csv_smap(fname)
+        random_em.write_csv_smap(fname, px_size=[100., 100.])
         assert os.path.isfile(fname)
         # os.remove(fname)
 

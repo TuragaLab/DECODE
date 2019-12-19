@@ -96,7 +96,7 @@ class SimpleSMLMNet(UNet2d):
             o = torch.cat((p, phot, xyz, bg), 1)
             return o
 
-    def forward(self, x):
+    def forward(self, x, force_no_p_nl=False):
         o = super().forward(x)
 
         o_head = []
@@ -105,7 +105,7 @@ class SimpleSMLMNet(UNet2d):
         o = torch.cat(o_head, 1)
 
         """Apply the final non-linearities"""
-        if not self.training:
+        if not self.training and not force_no_p_nl:
             o[:, [0]] = self.p_nl(o[:, [0]])
 
         if self._use_last_nl:
@@ -254,7 +254,7 @@ class DoubleMUnet(nn.Module):
             o = torch.cat((p, phot, xyz, bg), 1)
             return o
 
-    def forward(self, x, external=None):
+    def forward(self, x, external=None, force_no_p_nl=False):
         x0 = x[:, [0]]
         x1 = x[:, [1]]
         x2 = x[:, [2]]
@@ -276,7 +276,7 @@ class DoubleMUnet(nn.Module):
         o = torch.cat(o_head, 1)
 
         """Apply the final non-linearities"""
-        if not self.training:
+        if not self.training and not force_no_p_nl:
             o[:, [0]] = self.p_nl(o[:, [0]])
         if self._use_last_nl:
             o = self.apply_nonlin(o)
@@ -362,7 +362,7 @@ class DoubleMUNetSeperateBG(SimpleSMLMNet):
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
         )
 
-    def forward(self, x):
+    def forward(self, x, force_no_p_nl=False):
         """
 
         :param x:
@@ -385,7 +385,7 @@ class DoubleMUNetSeperateBG(SimpleSMLMNet):
         else:
             bg_out = self.bg_net.forward(x)
 
-        out = super().forward(x, bg_out.detach())
+        out = super().forward(x, bg_out.detach(), force_no_p_nl=force_no_p_nl)
         return torch.cat((out, bg_out), 1)
 
 
