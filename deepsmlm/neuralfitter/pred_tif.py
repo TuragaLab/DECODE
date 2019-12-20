@@ -151,7 +151,12 @@ class PredictEvalSimulation(PredictEval):
 class PredictEvalTif(PredictEval):
     def __init__(self, tif_stack, activations, model, post_processor, evaluator=None, px_size=100, device='cuda',
                  batch_size=32, multi_frame=True):
-        super().__init__(model, post_processor, evaluator, batch_size, device)
+        super().__init__(model=model,
+                         post_processor=post_processor,
+                         evaluator=evaluator,
+                         batch_size=batch_size,
+                         device=device)
+
         self.tif_stack = tif_stack
         self.activation_file = activations
         self.px_size = px_size
@@ -220,97 +225,3 @@ class PredictEvalTif(PredictEval):
     def load_tif_csv(self):
         self.load_tif()
         self.load_csv_()
-
-
-if __name__ == '__main__':
-    from deepsmlm.simulation.emittergenerator import EmitterPopper, EmitterPopperMultiFrame
-    from deepsmlm.generic.background import *
-    from deepsmlm.generic.emitter import *
-    from deepsmlm.generic.plotting.frame_coord import *
-    from deepsmlm.generic.inout.load_calibration import *
-    from deepsmlm.generic.psf_kernel import *
-    from deepsmlm.generic.noise import *
-    from deepsmlm.generic.utils.data_utils import *
-    from deepsmlm.simulation.simulator import *
-    from deepsmlm.simulation.structure_prior import *
-    from deepsmlm.neuralfitter.dataset import *
-    from deepsmlm.neuralfitter.models.model import *
-    from deepsmlm.neuralfitter.models.model_offset import *
-    from deepsmlm.neuralfitter.models.model_beta import *
-    from deepsmlm.neuralfitter.models.model_param import *
-    from deepsmlm.neuralfitter.pre_processing import *
-    from deepsmlm.neuralfitter.post_processing import *
-    from deepsmlm.evaluation.match_emittersets import *
-    from deepsmlm.neuralfitter.scale_transform import *
-    from deepsmlm.generic.inout.load_save_model import *
-    from deepsmlm.neuralfitter.pred_tif import *
-    from deepsmlm.evaluation.evaluation import *
-    import deepsmlm.generic.utils.processing as processing
-    from deepsmlm.neuralfitter.arguments import *
-    from deepsmlm.generic.phot_camera import *
-    import deepsmlm.generic.inout.write_load_param as wlp
-
-    deepsmlm_root = '/home/lucas/RemoteDeploymentTemp/DeepSMLMv2/'
-    os.chdir(deepsmlm_root)
-
-    calibration_file = deepsmlm_root + 'data/Calibration/SMLM Challenge Beads/Coefficients Big ROI/AS-Exp_100nm_3dcal.mat'
-
-    model_file = 'network_central/2019-12-08/simple_net_3steps_40em_gnskip0_strongwd_7.pt'
-    param_file = 'network_central/2019-12-08/simple_net_3steps_40em_gnskip0_strongwd_param.json'
-
-    param = wlp.ParamHandling().load_params(param_file)
-    model = SimpleSMLMNet.parse(param)
-    model = LoadSaveModel(model, None, input_file=model_file).load_init()
-
-    post_processor = processing.TransformSequence.parse([OffsetRescale,
-                                                         Offset2Coordinate,
-                                                         ConsistencyPostprocessing], param)
-
-    # setup evaluation
-
-    matcher = GreedyHungarianMatching(dist_lat=150.)
-    segmentation_eval = SegmentationEvaluation(False)
-    distance_eval = DistanceEvaluation(False)
-
-    batch_size = 64
-    evaluation = BatchEvaluation(matcher, segmentation_eval, distance_eval, px_size=torch.tensor([100., 100., 1.]),
-                                 batch_size=batch_size)
-
-    # specify how big the evaluation set should be
-    ds_size = 256
-
-    smap_psf = SMAPSplineCoefficient(calibration_file)
-    psf = smap_psf.init_spline(param['Simulation']['psf_extent'][0],
-                               param['Simulation']['psf_extent'][1],
-                               param['Simulation']['img_size'])
-
-    structure_prior = RandomStructure(param['Simulation']['emitter_extent'][0],
-                                      param['Simulation']['emitter_extent'][1],
-                                      param['Simulation']['emitter_extent'][2])
-    frame_range = (-1, 1)
-    prior = EmitterPopperMultiFrame(structure_prior,
-                                    density=param['Simulation']['density'],
-                                    intensity_mu_sig=param['Simulation']['intensity_mu_sig'],
-                                    lifetime=param['Simulation']['lifetime_avg'],
-                                    num_frames=3,
-                                    emitter_av=2)
-
-    bg = processing.TransformSequence.parse([UniformBackground,
-                                             PerlinBackground], param)
-
-    noise = Photon2Camera.parse(param)
-    simulator = Simulation(None,
-                           param['Simulation']['emitter_extent'],
-                           psf,
-                           background=bg,
-                           noise=noise,
-                           poolsize=0,
-                           frame_range=frame_range)
-
-    pred = PredictEvalSimulation(ds_size, prior, simulator, model, post_processor, evaluation, param=param,
-                                 px_size=100.)
-
-    _, raw = pred.forward(True)
-    print("Done.")
-
-

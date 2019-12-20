@@ -221,6 +221,7 @@ class EvalSet:
         """Efficiency as in the challenge"""
         self.effcy_lat = efficiency(self.jac, self.rmse_lat, self.alpha_lat)
         self.effcy_ax = efficiency(self.jac, self.rmse_axial, self.alpha_ax)
+        self.effcy_vol = (self.effcy_lat + self.effcy_ax) / 2
 
         self.dx = dx
         self.dy = dy
@@ -243,6 +244,7 @@ class EvalSet:
         str += "MAD vol. {}\n".format(self.mad_vol.__str__())
         str += "Efficiency lat. {}\n".format(self.effcy_lat.__str__())
         str += "Efficiency ax. {}\n".format(self.effcy_ax.__str__())
+        str += "Efficiency vol. {}\n".format(self.effcy_vol.__str__())
         str += "-----------------------------------------------------------------"
         return str
 

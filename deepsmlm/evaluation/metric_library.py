@@ -211,10 +211,6 @@ class RMSEMAD:
         return rmse_vol.item(), rmse_lat.item(), rmse_axial.item(), mad_vol.item(), mad_lat.item(), mad_axial.item()
 
 
-if __name__ == '__main__':
-    pass
-
-
 def efficiency(jac, rmse, alpha):
     """
     Calculate efficiency following Sage et al. 2019, superres fight club.

@@ -42,6 +42,7 @@ class LogTestEpoch:
 
         self._log_metric(metrics_set.effcy_lat.avg, step, "eval/effcy_lat")
         self._log_metric(metrics_set.effcy_ax.avg, step, "eval/effcy_ax")
+        self._log_metric(metrics_set.effcy_vol.avg, step, "eval/effcy_vol")
 
         self._log_metric(metrics_set.delta_num.avg, step, "eval/del_num_em")
 
