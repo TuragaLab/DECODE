@@ -14,6 +14,7 @@ from abc import ABC, abstractmethod  # abstract class
 from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
 from deepsmlm.generic.psf_kernel import OffsetPSF
 from deepsmlm.generic.utils.warning_util import deprecated
+import deepsmlm.generic.utils.statistics as fan_stat
 
 
 def crlb_squared_distance(X, Y, XCrlb, YCrlb):
@@ -403,6 +404,9 @@ class ConsistencyPostprocessing(PostProcessing):
                     self._vol_th is not None):
                 raise ValueError("Invalid arguments for volumetric matching.")
 
+        if p_aggregation not in ('sum', 'max', 'pbinom'):
+            raise ValueError("Unsupported probability aggregation type.")
+
         if self._match_dims in (2, 2.1):
             self._th = self._lat_th
         elif self._match_dims == 3:
@@ -485,8 +489,11 @@ class ConsistencyPostprocessing(PostProcessing):
                     p_agg = p_frame[in_cluster].sum()
                 elif p_aggregation == 'max':
                     p_agg = p_frame[in_cluster].max()
+                elif p_aggregation == 'pbinom':
+                    z = fan_stat.binom_pdiverse(p_frame[in_cluster].view(-1))
+                    p_agg = z[1:].sum()
                 else:
-                    raise ValueError("Prob. aggregation must be sum or max.")
+                    raise ValueError
 
                 p_out[i, 0, feat_ix[0]] = p_agg  # only set first element to some probability
                 """Average the features."""

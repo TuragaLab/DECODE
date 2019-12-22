@@ -9,13 +9,15 @@ from deepsmlm.generic import emitter as emitter
 
 class GreedyHungarianMatching:
     """
-    A class to match outputs and targets based on pairwise distance matrix
+    Matching emitters in a greedy 'hungarian' fashion, by using best first search.
     """
 
     def __init__(self, dist_lat: float = None, dist_vol: float = None):
         """
-        :param dist_lat: (float) lateral distance threshold
-        :param dist_vol: (float) volumetric distance threshold
+
+        Args:
+            dist_lat:
+            dist_vol:
         """
         self.dist_thresh = None
         self._match_dims = None
@@ -39,6 +41,17 @@ class GreedyHungarianMatching:
 
     @staticmethod
     def rule_out_dist_match(dists, threshold):
+        """
+        Kernel which goes through the distance matrix, picks shortest distance and assign match
+         until a threshold is reached.
+
+        Args:
+            dists: distance matrix
+            threshold: threshold until match
+
+        Returns:
+
+        """
         match_list = []
         while dists.min() < threshold:
             ix = np.unravel_index(dists.argmin(), dists.shape)

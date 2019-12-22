@@ -41,20 +41,20 @@ class TestOffsetPSF(TestCase):
         Do not change this here, because then the tests will be broken.
         """
         self.psf_bin_1px = psf_kernel.OffsetPSF((-0.5, 31.5),
-                                     (-0.5, 31.5),
-                                     (32, 32))
+                                                (-0.5, 31.5),
+                                                (32, 32))
 
         self.delta_psf_1px = psf_kernel.DeltaPSF((-0.5, 31.5),
-                                  (-0.5, 31.5),
-                                  None, (32, 32), 0, False, 0)
+                                                 (-0.5, 31.5),
+                                                 None, (32, 32), 0, False, 0)
 
         self.psf_bin_halfpx = psf_kernel.OffsetPSF((-0.5, 31.5),
-                                        (-0.5, 31.5),
-                                        (64, 64))
+                                                   (-0.5, 31.5),
+                                                   (64, 64))
 
         self.delta_psf_hpx = psf_kernel.DeltaPSF((-0.5, 31.5),
-                                      (-0.5, 31.5),
-                                      None, (64, 64), 0, False, 0)
+                                                 (-0.5, 31.5),
+                                                 None, (64, 64), 0, False, 0)
 
     def test_bin_centrs(self):
         """
@@ -72,14 +72,12 @@ class TestOffsetPSF(TestCase):
         self.assertEqual(-0.25, self.psf_bin_halfpx.bin_ctr_y[0])
 
     def test_offset_range(self):
-
         self.assertEqual(0.5, self.psf_bin_1px.offset_max_x)
         self.assertEqual(0.5, self.psf_bin_1px.offset_max_x)
         self.assertEqual(0.25, self.psf_bin_halfpx.offset_max_y)
         self.assertEqual(0.25, self.psf_bin_halfpx.offset_max_y)
 
     def test_foward_range(self):
-
         xyz = CoordinateOnlyEmitter(torch.rand((1000, 3)) * 40)
         offset_1px = self.psf_bin_1px.forward(xyz)
         offset_hpx = self.psf_bin_halfpx.forward(xyz)
@@ -121,8 +119,8 @@ class TestOffsetPSF(TestCase):
         :return:
         """
         xyz = CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.],
-                            [1.5, 1.2, 0.],
-                            [2.7, 0.5, 0.]]))
+                                                  [1.5, 1.2, 0.],
+                                                  [2.7, 0.5, 0.]]))
 
         offset_1px = self.psf_bin_1px.forward(xyz)
 
@@ -132,7 +130,7 @@ class TestOffsetPSF(TestCase):
 
     def test_forward_offset_hpx(self):
         xyz = CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.],
-                            [0.5, 0.2, 0.]]))
+                                                  [0.5, 0.2, 0.]]))
 
         offset_hpx = self.psf_bin_halfpx.forward(xyz)
 
@@ -143,7 +141,6 @@ class TestOffsetPSF(TestCase):
 
 
 class TestSplinePSF:
-
     bead_cal = 'assets/bead_cal_for_testing.mat'
 
     @pytest.fixture(scope='class')
@@ -151,7 +148,8 @@ class TestSplinePSF:
         xextent = (-0.5, 63.5)
         yextent = (-0.5, 63.5)
         img_shape = (64, 64)
-        psf = load_cal.SMAPSplineCoefficient(self.bead_cal, psf_kernel.SplineCPP).init_spline(xextent, yextent, img_shape)
+        psf = load_cal.SMAPSplineCoefficient(self.bead_cal, psf_kernel.SplineCPP).init_spline(xextent, yextent,
+                                                                                              img_shape)
 
         return psf
 
@@ -166,12 +164,41 @@ class TestSplinePSF:
         assert not torch.isnan(em.bg_cr).any().item()
 
     def test_crlb_multi(self, psf):
-
         em = emc.RandomEmitterSet(10, 64)
-        em.phot *= torch.rand((1, )) * 5000
+        em.phot *= torch.rand((1,)) * 5000
         em.bg = 100 * torch.ones_like(em.bg)
 
         em_single = em.get_subset([0])
-        assert tutil.tens_almeq(psf.crlb(em_single.xyz, em_single.phot, em_single.bg, 'xyzpb')[0], psf.single_crlb(em.xyz, em.phot, em.bg, 'xyzpb')[0][0, :], 1e-4)
+        assert tutil.tens_almeq(psf.crlb(em_single.xyz, em_single.phot, em_single.bg, 'xyzpb')[0],
+                                psf.crlb_single(em.xyz, em.phot, em.bg, 'xyzpb')[0][0, :], 1e-4)
 
+    def test_crlb_single(self, psf):
+        em = emc.CoordinateOnlyEmitter(torch.tensor([[32., 32., 0.]]))
+        em.phot = torch.tensor([5000.])
+        em.bg = torch.tensor([10.])
+
+        cr_m, img_m = psf.crlb(em.xyz, em.phot, em.bg)
+        cr_s, img_s = psf.crlb_single(em.xyz, em.phot, em.bg)
+
+        assert tutil.tens_almeq(cr_m, cr_s)
+        assert tutil.tens_almeq(img_m, img_s)
+        
+        em = emc.RandomEmitterSet(20, 64)
+        em.xyz[:, 2] *= (torch.rand_like(em.xyz[:, 2]) - 0.5) * 2 * 750
+        em.phot *= 10000 * torch.rand_like(em.phot)
+        em.bg = 10. * torch.ones_like(em.bg)
+
+        cr_m, img_m = psf.crlb(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
+        cr_s, img_s = psf.crlb_single(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
+
+        ix_weird = (cr_m - cr_s < -1e-2)[:, :2].any(1)
+        print(cr_m.sqrt() - cr_s.sqrt())
+        em.phot *= 0
+        em.phot[ix_weird] = 1.
+
+        from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord
+        import matplotlib.pyplot as plt
+        PlotFrameCoord(img_m, pos_tar=em.xyz, phot_tar=em.phot).plot()
+        plt.colorbar()
+        plt.show()
 

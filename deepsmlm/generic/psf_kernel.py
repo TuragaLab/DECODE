@@ -357,24 +357,53 @@ class SplineCPP(PSF):
             cr_dict['bg'] = cr[3]
             return cr_dict
 
-    def single_crlb(self, pos, phot, bg, crlb_order=None, fisher=None, img=None):
+    def crlb_single(self, pos, phot, bg, crlb_order=None):
+        """
+        Computes the cramer rao lower bound as if the emitters were isolated
 
-        # if fisher is None and img is None:
-        #     fisher, img = self.fisher(pos, phot, bg)
-        #
-        # n_emitter = pos.size(0)
-        # crlb_ind = torch.zeros((n_emitter, self.n_par)).float()
-        # for i in range(n_emitter):
-        #     crlb_ind[i, :] = fisher[(i*self.n_par):(i*self.n_par + 5), (i*self.n_par):(i*self.n_par + 5)].inverse().diag()
-        #
-        #
-        # crlb_ind = self._rearange_crlb(crlb_ind, crlb_order)
-        # return crlb_ind, img
+        Args:
+            pos: torch.Tensor, N x 3
+            phot: torch.Tensor, N
+            bg: torch.Tensor, N
+            crlb_order: (optional) order of the output
 
-        raise NotImplementedError("The commented out approach above was wrong. If you want single crlb, "
-                                  "split the emitterset and redo it.")
+        Returns:
+            cr: cramer rao bound on pos, phot, bg in the order specified
+            img: calculated frae, since this is for free
+
+        """
+
+        cr = []
+        img = []
+
+        """Just call the standard crlb calc method but split the inputs."""
+        n_emitters = pos.size(0)
+        for i in range(n_emitters):
+            cr_, img_ = self.crlb(pos=pos[[i], :], phot=phot[[i]], bg=bg[[i]], crlb_order=crlb_order)
+            cr.append(cr_)
+            img.append(img_)
+
+        # Put things together. Stack the cr values, the img may be added.
+        cr = torch.cat(cr, dim=0)
+        img = torch.stack(img, dim=img[0].dim()).sum(-1)
+
+        return cr, img
 
     def crlb(self, pos, phot, bg, crlb_order=None):
+        """
+           Computes the cramer rao lower bound
+
+           Args:
+                pos: torch.Tensor, N x 3
+                phot: torch.Tensor, N
+                bg: torch.Tensor, N
+                crlb_order: (optional) order of the output
+
+            Returns:
+                cr: cramer rao bound on pos, phot, bg in the order specified
+                img: calculated frae, since this is for free
+
+           """
         if crlb_order is None:
             crlb_order = self.crlb_order
 
@@ -403,12 +432,16 @@ class SplineCPP(PSF):
             Clamp and NaN Handling. Calculate the crlb as if the emitter was not surrounded by others. The Multi-CRLB shall
             then not exceed the individual crlb by a given factor. NaNs are handled by single_crlb * max_factor
             """
-            crlb_ind, _ = self.single_crlb(pos, phot, bg, crlb_order, fisher, img)
+            crlb_ind, _ = self.crlb_single(pos, phot, bg, crlb_order, fisher, img)
 
             # clamp by the max values
             max_factor_ordered = self._rearange_crlb(self.max_factor_nat_order, crlb_order)
             max_crlb = crlb_ind * max_factor_ordered
             cr[cr > max_crlb] = max_crlb[cr > max_crlb]
+
+        elif self.big_number_handling is None:
+            pass
+
         else:
             raise ValueError("Not supported big number handling in CRLB calculation.")
 

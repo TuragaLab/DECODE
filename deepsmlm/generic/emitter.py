@@ -494,13 +494,23 @@ class EmitterSet:
 
     def write_to_csv(self, filename, model=None, comments=None, plain_header=False):
         """
-        Write the prediction to a csv file. If shift, factor and axis are set, the order is shift->factor->axis.
-        :param filename: output filename
-        :param model: model file which was being used (will create a hash out of it)
-        :param plain_header: uncomment the first line (which is where the column names are).
-        :return:
+        Writes the emitterset to a csv file.
+
+        Args:
+            filename:  csv file name
+            model:  model to incroporate hash into the csv
+            comments:  additional comments to put into the csv
+            plain_header: no # at beginning of first line
+
+        Returns:
+            grand_matrix: (torch.Tensor) the matrix which was effectively written to csv
+
         """
+
         grand_matrix = self.compute_grand_matrix()
+
+        # reorder the grand_matrix according to the header below
+        grand_matrix = grand_matrix[:, [5, 4, 0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12]]
 
         header = 'id, frame_ix, x, y, z, phot, prob, bg, xyz_cr, phot_cr, bg_cr\nThis is an export from DeepSMLM.\n' \
                  'Total number of emitters: {}'.format(self.num_emitter)
@@ -522,38 +532,54 @@ class EmitterSet:
 
         return grand_matrix
 
-    def write_csv_smap(self, filename, px_size=None, model=None, comments=None, factor=None,
-                       shift=torch.tensor([50., -50., 0.]), axis=[1, 0, 2]):
+    def write_to_csv_format(self, filename, xy_unit=None, model=None, comments=None, factor=None, shift=None, axis=None,
+                            lud=None, lud_name=None):
         """
-        Write to SMAP compatible csv (i.e. plain header for easier import in MATLAB).
-        Note that the order of transformation is factor, shift, axis. Therefore specify the px size in the order of
-        DeepSMLM and not the order after transformation.
-        :param filename:
-        :param px_size: specify the px size of the camera for transformation
-        :param model:
-        :param comments:
-        :param factor:
-        :param shift:
-        :param axis:
-        :return:
+        Transforms the data and writes it to a csv.
+        Args:
+            filename:
+            xy_unit:
+            model:
+            comments:
+            factor:
+            shift:
+            axis:
+            lud: look-up-dictionary, replaces the need for all keyword-arguments and uses a predefined dictionary
+            lud_name: name of a look-up-dictionary predifined in the code base.
+
+        Returns:
+            (None)
         """
-        if self.xy_unit != 'nm':
-            if (px_size is None and factor is None) or (px_size is not None and factor is not None):
-                raise ValueError("You must specify either the px size XOR a factor.")
+        import deepsmlm.generic.inout.csv_transformations as tra
+        """Checks before actual run"""
+        # lud and lud_name are XOR
+        if lud is not None and lud_name is not None:
+            raise ValueError("You can not specify lud and lud_name at the same time.")
 
-            if px_size is not None:
-                factor = torch.tensor([px_size[0], px_size[1], 1.]).float()
+        if (lud is not None or lud_name is not None) and (factor is not None or shift is not None or axis is not None):
+            raise ValueError("You can not specify factor, shift, axis and lud / lud_name at the same time.")
 
-            pseudo_em = self.convert_em(factor, shift, axis, frame_shift=1)
-        else:
-            pseudo_em = self.clone()
+        if lud_name is not None:
+            lud = tra.pre_trafo[lud_name]
+        if lud_name is not None or lud is not None:
+            xyz_shift = torch.tensor(lud['xyz_shift'])
+            xy_unit = lud['xy_unit']
+            frame_shift = lud['frame_shift']
+            axis = lud['axis']
+            plain_header = lud['plain_header']
+            comments = lud['comments']
 
-        if comments is None:
-            comments = 'Export for SMAP'
-        else:
-            comments += '\nExport for SMAP'
+        if self.xy_unit != xy_unit:
+            raise NotImplementedError("Please convert to the apropriate unit and then call this method. Automatic "
+                                      "conversion not yet implemented.")
 
-        pseudo_em.write_to_csv(filename, model, comments, plain_header=True)
+        em_clone = self.convert_em(factor=None,
+                                   shift=xyz_shift,
+                                   axis=axis,
+                                   frame_shift=frame_shift,
+                                   new_xy_unit=None)
+
+        em_clone.write_to_csv(filename, model, comments, plain_header=plain_header)
 
     @staticmethod
     def read_csv(filename):

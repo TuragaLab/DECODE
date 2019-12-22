@@ -122,9 +122,10 @@ class TestEmitterSet:
             os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          os.pardir, os.pardir)) + '/'
 
-        random_em = RandomEmitterSet(1000)
+        random_em = RandomEmitterSet(1000, 6400)
+        random_em.xy_unit = 'nm'
         fname = deepsmlm_root + 'deepsmlm/test/assets/dummy_csv.txt'
-        random_em.write_csv_smap(fname, px_size=[100., 100.])
+        random_em.write_to_csv_format(fname, lud_name='challenge')
         assert os.path.isfile(fname)
         # os.remove(fname)
 
