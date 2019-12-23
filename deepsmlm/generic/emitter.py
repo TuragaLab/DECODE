@@ -593,7 +593,7 @@ class EmitterSet:
             return EmitterSet(xyz=grand_matrix[:, 2:5], frame_ix=grand_matrix[:, 1],
                               phot=grand_matrix[:, 5], id=grand_matrix[:, 0])
 
-    def populate_crlb(self, psf):
+    def populate_crlb(self, psf, mode='multi'):
         """
         Calculate the CRLB
         :return:
@@ -603,7 +603,12 @@ class EmitterSet:
 
         em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
         for em in em_split:
-            crlb, _ = psf.crlb(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
+            if mode == 'multi':
+                crlb, _ = psf.crlb(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
+            elif mode == 'single':
+                crlb, _ = psf.crlb_single(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
+            else:
+                raise ValueError("Mode must be single or multi.")
             em.xyz_cr = crlb[:, :3]
             em.phot_cr = crlb[:, 3]
             em.bg_cr = crlb[:, 4]
