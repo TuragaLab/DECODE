@@ -378,6 +378,13 @@ class SplineCPP(PSF):
 
         """Just call the standard crlb calc method but split the inputs."""
         n_emitters = pos.size(0)
+
+        if n_emitters == 0:
+            cr = torch.zeros((0, 5))
+            img = torch.zeros(self.img_shape)
+
+            return cr, img
+
         for i in range(n_emitters):
             cr_, img_ = self.crlb(pos=pos[[i], :], phot=phot[[i]], bg=bg[[i]], crlb_order=crlb_order)
             cr.append(cr_)

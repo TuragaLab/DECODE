@@ -251,12 +251,12 @@ class EvalSet:
 
 class BatchEvaluation:
 
-    def __init__(self, matching, segmentation_eval, distance_eval, batch_size, px_size=None):
+    def __init__(self, matching, segmentation_eval, distance_eval, batch_size, weight='crlb_sqr', px_size=None):
         self._matching = matching
         self._segmentation_eval = segmentation_eval
         self._distance_eval = distance_eval
         self._batch_size = batch_size
-        self._distance_delta = metric_lib.Deltas()
+        self._distance_delta = metric_lib.Deltas(weight=weight)
 
         self.values = None
         self.px_size = px_size
