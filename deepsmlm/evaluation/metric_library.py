@@ -159,11 +159,12 @@ def interpoint_loss(output, target, reduction='mean'):
 
 
 class Deltas:
-    def __init__(self):
-        return
+    def __init__(self, weight='crlb_single'):
+        self.weight = weight
 
-    @staticmethod
-    def forward(tp: emitter.EmitterSet, ref: emitter.EmitterSet):
+        assert self.weight in ('crlb_sqr', 'photons')
+
+    def forward(self, tp: emitter.EmitterSet, ref: emitter.EmitterSet):
         """
         Calculate the dx / dy / dz values and their weighted values (weighted by the photons).
         :param tp: true positives (instance of emitterset)
@@ -171,7 +172,15 @@ class Deltas:
         :return: dx, dy, dz, dx_weighted, dy_weighted, dz_weighted
         """
         dxyz = tp.xyz - ref.xyz
-        dxyz_weighted = dxyz * (ref.phot.unsqueeze(1)).sqrt()
+        if self.weight == 'photons':
+            dxyz_weighted = dxyz / (ref.phot.unsqueeze(1)).sqrt()
+        elif self.weight == 'crlb_sqr':
+            if ref.xy_unit == 'nm':
+                dxyz_weighted = dxyz / ref.xyz_nm_scr
+            elif ref.xy_unit == 'px':
+                dxyz_weighted = dxyz / ref.xyz_scr
+        else:
+            raise ValueError("Not supported mode.")
 
         return dxyz[:, 0], dxyz[:, 1], dxyz[:, 2], dxyz_weighted[:, 0], dxyz_weighted[:, 1], dxyz_weighted[:, 2]
 

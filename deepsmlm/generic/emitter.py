@@ -117,7 +117,7 @@ class EmitterSet:
             return
         elif self.xy_unit == 'nm':
             return self.convert_coordinates(factor=1/self.px_size)
-        else:
+        elif self.xy_unit == 'px':
             return self.xyz
 
     @property
@@ -127,12 +127,16 @@ class EmitterSet:
             return
         elif self.xy_unit == 'px':
             return self.convert_coordinates(factor=self.px_size)
-        else:
+        elif self.xy_unit == 'nm':
             return self.xyz
 
     @property
     def xyz_scr(self):  # sqrt crlb
         return self.xyz_cr.sqrt()
+
+    @property
+    def xyz_nm_scr(self):
+        return self.convert_coordinates(factor=self.px_size, xyz=self.xyz_scr)
 
     @property
     def phot_scr(self):
@@ -218,6 +222,44 @@ class EmitterSet:
             is_equal *= tutil.tens_almeq(self.bg, other.bg, self.eq_precision)
 
         return is_equal.item()
+
+    def __iter__(self):
+        """
+        Implements iterator bookkeeping.
+
+        Returns:
+
+        """
+        self.n = 0
+
+    def __next__(self):
+        """
+        Implements next element in iterator method
+
+        Returns:
+            (EmitterSet) next element of iterator
+
+        """
+        if self.n < self.num_emitter:
+            self.n += 1
+            return self.get_subset(self.n - 1)
+        else:
+            raise StopIteration
+
+    def __getitem__(self, item):
+        """
+        Implements array indexing for Emitterset
+
+        Args:
+            item: (int), or indexing
+
+        Returns:
+
+        """
+        if isinstance(item, int):
+            return self.get_subset([item])
+        else:
+            return self.get_subset(item)
 
     def clone(self):
         """
@@ -328,7 +370,7 @@ class EmitterSet:
     def single_frame(self):
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
-    def compute_grand_matrix(self, ix=None):
+    def compute_grand_matrix(self, ix=None, xy_unit=None):
         """
         Computes a 'grand matrix' to put all information in one thing.
         """
@@ -336,7 +378,16 @@ class EmitterSet:
         if ix is None:
             ix = slice(self.xyz.size(0))
 
-        grand_matrix = torch.cat((self.xyz[ix, :],
+        if xy_unit is None:
+            xyz = self.xyz
+        elif xy_unit == 'px':
+            xyz = self.xyz_px
+        elif xy_unit == 'nm':
+            xyz = self.xyz_nm
+        else:
+            raise ValueError("Other units not supported.")
+
+        grand_matrix = torch.cat((xyz[ix, :],
                                   self.phot[ix].unsqueeze(1),
                                   self.frame_ix[ix].unsqueeze(1),
                                   self.id[ix].unsqueeze(1),
@@ -410,15 +461,18 @@ class EmitterSet:
 
         return em_list
 
-    def convert_coordinates(self, factor=None, shift=None, axis=None):
+    def convert_coordinates(self, factor=None, shift=None, axis=None, xyz=None):
         """
         Convert coordinates. The order is factor -> shift -> axis
         :param factor: scale up factor
         :param shift: shift
         :param axis: permute axis
+        :param xyz: overwrite xyz tensor (e.g. for using it with crlb)
         :return:
         """
-        xyz = self.xyz.clone()
+        if xyz is None:
+            xyz = self.xyz.clone()
+
         if factor is not None:
             if factor.size(0) == 2:
                 factor = torch.cat((factor, torch.tensor([1.])), 0)
@@ -492,12 +546,13 @@ class EmitterSet:
         gmat = torch.load(filename)
         return EmitterSet._construct_from_grand_matrix(gmat)
 
-    def write_to_csv(self, filename, model=None, comments=None, plain_header=False):
+    def write_to_csv(self, filename, xy_unit=None, model=None, comments=None, plain_header=False):
         """
         Writes the emitterset to a csv file.
 
         Args:
             filename:  csv file name
+            xy_unit:  xy unit (typically 'nm' or 'px') for automatic conversion
             model:  model to incroporate hash into the csv
             comments:  additional comments to put into the csv
             plain_header: no # at beginning of first line
@@ -507,12 +562,13 @@ class EmitterSet:
 
         """
 
-        grand_matrix = self.compute_grand_matrix()
+        grand_matrix = self.compute_grand_matrix(xy_unit=xy_unit)
 
         # reorder the grand_matrix according to the header below
         grand_matrix = grand_matrix[:, [5, 4, 0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12]]
 
-        header = 'id, frame_ix, x, y, z, phot, prob, bg, xyz_cr, phot_cr, bg_cr\nThis is an export from DeepSMLM.\n' \
+        header = 'id, frame_ix, x, y, z, phot, prob, bg, x_cr, y_cr, z_cr, phot_cr, bg_cr\nThis is an export from ' \
+                 'DeepSMLM.\n' \
                  'Total number of emitters: {}'.format(self.num_emitter)
 
         if model is not None:
@@ -569,17 +625,13 @@ class EmitterSet:
             plain_header = lud['plain_header']
             comments = lud['comments']
 
-        if self.xy_unit != xy_unit:
-            raise NotImplementedError("Please convert to the apropriate unit and then call this method. Automatic "
-                                      "conversion not yet implemented.")
-
         em_clone = self.convert_em(factor=None,
                                    shift=xyz_shift,
                                    axis=axis,
                                    frame_shift=frame_shift,
                                    new_xy_unit=None)
 
-        em_clone.write_to_csv(filename, model, comments, plain_header=plain_header)
+        em_clone.write_to_csv(filename, xy_unit, model, comments, plain_header=plain_header)
 
     @staticmethod
     def read_csv(filename):
@@ -604,9 +656,9 @@ class EmitterSet:
         em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
         for em in em_split:
             if mode == 'multi':
-                crlb, _ = psf.crlb(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
+                crlb, _ = psf.crlb(em.xyz_px, em.phot, em.bg, crlb_order='xyzpb')
             elif mode == 'single':
-                crlb, _ = psf.crlb_single(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
+                crlb, _ = psf.crlb_single(em.xyz_px, em.phot, em.bg, crlb_order='xyzpb')
             else:
                 raise ValueError("Mode must be single or multi.")
             em.xyz_cr = crlb[:, :3]
