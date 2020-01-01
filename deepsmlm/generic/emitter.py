@@ -116,6 +116,8 @@ class EmitterSet:
             warnings.warn("If unit is unspecified, can not convert to px coordinates.")
             return
         elif self.xy_unit == 'nm':
+            if self.px_size is None:
+                raise ValueError("Cannot convert between px and nm without px-size specified.")
             return self.convert_coordinates(factor=1/self.px_size)
         elif self.xy_unit == 'px':
             return self.xyz
@@ -126,6 +128,8 @@ class EmitterSet:
             warnings.warn("If unit is unspecified, can not convert to px coordinates.")
             return
         elif self.xy_unit == 'px':
+            if self.px_size is None:
+                raise ValueError("Cannot convert between px and nm without px-size specified.")
             return self.convert_coordinates(factor=self.px_size)
         elif self.xy_unit == 'nm':
             return self.xyz
@@ -136,6 +140,8 @@ class EmitterSet:
 
     @property
     def xyz_nm_scr(self):
+        if self.px_size is None:
+            raise ValueError("Cannot convert between px and nm without px-size specified.")
         return self.convert_coordinates(factor=self.px_size, xyz=self.xyz_scr)
 
     @property
