@@ -3,6 +3,7 @@ from matplotlib.colors import LogNorm
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import torch
+import warnings
 
 """
 Convention:
@@ -12,6 +13,24 @@ y
 |
 v
 """
+
+
+def connect_point_set(set0, set1, ax=None):
+    """
+    Plots the connecting lines between the set0 and set1 in 2D.
+
+    Args:
+        set0:  torch.Tensor / np.array of dim N x 2
+        set1:  torch.Tensor / np.array of dim N x 2
+        ax:  axis where to plot
+
+    Returns:
+
+    """
+    if ax is None:
+        ax = plt.gca()
+    for i in range(set0.size(0)):
+        ax.plot([set0[i, 0], set1[i, 0]], [set0[i, 1], set1[i, 1]], 'b')
 
 
 class PlotFrame:
@@ -54,11 +73,19 @@ class PlotCoordinates:
                  pos_tar=None, phot_tar = None,
                  pos_out=None, phot_out=None,
                  pos_ini=None, phot_ini=None,
-                 extent_limit=None):
+                 extent_limit=None,
+                 match_lines=False):
         """
-        :param pos_tar: torch tensor of target values
-        :param pos_pred: torch tensor of outputted pos
-        :param pos_ini: torch tensor of initilaised pos
+        Plots points in 2D projection.
+        Args:
+            pos_tar:
+            phot_tar:
+            pos_out:
+            phot_out:
+            pos_ini:
+            phot_ini:
+            extent_limit:
+            match_lines: plots
         """
 
         self.extent_limit = extent_limit
@@ -68,6 +95,7 @@ class PlotCoordinates:
         self.phot_out = phot_out
         self.pos_ini = pos_ini
         self.phot_ini = phot_ini
+        self.match_lines = match_lines
 
         self.tar_marker = 'ro'
         self.tar_cmap = 'winter'
@@ -75,6 +103,7 @@ class PlotCoordinates:
         self.out_cmap = 'viridis'
         self.ini_marker = 'g+'
         self.ini_cmap = 'copper'
+
 
     def plot(self):
         """
@@ -105,6 +134,9 @@ class PlotCoordinates:
                 plot_xyz_phot(self.pos_ini, self.phot_ini, self.ini_marker[1], self.ini_cmap, 'Init')
             else:
                 plot_xyz(self.pos_ini, self.ini_marker[1], self.ini_marker[0], 'Init')
+
+        if self.pos_tar is not None and self.pos_out is not None and self.match_lines:
+            connect_point_set(self.pos_tar, self.pos_out)
 
         plt.gca().set_aspect('equal', adjustable='box')
         plt.xlabel('x')
@@ -151,7 +183,8 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
                  pos_out=None, phot_out=None,
                  pos_ini=None, phot_ini=None,
                  extent=None, coord_limit=None,
-                 norm=None, clim=None):
+                 norm=None, clim=None,
+                 match_lines=False):
         """
         (see base classes)
         :param frame:
@@ -167,7 +200,8 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
                                  phot_out=phot_out,
                                  pos_ini=pos_ini,
                                  phot_ini=phot_ini,
-                                 extent_limit=coord_limit)
+                                 extent_limit=coord_limit,
+                                 match_lines=match_lines)
 
         PlotFrame.__init__(self, frame, extent, norm, clim)
 
