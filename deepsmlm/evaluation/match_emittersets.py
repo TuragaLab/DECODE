@@ -30,7 +30,7 @@ class GreedyHungarianMatching:
             self._match_dims = 2
         elif dist_vol is not None:
             self.dist_thresh = dist_vol
-            self._match_dims = 2
+            self._match_dims = 3
 
         self.cdist_kernel = partial(torch.cdist, p=2)  # does not take the square root
 
