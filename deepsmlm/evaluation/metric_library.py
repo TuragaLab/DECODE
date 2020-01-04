@@ -159,7 +159,7 @@ def interpoint_loss(output, target, reduction='mean'):
 
 
 class Deltas:
-    def __init__(self, weight='crlb_single'):
+    def __init__(self, weight='photons'):
         self.weight = weight
 
         assert self.weight in ('crlb_sqr', 'photons')
