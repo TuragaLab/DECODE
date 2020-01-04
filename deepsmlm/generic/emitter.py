@@ -168,7 +168,7 @@ class EmitterSet:
                       xy_unit=em.xy_unit,
                       px_size=em.px_size)
 
-    def _sanity_check(self):
+    def _sanity_check(self, check_uniqueness=False):
         """
         Tests the integrity of the EmitterSet
         :return: None
@@ -183,6 +183,11 @@ class EmitterSet:
         if self.xy_unit is not None:
             if self.xy_unit not in self.xy_units:
                 warnings.warn("XY unit not known.")
+
+        # check uniqueness of ID
+        if check_uniqueness:
+            if torch.unique(self.id).numel() != self.id.numel():
+                raise ValueError("IDs are not unique.")
 
     def __str__(self):
         print_str = f"EmitterSet" \
@@ -659,7 +664,13 @@ class EmitterSet:
         if self.num_emitter == 0:
             return
 
+        warnings.warn("Be advised, that at the moment, calculating the crlb for an EmitterSet can and most likely will"
+                      "change the order of the elements in the set. "
+                      "If you compare this against another set, be careful.")
+        # # remember the id since splitting breaks the order
+        # _, ix = self.frame_ix.sort()
         em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
+
         for em in em_split:
             if mode == 'multi':
                 crlb, _ = psf.crlb(em.xyz_px, em.phot, em.bg, crlb_order='xyzpb')
@@ -671,7 +682,9 @@ class EmitterSet:
             em.phot_cr = crlb[:, 3]
             em.bg_cr = crlb[:, 4]
 
-        self._inplace_replace(self.cat_emittersets(em_split))
+        remerged_set = self.cat_emittersets(em_split)
+        # remerged_set = remerged_set[ix]
+        self._inplace_replace(remerged_set)
 
 
 class RandomEmitterSet(EmitterSet):
