@@ -12,22 +12,47 @@ class GreedyHungarianMatching:
     Matching emitters in a greedy 'hungarian' fashion, by using best first search.
     """
 
-    def __init__(self, dist_lat: float = None, dist_vol: float = None):
+    def __init__(self, dist_lat: float = None, dist_ax: float = None, dist_vol: float = None, match_dims: int = None):
         """
+        Initialise Matcher. You can match in 2D (dist_lat), '2.1'D (dist_lat,
+        dist_ax, match_dims=2 and rule out those which are completely off in the axial direction), 3D (dist_vol),
+        '3.1D' (dist_lat, dist_ax, match_dims=3, ruling out what does not meet the 2 criteria,
+        but still merge on 3D distance)
 
         Args:
-            dist_lat:
-            dist_vol:
+            dist_lat: lateral tolerance radius
+            dist_ax: axial tolerance
+            dist_vol: volumetric tolerance
+            match_dims: match_dims  specifies whether to match in 2 or 3D. Only needs to be specified if both dist_lat
+                                    and dist_ax are set. Otherwise it does not have an effect.
         """
         self.dist_thresh = None
+        self._rule_out_thresh = None
         self._match_dims = None
 
         if ((dist_lat is not None) and (dist_vol is not None)) or ((dist_lat is None) and (dist_vol is None)):
             raise ValueError("You need to specify exactly exclusively either dist_lat or dist_vol.")
 
-        if dist_lat is not None:
+        if (dist_ax is not None) and (dist_vol is not None):
+            raise ValueError("You can not specify dist_ax and dist_vol.")
+
+        if dist_lat is not None and dist_ax is None:
             self.dist_thresh = dist_lat
             self._match_dims = 2
+        elif dist_lat is not None and dist_ax is not None:
+            self.dist_thresh = dist_lat
+            self.rule_out_thresh = dist_ax  # kick out things which are too far off in z.
+
+            # either match in 2D or 3D, this can be both.
+            if match_dims is not None:
+                if match_dims in (2, 3):
+                    self._match_dims = match_dims
+                else:
+                    raise ValueError("Match dimension not allowed.")
+            else:
+                raise ValueError("You need to specify whether you want to match in 2D or 3D, when specifying both"
+                                 "dist_lat and dist_ax")
+
         elif dist_vol is not None:
             self.dist_thresh = dist_vol
             self._match_dims = 3
@@ -36,8 +61,10 @@ class GreedyHungarianMatching:
 
     @staticmethod
     def parse(param):
-        return GreedyHungarianMatching(dist_lat=param['Evaluation']['dist_lat'],
-                                       dist_vol=param['Evaluation']['dist_vol'])
+        return GreedyHungarianMatching(dist_lat=param.Evaluation.dist_lat,
+                                       dist_ax=param.Evaluation.dist_ax,
+                                       dist_vol=param.Evaluation.dist_vol,
+                                       match_dims=param.Evaluation.match_dims)
 
     @staticmethod
     def rule_out_dist_match(dists, threshold):
@@ -52,11 +79,13 @@ class GreedyHungarianMatching:
         Returns:
 
         """
+        dists_ = dists.clone()
+
         match_list = []
-        while dists.min() < threshold:
-            ix = np.unravel_index(dists.argmin(), dists.shape)
-            dists[ix[0]] = float('inf')
-            dists[:, ix[1]] = float('inf')
+        while dists_.min() < threshold:
+            ix = np.unravel_index(dists_.argmin(), dists_.shape)
+            dists_[ix[0]] = float('inf')
+            dists_[:, ix[1]] = float('inf')
 
             match_list.append(ix)
         if match_list.__len__() >= 1:
@@ -87,6 +116,10 @@ class GreedyHungarianMatching:
             dists = self.cdist_kernel(out.xyz[:, :2], tar.xyz[:, :2])
         elif self._match_dims == 3:
             dists = self.cdist_kernel(out.xyz, tar.xyz)
+
+        if self._rule_out_thresh is not None:
+            dists_ax = self.cdist_kernel(out.xyz[:, [2]], tar.xyz[:, [2]])
+            dists[dists_ax > self._rule_out_thresh] = float('inf')
 
         match_ix = self.rule_out_dist_match(dists, self.dist_thresh).numpy()
         all_ix_out = np.arange(out.num_emitter)
