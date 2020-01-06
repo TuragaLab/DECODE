@@ -397,7 +397,7 @@ class ConsistencyPostprocessing(PostProcessing):
             if not (self._lat_th is not None and
                     self._ax_th is not None and
                     self._vol_th is None):
-                raise ValueError("Invalid arguments for lateral plus kickout axial matching.")
+                raise ValueError("Invalid arguments for lateral plus kickout axial matching in 2D.")
         elif self._match_dims == 3:
             if not (self._lat_th is None and
                     self._ax_th is None and
@@ -489,9 +489,12 @@ class ConsistencyPostprocessing(PostProcessing):
                     p_agg = p_frame[in_cluster].sum()
                 elif p_aggregation == 'max':
                     p_agg = p_frame[in_cluster].max()
-                elif p_aggregation == 'pbinom':
+                elif p_aggregation == 'pbinom_cdf':
                     z = fan_stat.binom_pdiverse(p_frame[in_cluster].view(-1))
                     p_agg = z[1:].sum()
+                elif p_aggregation == 'pbinom_pdf':
+                    z = fan_stat.binom_pdiverse(p_frame[in_cluster].view(-1))
+                    p_agg = z[1]
                 else:
                     raise ValueError
 
