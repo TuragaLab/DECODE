@@ -138,11 +138,17 @@ class GreedyHungarianMatching:
 
     def forward(self, output, target):
         """
-        Assign outputs to targets. Make sure that the frame indices of target and output match.
+        Matches two sets of emitters.
 
-        :param output:
-        :param target:
-        :return: tp, fp, fn, tp_match (true positives, false positives, false negatives, gt matched with tp)
+        Args:
+            output: predicted localisations
+            target: ground truth localisations
+
+        Returns:
+            tp: true positives
+            fp: false positives
+            fn: false negatives
+            tp_match  gt localisations that were considered found (by means of this matching)
         """
 
         """Split in Frames based on the target"""
