@@ -200,7 +200,7 @@ class EvalSet:
     alpha_ax = 0.5  # nm
 
     """Just a dummy class to combine things into one object."""
-    def __init__(self, prec, rec, jac,
+    def __init__(self, prec, rec, jac, f1,
                  delta_num,
                  rmse_vol, rmse_lat, rmse_axial,
                  mad_vol, mad_lat, mad_axial,
@@ -208,6 +208,7 @@ class EvalSet:
         self.prec = prec
         self.rec = rec
         self.jac = jac
+        self.f1 = f1
 
         self.delta_num = delta_num
 
@@ -235,6 +236,7 @@ class EvalSet:
         str += "Precision {}\n".format(self.prec.__str__())
         str += "Recall {}\n".format(self.rec.__str__())
         str += "Jaccard {}\n".format(self.jac.__str__())
+        str += "F1Score {}\n".format(self.f1.__str__())
         str += "Delta num. emitters (out - tar.) {}\n".format(self.delta_num.__str__())
         str += "RMSE lat. {}\n".format(self.rmse_lat.__str__())
         str += "RMSE ax. {}\n".format(self.rmse_axial.__str__())
@@ -279,7 +281,7 @@ class BatchEvaluation:
         :param target: list of emitter sets
         :return:
         """
-        prec, rec, jac = MetricMeter(), MetricMeter(), MetricMeter()
+        prec, rec, jac, f1 = MetricMeter(), MetricMeter(), MetricMeter(), MetricMeter()
         delta_num = MetricMeter()
         rmse_vol, rmse_lat, rmse_axial = MetricMeter(), MetricMeter(), MetricMeter()
         mad_vol, mad_lat, mad_axial = MetricMeter(), MetricMeter(), MetricMeter()
@@ -297,13 +299,14 @@ class BatchEvaluation:
             target = target.convert_em(factor=self.px_size, new_xy_unit='nm')
 
         tp, fp, fn, tp_match = self._matching.forward(output, target)
-        prec_, rec_, jaq_ = self._segmentation_eval.forward(tp, fp, fn)
+        prec_, rec_, jaq_, f1_ = self._segmentation_eval.forward(tp, fp, fn)
         rmse_vol_, rmse_lat_, rmse_axial_, mad_vol_, mad_lat_, mad_axial_ = self._distance_eval.forward(tp, tp_match)
         dx_, dy_, dz_, dxw_, dyw_, dzw_ = self._distance_delta.forward(tp, tp_match)
 
         prec.update(prec_)
         rec.update(rec_)
         jac.update(jaq_)
+        f1.update(f1_)
 
         delta_num.update(output.num_emitter - target.num_emitter)
 
@@ -321,7 +324,7 @@ class BatchEvaluation:
         dyw.update(dyw_)
         dzw.update(dzw_)
 
-        self.values = EvalSet(prec, rec, jac,
+        self.values = EvalSet(prec, rec, jac, f1,
                               delta_num,
                               rmse_vol, rmse_lat, rmse_axial,
                               mad_vol, mad_lat, mad_axial,
@@ -485,7 +488,7 @@ class SegmentationEvaluation:
         """
         """
         self.print_mode = print_mode
-        self.cached_result = [None] * 3
+        self.cached_result = [None] * 4
 
     def forward(self, tp, fp, fn):
         """
@@ -498,7 +501,7 @@ class SegmentationEvaluation:
         :return: several metrics
         """
 
-        prec, rec, jac = PrecisionRecallJaccard.forward(tp.num_emitter, fp.num_emitter, fn.num_emitter)
+        prec, rec, jac, f1 = PrecisionRecallJaccard.forward(tp.num_emitter, fp.num_emitter, fn.num_emitter)
         actual_em = tp.num_emitter + fn.num_emitter
         pred_em = tp.num_emitter + fp.num_emitter
 
@@ -508,12 +511,14 @@ class SegmentationEvaluation:
                                                           fp.num_emitter,
                                                           fn.num_emitter))
             print("Jacquard: {:.3f}".format(jac))
+            print("F1Score: {:.3f}".format(f1))
             print("Precision: {:.3f}, Recall: {:.3f}".format(prec, rec))
 
         self.cached_result[0] = prec
         self.cached_result[1] = rec
         self.cached_result[2] = jac
-        return prec, rec, jac
+        self.cached_result[3] = f1
+        return prec, rec, jac, f1
 
 
 class DistanceEvaluation:

@@ -31,6 +31,7 @@ class LogTestEpoch:
         self._log_metric(metrics_set.prec.avg, step, "eval/precision")
         self._log_metric(metrics_set.rec.avg, step, "eval/recall")
         self._log_metric(metrics_set.jac.avg, step, "eval/jac")
+        self._log_metric(metrics_set.f1.avg, step, "eval/f1")
 
         self._log_metric(metrics_set.rmse_vol.avg, step, "eval/rmse_vol")
         self._log_metric(metrics_set.rmse_lat.avg, step, "eval/rmse_lat")

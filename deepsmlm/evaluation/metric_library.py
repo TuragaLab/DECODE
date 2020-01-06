@@ -136,9 +136,10 @@ class PrecisionRecallJaccard:
 
         precision = math.nan if (tp + fp) == 0 else tp / (tp + fp)
         recall = math.nan if (tp + fn) == 0 else tp / (tp + fn)
-        jacquard = math.nan if (tp + fp + fn) == 0 else tp / (tp + fp + fn)
+        jaccard = math.nan if (tp + fp + fn) == 0 else tp / (tp + fp + fn)
+        f1score = math.nan if (precision + recall) == 0 else (2 * precision * recall)/(precision + recall)
 
-        return precision, recall, jacquard
+        return precision, recall, jaccard, f1score
 
 
 def interpoint_loss(output, target, reduction='mean'):
