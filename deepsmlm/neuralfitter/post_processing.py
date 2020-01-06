@@ -404,7 +404,7 @@ class ConsistencyPostprocessing(PostProcessing):
                     self._vol_th is not None):
                 raise ValueError("Invalid arguments for volumetric matching.")
 
-        if p_aggregation not in ('sum', 'max', 'pbinom'):
+        if p_aggregation not in ('sum', 'max', 'pbinom_cdf', 'pbinom_pdf'):
             raise ValueError("Unsupported probability aggregation type.")
 
         if self._match_dims in (2, 2.1):
