@@ -123,11 +123,12 @@ class TestEmitterSet:
                          os.pardir, os.pardir)) + '/'
 
         random_em = RandomEmitterSet(1000, 6400)
+        random_em.px_size = torch.tensor([100., 100.])
         random_em.xy_unit = 'nm'
         fname = deepsmlm_root + 'deepsmlm/test/assets/dummy_csv.txt'
         random_em.write_to_csv_format(fname, lud_name='challenge')
         assert os.path.isfile(fname)
-        # os.remove(fname)
+        os.remove(fname)
 
     def test_eq(self):
         em = RandomEmitterSet(1000)

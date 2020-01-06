@@ -381,22 +381,33 @@ class EmitterSet:
     def single_frame(self):
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
-    def compute_grand_matrix(self, ix=None, xy_unit=None):
+    def compute_grand_matrix(self, ix=None, xy_unit=None, xy_unit2=None):
         """
-        Computes a 'grand matrix' to put all information in one thing.
+        Computes a grand matrix to put everything in one tensor.
+        Args:
+            ix: limit the indices
+            xy_unit: xy unit to write to the matrix
+            xy_unit2: secondary xy unit to append to the back of the grand matrix, helpful for csv export, but redundant info
+
+        Returns:
+            grand_matrix: (torch.Tensor) of size num_emitter x large_number
         """
+
+        def xy_mapping(unit):
+            if unit is None:
+                return self.xyz
+            elif unit == 'px':
+                return self.xyz_px
+            elif xy_unit == 'nm':
+                return self.xyz_nm
+            else:
+                raise ValueError("Other units not supported.")
 
         if ix is None:
             ix = slice(self.xyz.size(0))
 
-        if xy_unit is None:
-            xyz = self.xyz
-        elif xy_unit == 'px':
-            xyz = self.xyz_px
-        elif xy_unit == 'nm':
-            xyz = self.xyz_nm
-        else:
-            raise ValueError("Other units not supported.")
+        xyz = xy_mapping(xy_unit)
+        xyz2 = xy_mapping(xy_unit2)  # secondary xy unit (it's redundant but sometimes helpful)
 
         grand_matrix = torch.cat((xyz[ix, :],
                                   self.phot[ix].unsqueeze(1),
@@ -406,7 +417,8 @@ class EmitterSet:
                                   self.bg[ix].unsqueeze(1),
                                   self.xyz_cr[ix, :],
                                   self.phot_cr[ix].unsqueeze(1),
-                                  self.bg_cr[ix].unsqueeze(1)), dim=1)
+                                  self.bg_cr[ix].unsqueeze(1),
+                                  xyz2[ix, :]), dim=1)
 
         return grand_matrix
 
@@ -495,7 +507,7 @@ class EmitterSet:
             xyz = xyz[:, axis]
         return xyz
 
-    def convert_em(self, factor=None, shift=None, axis=None, frame_shift=0, new_xy_unit=None):
+    def convert_em(self, factor=None, shift=None, axis=None, frame_shift=None, new_xy_unit=None):
         """
         Convert a clone of the current emitter
         :param factor:
@@ -508,7 +520,8 @@ class EmitterSet:
 
         emn = self.clone()
         emn.xyz = emn.convert_coordinates(factor, shift, axis)
-        emn.frame_ix += frame_shift
+        if frame_shift is not None:
+            emn.frame_ix += frame_shift
         if new_xy_unit is not None:
             emn.xy_unit = new_xy_unit
         return emn
@@ -557,7 +570,7 @@ class EmitterSet:
         gmat = torch.load(filename)
         return EmitterSet._construct_from_grand_matrix(gmat)
 
-    def write_to_csv(self, filename, xy_unit=None, model=None, comments=None, plain_header=False):
+    def write_to_csv(self, filename, xy_unit=None, model=None, comments=None, plain_header=False, xy_unit2=None):
         """
         Writes the emitterset to a csv file.
 
@@ -573,12 +586,13 @@ class EmitterSet:
 
         """
 
-        grand_matrix = self.compute_grand_matrix(xy_unit=xy_unit)
+        grand_matrix = self.compute_grand_matrix(xy_unit=xy_unit, xy_unit2=xy_unit2)
 
         # reorder the grand_matrix according to the header below
-        grand_matrix = grand_matrix[:, [5, 4, 0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12]]
+        grand_matrix = grand_matrix[:, [5, 4, 0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]]
 
-        header = 'id, frame_ix, x, y, z, phot, prob, bg, x_cr, y_cr, z_cr, phot_cr, bg_cr\nThis is an export from ' \
+        header = 'id, frame_ix, x, y, z, phot, prob, bg, x_cr, y_cr, z_cr, phot_cr, bg_cr, x2, y2, z2' \
+                 '\nThis is an export from ' \
                  'DeepSMLM.\n' \
                  'Total number of emitters: {}'.format(self.num_emitter)
 
@@ -593,24 +607,27 @@ class EmitterSet:
         if plain_header:
             with open(filename, "r+") as f:
                 content = f.read()  # read everything in the file
-                content = content[2:]
-                f.seek(0)  # rewind
-                f.write(content)  # write the new line before
+                content = content[2:]  # remove hashtag at first line (matlab ...)
+
+            with open(filename, "w") as f:
+                f.write(content)  # write the file again
 
         return grand_matrix
 
-    def write_to_csv_format(self, filename, xy_unit=None, model=None, comments=None, factor=None, shift=None, axis=None,
-                            lud=None, lud_name=None):
+    def write_to_csv_format(self, filename, xy_unit=None, xy_unit2=None, model=None, comments=None,
+                            xyz_shift=None, frame_shift=None, axis=None, plain_header=False, lud=None, lud_name=None):
         """
         Transforms the data and writes it to a csv.
         Args:
             filename:
             xy_unit:
+            xy_unit2: secondary xy unit
             model:
             comments:
-            factor:
-            shift:
+            xyz_shift:
+            frame_shift:
             axis:
+            plain_header: (bool) remove hashtag in first line of csv
             lud: look-up-dictionary, replaces the need for all keyword-arguments and uses a predefined dictionary
             lud_name: name of a look-up-dictionary predifined in the code base.
 
@@ -623,7 +640,7 @@ class EmitterSet:
         if lud is not None and lud_name is not None:
             raise ValueError("You can not specify lud and lud_name at the same time.")
 
-        if (lud is not None or lud_name is not None) and (factor is not None or shift is not None or axis is not None):
+        if (lud is not None or lud_name is not None) and (xyz_shift is not None or axis is not None):
             raise ValueError("You can not specify factor, shift, axis and lud / lud_name at the same time.")
 
         if lud_name is not None:
@@ -631,6 +648,7 @@ class EmitterSet:
         if lud_name is not None or lud is not None:
             xyz_shift = torch.tensor(lud['xyz_shift'])
             xy_unit = lud['xy_unit']
+            xy_unit2 = lud['xy_unit2']
             frame_shift = lud['frame_shift']
             axis = lud['axis']
             plain_header = lud['plain_header']
@@ -642,7 +660,7 @@ class EmitterSet:
                                    frame_shift=frame_shift,
                                    new_xy_unit=None)
 
-        em_clone.write_to_csv(filename, xy_unit, model, comments, plain_header=plain_header)
+        em_clone.write_to_csv(filename, xy_unit, model, comments, plain_header=plain_header, xy_unit2=xy_unit2)
 
     @staticmethod
     def read_csv(filename):
@@ -664,27 +682,34 @@ class EmitterSet:
         if self.num_emitter == 0:
             return
 
-        warnings.warn("Be advised, that at the moment, calculating the crlb for an EmitterSet can and most likely will"
-                      "change the order of the elements in the set. "
-                      "If you compare this against another set, be careful.")
-        # # remember the id since splitting breaks the order
-        # _, ix = self.frame_ix.sort()
-        em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
+        if mode == 'single':
+            crlb, _ = psf.crlb_single(self.xyz_px, self.phot, self.bg, crlb_order='xyzpb')
+            self.xyz_cr = crlb[:, :3]
+            self.phot_cr = crlb[:, 3]
+            self.bg_cr = crlb[:, 4]
+            return
 
-        for em in em_split:
-            if mode == 'multi':
+        elif mode == 'multi':
+            warnings.warn(
+                "Be advised, that at the moment, calculating the crlb in multi-mode for an EmitterSet can and most "
+                "likely will change the order of the elements in the set."
+                "If you compare this against another set, be careful.")
+            em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
+
+            for em in em_split:
+
                 crlb, _ = psf.crlb(em.xyz_px, em.phot, em.bg, crlb_order='xyzpb')
-            elif mode == 'single':
-                crlb, _ = psf.crlb_single(em.xyz_px, em.phot, em.bg, crlb_order='xyzpb')
-            else:
-                raise ValueError("Mode must be single or multi.")
-            em.xyz_cr = crlb[:, :3]
-            em.phot_cr = crlb[:, 3]
-            em.bg_cr = crlb[:, 4]
 
-        remerged_set = self.cat_emittersets(em_split)
-        # remerged_set = remerged_set[ix]
-        self._inplace_replace(remerged_set)
+                em.xyz_cr = crlb[:, :3]
+                em.phot_cr = crlb[:, 3]
+                em.bg_cr = crlb[:, 4]
+
+            remerged_set = self.cat_emittersets(em_split)
+            self._inplace_replace(remerged_set)
+            return
+
+        else:
+            raise ValueError("Mode must be single or multi.")
 
 
 class RandomEmitterSet(EmitterSet):
