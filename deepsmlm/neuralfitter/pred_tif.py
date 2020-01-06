@@ -69,6 +69,39 @@ class PredictEval(ABC):
         else:
             return self.prediction
 
+    def forward_raw(self):
+        """
+        Forwards the data through the model but without post-processing
+
+        Returns: raw_frames (torch.Tensor)
+
+        """
+
+        """Eval mode."""
+        raw_frames = []
+        self.model.to(self.device)
+
+        """Eval mode and no grad."""
+        self.model.eval()
+        with torch.no_grad():
+            for sample in tqdm(self.dataloader):
+                x_in = sample[0]
+                x_in = x_in.to(self.device)
+
+                # compute output
+                output = self.model(x_in)
+                raw_frames.append(output.detach().cpu())
+
+        raw_frames = torch.cat(raw_frames, 0)
+        return raw_frames
+
+    # def forward_post(self):
+    #     """
+    #     Forwards raw frames ty the post processor
+    #     Returns:
+    #
+    #     """
+
     def evaluate(self):
         """
         Eval the whole thing. Implement your own method if you need to modify something, e.g. px-size to get proper
