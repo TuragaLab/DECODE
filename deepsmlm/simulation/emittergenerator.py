@@ -66,7 +66,8 @@ class EmitterPopper:
 
 
 class EmitterPopperMultiFrame(EmitterPopper):
-    def __init__(self, structure, intensity_mu_sig, lifetime, num_frames=3, density=None, emitter_av=None):
+    def __init__(self, structure, intensity_mu_sig, lifetime, num_frames=3, density=None, emitter_av=None,
+                 intensity_th=None):
         """
 
         :param structure: structure to sample locations frame
@@ -75,6 +76,7 @@ class EmitterPopperMultiFrame(EmitterPopper):
         :param lifetime: average lifetime
         :param num_frames: number of frames
         :param emitter_av: average number of emitters (note that this overrides the density)
+        :param intensity_th: defines the minimal intensity
         """
         super().__init__(structure=structure,
                          photon_range=None,
@@ -85,6 +87,7 @@ class EmitterPopperMultiFrame(EmitterPopper):
         self.intensity_mu_sig = intensity_mu_sig
         self.intensity_dist = torch.distributions.normal.Normal(self.intensity_mu_sig[0],
                                                                 self.intensity_mu_sig[1])
+        self.intensity_th = intensity_th if intensity_th is not None else 0.0
         self.lifetime_avg = lifetime
         self.lifetime_dist = Exponential(1 / self.lifetime_avg)  # parse the rate not the scale ...
         if num_frames != 3:
@@ -119,8 +122,9 @@ class EmitterPopperMultiFrame(EmitterPopper):
 
         n = np.random.poisson(lam=lam_in)
         xyz = self.structure.draw(n, 3)
+
         """Draw from intensity distribution but clamp the value so as not to fall below 0."""
-        intensity = torch.clamp(self.intensity_dist.sample((n,)), 0, None)
+        intensity = torch.clamp(self.intensity_dist.sample((n,)), self.intensity_th, None)
 
         """Distribute emitters in time. Increase the range a bit."""
         t0 = self.t0_dist.sample((n, ))

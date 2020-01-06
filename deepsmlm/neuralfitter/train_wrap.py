@@ -226,7 +226,8 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
                                                          intensity_mu_sig=param['Simulation']['intensity_mu_sig'],
                                                          lifetime=param['Simulation']['lifetime_avg'],
                                                          num_frames=3,
-                                                         emitter_av=param['Simulation']['emitter_av'])
+                                                         emitter_av=param['Simulation']['emitter_av'],
+                                                         intensity_th=param.Simulation.intensity_th)
 
         sim = simulator.Simulation(None, extent=param['Simulation']['emitter_extent'],
                                          psf=psf,
@@ -242,12 +243,12 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
             InputFrameRescale.parse(param)
         ])
 
-        if param.HyperParameter.weight_base == 'crlb':
+        if param.HyperParameter.weight_base in ('crlb', 'crlb_single', 'crlb_multi'):
             weight_mask_generator = processing.TransformSequence([
                 wgen.DerivePseudobgFromBg(param['Simulation']['psf_extent'][0],
                                           param['Simulation']['psf_extent'][1],
                                           param['Simulation']['img_size'], psf.roi_size),
-                wgen.CalcCRLB(psf),
+                wgen.CalcCRLB(psf, crlb_mode=param.HyperParameter.weight_base[5:]),
                 wgen.GenerateWeightMaskFromCRLB(param['Simulation']['psf_extent'][0],
                                           param['Simulation']['psf_extent'][1],
                                           param['Simulation']['img_size'], param['HyperParameter']['target_roi_size'])
