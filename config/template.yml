@@ -133,6 +133,7 @@ Simulation:
   intensity_mu_sig:
   - 10000.0
   - 1000.0
+  intensity_th: 100.0
   lifetime_avg: 2.0
   photon_range: null
   psf_extent:

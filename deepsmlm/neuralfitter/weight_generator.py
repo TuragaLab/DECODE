@@ -90,18 +90,18 @@ class SimpleWeight(WeightGenerator):
         self.delta2roi = Delta2ROI(roi_size=self.target_roi_size,
                                    channels=4,
                                    overlap_mode='zero')
-        if weight_base not in ('constant', 'sqrt_phot'):
+        if weight_base not in ('constant', 'phot', 'phot_sqrt'):
             raise ValueError("Weight base can only be constant or sqrt photons.")
         self.weight_base = weight_base
 
     @staticmethod
     def parse(param):
-        return SimpleWeight(xextent=param['Simulation']['psf_extent'][0],
-                            yextent=param['Simulation']['psf_extent'][1],
-                            img_shape=param['Simulation']['img_size'],
-                            target_roi_size=param['HyperParameter']['target_roi_size'],
-                            channels=param['HyperParameter']['channels_out'],
-                            weight_base=param['HyperParameter']['weight_base'])
+        return SimpleWeight(xextent=param.Simulation.psf_extent[0],
+                            yextent=param.Simulation.psf_extent[1],
+                            img_shape=param.Simulation.img_size,
+                            target_roi_size=param.HyperParameter.target_roi_size,
+                            channels=param.HyperParameter.channels_out,
+                            weight_base=param.HyperParameter.weight_base)
 
     def forward(self, frames, tar_em, tar_bg):
 
@@ -113,8 +113,10 @@ class SimpleWeight(WeightGenerator):
 
         if self.weight_base == 'constant':
             weight_pxyz = self.weight_psf.forward(tar_em.xyz, torch.ones_like(tar_em.xyz[:, 0]))
-        elif self.weight_base == 'sqrt_phot':
-            weight_pxyz = self.weight_psf.forward(tar_em.xyz, 1/tar_em.phot.sqrt())
+        elif self.weight_base == 'phot_sqrt':
+            weight_pxyz = self.weight_psf.forward(tar_em.xyz, tar_em.phot.sqrt())
+        elif self.weight_base =='phot':
+            weight_pxyz = self.weight_psf.forward(tar_em.xyz, tar_em.phot)
 
         weight[:, 1:5] = weight_pxyz.unsqueeze(1).repeat(1, 4, 1, 1)
 
@@ -196,12 +198,30 @@ class DerivePseudobgFromBg(WeightGenerator):
 
 
 class CalcCRLB(WeightGenerator):
-    def __init__(self, psf):
+    def __init__(self, psf, crlb_mode):
+        """
+
+        Args:
+            psf: (psf)
+            crlb_mode: ('single', 'multi') single assumes isolated emitters
+        """
         super().__init__()
+        self.crlb_mode = crlb_mode
         self.psf = psf
 
     def forward(self, frames, tar_em, tar_bg):
-        tar_em.populate_crlb(self.psf)
+        """
+        Wrapper that writes crlb values to target emitter set. Not of use outside training
+
+        Args:
+            frames:
+            tar_em:
+            tar_bg:
+
+        Returns:
+
+        """
+        tar_em.populate_crlb(self.psf, mode=self.crlb_mode)
         return frames, tar_em, tar_bg
 
 
