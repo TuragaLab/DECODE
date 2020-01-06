@@ -179,7 +179,9 @@ class DoubleMUnet(nn.Module):
                                  activation=activation, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode,
                                  skip_gn_level=skip_gn_level)
 
+        assert ch_in in (1, 3)
         assert ch_out in (5, 6)
+        self.ch_in = ch_in
         self.ch_out = ch_out
         self.mt_heads = nn.ModuleList(
             [MLTHeads(inter_features, norm=norm_head, norm_groups=norm_head_groups) for _ in range(self.ch_out)])
@@ -255,19 +257,34 @@ class DoubleMUnet(nn.Module):
             return o
 
     def forward(self, x, external=None, force_no_p_nl=False):
-        x0 = x[:, [0]]
-        x1 = x[:, [1]]
-        x2 = x[:, [2]]
-        if external is not None:
-            x0 = torch.cat((x0, external), 1)
-            x1 = torch.cat((x1, external), 1)
-            x2 = torch.cat((x2, external), 1)
+        """
 
-        o0 = self.unet_shared.forward(x0)
-        o1 = self.unet_shared.forward(x1)
-        o2 = self.unet_shared.forward(x2)
+        Args:
+            x:
+            external:
+            force_no_p_nl:
 
-        o = torch.cat((o0, o1, o2), 1)
+        Returns:
+
+        """
+        if self.ch_in == 3:
+            x0 = x[:, [0]]
+            x1 = x[:, [1]]
+            x2 = x[:, [2]]
+            if external is not None:
+                x0 = torch.cat((x0, external), 1)
+                x1 = torch.cat((x1, external), 1)
+                x2 = torch.cat((x2, external), 1)
+
+            o0 = self.unet_shared.forward(x0)
+            o1 = self.unet_shared.forward(x1)
+            o2 = self.unet_shared.forward(x2)
+
+            o = torch.cat((o0, o1, o2), 1)
+
+        elif self.ch_in == 1:
+            o = self.unet_shared.forward(x)
+
         o = self.unet_union.forward(o)
 
         o_head = []
