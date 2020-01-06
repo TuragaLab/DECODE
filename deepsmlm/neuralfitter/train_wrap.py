@@ -344,7 +344,7 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
 
     batch_ev = evaluation.BatchEvaluation(matcher, segmentation_eval, distance_eval,
                                           batch_size=param['HyperParameter']['batch_size'],
-                                          px_size=torch.tensor(param['Camera']['px_size']))
+                                          px_size=torch.tensor(param['Camera']['px_size']), weight='photons')
     epoch_logger = log_utils.LogTestEpoch(logger, experiment)
 
     """Ask if everything is correct before we start."""
