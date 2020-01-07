@@ -114,10 +114,11 @@ class TestSpeiser:
 class TestConsistentPostProcessing:
     @pytest.fixture(scope='class')
     def post(self):
-        return post.ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_framewise')
+        return post.ConsistencyPostprocessing(0.1, final_th=0.5, lat_threshold=30, ax_threshold=200., match_dims=2.1,
+                                              out_format='emitters_framewise')
 
     def test_init_sanity_check(self):
-        post.ConsistencyPostprocessing(0.1, 0.6, lat_threshold=30, ax_threshold=200., vol_threshold=None, match_dims=3)
+        post.ConsistencyPostprocessing(0.1, 0.6, lat_threshold=30, ax_threshold=200., vol_threshold=None, match_dims=2.1)
 
     def test_easy(self, post):
         p = torch.zeros((2, 1, 32, 32)).cuda()
@@ -133,3 +134,31 @@ class TestConsistentPostProcessing:
         out[1, 2, 2, 6] = 1.2
 
         em = post.forward(torch.cat((p, out),1))
+
+    def test_worker(self, post):
+        p = torch.zeros((2, 1, 32, 32)).cuda()
+        out = torch.zeros((2, 4, 32, 32)).cuda()
+        p[1, 0, 2, 4] = 0.6
+        p[1, 0, 2, 6] = 0.6
+        p[0, 0, 0, 0] = 0.3
+        p[0, 0, 0, 1] = 0.4
+
+        out[0, 2, 0, 0] = 0.3
+        out[0, 2, 0, 1] = 0.5
+        out[1, 2, 2, 4] = 1.
+        out[1, 2, 2, 6] = 1.2
+
+        post.num_workers = 0
+        em0 = post.forward(torch.cat((p, out), 1))
+
+        post.num_workers = 1
+        em1 = post.forward(torch.cat((p, out), 1))
+
+        for i in range(em0.__len__()):
+            assert em0[i] == em1[i]
+
+        p = p.repeat((2, 1, 1, 1))
+        out = out.repeat((2, 1, 1, 1))
+
+        post.num_workers = 2
+        em = post.forward(torch.cat((p, out), 1))

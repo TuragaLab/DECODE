@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod  # abstract class
 
+import pathlib
 import torch
 import torch.utils
 import tifffile
@@ -61,6 +62,9 @@ class PredictEval(ABC):
                 so that we can easily concatenate."""
                 em_outs.append(self.post_processor.forward(output))
 
+        # put model back to cpu
+        self.model = self.model.to(torch.device('cpu'))
+
         em_merged = em.EmitterSet.cat_emittersets(em_outs, step_frame_ix=self.batch_size)
         self.prediction = em_merged
         if output_raw:
@@ -91,6 +95,9 @@ class PredictEval(ABC):
                 # compute output
                 output = self.model(x_in)
                 raw_frames.append(output.detach().cpu())
+
+        # put model back to cpu
+        self.model = self.model.to(torch.device('cpu'))
 
         raw_frames = torch.cat(raw_frames, 0)
         return raw_frames
@@ -200,13 +207,50 @@ class PredictEvalTif(PredictEval):
         self.dataset = None
         self.dataloader = None
 
-    def load_tif(self):
-        im = tifffile.imread(self.tif_stack)
-        frames = torch.from_numpy(im.astype('float32'))
+    def load_tif(self, no_init=False):
+        """
+        Reads the tif(f) files. When a folder is specified, potentially multiple files are loaded.
+        Which are stacked into a new first axis.
+        Make sure that if you provide multiple files (i.e. a folder) sorting gives the correct order. Otherwise we can
+        not guarantee anything.
+
+        Args:
+            no_init: (bool) do not init dataset. useful if you want to manipulate your data first
+
+        Returns:
+
+        """
+        p = pathlib.Path(self.tif_stack)
+
+        # if dir, load multiple files and stack them if more than one found
+        if p.is_dir():
+            print("Path to folder of tifs specified. Traversing through the directory.")
+
+            file_list = sorted(p.glob('*.tif*'))  # load .tif or .tiff
+            frames = []
+            for f in tqdm(file_list):
+                frames.append(torch.from_numpy(tifffile.imread(str(f)).astype('float32')))
+
+            print("Tiffs successfully read.")
+            if frames.__len__() >= 2:
+                print("Multiple tiffs found. Stacking them ...")
+                frames = torch.stack(frames, 0)
+            else:
+                frames = frames[0]
+
+        else:
+            im = tifffile.imread(self.tif_stack)
+            print("Tiff successfully read.")
+            frames = torch.from_numpy(im.astype('float32'))
+
+        if frames.squeeze().ndim <= 2:
+            raise ValueError("Tif seems to be of wrong dimension or could only find a single frame.")
+
         frames.unsqueeze_(1)
 
         self.frames = frames
-        self.init_dataset()
+        if not no_init:
+            self.init_dataset()
 
     def init_dataset(self, frames=None):
         """

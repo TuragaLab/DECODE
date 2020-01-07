@@ -6,6 +6,7 @@ import warnings
 import numpy as np
 import joblib
 import torch.multiprocessing as mp
+from joblib import Parallel, delayed
 import scipy
 from sklearn.cluster import AgglomerativeClustering, DBSCAN
 import torch
@@ -363,7 +364,7 @@ class ConsistencyPostprocessing(PostProcessing):
     p_aggregations = ('max', 'sum')
 
     def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=30, ax_threshold=200., vol_threshold=None,
-                 match_dims=2, out_format='emitters', num_workers=0, p_aggregation='max', diag=0, px_size=None):
+                 match_dims=2, out_format='emitters', num_workers=0, p_aggregation='pbinom_cdf', diag=0, px_size=None):
         """
         Constructor. If volumetric matching is used, it is assumed that coordinate maps are already in nm!
         Do not change attributes after construction!
@@ -471,10 +472,11 @@ class ConsistencyPostprocessing(PostProcessing):
                 dist_mat = scipy.spatial.distance.pdist(coord_vol.cpu().numpy())
                 dist_mat = scipy.spatial.distance.squareform(dist_mat)
             else:
-                raise ValueError("Match dims must be 2 or 3.")
+                raise ValueError(f"Match dims must be 2 or 3 and not {match_dims}")
 
             if dist_mat.shape[0] == 1:
-                warnings.warn("I don't know how this can happen but there seems to be a single an isolated difficult case ...", stacklevel=3)
+                warnings.warn("I don't know how this can happen but there seems to be a"
+                              " single an isolated difficult case ...", stacklevel=3)
                 n_clusters = 1
                 labels = torch.tensor([0])
             else:
@@ -508,7 +510,7 @@ class ConsistencyPostprocessing(PostProcessing):
     def _cluster_batch(self, p, features):
         return self._cluster_batch_functional(p, features,
                                               self.clusterer,
-                                              self. p_aggregation,
+                                              self.p_aggregation,
                                               self._match_dims,
                                               self._ax_th)
 
@@ -528,16 +530,16 @@ class ConsistencyPostprocessing(PostProcessing):
         p_split = torch.split(p, math.ceil(batch_size / self.num_workers))
         feat_split = torch.split(features, math.ceil(batch_size / self.num_workers))
 
-        with mp.Pool(processes=self.num_workers) as pool:
+        args = zip(p_split, feat_split)
 
-            # itertools map p and f
-            args = iter.zip_longest(p_split, feat_split, [self.clusterer], [self.p_aggregation], [self._match_dims], [self._ax_th])
-            results = pool.starmap_async(self._cluster_batch_functional, args)
-            results = results.get()
+        results = Parallel(n_jobs=self.num_workers)\
+            (delayed(ConsistencyPostprocessing._cluster_batch_functional)
+             (p_, f_, self.clusterer, self.p_aggregation, self._match_dims, self._ax_th)
+             for p_, f_ in args)
 
         p_out_ = []
         feat_out_ = []
-        for i in range(p.size(0)):
+        for i in range(len(results)):
             p_out_.append(results[i][0])
             feat_out_.append(results[i][1])
 
@@ -591,7 +593,7 @@ class ConsistencyPostprocessing(PostProcessing):
             if self.num_workers == 0:
                 p_out_diff, feat_out_diff = self._cluster_batch(p_diff.cpu(), feat_diff.cpu())
             else:
-                raise NotImplementedError("Multi Processing not working at the moment.")
+                # raise NotImplementedError("Multi Processing not working at the moment.")
                 p_out_diff, feat_out_diff = self._cluster_mp(p_diff, feat_diff)
 
             """Add the easy ones."""

@@ -203,3 +203,29 @@ class TestGlobalOffsetRep:
         plt.show()
         assert True
 
+
+def test_photonthreshold():
+    em = RandomEmitterSet(10000)
+    em.phot = torch.rand_like(em.phot)
+
+    em_th = prep.ThresholdPhotons(0.2).forward(em)
+    assert em_th.num_emitter < em.num_emitter
+    assert (9000 > em_th.num_emitter > 7000)
+
+    em_th = prep.ThresholdPhotons(0.2, 'target').forward(em)
+    assert em_th.num_emitter < em.num_emitter
+    assert (9000 > em_th.num_emitter > 7000)
+
+    random = torch.rand((32, 32))
+    em_th, out = prep.ThresholdPhotons(0.2, 'target').forward(em, random.clone())
+    assert em_th.num_emitter < em.num_emitter
+    assert (9000 > em_th.num_emitter > 7000)
+    assert tutil.tens_almeq(random, out)
+
+    random1 = torch.rand((32, 32))
+    random2 = torch.rand_like(random)
+    out1, em_th, out2 = prep.ThresholdPhotons(0.2, 'weight').forward(random1.clone(), em, random2.clone())
+    assert em_th.num_emitter < em.num_emitter
+    assert (9000 > em_th.num_emitter > 7000)
+    assert tutil.tens_almeq(random1, out1)
+    assert tutil.tens_almeq(random2, out2)
