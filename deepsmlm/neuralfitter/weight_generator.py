@@ -82,7 +82,7 @@ class WeightGenerator(ABC):
 
 
 class SimpleWeight(WeightGenerator):
-    def __init__(self, xextent, yextent, img_shape, target_roi_size, channels, weight_base='constant'):
+    def __init__(self, xextent, yextent, img_shape, target_roi_size, channels, weight_base='constant', weight_power=None):
         super().__init__()
         self.target_roi_size = target_roi_size
         self.channels = channels
@@ -90,9 +90,10 @@ class SimpleWeight(WeightGenerator):
         self.delta2roi = Delta2ROI(roi_size=self.target_roi_size,
                                    channels=4,
                                    overlap_mode='zero')
-        if weight_base not in ('constant', 'phot', 'phot_sqrt'):
+        if weight_base not in ('constant', 'phot'):
             raise ValueError("Weight base can only be constant or sqrt photons.")
         self.weight_base = weight_base
+        self.weight_power = weight_power if weight_power is not None else 1.0
 
     @staticmethod
     def parse(param):
@@ -101,7 +102,8 @@ class SimpleWeight(WeightGenerator):
                             img_shape=param.Simulation.img_size,
                             target_roi_size=param.HyperParameter.target_roi_size,
                             channels=param.HyperParameter.channels_out,
-                            weight_base=param.HyperParameter.weight_base)
+                            weight_base=param.HyperParameter.weight_base,
+                            weight_power=param.HyperParameter.weight_power)
 
     def forward(self, frames, tar_em, tar_bg):
 
@@ -113,12 +115,15 @@ class SimpleWeight(WeightGenerator):
 
         if self.weight_base == 'constant':
             weight_pxyz = self.weight_psf.forward(tar_em.xyz, torch.ones_like(tar_em.xyz[:, 0]))
-        elif self.weight_base == 'phot_sqrt':
-            weight_pxyz = self.weight_psf.forward(tar_em.xyz, tar_em.phot.sqrt())
-        elif self.weight_base =='phot':
-            weight_pxyz = self.weight_psf.forward(tar_em.xyz, tar_em.phot)
+            weight[:, 1:5] = weight_pxyz.unsqueeze(1).repeat(1, 4, 1, 1)
 
-        weight[:, 1:5] = weight_pxyz.unsqueeze(1).repeat(1, 4, 1, 1)
+        elif self.weight_base =='phot':
+            weight_p = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.phot ** self.weight_power)
+            weight_xyz = self.weight_psf.forward(tar_em.xyz, tar_em.phot ** self.weight_power)
+            weight_pxyz = torch.cat((weight_p, weight_xyz.repeat(3, 1, 1)), 0).unsqueeze(0)
+            weight[:, 1:5] = weight_pxyz
+
+        # weight[:, 1:5] = weight_pxyz.unsqueeze(1).repeat(1, 4, 1, 1)
 
         if weight.size(1) >= 6:
             weight[:, 5] = 1.

@@ -169,11 +169,16 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
     """Set target for the Neural Network."""
     if param['HyperParameter']['predict_bg']:
         target_generator = processing.TransformSequence([
+            prepro.ThresholdPhotons.parse(param, mode='target'),
             CombineTargetBackground(ROIOffsetRep.parse(param), num_input_frames=param['HyperParameter']['channels_in']),
             InverseOffsetRescale.parse(param)
         ])
     else:
-        target_generator = processing.TransformSequence.parse([ROIOffsetRep, InverseOffsetRescale], param)
+        target_generator = processing.TransformSequence([
+            prepro.ThresholdPhotons.parse(param, mode='target'),
+            ROIOffsetRep.parse(param),
+            InverseOffsetRescale.parse(param)
+        ])
 
     if param['InOut']['data_set'] == 'precomputed':
         """Load Data from binary."""
@@ -245,6 +250,7 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
 
         if param.HyperParameter.weight_base in ('crlb', 'crlb_single', 'crlb_multi'):
             weight_mask_generator = processing.TransformSequence([
+                prepro.ThresholdPhotons.parse(param, mode='weight'),
                 wgen.DerivePseudobgFromBg(param['Simulation']['psf_extent'][0],
                                           param['Simulation']['psf_extent'][1],
                                           param['Simulation']['img_size'], psf.roi_size),
@@ -254,7 +260,9 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
                                           param['Simulation']['img_size'], param['HyperParameter']['target_roi_size'])
             ])
         else:
-            weight_mask_generator = wgen.SimpleWeight.parse(param)
+            weight_mask_generator = processing.TransformSequence([
+                prepro.ThresholdPhotons.parse(param, mode='weight'),
+                wgen.SimpleWeight.parse(param)])
 
         if param.HyperParameter.ds_lifetime >= 2:
             train_data_smlm = SMLMDatasetOnFlyCached(extent=None,

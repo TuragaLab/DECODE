@@ -62,13 +62,14 @@ HyperParameter:
     lr: 0.002
     weight_decay: 0.01
   optimizer: AdamW
-  photon_threshold: null
+  photon_threshold:
   predict_bg: true
   pseudo_ds_size: 256
   suppress_post_processing: false
   target_roi_size: 3
   test_size: 256
   weight_base: constant
+  weight_power:
 InOut:
   calibration_file: data/Calibration/SMLM Challenge Beads/Coefficients Big ROI/AS-Exp_100nm_3dcal.mat
   data_set: online

@@ -153,6 +153,8 @@ class OffsetRep(TargetGenerator):
     """
     def __init__(self, xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=None):
         super().__init__()
+        if photon_threshold is not None:
+            raise ValueError("Photon threshold not supported within here.")
         self.delta = DeltaPSF(xextent,
                               yextent,
                               zextent,
@@ -199,8 +201,8 @@ class ROIOffsetRep(OffsetRep):
     """
     Generate a target with increased size as compared to OffsetRep.
     """
-    def __init__(self, xextent, yextent, zextent, img_shape, photon_threshold=None, roi_size=3):
-        super().__init__(xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=photon_threshold)
+    def __init__(self, xextent, yextent, zextent, img_shape, roi_size=3):
+        super().__init__(xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=None)
         self.roi_size = roi_size
         if self.roi_size != 3:
             raise NotImplementedError("Currently only ROI size 3 is implemented and tested.")
@@ -215,7 +217,6 @@ class ROIOffsetRep(OffsetRep):
                             param['Simulation']['psf_extent'][1],
                             None,
                             param['Simulation']['img_size'],
-                            param['HyperParameter']['photon_threshold'],
                             param['HyperParameter']['target_roi_size'])
 
     def forward(self, x):
@@ -434,3 +435,54 @@ class RemoveOutOfFOV:
                           frame_ix=em_set.frame_ix[is_emit],
                           id=(None if em_set.id is None else em_set.id[is_emit]))
 
+
+class ThresholdPhotons:
+    def __init__(self, photon_threshold, mode=None):
+        """
+        Thresholds the photon for prediction. Useful for CRLB calculation.
+
+        Args:
+            photon_threshold: threshold values for photon count
+            mode: this makes it possible to use this as a pre-step for the weight generator and the target generator
+        """
+        self.photon_threshold = photon_threshold
+        self._mode = mode
+
+        if self._mode not in (None, 'target', 'weight'):
+            raise ValueError("Not supported.")
+
+    @staticmethod
+    def parse(param, mode=None):
+        return ThresholdPhotons(photon_threshold=param.HyperParameter.photon_threshold, mode=mode)
+
+    def forward_impl(self, em):
+        if self.photon_threshold is None:
+            return em
+
+        ix = em.phot >= self.photon_threshold
+        return em[ix]
+
+    def forward(self, *args):
+        """
+        Removes the emitters that have too few localisations.
+        Cumbersome implementation because this can be used in multiple places.
+
+        Args:
+            args: various arguments. In standard / default mode just the emitterset.
+
+        Returns:
+            emitterset + args without the emitters with too low photon value
+
+        """
+        if self._mode is None:
+            return self.forward_impl(args[0])
+        elif self._mode == 'target':
+            if args.__len__() == 1:
+                return self.forward_impl(args[0])
+            else:
+                return (self.forward_impl(args[0]), *args[1:])
+        elif self._mode == 'weight':
+            if args.__len__() == 2:
+                return args[0], self.forward_impl(args[1])
+            else:
+                return (args[0], self.forward_impl(args[1]), *args[2:])
