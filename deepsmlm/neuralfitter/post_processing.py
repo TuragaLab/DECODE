@@ -223,7 +223,7 @@ class ConnectedComponents:
 
 class SpeiserPost:
 
-    def __init__(self, svalue_th=0.3, sep_th=0.6, out_format='emitters', out_th=0.7):
+    def __init__(self, svalue_th=0.3, sep_th=0.6, out_format='emitters', out_th=0.7, p_agg='max'):
         """
 
         :param svalue_th: single value threshold
@@ -235,6 +235,7 @@ class SpeiserPost:
         self.sep_th = sep_th
         self.out_format = out_format
         self.out_th = out_th
+        self._p_agg = p_agg
 
     @staticmethod
     def parse(param: dict):
@@ -291,7 +292,10 @@ class SpeiserPost:
 
             """This is our final clustered probablity which we then threshold (normally > 0.7) 
             to get our final discrete locations."""
-            p_ps = p_ps1 + p_ps2
+            if self._p_agg == 'sum':
+                p_ps = p_ps1 + p_ps2
+            if self._p_agg == 'max':
+                p_ps = torch.max(p_ps1, p_ps2)
 
             max_mask = torch.clamp(max_mask1 + max_mask2, 0, 1)
 
@@ -349,6 +353,7 @@ class SpeiserPost:
                 y_map.unsqueeze(1),
                 z_map.unsqueeze(1)
             ), 1)
+
             em = EmitterSet(xyz, phot_map, frame_ix, prob=p_map)
             if self.out_format[8:] == '_batch':
                 return em
