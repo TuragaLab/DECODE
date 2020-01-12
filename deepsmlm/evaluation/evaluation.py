@@ -13,12 +13,15 @@ import deepsmlm.evaluation.metric_library as metric_lib
 from scipy.stats import gaussian_kde
 
 
-def kde_sorted(x, y, plot=False):
+def kde_sorted(x, y, plot=False, band_with=None):
     """
     Gives a density estimates useful for plotting many datapoints
     """
     xy = np.vstack([x, y])
-    z = gaussian_kde(xy)(xy)
+    if band_with:
+        z = gaussian_kde(xy, bw_method=band_with)(xy)
+    else:
+        z = gaussian_kde(xy)(xy)
     # Sort the points by density, so that the densest points are plotted last
     idx = z.argsort()
     x, y, z = x[idx], y[idx], z[idx]
