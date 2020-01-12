@@ -157,9 +157,27 @@ class DerivePseudobgFromBg(WeightGenerator):
         self.padding = torch.nn.ReplicationPad2d((pad_x, pad_x, pad_y, pad_y))  # to get the same output dim
 
         self.kernel = torch.ones((bg_roi_size[0], bg_roi_size[1])).unsqueeze(0).unsqueeze(0) / (bg_roi_size[0] * bg_roi_size[1])
+        self.kernel = self.kernel.float()
         self.delta_psf = DeltaPSF(xextent, yextent, None, img_shape)
         self.bin_x = self.delta_psf.bin_x
         self.bin_y = self.delta_psf.bin_y
+
+    def forward_impl(self, x):
+        """
+        Actual magic
+
+        Args:
+            frames: torch.Tensor of size N x C=1 x H x W
+
+        Returns:
+            mean filter on frames
+        """
+
+        # put the kernel to the right place
+        self.kernel = self.kernel.to(x.device)
+
+        x_mean = torch.nn.functional.conv2d(self.padding(x), self.kernel, stride=1, padding=0)
+        return x_mean
 
     def forward(self, frames, tar_em, tar_bg):
         """
@@ -177,8 +195,10 @@ class DerivePseudobgFromBg(WeightGenerator):
         else:
             squeeze_return = False
 
-        bg_framesp = self.padding(tar_bg)
-        local_mean = torch.nn.functional.conv2d(bg_framesp, self.kernel, stride=1, padding=0)
+        # bg_framesp = self.padding(tar_bg)
+        # local_mean = torch.nn.functional.conv2d(bg_framesp, self.kernel, stride=1, padding=0)
+
+        local_mean = self.forward_impl(tar_bg)
 
         bg_start_ix = int(tar_em.frame_ix.min())
 

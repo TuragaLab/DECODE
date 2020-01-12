@@ -16,6 +16,7 @@ from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
 from deepsmlm.generic.psf_kernel import OffsetPSF
 from deepsmlm.generic.utils.warning_util import deprecated
 import deepsmlm.generic.utils.statistics as fan_stat
+from deepsmlm.neuralfitter.weight_generator import DerivePseudobgFromBg
 
 
 def crlb_squared_distance(X, Y, XCrlb, YCrlb):
@@ -369,7 +370,8 @@ class ConsistencyPostprocessing(PostProcessing):
     p_aggregations = ('max', 'sum')
 
     def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=30, ax_threshold=200., vol_threshold=None,
-                 match_dims=2, out_format='emitters', num_workers=0, p_aggregation='pbinom_cdf', diag=0, px_size=None):
+                 match_dims=2, out_format='emitters', num_workers=0, p_aggregation='pbinom_cdf', diag=0,
+                 px_size=None, bg=None, img_shape=None):
         """
         Constructor. If volumetric matching is used, it is assumed that coordinate maps are already in nm!
         Do not change attributes after construction!
@@ -389,6 +391,13 @@ class ConsistencyPostprocessing(PostProcessing):
         self._ax_th = ax_threshold
         self._vol_th = vol_threshold
         self._th = None
+
+        self.bg = bg  # ix of bg in feature map
+        self._bg_ix = None
+        if self.bg is not None:
+            self._bg_ix = 5 - 1
+            self._bg_calculator = DerivePseudobgFromBg(xextent=(0., 1.), yextent=(0., 1.), img_shape=img_shape,
+                                                       bg_roi_size=(13, 13))
 
         self._px_size = px_size
         self._convert_nm = True if self._px_size is not None else False
@@ -436,7 +445,9 @@ class ConsistencyPostprocessing(PostProcessing):
                                          vol_threshold=param.PostProcessing.vol_th,
                                          match_dims=param.PostProcessing.match_dims,
                                          out_format=out_format,
-                                         px_size=param.Camera.px_size)
+                                         px_size=param.Camera.px_size,
+                                         bg=param.HyperParameter.predict_bg,
+                                         img_shape=param.Simulation.img_size)
 
     @staticmethod
     def _cluster_batch_functional(p, features, clusterer, p_aggregation, match_dims, ax_th):
@@ -566,6 +577,16 @@ class ConsistencyPostprocessing(PostProcessing):
             p_clip[is_above_svalue] = p[is_above_svalue]
             # p_clip_rep = p_clip.repeat(1, features.size(1), 1, 1)  # repeated to access the features
 
+            """Compute Local Mean Background"""
+            if self.bg:
+                if not self._bg_ix <= features.size(1) - 1:
+                    raise ValueError("Features are not corresponding to your background index.")
+
+                bg_out = features[:, [self._bg_ix]]
+                bg_out = self._bg_calculator.forward_impl(bg_out).cpu()
+            else:
+                bg_out = None
+
             """Divide the set in easy (no neighbors) and set of predictions with adjacents"""
             binary_mask = torch.zeros_like(p_clip)
             binary_mask[p_clip > 0] = 1.
@@ -607,6 +628,11 @@ class ConsistencyPostprocessing(PostProcessing):
 
             feat_out[is_easy_rep] = feat_easy[is_easy_rep].cpu()
             feat_out[is_diff_rep] = feat_out_diff[is_diff_rep].cpu()
+
+            """Write the bg frame"""
+            if self.bg:
+                feat_out[:, [self._bg_ix]] = bg_out
+
             return p_out, feat_out
 
     def forward(self, features):
@@ -637,8 +663,14 @@ class ConsistencyPostprocessing(PostProcessing):
 
         elif self.out_format[:8] == 'emitters':
             feature_list, prob_final, frame_ix = super().frame2emitter(p_out, feat_out)
-            em = EmitterSet(feature_list[:, 1:4], feature_list[:, 0], frame_ix.squeeze(), prob=prob_final,
-                            xy_unit=xy_unit, px_size=self._px_size)
+            if self.bg is not None:
+                em = EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix.squeeze(),
+                                prob=prob_final, bg=feature_list[:, self._bg_ix],
+                                xy_unit=xy_unit, px_size=self._px_size)
+            else:
+                em = EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix.squeeze(),
+                                prob=prob_final,
+                                xy_unit=xy_unit, px_size=self._px_size)
             if self.out_format[8:] == '_batch':
                 return em
             elif self.out_format[8:] == '_framewise':
