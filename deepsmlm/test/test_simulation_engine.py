@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 
 import deepsmlm.test.utils_ci as tutil
 import deepsmlm.simulation.engine as engine
+import deepsmlm.generic.utils.data_utils as deepsmlm_utils
 
 deepsmlm_root = os.path.abspath(
             os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -34,7 +35,6 @@ class TestSimulationEngine:
     def dummy_ds(self):
         return DummyDataset(n=10)
 
-    @pytest.mark.skip("Okay.")
     def test_setup(self, dummy_ds):
 
         can = engine.SimulationEngine(
@@ -46,6 +46,7 @@ class TestSimulationEngine:
             ds_test=None
         )
 
+        deepsmlm_utils.del_dir(deepsmlm_root + 'deepsmlm/test/assets/sim_engine/dummy_data')
         return True
 
     def test_run(self, dummy_ds):
@@ -59,6 +60,4 @@ class TestSimulationEngine:
         )
 
         can.run(10)
-
-        print("Done.")
 

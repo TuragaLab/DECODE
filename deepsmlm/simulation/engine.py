@@ -14,6 +14,7 @@ import deepsmlm.generic.utils.data_utils as deepsmlm_utils
 class SimulationEngine:
     """
     Simulation engine.
+    Note that the elements of the datasets must be pickable!
     """
     def __init__(self, cache_dir, exp_id, cpu_worker, buffer_size, ds_train, ds_test=None):
 
@@ -143,11 +144,14 @@ class SimulationEngine:
         with open(str(file), 'wb+') as f:
             pickle.dump(dl_out, f)
 
-    def run(self, n_max):
+    def run(self, n_max=None):
         """
         Main method to run the simulation engine.
         Simulates test data once if not None; simulates epochs of training data until buffer is full; clears cached
         training data if loaded by all active training engines;
+
+        Args:
+            n_max: (integer, None) maximum number of loops. Rarely needed (but needed for testing)
 
         Returns:
 
@@ -159,14 +163,13 @@ class SimulationEngine:
 
         """Check if buffer is full, otherwise simulate"""
         n = 0
-        while True:
+        while n_max is None or n < n_max:
             # check buffer
             if len(self.buffer) >= self.buffer_size:
                 # possibly clear buffer element if all engines touched
                 self._relax_buffer()
+                time.sleep(2)  # add some rest here because if the engine needs to wait it's kept in the loop
 
-                time.sleep(5)
-                continue
             else:
                 # generate new training data
                 self._train_data_ix += 1
@@ -174,7 +177,4 @@ class SimulationEngine:
                 self.buffer.append(train_data_name)
                 self.run_pickle_dl(self._dl_train, self.exp_dir / train_data_name, train_data_name)
 
-                n += 1
-                if n > n_max:
-                    break
-
+            n += 1
