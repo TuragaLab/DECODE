@@ -196,10 +196,15 @@ class GaussianExpect(PSF):
 
     def __init__(self, xextent, yextent, zextent, img_shape, sigma_0, peak_weight=False):
         """
-        (See abstract class constructor.)
+        Init of Gaussian Expect. If no z extent is provided we assume 2D PSF.
 
-        :param sigma_0: initial sigma value in px dimension
-        :param peak_weight: use weight for determining the peak intensity instead of
+        Args:
+            xextent: (tuple of float) extent of psf in x
+            yextent: (tuple of float) extent of psf in y
+            zextent: (tuple of float or None, optional) extent of psf in z
+            img_shape: (tuple) img shape
+            sigma_0: sigma in focus
+            peak_weight: (bool) if true: use peak intensity instead of integral under the curve
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
 
@@ -218,7 +223,7 @@ class GaussianExpect(PSF):
             rl_range: rayleigh range in nm
 
         Returns:
-
+            sigma values for x and y
         """
 
         sigma_x = sigma_0 * (1 + ((z + foc_shift)/(rl_range))**2).sqrt()
@@ -230,11 +235,16 @@ class GaussianExpect(PSF):
 
     def forward(self, input, weight=None):
         """
-        Forwards the emitters through the 3D Gaussian model.
+        Forward emitters through PSF. Note that this ignores the frame_ix of a possible emitterset (so it puts all
+        emitters on the same frame). If you want different behaviour, split the emitters in frames ([
+        ].split_in_frames()) and loop over the frames or use simulator to do this for you.
 
-        :param input:  EmitterSet or XYZ coordinates
-        :param weight: (torch.Tensor) override photon count or provide weight when in first channel coordinates are
-        given
+        Args:
+            input: instance of emitterset or xyz coordinates
+            weight: override weight of emitterset (otherwise uses photon count) or specify weight if xyz were given
+
+        Returns:
+            single camera frame
         """
 
         pos, weight = super().forward(input, weight)
