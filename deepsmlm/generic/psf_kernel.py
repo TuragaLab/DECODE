@@ -206,34 +206,37 @@ class GaussianExpect(PSF):
         self.sigma_0 = sigma_0
         self.peak_weight = peak_weight
 
-    def astigmatism(self, z, sigma_0, m=torch.tensor([0.004, 0.001])):
+    @staticmethod
+    def astigmatism(z, sigma_0=1.00, foc_shift=250, rl_range=280.0):
         """
-        Astigmatism function for gaussians which are 3D.
+        Computes width of gaussian dependent on the z value as by the Gaussian Beam model.
 
-        :param z_nm: z value in nanometer
+        Args:
+            z: (torch.Tensor, N) z values
+            sigma_0: initial sigma in px units
+            foc_shift: focal shift upon introduction of cylindrical lens in nm
+            rl_range: rayleigh range in nm
 
-        :return: sigma values
+        Returns:
+
         """
 
-        # raise NotImplementedError
-        sigma_xy = sigma_0 * torch.ones(z.shape[0], 2)  # change behaviour as this is tuple
+        sigma_x = sigma_0 * (1 + ((z + foc_shift)/(rl_range))**2).sqrt()
+        sigma_y = sigma_0 * (1 + ((z - foc_shift)/(rl_range))**2).sqrt()
 
-        sigma_xy[z > 0, :] = torch.cat(
-            ((sigma_0 + m[0] * z[z > 0].abs()).unsqueeze(1),
-             (sigma_0 + m[1] * z[z > 0].abs()).unsqueeze(1)), 1)
-
-        sigma_xy[z < 0, :] = torch.cat(
-            ((sigma_0 + m[1] * z[z < 0].abs()).unsqueeze(1),
-             (sigma_0 + m[0] * z[z < 0].abs()).unsqueeze(1)), 1)
+        sigma_xy = torch.cat((sigma_x.unsqueeze(1), sigma_y.unsqueeze(1)), 1)
 
         return sigma_xy
 
-    def forward(self, input, weight):
+    def forward(self, input, weight=None):
+        """
+        Forwards the emitters through the 3D Gaussian model.
+
+        :param input:  EmitterSet or XYZ coordinates
+        :param weight: (torch.Tensor) override photon count or provide weight when in first channel coordinates are
+        given
         """
 
-        :param pos:  position of the emitter in 2 or 3D
-        :param weight:  number of photons or any other 1:1 connection to an emitter
-        """
         pos, weight = super().forward(input, weight)
         num_emitters = pos.shape[0]
         img_shape = self.img_shape
