@@ -29,7 +29,7 @@ class SimulationEngine:
         self._train_data_ix = -1
 
         self.ds_train = ds_train
-        self.ds_train = ds_train
+        self.ds_test = ds_test
 
         self._dl_train = None
         self._dl_test = None
@@ -53,7 +53,7 @@ class SimulationEngine:
         self.exp_dir = exp_path
 
         # creates folder in which training engines sign up
-        eng_path = self.exp_dir / '_training_engines'
+        eng_path = self.exp_dir / 'training_engines'
         eng_path.mkdir()
         self._train_engines_path = eng_path
 
@@ -66,13 +66,13 @@ class SimulationEngine:
         """
         # self._batch_size = len(self.ds_train) // self.cpu_worker
         self._batch_size = 1
-        self._dl_train = torch.utils.DataLoader(dataset=self.ds_train, batch_size=self._batch_size, shuffle=False,
+        self._dl_train = torch.utils.data.DataLoader(dataset=self.ds_train, batch_size=self._batch_size, shuffle=False,
                                                num_workers=self.cpu_worker, collate_fn=deepsmlm_utils.smlm_collate,
                                                pin_memory=False)
 
         if self.ds_test is not None:
             batch_size_test = 1
-            self._dl_test = torch.utils.DataLoader(dataset=self.ds_test, batch_size=batch_size_test, shuffle=False,
+            self._dl_test = torch.utils.data.DataLoader(dataset=self.ds_test, batch_size=batch_size_test, shuffle=False,
                                                num_workers=self.cpu_worker, collate_fn=deepsmlm_utils.smlm_collate,
                                                pin_memory=False)
 
@@ -81,10 +81,12 @@ class SimulationEngine:
         """
         Checks active training engines by checking .txt files.
         """
+        if not isinstance(folderpath, Path):
+            folderpath = Path(folderpath)
 
         """Get list of all training engines"""
-        engines_txt = list(folderpath.glob('*.txt'))
-        engines = [str(eng.stem()) for eng in engines_txt]
+        engines_txt = folderpath.glob('*.txt')
+        engines = [eng.stem for eng in engines_txt]
         engines.sort()
 
         return engines
@@ -107,13 +109,15 @@ class SimulationEngine:
         self._get_train_engines()
 
         # go through elements in buffer
-        for bel in self.buffer:
+        for i, bel in enumerate(self.buffer):
+            bel_fpath = self.exp_dir / bel
             # get engines that loaded this data already
-            eng_loaded = self._get_engines(bel)
+            eng_loaded = self._get_engines(bel_fpath)
 
             # remove buffer element when all active engines saw this data already
-            if self._train_engines == eng_loaded:
-                deepsmlm_utils.del_dir(bel, False)
+            if (self._train_engines == eng_loaded) and (len(self._train_engines) >= 1):
+                deepsmlm_utils.del_dir(bel_fpath, False)
+                del self.buffer[i]
 
     @staticmethod
     def run_pickle_dl(dl, folder, filename):
@@ -136,10 +140,10 @@ class SimulationEngine:
         out_folder.mkdir()
 
         file = folder / filename
-        with file.open() as f:
-            pickle.dump(dl_out, str(f))
+        with open(str(file), 'wb+') as f:
+            pickle.dump(dl_out, f)
 
-    def run(self):
+    def run(self, n_max):
         """
         Main method to run the simulation engine.
         Simulates test data once if not None; simulates epochs of training data until buffer is full; clears cached
@@ -154,6 +158,7 @@ class SimulationEngine:
             self.run_pickle_dl(self._dl_test, self.exp_dir / 'testdata', 'testdata')
 
         """Check if buffer is full, otherwise simulate"""
+        n = 0
         while True:
             # check buffer
             if len(self.buffer) >= self.buffer_size:
@@ -165,6 +170,11 @@ class SimulationEngine:
             else:
                 # generate new training data
                 self._train_data_ix += 1
-                train_data_name = ('traindata' + str(self._train_data_ix))
+                train_data_name = ('traindata_' + str(self._train_data_ix))
+                self.buffer.append(train_data_name)
                 self.run_pickle_dl(self._dl_train, self.exp_dir / train_data_name, train_data_name)
+
+                n += 1
+                if n > n_max:
+                    break
 
