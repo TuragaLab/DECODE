@@ -1,4 +1,6 @@
 import click
+import datetime
+import socket
 import os
 import torch
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -21,19 +23,25 @@ deepsmlm_root = os.path.abspath(
                  os.pardir, os.pardir)) + '/'
 
 
-# @click.command()
-# @click.option('--param_file', '-p', required=True,
-#               help='Specify your parameter file (.yml or .json).')
-# @click.option('--debug_param', '-d', default=False, is_flag=True,
-#               help='Debug the specified parameter file. Will reduce ds size for example.')
-# @click.option('--num_worker_override', '-w', default=None, type=int,
-#               help='Override the number of workers for the dataloaders.')
-def smlm_engine_setup(param_file, debug_param=False, num_worker_override=None):
+@click.command()
+@click.option('--param_file', '-p', required=True,
+              help='Specify your parameter file (.yml or .json).')
+@click.option('--cache_dir', '-c', default=deepsmlm_root + 'cachedir/simulation_engine',
+              help='Overwrite the cache folder in which the simulation engine stores the results')
+@click.option('--exp_id', '-e', required=True,
+              help='Specify the experiments id under which the engine stores the results.')
+@click.option('--debug_param', '-d', default=False, is_flag=True,
+              help='Debug the specified parameter file. Will reduce ds size for example.')
+@click.option('--num_worker_override', '-w', default=None, type=int,
+              help='Override the number of workers for the dataloaders.')
+def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_worker_override=None):
     """
     Sets up the engine for simulation the DeepSMLM training data
 
     Args:
         param_file:
+        cache_dir:
+        exp_id:
         debug_param:
         num_worker_override:
 
@@ -53,6 +61,9 @@ def smlm_engine_setup(param_file, debug_param=False, num_worker_override=None):
                          "Parse the parameter file via -p [Your parameeter.json]")
     param = dsmlm_par.ParamHandling().load_params(param_file)
 
+    if exp_id is None:
+        exp_id = datetime.now().strftime('%b%d_%H-%M-%S') + '_' + socket.gethostname()
+
     if debug_param:
         dsmlm_par.ParamHandling.convert_param_debug(param)
 
@@ -61,7 +72,7 @@ def smlm_engine_setup(param_file, debug_param=False, num_worker_override=None):
 
     # modify some parameters here
     param.InOut.calibration_file = deepsmlm_root + param.InOut.calibration_file
-    param.HyperParameter.pseudo_ds_size = 8192
+    param.HyperParameter.pseudo_ds_size = 4096
 
     """Server stuff."""
     assert torch.cuda.device_count() <= 1
@@ -81,12 +92,6 @@ def smlm_engine_setup(param_file, debug_param=False, num_worker_override=None):
             yextent=param.Simulation.psf_extent[1],
             img_shape=param.Simulation.img_size
     )
-    # psf = deepsmlm.generic.psf_kernel.GaussianExpect(
-    #     xextent=param.Simulation.psf_extent[0],
-    #     yextent=param.Simulation.psf_extent[1],
-    #     zextent=param.Simulation.psf_extent[2],
-    #     img_shape=param.Simulation.img_size,
-    #     sigma_0=1.25)
 
     """Structure Prior"""
     prior_struct = deepsmlm.simulation.structure_prior.RandomStructure(
@@ -135,15 +140,15 @@ def smlm_engine_setup(param_file, debug_param=False, num_worker_override=None):
     ds_test = deepsmlm.neuralfitter.dataset.SMLMSimulationDatasetOnFly(simulator=simulation,
                                                                        ds_size=param.HyperParameter.test_size)
 
-    simulation_engine = deepsmlm.simulation.engine.SimulationEngine(deepsmlm_root + 'deepsmlm/test/assets/sim_engine',
-                                                                    exp_id='dummy_test',
+    simulation_engine = deepsmlm.simulation.engine.SimulationEngine(cache_dir=cache_dir,
+                                                                    exp_id=exp_id,
                                                                     cpu_worker=10,
                                                                     buffer_size=3,
                                                                     ds_train=ds_train,
                                                                     ds_test=None)
 
-    simulation_engine.run(n_max=5)
+    simulation_engine.run()
     
 
 if __name__ == '__main__':
-    smlm_engine_setup(param_file=deepsmlm_root + 'config_central/2020-01-07_thesis_real_sf_fg05.yml')
+    smlm_engine_setup()

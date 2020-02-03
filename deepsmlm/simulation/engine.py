@@ -125,6 +125,8 @@ class SimulationEngine:
                 deepsmlm_utils.del_dir(bel_fpath, False)
                 del self.buffer[i]
 
+        print('Buffer checked and cleared. Waiting for training engines to pick up the data.', end="\r")
+
     @staticmethod
     def run_pickle_dl(dl, folder, filename):
         """
@@ -149,7 +151,7 @@ class SimulationEngine:
 
         file = folder / filename
         with open(str(file), 'wb+') as f:
-            pickle.dump(dl_out, f)
+            pickle.dump(dl_out, f, protocol=-1)
 
     def run(self, n_max=None):
         """

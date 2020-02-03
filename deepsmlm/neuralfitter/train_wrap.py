@@ -68,8 +68,6 @@ deepsmlm_root = os.path.abspath(
 WRITE_TO_LOG = True
 
 """Load Parameters here, import torch afterwards"""
-
-
 @click.command()
 @click.option('--no_log', '-n', default=False, is_flag=True,
               help='Set no log if you do not want to log the current run.')
