@@ -44,6 +44,9 @@ class EmitterPopper:
             self.area = self.structure.get_area
             self.emitter_av = self.density * self.area
 
+    def __call__(self):
+        return self.pop()
+
     def pop(self):
         """
         Pop a new sample.

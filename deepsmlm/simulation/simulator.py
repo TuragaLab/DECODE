@@ -17,7 +17,7 @@ from deepsmlm.generic.plotting.frame_coord import PlotFrame
 
 class Simulation:
     """
-    A class representing a smlm simulation
+    A class representing a SMLM simulation
 
     an image is represented according to pytorch convention, i.e.
     (N, C, H, W) in 2D - batched
@@ -26,16 +26,15 @@ class Simulation:
     (C, D, H, W) in 2D - single image
     (https://pytorch.org/docs/stable/_modules/torch/nn/modules/conv.html#Conv3d)
     """
-    def __init__(self, em, extent, psf, background, noise, frame_range=None, poolsize=4, out_bg=False):
+    def __init__(self, em, extent, psf, background, noise, frame_range=None, out_bg=False):
         """
 
         :param noise:
-        :param em: set of emitters. instance of class EmitterSet
+        :param em: set of emitters or sampler which outputs an emitterset upon calling
         :param extent: extent of the simulation, gives image-shape a meaning. tuple of tuples
         :param psf: instance of class psf
         :param background: instance of class background
         :param noise: instance of class noise
-        :param poolsize: how many threads should be open to calculate psf
         :param frame_range: enforce the frame range of the simulation. None (default) / tuple
             usually we start with 0 (or the first frame) and end with the last frame, but you might want to have your
             simulation always contain a specific number of frames.
@@ -43,7 +42,8 @@ class Simulation:
         """
 
         self.em = em
-        self.em_split = None
+        self.em_curr = None
+        self.em_curr_split = None
         self.extent = extent
         self.frames = None
         self.frame_range = frame_range if frame_range is not None else (0, -1)
@@ -51,12 +51,18 @@ class Simulation:
         self.psf = psf
         self.background = background
         self.noise = noise
-        self.poolsize = poolsize
         self.out_bg = out_bg
 
+        """
+        If the em input is a plain EmitterSet (and not a sampler) then just write it to the current emitterset 
+        attribute
+        """
+        if isinstance(self.em, EmitterSet):
+            self.em_curr = self.em
+
         """Split the Set of Emitters in frames. Outputs list of set of emitters."""
-        if self.em is not None:
-            self.em_split = self.em.split_in_frames(self.frame_range[0], self.frame_range[1])
+        if self.em_curr is not None:
+            self.em_curr_split = self.em_curr.split_in_frames(self.frame_range[0], self.frame_range[1])
 
         if (self.background is not None) and (self.noise is None):
             """This is temporary since I changed the interface."""
@@ -67,7 +73,6 @@ class Simulation:
         if self.out_bg and (self.background is None):  # when we want to output bg we need to define it
             raise ValueError("If you want to output background in simulation you need to specify it. "
                              "Currently background was None.")
-
 
     @staticmethod
     def forward_single_frame(pos, phot, psf):
@@ -103,18 +108,18 @@ class Simulation:
         """
 
         if em_new is not None:
-            self.em = em_new
-            self.em_split = self.em.split_in_frames(self.frame_range[0], self.frame_range[1])
+            self.em_curr = em_new
+            self.em_curr_split = self.em_curr.split_in_frames(self.frame_range[0], self.frame_range[1])
 
-        if self.poolsize != 0:
-            raise NotImplementedError("Does not work at the moment.")
+        elif not isinstance(self.em, EmitterSet):  # do we have a sampler?
+            self.em_curr = self.em()
+            self.em_curr_split = self.em_curr.split_in_frames(self.frame_range[0], self.frame_range[1])
 
-        else:
-            em_sets = self.em_split.__len__()
-            frame_list = [None] * em_sets
-            for i in range(em_sets):
-                frame_list[i] = self.forward_single_frame_wrapper(self.em_split[i],
-                                                                  self.psf)
+        em_sets = len(self.em_curr_split)
+        frame_list = [None] * em_sets
+        for i in range(em_sets):
+            frame_list[i] = self.forward_single_frame_wrapper(self.em_curr_split[i],
+                                                              self.psf)
 
         frames = torch.stack(frame_list, dim=0)
 
@@ -133,7 +138,7 @@ class Simulation:
             frames = self.noise.forward(frames)
 
         self.frames = frames
-        return frames, bg_frames
+        return frames, bg_frames, self.em_curr
 
     def write_to_binary(self, outfile):
             """

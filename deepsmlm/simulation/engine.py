@@ -1,7 +1,9 @@
 """
 This module sets up a simulation engine which writes to a binary
 """
+import copy
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.utils
 import tqdm
 import time
@@ -38,6 +40,8 @@ class SimulationEngine:
         self.setup_dataloader()
         self._setup_exchange()
 
+        print("Simulation engine setup up done.")
+
     def _setup_exchange(self):
         """
         Sets up the exchange folder of the simulation engine after some sanity checking.
@@ -66,13 +70,13 @@ class SimulationEngine:
 
         """
         # self._batch_size = len(self.ds_train) // self.cpu_worker
-        self._batch_size = 1
+        self._batch_size = 256
         self._dl_train = torch.utils.data.DataLoader(dataset=self.ds_train, batch_size=self._batch_size, shuffle=False,
                                                num_workers=self.cpu_worker, collate_fn=deepsmlm_utils.smlm_collate,
                                                pin_memory=False)
 
         if self.ds_test is not None:
-            batch_size_test = 1
+            batch_size_test = 256
             self._dl_test = torch.utils.data.DataLoader(dataset=self.ds_test, batch_size=batch_size_test, shuffle=False,
                                                num_workers=self.cpu_worker, collate_fn=deepsmlm_utils.smlm_collate,
                                                pin_memory=False)
@@ -116,7 +120,8 @@ class SimulationEngine:
             eng_loaded = self._get_engines(bel_fpath)
 
             # remove buffer element when all active engines saw this data already
-            if (self._train_engines == eng_loaded) and (len(self._train_engines) >= 1):
+            # if (self._train_engines == eng_loaded) and (len(self._train_engines) >= 1):
+            if set(self._train_engines).issubset(eng_loaded) and (len(self._train_engines) >= 1):
                 deepsmlm_utils.del_dir(bel_fpath, False)
                 del self.buffer[i]
 
@@ -134,7 +139,9 @@ class SimulationEngine:
         """
         dl_out = []
         for dl_batch in tqdm.tqdm(dl):
-            dl_out.append(dl_batch)
+            dl_batch_ = copy.deepcopy(dl_batch)  # otherwise you get multiprocessing issues
+            del dl_batch
+            dl_out.append(dl_batch_)
 
         out_folder = Path(folder)
         assert not out_folder.exists()
@@ -168,7 +175,7 @@ class SimulationEngine:
             if len(self.buffer) >= self.buffer_size:
                 # possibly clear buffer element if all engines touched
                 self._relax_buffer()
-                time.sleep(2)  # add some rest here because if the engine needs to wait it's kept in the loop
+                time.sleep(5)  # add some rest here because if the engine needs to wait it's kept in the loop
 
             else:
                 # generate new training data

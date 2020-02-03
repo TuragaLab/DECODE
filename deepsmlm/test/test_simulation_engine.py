@@ -60,4 +60,4 @@ class TestSimulationEngine:
         )
 
         can.run(10)
-
+        deepsmlm_utils.del_dir(deepsmlm_root + 'deepsmlm/test/assets/sim_engine/dummy_data')
