@@ -96,7 +96,7 @@ auto fPSF_fisher(spline *sp, torch::Tensor xyz, torch::Tensor phot, torch::Tenso
     float img[img_size * img_size];
     std::fill_n(img, img_size * img_size, 0.0);
     float* hessian_blocked_matrix = new float[sp->NV_PSP * n_emitter * sp->NV_PSP * n_emitter]();
-    // std::fill_n(hessian_blocked_matrix, sp->NV_PSP * n_emitter * sp->NV_PSP * n_emitter, 0.0);
+    std::fill_n(hessian_blocked_matrix, sp->NV_PSP * n_emitter * sp->NV_PSP * n_emitter, 0.0);
 
     // convert tensors to sted::vectors
     std::vector<std::array<float, 3>> xyz_;
@@ -114,10 +114,6 @@ auto fPSF_fisher(spline *sp, torch::Tensor xyz, torch::Tensor phot, torch::Tenso
     corner_coord[1] += 0.5;
     
     construct_multi_fisher(sp, xyz_, phot_, bg_, corner_coord, img_size, img, hessian_blocked_matrix);
-
-    #ifdef DEBUG
-        std::cout << "After Multi Fisher COnstruction." << std::endl;
-    #endif
 
     torch::Tensor hessian_tensor = torch::empty({sp->NV_PSP * n_emitter, sp->NV_PSP * n_emitter}, torch::kFloat);
     torch::Tensor img_tensor = torch::empty({1, img_size, img_size}, torch::kFloat);
