@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod  # abstract class
 import numpy as np
+import h5py
 import torch
 import scipy.io as sio
 from skimage.io import imread
@@ -36,7 +37,6 @@ class BinaryInterface(ABC):
     def save_binary(self):
         raise NotImplementedError
 
-
 def totuple(a):
     try:
         return tuple(totuple(i) for i in a)
@@ -47,47 +47,64 @@ def totuple(a):
 """---------------------------------------------- Interface Definitions ---------------------------------------------"""
 
 
-class MatlabInterface(BinaryInterface):
+class MatlabInterface:
+    """
+    Load an SML localisation file from SMAP. Assumes it is stored in the modern -v7.3 format (i.e. a HDF5).
+    """
 
-    def __init__(self,
-                 xyz_key='xyz', phot_key='phot', fix_key='frame_ix',
-                 extent_key='extent', frame_key='frames', id_key='id', unsupervised=False):
-        super().__init__(unsupervised)
+    x_key = 'xnm'
+    y_key = 'ynm'
+    z_key = 'znm'
+    phot_key = 'phot'
+    frame_key = 'frame'
+    bg_key = 'bg'
 
-        self.xyz_key = xyz_key
-        self.phot_key = phot_key
-        self.fix_key = fix_key
-        self.id_key = id_key
+    xy_unit = 'nm'
 
-        self.extent_key = extent_key
-        self.frame_key = frame_key
+    def __init__(self, frame_shift=-1, axis=[1, 0, 2]):
+        """
+        Specifies some transformations
+
+        Args:
+            frame_shift: transform frame index. Usually -1 because MATLAB counts starting at 1, Python 0
+            axis: swap axis
+
+        """
+
+        self.frame_shift = frame_shift
+        self.axis_trafo = axis
+        self._cache_sml = None
 
     def load_binary(self, mat_file):
-        bin = sio.loadmat(mat_file)
-
-        emitter_set = EmitterSet(xyz=torch.from_numpy(bin[self.xyz_key]),
-                                 phot=torch.from_numpy(bin[self.phot_key]).squeeze(),
-                                 frame_ix=torch.from_numpy(bin[self.fix_key] - 1).squeeze(),
-                                 id=torch.from_numpy(bin[self.id_key]).squeeze())
-
-        extent = totuple(bin[self.extent_key])
-        if extent.__len__() == 2:
-            print("WARNING: Extent does not specify whether we have a 3rd dimension.")
-            extent = (extent[0], extent[1], None)
-
-        frames = torch.from_numpy(bin[self.frame_key].astype(np.int64)).type(torch.FloatTensor)
         """
-        Note that we need to transpose the input coming from matlab because there we don't have the issue with regard 
-        to coordinate axis order and image axis. 
+        Loads the savelocs struct from Matlab. Applies transformations as specified
+
+        Args:
+            mat_file:
+
+        Returns:
+            (EmitterSet)
         """
-        frames = frames.transpose(-1, -2)
+        f = h5py.File(mat_file, 'r')
+        self._cache_sml = f
 
-        print("Matlab binary loaded. File: {}".format(mat_file))
+        loc_dict = f['saveloc']['loc']
+        xyz = torch.cat([
+            torch.from_numpy(np.array(loc_dict[self.x_key])).permute(1, 0),
+            torch.from_numpy(np.array(loc_dict[self.y_key])).permute(1, 0),
+            torch.from_numpy(np.array(loc_dict[self.z_key])).permute(1, 0)
+        ], 1)
 
-        return emitter_set, extent, frames
+        em = EmitterSet(xyz=xyz,
+                        phot=torch.from_numpy(np.array(loc_dict[self.phot_key])).squeeze(),
+                        frame_ix=torch.from_numpy(np.array(loc_dict[self.frame_key])).squeeze(),
+                        bg=torch.from_numpy(np.array(loc_dict[self.bg_key])).squeeze(),
+                        xy_unit=self.xy_unit)
 
-    def save_binary(self, emitter_set, mat_file):
-        raise NotImplementedError('Not Implemented.')
+        em.convert_coordinates(axis=self.axis_trafo)
+        em.frame_ix += self.frame_shift
+
+        return em
 
 
 class NumpyInterface(BinaryInterface):
