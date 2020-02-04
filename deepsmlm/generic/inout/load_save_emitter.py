@@ -101,7 +101,7 @@ class MatlabInterface:
                         bg=torch.from_numpy(np.array(loc_dict[self.bg_key])).squeeze(),
                         xy_unit=self.xy_unit)
 
-        em.convert_coordinates(axis=self.axis_trafo)
+        em.convert_em_(axis=self.axis_trafo)
         em.frame_ix += self.frame_shift
 
         return em
