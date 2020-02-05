@@ -141,16 +141,4 @@ class Simulation:
         return frames, bg_frames, self.em_curr
 
     def write_to_binary(self, outfile):
-            """
-            Writes frames and emitters to binary.
-            :param outfile: output file
-            :return: void
-            """
-            np.savez_compressed(outfile,
-                                frames=self.frames.numpy(),
-                                xyz=self.em.xyz,
-                                phot=self.em.phot,
-                                id=self.em.id,
-                                frame_ix=self.em.frame_ix,
-                                extent=self.extent)
-            print("Saving simulation to {}.".format(outfile))
+        raise NotImplementedError
