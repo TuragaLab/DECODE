@@ -1,6 +1,7 @@
 import os
 import pytest
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 import time
 from torch.utils.data import Dataset
 
@@ -17,7 +18,7 @@ class DummyDataset(Dataset):
     def __init__(self, n=10):
 
         self.frames = torch.rand((n, 32, 32))
-        self.gt = torch.arange(n)
+        self.gt = torch.rand_like(self.frames)
         self.n = n
 
     def __len__(self):
@@ -59,5 +60,5 @@ class TestSimulationEngine:
             ds_test=None
         )
 
-        can.run(10)
+        can.run(1000)
         deepsmlm_utils.del_dir(deepsmlm_root + 'deepsmlm/test/assets/sim_engine/dummy_data')
