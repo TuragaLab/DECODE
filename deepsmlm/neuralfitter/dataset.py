@@ -1,7 +1,10 @@
 import torch
 import os
 import glob
+import datetime
+import socket
 import time
+import pathlib
 import tqdm
 import warnings
 from torch.utils.data import Dataset
@@ -70,6 +73,24 @@ class SMLMStaticDataset(Dataset):
         em_tar = self.em[index]
         target = self.target_generator.forward(em_tar)
         return img, target, em_tar, index
+
+
+class SMLMTrainingEngineDataset(Dataset):
+    def __init__(self, em_filter, input_prep, target_gen, weight_gen, ds=None):
+        """
+
+        Args:
+            em_filter: (callable) that filters the emitters as provided by the simulation engine
+            input_prep: (callable) that prepares the input data for the network (e.g. rescaling)
+            target_gen: (callable) that generates the training data
+            weight_gen: (callable) that generates a weight mask corresponding to the target / output data
+
+        """
+
+        self.em_filter = em_filter
+        self.input_prep = input_prep
+        self.target_gen = target_gen
+        self.weight_gen = weight_gen
 
 
 class SMLMSimulationDatasetOnFly(Dataset):

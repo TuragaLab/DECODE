@@ -18,6 +18,7 @@ import deepsmlm.generic.inout.util
 import deepsmlm.simulation.engine
 import deepsmlm.generic.inout.load_calibration
 import deepsmlm.neuralfitter.dataset
+import deepsmlm.neuralfitter.scale_transform
 
 
 """Root folder"""
@@ -119,8 +120,121 @@ def setup_train_engine(param_file, no_log, debug_param, log_folder, num_worker_o
     param_file_out = param.InOut.model_out[:-3] + '_param.json'
     dsmlm_par.ParamHandling().write_params(param_file_out, param)
 
-    #ToDo: unfinished logging here
+    """Set model, optimiser, loss and schedulers"""
+    models_ava = {
+        'BGNet': model_zoo.BGNet,
+        'DoubleMUnet': model_zoo.DoubleMUnet,
+        'SimpleSMLMNet': model_zoo.SimpleSMLMNet,
+        'SMLMNetBG': model_zoo.SMLMNetBG
+    }
+    model = models_ava[param.HyperParameter.architecture]
+    model = model.parse(param)
+
+    model_ls = LoadSaveModel(model,
+                             output_file=param['InOut']['model_out'],
+                             input_file=param['InOut']['model_init'])
+
+    model = model_ls.load_init()
+    model = model.to(torch.device(param['Hardware']['device']))
+
+    # Small collection of optimisers
+    opt_ava = {
+        'Adam': Adam,
+        'AdamW': AdamW
+    }
+
+    optimizer = opt_ava[param.HyperParameter.optimizer]
+    optimizer = optimizer(model.parameters(), **param.HyperParameter.opt_param)
+
+    """Loss function."""
+    criterion = ls.MaskedPxyzLoss.parse(param, logger)
+
+    """Learning Rate and Simulation Scheduling"""
+    lr_scheduler = ReduceLROnPlateau(optimizer, **param.LearningRateScheduler)
+
+    """Log the model"""
+    try:
+        dummy = torch.rand((2, param.HyperParameter.channels_in,
+                            *param.Simulation.img_size), requires_grad=True)
+        logger.add_graph(model, dummy, False)
+    except:
+        print("Your dummy input is wrong. Please update it.")
+
+    # ToDo: Some logging
+
+    """Transform input data, compute weight mask and target data"""
+    in_prep = deepsmlm.neuralfitter.scale_transform.InputFrameRescale.parse(param)
+
+    tar_gen = deepsmlm.generic.utils.processing.TransformSequence([
+        ROIOffsetRep.parse(param),
+        InverseOffsetRescale.parse(param)
+    ])
+
+    weight_gen = SimpleWeight.parse(param)
+
+    train_ds = SMLMEngineDataset()
+    test_ds = SMLMEngineDataset()
+
+    train_dl = torch.utils.data.DataLoader(
+        dataset=train_ds,
+        batch_size=param.HyperParameter.batch_size,
+        shuffle=True,
+        num_workers=param.Hardware.num_worker_train,
+        pin_memory=False,
+        collate_fn=smlm_collate)
+
+    test_dl = torch.utils.data.DataLoader(
+        dataset=test_ds,
+        batch_size=param.HyperParameter.batch_size,
+        shuffle=False,
+        num_workers=param.Hardware.num_worker_train,
+        pin_memory=False,
+        collate_fn=smlm_collate)
+
+    """Set up post processor"""
+    if not param.HyperParameter.suppress_post_processing:
+        post_processor = deepsmlm.generic.utils.processing.TransformSequence.parse([OffsetRescale,
+                                                         post.Offset2Coordinate,
+                                                         post.ConsistencyPostprocessing], param)
+    else:
+        post_processor = post.NoPostProcessing()
+
+    """Evaluation Specification"""
+    matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
+    segmentation_eval = evaluation.SegmentationEvaluation(False)
+    distance_eval = evaluation.DistanceEvaluation(print_mode=False)
+
+    batch_ev = evaluation.BatchEvaluation(matcher, segmentation_eval, distance_eval,
+                                          batch_size=param.HyperParameter.batch_size,
+                                          px_size=torch.tensor(param.Camera.px_size), weight='photons')
+
+    epoch_logger = log_utils.LogTestEpoch(logger, experiment)
+
+    # this is useful if we restart a training
+    first_epoch = param['HyperParameter']['epoch_0'] if param['HyperParameter']['epoch_0'] is not None else 0
+    for i in range(first_epoch, param.HyperParameter.epochs):
+        logger.add_scalar('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
+        experiment.log_metric('learning/learning_rate', optimiser.param_groups[0]['lr'], i)
+
+        _ = train(train_dl, model, optimizer, criterion, i, param, logger, experiment)
+
+        val_loss = test(test_dl, model, criterion, i, param, logger, experiment, post_processor, batch_ev, epoch_logger)
+
+        """
+        When using online generated data and data is given a lifetime, 
+        reduce the steps until a new dataset is to be created. This needs to happen before sim_scheduler (for reasons).
+        """
+        if param.InOut.data_set == 'online':
+            train_loader.dataset.step()
+
+        lr_scheduler.step(val_loss)
+        sim_scheduler.step(val_loss)
+
+        """Save."""
+        model_ls.save(model, val_loss)
+
+    experiment.end()
 
 
 if __name__ == '__main__':
-    pass
+    setup_train_engine()

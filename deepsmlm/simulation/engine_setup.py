@@ -71,8 +71,9 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
         param.Hardware.num_worker_sim = num_worker_override
 
     # modify some parameters here
+    # ToDo: Remove this!
     param.InOut.calibration_file = deepsmlm_root + param.InOut.calibration_file
-    param.HyperParameter.pseudo_ds_size = 4096
+    # param.HyperParameter.pseudo_ds_size = 2048
 
     """Server stuff."""
     assert torch.cuda.device_count() <= 1

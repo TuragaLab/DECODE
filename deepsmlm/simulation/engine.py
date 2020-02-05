@@ -2,6 +2,8 @@
 This module sets up a simulation engine which writes to a binary
 """
 import copy
+import math
+import itertools
 import torch
 torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.utils
@@ -10,6 +12,7 @@ import time
 import pickle
 from pathlib import Path
 
+import deepsmlm.generic.emitter
 import deepsmlm.generic.utils.data_utils as deepsmlm_utils
 
 
@@ -62,21 +65,26 @@ class SimulationEngine:
         eng_path.mkdir()
         self._train_engines_path = eng_path
 
-    def setup_dataloader(self):
+    def setup_dataloader(self, batch_size=256):
         """
         Sets up the dataloader for the simulation engine.
+
+        Args:
+            batch_size: (int) the batch_size for the dataloaders to produce the training samples. High values reduce
+            thread overhead, but can lead to shared memory issues.
 
         Returns:
 
         """
-        # self._batch_size = len(self.ds_train) // self.cpu_worker
-        self._batch_size = 256
+        self._batch_size = batch_size
+
         self._dl_train = torch.utils.data.DataLoader(dataset=self.ds_train, batch_size=self._batch_size, shuffle=False,
                                                num_workers=self.cpu_worker, collate_fn=deepsmlm_utils.smlm_collate,
                                                pin_memory=False)
 
         if self.ds_test is not None:
-            batch_size_test = 256
+            batch_size_test = batch_size
+
             self._dl_test = torch.utils.data.DataLoader(dataset=self.ds_test, batch_size=batch_size_test, shuffle=False,
                                                num_workers=self.cpu_worker, collate_fn=deepsmlm_utils.smlm_collate,
                                                pin_memory=False)
@@ -128,6 +136,34 @@ class SimulationEngine:
         print('Buffer checked and cleared. Waiting for training engines to pick up the data.', end="\r")
 
     @staticmethod
+    def reduce_batch_dim(batches):
+        """
+        Transforms from list of batches with content elements into collection of content elements
+
+        Args:
+            batches:
+
+        Returns:
+
+        """
+        # n_batches = len(batches)
+        sample_instance = [x[0][0] for x in batches[0]]
+        n_types = len(sample_instance)
+
+        con = [None] * n_types
+
+        for i, t in enumerate(sample_instance):
+            if isinstance(t, deepsmlm.generic.emitter.EmitterSet):
+                con[i] = [e[i] for e in batches]  # list of lists of emittersets
+                con[i] = list(itertools.chain.from_iterable(con[i]))
+            elif isinstance(t, torch.Tensor):
+                con[i] = torch.cat([e[i] for e in batches], dim=0)
+            else:
+                raise NotImplementedError("Unsupported type for reduction.")
+
+        return con
+
+    @staticmethod
     def run_pickle_dl(dl, folder, filename):
         """
         Runs the dataloader for a single epoch and pickles the results into a file
@@ -144,6 +180,9 @@ class SimulationEngine:
             dl_batch_ = copy.deepcopy(dl_batch)  # otherwise you get multiprocessing issues
             del dl_batch
             dl_out.append(dl_batch_)
+
+        # if batch size was more than 1, collate
+        dl_out = SimulationEngine.reduce_batch_dim(dl_out)
 
         out_folder = Path(folder)
         assert not out_folder.exists()
