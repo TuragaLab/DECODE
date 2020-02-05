@@ -9,7 +9,6 @@ import math
 import torch
 
 from deepsmlm.evaluation.metric_library import PrecisionRecallJaccard, RMSEMAD, efficiency
-import deepsmlm.evaluation.metric_library as metric_lib
 from scipy.stats import gaussian_kde
 
 
@@ -257,6 +256,7 @@ class EvalSet:
 class BatchEvaluation:
 
     def __init__(self, matching, segmentation_eval, distance_eval, batch_size, weight='crlb_sqr', px_size=None):
+        import deepsmlm.evaluation.metric_library as metric_lib
         self._matching = matching
         self._segmentation_eval = segmentation_eval
         self._distance_eval = distance_eval

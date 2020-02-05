@@ -16,7 +16,6 @@ from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
 from deepsmlm.generic.psf_kernel import OffsetPSF
 from deepsmlm.generic.utils.warning_util import deprecated
 import deepsmlm.generic.utils.statistics as fan_stat
-from deepsmlm.neuralfitter.weight_generator import DerivePseudobgFromBg
 
 
 def crlb_squared_distance(X, Y, XCrlb, YCrlb):
@@ -381,6 +380,8 @@ class ConsistencyPostprocessing(PostProcessing):
         :param out_th: final threshold
         """
         super().__init__(final_th)
+        import deepsmlm.neuralfitter.weight_generator
+
         self.svalue_th = svalue_th
         self.final_th = final_th
         self.out_format = out_format
@@ -396,7 +397,7 @@ class ConsistencyPostprocessing(PostProcessing):
         self._bg_ix = None
         if self.bg is not None:
             self._bg_ix = 5 - 1
-            self._bg_calculator = DerivePseudobgFromBg(xextent=(0., 1.), yextent=(0., 1.), img_shape=img_shape,
+            self._bg_calculator = deepsmlm.neuralfitter.weight_generator.DerivePseudobgFromBg(xextent=(0., 1.), yextent=(0., 1.), img_shape=img_shape,
                                                        bg_roi_size=(13, 13))
 
         self._px_size = px_size

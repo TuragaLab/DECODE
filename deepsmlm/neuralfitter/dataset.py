@@ -1,25 +1,20 @@
-import torch
-import os
-import glob
-import datetime
-import socket
-import time
-import pathlib
-import tqdm
-import warnings
-from torch.utils.data import Dataset
 import ctypes
-import numpy as np
 import multiprocessing as mp
+import numpy as np
+import torch
+import tqdm
+from torch.utils.data import Dataset
 
+import deepsmlm.neuralfitter.engine
 from deepsmlm.generic.emitter import EmitterSet
-from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV, N2C, Identity
+from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV
 
 
 class SMLMStaticDataset(Dataset):
     """
     A SMLMDataset derived from the Dataset class.
     """
+
     def __init__(self, emitter, extent, frames, tar_gen, multi_frame_output=True):
         """
 
@@ -38,7 +33,7 @@ class SMLMStaticDataset(Dataset):
 
         # Remove the emitters which are out of the FOV.
         emitter = RemoveOutOfFOV(self.extent[0], self.extent[1]).clean_emitter_set(emitter)
-        self.em = emitter.split_in_frames(ix_f=0, ix_l=self.__len__()-1)
+        self.em = emitter.split_in_frames(ix_f=0, ix_l=self.__len__() - 1)
 
         self.image_shape = tuple(self.frames.shape[2:])
         self.image_shape_hr = (self.image_shape[0] * self.upsampling,
@@ -76,21 +71,81 @@ class SMLMStaticDataset(Dataset):
 
 
 class SMLMTrainingEngineDataset(Dataset):
-    def __init__(self, em_filter, input_prep, target_gen, weight_gen, ds=None):
+    def __init__(self, engine,
+                 em_filter, input_prep, target_gen, weight_gen, return_em_tar=False):
         """
 
         Args:
+            engine: (SMLMTrainingEngine)
             em_filter: (callable) that filters the emitters as provided by the simulation engine
             input_prep: (callable) that prepares the input data for the network (e.g. rescaling)
             target_gen: (callable) that generates the training data
             weight_gen: (callable) that generates a weight mask corresponding to the target / output data
+            return_em_tar: (bool) return target emitters in the form of an emitter set. use for test set
 
         """
+        self._engine = engine
+        self._x_in = None
+        self._tar_em = None
+        self._aux = None
 
         self.em_filter = em_filter
         self.input_prep = input_prep
         self.target_gen = target_gen
         self.weight_gen = weight_gen
+        self.return_em_tar = return_em_tar
+
+    def _load_from_engine(self):
+        """
+        Gets the data from the engine makes basic transformations
+
+        Returns:
+            None
+
+        """
+
+        self._tar_em = None
+        self._x_in = None
+        self._aux = None
+
+        data = self._engine.load_and_touch()
+        self._tar_em = data[0]
+        self._x_in = data[1]
+        if len(data) >= 3:
+            self._aux = data[2:]
+        else:
+            self._aux = [None] * self._x_in.size(0)
+
+    def __len__(self):
+        return self._x_in.size(0).item()
+
+    def __getitem__(self, ix):
+        """
+
+        Args:
+            ix: (int) item index
+
+        Returns:
+            x_in: (torch.Tensor) input frame
+            tar_frame: (torch.Tensor) target frame
+            tar_em: (EmitterSet, optional) target emitter
+
+        """
+
+        """Get a single sample from the list."""
+        x_in = self._x_in[ix]
+        tar_em = self._tar_em[ix]
+        aux = self._aux[ix]
+
+        """Preparation on input, emitter filtering, target generation"""
+        x_in = self.input_prep.forward(x_in)
+        tar_em = self.em_filter.forward(tar_em)
+        tar_frame = self.target_gen.forward(tar_em, aux)
+
+        if not self.return_em_tar:
+            return x_in, tar_frame
+        else:
+            return x_in, tar_frame, tar_em
 
 
 class SMLMSimulationDatasetOnFly(Dataset):
@@ -101,6 +156,7 @@ class SMLMSimulationDatasetOnFly(Dataset):
     dataset thingy which does that for me.
     In itself this class will not be used for training a network directly.
     """
+
     def __init__(self, simulator, ds_size: int):
         """
 
@@ -173,7 +229,7 @@ class SMLMDatasetOnFly(Dataset):
         """
         emitter = self.prior.pop()
         frame_sim, bg_sim = self.simulator.forward(emitter)
-        frame = self.input_preperator.forward(frame_sim) # C x H x W
+        frame = self.input_preperator.forward(frame_sim)  # C x H x W
         emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
 
         if self.weight_generator is not None:
@@ -329,7 +385,8 @@ class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
             self.weight_mask[index] = weight_mask
             self.em_tar[index] = em_tar
 
-        frame, target, weight_mask, em_tar = self.frame[index], self.target[index], self.weight_mask[index], self.em_tar[index]
+        frame, target, weight_mask, em_tar = self.frame[index], self.target[index], self.weight_mask[index], \
+                                             self.em_tar[index]
 
         """Make sure the data types are correct"""
         self._check_datatypes(frame, target)

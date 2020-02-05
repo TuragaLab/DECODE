@@ -76,6 +76,10 @@ class SimulationEngine:
         Returns:
 
         """
+        """If the ds is small, reduce the batch_size accordingly to utilise all workers."""
+        if len(self.ds_train) < batch_size * self.cpu_worker:
+            batch_size = math.ceil(len(self.ds_train) / batch_size)
+
         self._batch_size = batch_size
 
         self._dl_train = torch.utils.data.DataLoader(dataset=self.ds_train, batch_size=self._batch_size, shuffle=False,
@@ -83,6 +87,9 @@ class SimulationEngine:
                                                pin_memory=False)
 
         if self.ds_test is not None:
+            if len(self.ds_test) < batch_size * self.cpu_worker:
+                batch_size = math.ceil(len(self.ds_test) / batch_size)
+
             batch_size_test = batch_size
 
             self._dl_test = torch.utils.data.DataLoader(dataset=self.ds_test, batch_size=batch_size_test, shuffle=False,
@@ -208,6 +215,7 @@ class SimulationEngine:
         """Write test data once."""
         if self._dl_test is not None:
             self.run_pickle_dl(self._dl_test, self.exp_dir / 'testdata', 'testdata')
+            print("Finished computation of test data.")
 
         """Check if buffer is full, otherwise simulate"""
         n = 0

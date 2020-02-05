@@ -108,6 +108,7 @@ class EmitterSet:
 
     @property
     def num_emitter(self):
+        warnings.warn("This will be soon deprecated. Use len() instead.")
         return int(self.xyz.shape[0]) if self.xyz.shape[0] != 0 else 0
 
     @property
@@ -188,6 +189,9 @@ class EmitterSet:
         if check_uniqueness:
             if torch.unique(self.id).numel() != self.id.numel():
                 raise ValueError("IDs are not unique.")
+
+    def __len__(self):
+        return int(self.xyz.shape[0]) if self.xyz.shape[0] != 0 else 0
 
     def __str__(self):
         print_str = f"EmitterSet" \
@@ -861,5 +865,7 @@ if __name__ == '__main__':
     frame_ix = torch.zeros_like(xyz[:,0])
     em = EmitterSet(xyz, phot, frame_ix)
     em_splitted = em.split_in_frames(0, 0)
+
+    import pickle
 
     print("Pseudo-Test successfull.")

@@ -146,7 +146,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
                                                                     cpu_worker=10,
                                                                     buffer_size=3,
                                                                     ds_train=ds_train,
-                                                                    ds_test=None)
+                                                                    ds_test=ds_test)
 
     simulation_engine.run()
     
