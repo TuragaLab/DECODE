@@ -2,7 +2,7 @@ import torch
 import torch.nn
 import numpy as np
 
-from deepsmlm.generic.emitter import EmitterSet
+import deepsmlm.generic.emitter
 from scipy.stats import gaussian_kde
 
 
@@ -27,4 +27,4 @@ def density_estimate(emitter, band_with=0.18):
         d = torch.from_numpy(d)
         em_.bg = d.float()
 
-    return EmitterSet.cat_emittersets(em_split)
+    return deepsmlm.generic.emitter.EmitterSet.cat_emittersets(em_split)

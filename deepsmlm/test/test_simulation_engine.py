@@ -5,7 +5,6 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 import time
 from torch.utils.data import Dataset
 
-import deepsmlm.test.utils_ci as tutil
 import deepsmlm.simulation.engine as engine
 import deepsmlm.generic.utils.data_utils as deepsmlm_utils
 

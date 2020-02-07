@@ -1,9 +1,6 @@
-import torch
 import pytest
 
-import deepsmlm.generic.emitter as emitter
 import deepsmlm.simulation.emittergenerator as emgen
-import deepsmlm.test.utils_ci as tutil
 from deepsmlm.simulation.structure_prior import RandomStructure
 
 

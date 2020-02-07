@@ -212,14 +212,14 @@ class ROIOffsetRep(OffsetRep):
         self.kern_dx = torch.tensor([[1., 1., 1], [0., 0., 0.], [-1., -1., -1.]])
 
     @staticmethod
-    def parse(param: dict):
-        return ROIOffsetRep(param['Simulation']['psf_extent'][0],
-                            param['Simulation']['psf_extent'][1],
-                            None,
-                            param['Simulation']['img_size'],
-                            param['HyperParameter']['target_roi_size'])
+    def parse(param):
+        return ROIOffsetRep(xextent=param.Simulation.psf_extent[0],
+                            yextent=param.Simulation.psf_extent[1],
+                            zextent=None,
+                            img_shape=param.Simulation.img_size,
+                            roi_size=param.HyperParameter.target_roi_size)
 
-    def forward(self, x):
+    def forward(self, x, aux):
         offset_target = super().forward(x)
 
         """In the photon, dx, dy, dz channel we want to increase the area of information."""
@@ -243,7 +243,12 @@ class ROIOffsetRep(OffsetRep):
         target[:, is_emitter[:, 0], is_emitter[:, 1]] = offset_target_pad[:, is_emitter[:, 0], is_emitter[:, 1]]
 
         # remove padding
-        return target[:, 1:-1, 1:-1]
+        target = target[:, 1:-1, 1:-1]
+
+        """Add background that was parsed as first auxiliary"""
+        target = torch.cat([target, aux[[1]]], 0)
+
+        return target
 
 
 class GlobalOffsetRep(OffsetRep):

@@ -5,6 +5,9 @@ import datetime
 import os
 import tensorboardX
 import torch
+
+import deepsmlm.neuralfitter.filter
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.utils
 
@@ -21,9 +24,9 @@ import deepsmlm.generic.inout.util
 import deepsmlm.simulation.engine
 import deepsmlm.generic.inout.load_calibration
 import deepsmlm.neuralfitter
+import deepsmlm.neuralfitter.models.model_param
 import deepsmlm.neuralfitter.train_test
 import deepsmlm.neuralfitter.engine
-
 
 
 """Root folder"""
@@ -148,10 +151,10 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
 
     """Set model, optimiser, loss and schedulers"""
     models_ava = {
-        'BGNet': deepsmlm.neuralfitter.models.BGNet,
-        'DoubleMUnet': deepsmlm.neuralfitter.models.DoubleMUnet,
-        'SimpleSMLMNet': deepsmlm.neuralfitter.models.SimpleSMLMNet,
-        'SMLMNetBG': deepsmlm.neuralfitter.models.SMLMNetBG
+        'BGNet': deepsmlm.neuralfitter.models.model_param.BGNet,
+        'DoubleMUnet': deepsmlm.neuralfitter.models.model_param.DoubleMUnet,
+        'SimpleSMLMNet': deepsmlm.neuralfitter.models.model_param.SimpleSMLMNet,
+        'SMLMNetBG': deepsmlm.neuralfitter.models.model_param.SMLMNetBG
     }
     model = models_ava[param.HyperParameter.architecture]
     model = model.parse(param)
@@ -181,13 +184,17 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     """Log the model"""
     try:
         dummy = torch.rand((2, param.HyperParameter.channels_in,
-                            *param.Simulation.img_size), requires_grad=True)
+                            *param.Simulation.img_size), requires_grad=True).to(next(model.parameters()).device)
         logger.add_graph(model, dummy, False)
     except:
         raise RuntimeError("Your dummy input is wrong. Please update it.")
 
     """Transform input data, compute weight mask and target data"""
-    in_prep = deepsmlm.neuralfitter.scale_transform.InputFrameRescale.parse(param)
+    in_prep = deepsmlm.generic.utils.processing.TransformSequence.parse(
+        [
+            deepsmlm.neuralfitter.filter.FrameFilter,
+            deepsmlm.neuralfitter.scale_transform.InputFrameRescale
+        ], param=param)
 
     em_filter = deepsmlm.neuralfitter.filter.TarEmitterFilter()
 
@@ -198,6 +205,8 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         ], param=param)
 
     weight_gen = deepsmlm.neuralfitter.weight_generator.SimpleWeight.parse(param)
+
+    """Setup training and test dataset / data loader."""
 
     train_ds = deepsmlm.neuralfitter.dataset.SMLMTrainingEngineDataset(
         engine=engine_train,
@@ -216,6 +225,9 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         weight_gen=weight_gen,
         return_em_tar=True
     )
+
+    train_ds.load_from_engine()
+    test_ds.load_from_engine()
 
     train_dl = torch.utils.data.DataLoader(
         dataset=train_ds,

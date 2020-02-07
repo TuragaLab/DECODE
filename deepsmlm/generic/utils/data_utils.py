@@ -2,7 +2,7 @@ import random
 import torch
 from torch._six import container_abcs, string_classes, int_classes
 
-from deepsmlm.generic.emitter import EmitterSet
+import deepsmlm.generic.emitter
 
 from pathlib import Path
 from typing import Union
@@ -47,7 +47,7 @@ def smlm_collate(batch):
     elif isinstance(batch[0], container_abcs.Sequence):
         transposed = zip(*batch)
         return [smlm_collate(samples) for samples in transposed]
-    elif isinstance(batch[0], EmitterSet):
+    elif isinstance(batch[0], deepsmlm.generic.emitter.EmitterSet):
         return [em for em in batch]
     else:
         raise TypeError((error_msg.format(type(batch[0]))))

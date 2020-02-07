@@ -168,7 +168,7 @@ class OffsetPSF(DeltaPSF):
 
         xy_offset_map = torch.zeros((2, *self.img_shape))
         # loop over all emitter positions
-        for i in range(em.num_emitter):
+        for i in range(len(em)):
             xy = em.xyz[i, :2]
             """
             If position is outside the FoV, skip.
@@ -427,9 +427,9 @@ class SplineCPP(PSF):
         if crlb_order is None:
             crlb_order = self.crlb_order
 
-        fisher, img = self.fisher(pos, phot, bg)
-        cr = fisher.pinverse().diag().view(pos.size(0), -1)
-        # cr, img = tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
+        # fisher, img = self.fisher(pos, phot, bg)
+        # cr = fisher.pinverse().diag().view(pos.size(0), -1)
+        cr, img = tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
 
         # rescale the cr in z by dz because we input z in nm not in multiples of dz.
         cr[:, 4] *= self.dz**2

@@ -2,18 +2,11 @@
 import torch
 import pytest
 import numpy as np
-import matplotlib.pyplot as plt
 
-import deepsmlm.test.utils_ci as tutil
-import deepsmlm.neuralfitter.pre_processing as prep
+import deepsmlm.generic.utils.test_utils as tutil
 import deepsmlm.neuralfitter.weight_generator as wgen
 
-from deepsmlm.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
-from deepsmlm.generic.psf_kernel import DeltaPSF
-from deepsmlm.neuralfitter.losscollection import OffsetROILoss
-from deepsmlm.neuralfitter.pre_processing import ZasOneHot, OffsetRep, GlobalOffsetRep, ROIOffsetRep
-import deepsmlm.neuralfitter.pre_processing as pre
-from deepsmlm.generic.plotting.frame_coord import PlotFrame, PlotFrameCoord
+from deepsmlm.generic.emitter import CoordinateOnlyEmitter, RandomEmitterSet
 
 
 class TestDerivePseudobgFromBg:

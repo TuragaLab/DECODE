@@ -1,13 +1,9 @@
-from unittest import TestCase
 import torch
 import pytest
-import matplotlib.pyplot as plt
 from tensorboardX import SummaryWriter
 
-import deepsmlm.test.utils_ci as tutil
+import deepsmlm.generic.utils.test_utils as tutil
 
-
-from deepsmlm.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
 import deepsmlm.neuralfitter.losscollection as loss
 
 

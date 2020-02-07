@@ -2,7 +2,7 @@ import pytest
 import torch
 
 import deepsmlm.neuralfitter.scale_transform as scf
-import deepsmlm.test.utils_ci as t_util
+import deepsmlm.generic.utils.test_utils as t_util
 
 
 class TestRescaling:

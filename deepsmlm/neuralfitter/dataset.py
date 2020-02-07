@@ -85,9 +85,9 @@ class SMLMTrainingEngineDataset(Dataset):
 
         """
         self._engine = engine
-        self._x_in = None
-        self._tar_em = None
-        self._aux = None
+        self._x_in = None  # camera frames
+        self._tar_em = None  # emitter target
+        self._aux = None  # auxiliary things
 
         self.em_filter = em_filter
         self.input_prep = input_prep
@@ -95,7 +95,7 @@ class SMLMTrainingEngineDataset(Dataset):
         self.weight_gen = weight_gen
         self.return_em_tar = return_em_tar
 
-    def _load_from_engine(self):
+    def load_from_engine(self):
         """
         Gets the data from the engine makes basic transformations
 
@@ -117,7 +117,7 @@ class SMLMTrainingEngineDataset(Dataset):
             self._aux = [None] * self._x_in.size(0)
 
     def __len__(self):
-        return self._x_in.size(0).item()
+        return self._x_in.size(0)
 
     def __getitem__(self, ix):
         """
@@ -135,17 +135,18 @@ class SMLMTrainingEngineDataset(Dataset):
         """Get a single sample from the list."""
         x_in = self._x_in[ix]
         tar_em = self._tar_em[ix]
-        aux = self._aux[ix]
+        aux = [a[ix] for a in self._aux]
 
         """Preparation on input, emitter filtering, target generation"""
         x_in = self.input_prep.forward(x_in)
         tar_em = self.em_filter.forward(tar_em)
-        tar_frame = self.target_gen.forward(tar_em, aux)
+        tar_frame = self.target_gen.forward(tar_em, *aux)
+        weight = self.weight_gen.forward(x_in, tar_em, *aux)
 
         if not self.return_em_tar:
-            return x_in, tar_frame
+            return x_in, tar_frame, weight
         else:
-            return x_in, tar_frame, tar_em
+            return x_in, tar_frame, weight, tar_em
 
 
 class SMLMSimulationDatasetOnFly(Dataset):

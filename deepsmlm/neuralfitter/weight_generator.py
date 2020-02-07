@@ -8,7 +8,7 @@ from sklearn import neighbors, datasets
 import warnings
 
 import deepsmlm.generic.emitter as emc
-import deepsmlm.neuralfitter.utils.padding_calc as padcalc
+from .utils import padding_calc as padcalc
 import deepsmlm.generic.psf_kernel as psf_kernel
 
 

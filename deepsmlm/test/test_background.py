@@ -3,9 +3,8 @@ import pytest
 import matplotlib.pyplot as plt
 import deepsmlm.generic.background as background
 from deepsmlm.generic.plotting.frame_coord import PlotFrame
-from deepsmlm.generic.utils.processing import TransformSequence
 
-import deepsmlm.test.utils_ci as tutil
+import deepsmlm.generic.utils.test_utils as tutil
 
 
 class TestExperimentBg:

@@ -73,7 +73,6 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     # modify some parameters here
     # ToDo: Remove this!
     param.InOut.calibration_file = deepsmlm_root + param.InOut.calibration_file
-    # param.HyperParameter.pseudo_ds_size = 2048
 
     """Server stuff."""
     assert torch.cuda.device_count() <= 1
@@ -144,7 +143,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     simulation_engine = deepsmlm.simulation.engine.SimulationEngine(cache_dir=cache_dir,
                                                                     exp_id=exp_id,
                                                                     cpu_worker=10,
-                                                                    buffer_size=3,
+                                                                    buffer_size=param.HyperParameter.ds_buffer,
                                                                     ds_train=ds_train,
                                                                     ds_test=ds_test)
 

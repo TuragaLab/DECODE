@@ -6,7 +6,7 @@ from deepsmlm.generic.emitter import CoordinateOnlyEmitter
 import deepsmlm.generic.emitter as emc
 import deepsmlm.generic.psf_kernel as psf_kernel
 import deepsmlm.generic.inout.load_calibration as load_cal
-import deepsmlm.test.utils_ci as tutil
+import deepsmlm.generic.utils.test_utils as tutil
 
 
 class TestGaussianExpect:

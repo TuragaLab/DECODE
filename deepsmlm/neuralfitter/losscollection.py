@@ -306,11 +306,12 @@ class MaskedPxyzLoss(SpeiserLoss):
         :param logger: for logging individual components
         :return:
         """
-        return MaskedPxyzLoss(model_out_ch=param['HyperParameter']['channels_out'],
-                              device=torch.device(param['Hardware']['device']),
-                              pos_weight=param['HyperParameter']['fgbg_factor'],
-                              ch_static_scale=torch.tensor(param['HyperParameter']['ch_static_scale']).float(),
-                              ch_rescale=param['HyperParameter']['dynamic_weight'], logger=logger)
+        return MaskedPxyzLoss(model_out_ch=param.HyperParameter.channels_out,
+                              device=torch.device(param.Hardware.device),
+                              pos_weight=param.HyperParameter.fgbg_factor,
+                              ch_static_scale=torch.tensor(param.HyperParameter.ch_static_scale).float(),
+                              ch_rescale=param.HyperParameter.dynamic_weight, logger=logger)
+
     def _rescale_weights(self, weight):
         """
         Rescale the weights channelwise per batch to max. 1, this is inplace (I guess?)

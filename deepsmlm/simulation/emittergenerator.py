@@ -140,7 +140,7 @@ class EmitterPopperMultiFrame(EmitterPopper):
         Function to test what the actual number of emitters on the target frame is. Basically for debugging.
         :return: number of emitters on 0th frame.
         """
-        return self.gen_loose_emitter().return_emitterset().get_subset_frame(0, 0).num_emitter
+        return len(self.gen_loose_emitter().return_emitterset().get_subset_frame(0, 0))
 
     def _total_emitter_average_search(self):
         """

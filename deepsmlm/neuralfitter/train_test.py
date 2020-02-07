@@ -163,15 +163,15 @@ def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, 
         # measure data loading time
         data_time.update(time.time() - end)
 
-        x_in = x_in.to(torch.device(conf_param['Hardware']['device']))
-        target = target.to(torch.device(conf_param['Hardware']['device']))
-        weights = weights.to(torch.device(conf_param['Hardware']['device']))
+        x_in = x_in.to(torch.device(conf_param.Hardware.device))
+        target = target.to(torch.device(conf_param.Hardware.device))
+        weights = weights.to(torch.device(conf_param.Hardware.device))
 
         # compute output
         output = model(x_in)
         loss_ = criterion(output, target, weights)  # alternate batch_wise
 
-        if conf_param['HyperParameter']['moeller_gradient_rescale']:
+        if conf_param.HyperParameter.moeller_gradient_rescale:
             # ensure that the gradients in the last multi-task heads are of same scale
             weight, _, _ = model.rescale_last_layer_grad(loss_, optimizer)
             loss_ = loss_ * weight
@@ -243,9 +243,9 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
         end = time.time()
         for i, (x_in, target, weights, em_tar) in enumerate(val_loader):
 
-            x_in = x_in.to(torch.device(conf_param['Hardware']['device']))
-            target = target.to(torch.device(conf_param['Hardware']['device']))
-            weights = weights.to(torch.device(conf_param['Hardware']['device']))
+            x_in = x_in.to(torch.device(conf_param.Hardware.device))
+            target = target.to(torch.device(conf_param.Hardware.device))
+            weights = weights.to(torch.device(conf_param.Hardware.device))
 
             # compute output
             output = model(x_in, force_no_p_nl=True)

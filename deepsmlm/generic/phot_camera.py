@@ -33,7 +33,7 @@ class Photon2Camera:
     def __str__(self):
         return f"Photon to Camera Converter.\n" + \
                f"Camera: QE {self.qe} | Spur noise {self.spur} | EM Gain {self.em_gain} | " + \
-               f"e_per_adu {self.e_per_adu} | Baseline {self.baseline} | Readnoise {self.read_sigma}" + \
+               f"e_per_adu {self.e_per_adu} | Baseline {self.baseline} | Readnoise {self.read_sigma}\n" + \
                f"Output in Photon units: {self.photon_units}"
 
     @staticmethod

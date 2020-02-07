@@ -1,9 +1,8 @@
 import torch
 import pytest
-import math
 
 import deepsmlm.generic.phot_camera as pc
-import deepsmlm.test.utils_ci as tutil
+import deepsmlm.generic.utils.test_utils as tutil
 
 
 class TestPhotons2Camera:

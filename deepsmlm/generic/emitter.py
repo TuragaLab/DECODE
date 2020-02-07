@@ -1,13 +1,9 @@
-import os
-import pickle
-import sys
-import hashlib
 import warnings
 import numpy as np
 import torch
 
 import torch_cpp
-import deepsmlm.test.utils_ci as tutil
+from .utils import test_utils as tutil
 
 
 def at_least_one_dim(*args):
@@ -40,7 +36,7 @@ class EmitterSet:
     """
     Class, storing a set of emitters. Each attribute is a torch.Tensor.
     """
-    eq_precision = 1E-6
+    eq_precision = 1E-8
     xy_units = ('px', 'nm')
 
     def __init__(self, xyz, phot, frame_ix, id=None, prob=None, bg=None, xyz_cr=None, phot_cr=None, bg_cr=None,
@@ -108,8 +104,9 @@ class EmitterSet:
 
     @property
     def num_emitter(self):
-        warnings.warn("This will be soon deprecated. Use len() instead.")
-        return int(self.xyz.shape[0]) if self.xyz.shape[0] != 0 else 0
+        # warnings.warn("This will be soon deprecated. Use len() instead.", DeprecationWarning, stacklevel=0)
+        # return int(self.xyz.shape[0]) if self.xyz.shape[0] != 0 else 0
+        raise DeprecationWarning
 
     @property
     def xyz_px(self):
@@ -123,6 +120,11 @@ class EmitterSet:
         elif self.xy_unit == 'px':
             return self.xyz
 
+    @xyz_px.setter
+    def xyz_px(self, xyz):
+        self.xyz = xyz
+        self.xy_unit = 'px'
+
     @property
     def xyz_nm(self):
         if self.xy_unit is None:
@@ -134,6 +136,11 @@ class EmitterSet:
             return self.convert_coordinates(factor=self.px_size)
         elif self.xy_unit == 'nm':
             return self.xyz
+
+    @xyz_nm.setter
+    def xyz_nm(self, xyz):
+        self.xyz = xyz
+        self.xy_unit = 'nm'
 
     @property
     def xyz_scr(self):  # sqrt crlb
@@ -195,9 +202,9 @@ class EmitterSet:
 
     def __str__(self):
         print_str = f"EmitterSet" \
-                    f"\n::num emitters: {self.num_emitter}"
+                    f"\n::num emitters: {len(self)}"
 
-        if self.num_emitter == 0:
+        if len(self) == 0:
             print_str += "\n::frame range: n.a." \
                          "\n::spanned volume: n.a."
         else:
@@ -243,9 +250,10 @@ class EmitterSet:
         Implements iterator bookkeeping.
 
         Returns:
-
+            (self)
         """
         self.n = 0
+        return self
 
     def __next__(self):
         """
@@ -255,7 +263,7 @@ class EmitterSet:
             (EmitterSet) next element of iterator
 
         """
-        if self.n < self.num_emitter:
+        if self.n <= len(self) - 1:
             self.n += 1
             return self.get_subset(self.n - 1)
         else:
@@ -269,17 +277,19 @@ class EmitterSet:
             item: (int), or indexing
 
         Returns:
-
+            (EmitterSet)
         """
-        if isinstance(item, int):
-            return self.get_subset([item])
-        else:
-            return self.get_subset(item)
+        if item >= len(self):
+            raise IndexError(f"Index {item} out of bounds of EmitterSet of size {len(self)}")
+
+        return self.get_subset(item)
 
     def clone(self):
         """
-        Clone method to generate a deep copy.
-        :return: Deep copy of self.
+        Make a deep copy of this EmitterSet.
+
+        Returns:
+            (EmitterSet)
         """
         return EmitterSet(self.xyz.clone(),
                           self.phot.clone(),
@@ -304,7 +314,7 @@ class EmitterSet:
         :param step_frame_ix: step of frame indices between items in list
         :return: emitterset
         """
-        num_emittersets = emittersets.__len__()
+        num_emittersets = len(emittersets)
 
         if remap_frame_ix is not None and step_frame_ix is not None:
             raise ValueError("You cannot specify remap frame ix and step frame ix at the same time.")
@@ -317,7 +327,7 @@ class EmitterSet:
 
         total_num_emitter = 0
         for i in range(num_emittersets):
-            total_num_emitter += emittersets[i].num_emitter
+            total_num_emitter += len(emittersets[i])
 
         xyz = torch.cat([emittersets[i].xyz for i in range(num_emittersets)], 0)
         phot = torch.cat([emittersets[i].phot for i in range(num_emittersets)], 0)
@@ -358,6 +368,17 @@ class EmitterSet:
         self._sorted = True
 
     def get_subset(self, ix):
+        """
+        Returns subset of emitterset. Main implementation of __getitem__ and __next__ methods.
+        Args:
+            ix: (int, list) integer index or list of indices
+
+        Returns:
+            (EmitterSet)
+        """
+        if isinstance(ix, int):
+            ix = [ix]
+
         return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix], self.prob[ix], self.bg[ix],
                           self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix], sanity_check=False,
                           xy_unit=self.xy_unit, px_size=self.px_size)
@@ -463,7 +484,7 @@ class EmitterSet:
             raise DeprecationWarning("No Id is not supported any more.")
 
         """The first frame is assumed to be 0. If it's negative go to the lowest negative."""
-        if self.num_emitter != 0:
+        if len(self) != 0:
             ix_low_ = ix_low if ix_low is not None else frame_ix.min()
             ix_up_ = ix_up if ix_up is not None else frame_ix.max()
 
@@ -598,7 +619,7 @@ class EmitterSet:
         header = 'id, frame_ix, x, y, z, phot, prob, bg, x_cr, y_cr, z_cr, phot_cr, bg_cr, x2, y2, z2' \
                  '\nThis is an export from ' \
                  'DeepSMLM.\n' \
-                 'Total number of emitters: {}'.format(self.num_emitter)
+                 'Total number of emitters: {}'.format(len(self))
 
         if model is not None:
             if hasattr(model, 'hash'):
@@ -683,7 +704,7 @@ class EmitterSet:
         Calculate the CRLB
         :return:
         """
-        if self.num_emitter == 0:
+        if len(self) == 0:
             return
 
         if mode == 'single':
@@ -865,7 +886,5 @@ if __name__ == '__main__':
     frame_ix = torch.zeros_like(xyz[:,0])
     em = EmitterSet(xyz, phot, frame_ix)
     em_splitted = em.split_in_frames(0, 0)
-
-    import pickle
 
     print("Pseudo-Test successfull.")

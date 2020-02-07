@@ -48,11 +48,11 @@ class LogTestEpoch:
         self._log_metric(metrics_set.delta_num.avg, step, "eval/del_num_em")
 
         """Compute (true) number of emitters per frame"""
-        nem_av = em_tar.num_emitter / (em_tar.frame_ix.max() - em_tar.frame_ix.min() + 1)
+        nem_av = len(em_tar) / (em_tar.frame_ix.max() - em_tar.frame_ix.min() + 1)
 
         # std
         em_per_frame = em_tar.split_in_frames()
-        em_per_frame = [e.num_emitter for e in em_per_frame]
+        em_per_frame = [len(e) for e in em_per_frame]
         nem_std = torch.tensor(em_per_frame).float().std().item()
 
         self._log_metric(nem_av, step, "data/num_em_avg")

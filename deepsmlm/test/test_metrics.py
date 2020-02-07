@@ -3,7 +3,7 @@ import torch
 
 import deepsmlm.generic.emitter as emitter
 import deepsmlm.evaluation.metric_library as metr
-import deepsmlm.test.utils_ci as tutil
+import deepsmlm.generic.utils.test_utils as tutil
 
 
 def test_rmse_mad():

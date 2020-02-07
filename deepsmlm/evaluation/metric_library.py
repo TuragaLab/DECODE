@@ -199,7 +199,7 @@ class RMSEMAD:
         :param ref:  (emitterset) reference
         :return: various rmse values
         """
-        num_tp = tp.num_emitter
+        num_tp = tp.__len__()
         # convenience to get the coordinates
         tp_ = tp.xyz
         r_ = ref.xyz

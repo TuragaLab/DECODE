@@ -101,13 +101,13 @@ class GreedyHungarianMatching:
         :return:
         """
         """If no emitter has been found, all are false negatives. No tp, no fp."""
-        if out.num_emitter == 0:
+        if out.__len__() == 0:
             tp, fp, tp_match = emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet()
             fn = tar
             return tp, fp, fn, tp_match
 
         """If there were no positives, no tp, no fn, all fp, no match."""
-        if tar.num_emitter == 0:
+        if tar.__len__() == 0:
             tp, fn, tp_match = emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet()
             fp = out
             return tp, fp, fn, tp_match
@@ -122,8 +122,8 @@ class GreedyHungarianMatching:
             dists[dists_ax > self._rule_out_thresh] = float('inf')
 
         match_ix = self.rule_out_dist_match(dists, self.dist_thresh).numpy()
-        all_ix_out = np.arange(out.num_emitter)
-        all_ix_tar = np.arange(tar.num_emitter)
+        all_ix_out = np.arange(out.__len__())
+        all_ix_tar = np.arange(tar.__len__())
 
         tp = out.get_subset(match_ix[:, 0])
         tp_match = tar.get_subset(match_ix[:, 1])
@@ -176,7 +176,7 @@ class GreedyHungarianMatching:
 
         """Let tp and tp_match share the same id's"""
         if (tp_match.id == -1).all().item():
-            tp_match.id = torch.arange(tp_match.num_emitter)
+            tp_match.id = torch.arange(tp_match.__len__())
         tp.id = tp_match.id
 
         return tp, fp, fn, tp_match
@@ -272,7 +272,7 @@ class NNMatching:
         indices_cleared = indices[indices != -1]
 
         # create indices of targets
-        tar_ix = np.arange(target.num_emitter)
+        tar_ix = np.arange(target.__len__())
         # remove indices which were found
         fn_ix = np.setdiff1d(tar_ix, indices)
 

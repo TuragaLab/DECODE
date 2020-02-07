@@ -5,7 +5,7 @@ import torch
 import deepsmlm.evaluation.match_emittersets
 import deepsmlm.generic.emitter
 import deepsmlm.evaluation.evaluation as evaluation
-import deepsmlm.test.utils_ci as tutil
+import deepsmlm.generic.utils.test_utils as tutil
 
 
 class TestMetricMeter:

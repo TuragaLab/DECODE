@@ -292,7 +292,7 @@ class BatchEvaluation:
                                     CumulantMeter(), CumulantMeter(), CumulantMeter()
 
         # Check that both output and target have a unit if we actually have emitters
-        if output.num_emitter >= 1:
+        if len(output) >= 1:
             if output.xy_unit is None or output.xy_unit is None:
                 raise ValueError("For Evaluation both output and target must have units.")
 
@@ -311,7 +311,7 @@ class BatchEvaluation:
         jac.update(jaq_)
         f1.update(f1_)
 
-        delta_num.update(output.num_emitter - target.num_emitter)
+        delta_num.update(len(output) - len(target))
 
         rmse_vol.update(rmse_vol_)
         rmse_lat.update(rmse_lat_)
@@ -504,15 +504,15 @@ class SegmentationEvaluation:
         :return: several metrics
         """
 
-        prec, rec, jac, f1 = PrecisionRecallJaccard.forward(tp.num_emitter, fp.num_emitter, fn.num_emitter)
-        actual_em = tp.num_emitter + fn.num_emitter
-        pred_em = tp.num_emitter + fp.num_emitter
+        prec, rec, jac, f1 = PrecisionRecallJaccard.forward(tp.__len__(), fp.__len__(), fn.__len__())
+        actual_em = tp.__len__() + fn.__len__()
+        pred_em = tp.__len__() + fp.__len__()
 
         if self.print_mode:
             print("Number of actual emitters: {} Predicted emitters: {}".format(actual_em, pred_em))
-            print("Number of TP: {} FP: {} FN: {}".format(tp.num_emitter,
-                                                          fp.num_emitter,
-                                                          fn.num_emitter))
+            print("Number of TP: {} FP: {} FN: {}".format(tp.__len__(),
+                                                          fp.__len__(),
+                                                          fn.__len__()))
             print("Jacquard: {:.3f}".format(jac))
             print("F1Score: {:.3f}".format(f1))
             print("Precision: {:.3f}, Recall: {:.3f}".format(prec, rec))

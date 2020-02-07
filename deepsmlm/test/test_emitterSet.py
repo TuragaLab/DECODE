@@ -1,12 +1,11 @@
 import torch
-from unittest import TestCase
 import pytest
 import time
 import os
 
 from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
 import deepsmlm.generic.emitter as emitter
-import deepsmlm.test.utils_ci as tutil
+import deepsmlm.generic.utils.test_utils as tutil
 
 
 class TestEmitterSet:

@@ -121,7 +121,8 @@ class Simulation:
             frame_list[i] = self.forward_single_frame_wrapper(self.em_curr_split[i],
                                                               self.psf)
 
-        frames = torch.stack(frame_list, dim=0)
+        # frames = torch.stack(frame_list, dim=0)
+        frames = torch.cat(frame_list, dim=0)
 
         """
         Add background. This needs to happen here and not on a single frame, since background may be correlated.
@@ -129,7 +130,7 @@ class Simulation:
         that background is assumed to be independent of the emitter position / signal.
         """
         if self.background is not None:
-            bg_frames = self.background.forward(torch.zeros((frames.size(0), 1, frames.size(2), frames.size(3))))
+            bg_frames = self.background.forward(torch.zeros_like(frames))
             frames += bg_frames
         else:
             bg_frames = None

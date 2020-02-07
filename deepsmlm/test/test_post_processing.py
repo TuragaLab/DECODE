@@ -2,7 +2,7 @@ import torch
 import pytest
 
 import deepsmlm.neuralfitter.post_processing as post
-import deepsmlm.test.utils_ci as tutil
+import deepsmlm.generic.utils.test_utils as tutil
 
 
 @pytest.fixture(scope='module')

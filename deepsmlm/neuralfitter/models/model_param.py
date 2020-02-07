@@ -1,11 +1,12 @@
 import torch
 from torch import nn as nn
 
-from deepsmlm.neuralfitter.models.unet_param import UNet2d
-import deepsmlm.neuralfitter.utils.last_layer_dynamics as lyd
+import deepsmlm.neuralfitter.models.unet_param
+from ..utils import last_layer_dynamics as lyd
 
 
-class SimpleSMLMNet(UNet2d):
+class SimpleSMLMNet(deepsmlm.neuralfitter.models.unet_param.UNet2d):
+
     def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, p_dropout=0.,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
                  norm_head_groups=None, pool_mode='StrideConv', skip_gn_level=None):
@@ -129,7 +130,7 @@ class SMLMNetBG(SimpleSMLMNet):
         self.total_ch_out = ch_out
         self.detach_bg = detach_bg
 
-        self.bg_net = UNet2d(1, 1, 2, 48, pad_convs=True, norm=norm_bg, norm_groups=norm_bg_groups,
+        self.bg_net = deepsmlm.neuralfitter.models.unet_param.UNet2d(1, 1, 2, 48, pad_convs=True, norm=norm_bg, norm_groups=norm_bg_groups,
                              activation=activation)
 
     @staticmethod
@@ -170,11 +171,11 @@ class DoubleMUnet(nn.Module):
                  norm_head_groups=None, pool_mode='Conv2d', skip_gn_level=None):
         super().__init__()
 
-        self.unet_shared = UNet2d(1 + ext_features, inter_features, depth=depth, pad_convs=True,
+        self.unet_shared = deepsmlm.neuralfitter.models.unet_param.UNet2d(1 + ext_features, inter_features, depth=depth, pad_convs=True,
                                   initial_features=initial_features,
                                   activation=activation, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode,
                                   skip_gn_level=skip_gn_level)
-        self.unet_union = UNet2d(ch_in * inter_features, inter_features, depth=depth, pad_convs=True,
+        self.unet_union = deepsmlm.neuralfitter.models.unet_param.UNet2d(ch_in * inter_features, inter_features, depth=depth, pad_convs=True,
                                  initial_features=initial_features,
                                  activation=activation, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode,
                                  skip_gn_level=skip_gn_level)
@@ -350,7 +351,7 @@ class DoubleMUNetSeperateBG(SimpleSMLMNet):
                          use_last_nl=use_last_nl, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode,
                          skip_gn_level=skip_gn_level)
 
-        self.bg_net = UNet2d(ch_in, 1, depth=depth_bg, pad_convs=True, initial_features=initial_features_bg,
+        self.bg_net = deepsmlm.neuralfitter.models.unet_param.UNet2d(ch_in, 1, depth=depth_bg, pad_convs=True, initial_features=initial_features_bg,
                              activation=activation, norm=norm_bg, norm_groups=norm_bg_groups, pool_mode=pool_mode,
                              skip_gn_level=skip_gn_level)
 
@@ -412,7 +413,7 @@ class BGNet(nn.Module):
         super().__init__()
         self.ch_out = ch_out  # pseudo channels for easier trainig
         self.recpt_field = recpt_field
-        self.net = UNet2d(in_channels=ch_in,
+        self.net = deepsmlm.neuralfitter.models.unet_param.UNet2d(in_channels=ch_in,
                           out_channels=1,
                           depth=depth_bg,
                           initial_features=initial_features_bg,
