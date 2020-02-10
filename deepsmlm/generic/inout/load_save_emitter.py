@@ -9,14 +9,7 @@ from deepsmlm.generic.emitter import EmitterSet
 
 
 """
-The general interface is to provide the following variables:
-    xyz             matrix of size N x 3 or N x 2 in 2D
-    phot            matrix of size N 
-    frame_ix        matrix of size N (integer, starting with 0 for pythonic world, matlabian world will be -= 1)
-    extent          tuple of tuples. extent = ((xmin, xmax), (ymin, ymax), (zmin zmax)). 
-                    Pixel / Voxelsize will be determined by this specification
-    
-    frames          matrix / tensor of size N x 1 x H x W
+Interfaces should provide the minimum set of variables that are obligatory to create an emitterset.
 """
 
 
@@ -25,9 +18,8 @@ class BinaryInterface(ABC):
     Abstract class to specify binary interfaces
     """
 
-    def __init__(self, unsupevised=False):
+    def __init__(self):
         super().__init__()
-        self.unsupervised = unsupevised
 
     @abstractmethod
     def load_binary(self):
@@ -36,15 +28,6 @@ class BinaryInterface(ABC):
     @abstractmethod
     def save_binary(self):
         raise NotImplementedError
-
-def totuple(a):
-    try:
-        return tuple(totuple(i) for i in a)
-    except TypeError:
-        return a
-
-
-"""---------------------------------------------- Interface Definitions ---------------------------------------------"""
 
 
 class MatlabInterface:
@@ -123,6 +106,13 @@ class NumpyInterface(BinaryInterface):
         self.frame_key = frame_key
 
     def load_binary(self, mat_file):
+
+        def totuple(a):
+            try:
+                return tuple(totuple(i) for i in a)
+            except TypeError:
+                return a
+
         bin = np.load(mat_file)
 
         emitter_set = EmitterSet(xyz=torch.from_numpy(bin[self.xyz_key]),
@@ -136,19 +126,4 @@ class NumpyInterface(BinaryInterface):
         return emitter_set, extent, frames
 
     def save_binary(self, emitter_set, mat_file):
-        raise NotImplementedError('Not Implemented.')
-
-
-class TiffInterface(BinaryInterface):
-    def __init__(self, unsupervised=True):
-        super().__init__(unsupervised)
-
-    def load_binary(self, tif_file):
-        img = torch.from_numpy(imread(tif_file).astype(np.int32)).type(torch.FloatTensor).unsqueeze(1)
-        extent = ((-0.5, img.shape[2] - 0.5), (-0.5, img.shape[3] - 0.5), None)
-        emitter_set = [None] * img.shape[0]
-
-        return emitter_set, extent, img
-
-    def save_binary(self, tif_file):
         raise NotImplementedError('Not Implemented.')

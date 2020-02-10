@@ -36,7 +36,7 @@ from deepsmlm.generic.phot_camera import Photon2Camera
 from deepsmlm.neuralfitter.pre_processing import OffsetRep, GlobalOffsetRep, ROIOffsetRep, CombineTargetBackground, \
     DiscardBackground
 import deepsmlm.generic.utils.logging as log_utils
-from deepsmlm.generic.utils.data_utils import smlm_collate
+from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
 import deepsmlm.generic.utils.processing as processing
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParameter, SimulationParam, LoggerParameter, \

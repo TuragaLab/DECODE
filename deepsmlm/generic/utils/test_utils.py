@@ -34,3 +34,29 @@ def tens_eqshape(a, b):
     a_shape = torch.tensor(a.shape)
     b_shape = torch.tensor(b.shape)
     return torch.all(torch.eq(a_shape, b_shape))
+
+
+def at_least_one_dim(*args):
+    for arg in args:
+        if arg.dim() == 0:
+            arg.unsqueeze_(0)
+
+
+def same_shape_tensor(dim, *args):
+    for i in range(args.__len__() - 1):
+        if args[i].size(dim) == args[i + 1].size(dim):
+            continue
+        else:
+            return False
+
+    return True
+
+
+def same_dim_tensor(*args):
+    for i in range(args.__len__() - 1):
+        if args[i].dim() == args[i + 1].dim():
+            continue
+        else:
+            return False
+
+    return True

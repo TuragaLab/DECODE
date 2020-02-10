@@ -148,8 +148,8 @@ class TestSplinePSF:
         xextent = (-0.5, 63.5)
         yextent = (-0.5, 63.5)
         img_shape = (64, 64)
-        psf = load_cal.SMAPSplineCoefficient(self.bead_cal, psf_kernel.SplineCPP).init_spline(xextent, yextent,
-                                                                                              img_shape)
+        psf = load_cal.SMAPSplineCoefficient(self.bead_cal, psf_kernel.CubicSplinePSF).init_spline(xextent, yextent,
+                                                                                                   img_shape)
 
         return psf
 

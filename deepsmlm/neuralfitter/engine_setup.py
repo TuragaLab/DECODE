@@ -7,6 +7,7 @@ import tensorboardX
 import torch
 
 import deepsmlm.neuralfitter.filter
+import deepsmlm.neuralfitter.utils.pytorch_customs
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.utils
@@ -235,7 +236,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         shuffle=True,
         num_workers=param.Hardware.num_worker_train,
         pin_memory=False,
-        collate_fn=deepsmlm.generic.utils.data_utils.smlm_collate)
+        collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate)
 
     test_dl = torch.utils.data.DataLoader(
         dataset=test_ds,
@@ -243,7 +244,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         shuffle=False,
         num_workers=param.Hardware.num_worker_train,
         pin_memory=False,
-        collate_fn=deepsmlm.generic.utils.data_utils.smlm_collate)
+        collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate)
 
     """Set up post processor"""
     if not param.HyperParameter.suppress_post_processing:

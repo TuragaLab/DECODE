@@ -8,7 +8,7 @@ import csv
 from tqdm import tqdm
 
 import deepsmlm.generic.emitter as em
-from deepsmlm.generic.utils.data_utils import smlm_collate
+from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
 from deepsmlm.generic.utils.processing import TransformSequence
 from deepsmlm.neuralfitter.dataset import UnsupervisedDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer
 from deepsmlm.neuralfitter.pre_processing import ROIOffsetRep, N2C
@@ -295,7 +295,7 @@ class PredictEvalTif(PredictEval):
 
         gt = em.EmitterSet(xyz=id_frame_xyz_camval[:, 2:5], frame_ix=id_frame_xyz_camval[:, 1],
                            phot=id_frame_xyz_camval[:, -1], id=id_frame_xyz_camval[:, 0])
-        gt.sort_by_frame()
+        gt.sort_by_frame_()
 
         return gt
 

@@ -21,7 +21,7 @@ from deepsmlm.generic.utils.scheduler import ScheduleSimulation
 from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParameter, SimulationParam, LoggerParameter, \
     SchedulerParameter
 from deepsmlm.neuralfitter.dataset import SMLMStaticDataset
-from deepsmlm.generic.utils.data_utils import smlm_collate
+from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
 from deepsmlm.neuralfitter.dataset import SMLMDatasetOnFly
 from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, MaskedOnlyZLoss
 from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco

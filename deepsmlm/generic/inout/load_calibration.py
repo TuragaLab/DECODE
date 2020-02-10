@@ -2,12 +2,12 @@ import numpy as np
 import scipy.io as sio
 import torch
 
-from deepsmlm.generic.psf_kernel import SplineCPP
+from deepsmlm.generic.psf_kernel import CubicSplinePSF
 
 
 class SMAPSplineCoefficient:
     """Wrapper class as an interface for MATLAB Spline calibration data."""
-    def __init__(self, file, spline_obj=SplineCPP):
+    def __init__(self, file, spline_obj=CubicSplinePSF):
         """
 
         :param file: .mat file
@@ -40,7 +40,7 @@ class SMAPSplineCoefficient:
 
 class StormAnaCoefficient:
     """Wrapper class as an interface for MATLAB Spline calibration data."""
-    def __init__(self, file, spline_obj=SplineCPP):
+    def __init__(self, file, spline_obj=CubicSplinePSF):
         """
 
         :param file: .mat file

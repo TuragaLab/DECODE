@@ -75,13 +75,13 @@ class TestEmitterSet:
         """
         sets = [RandomEmitterSet(50), RandomEmitterSet(20)]
         cat_sets = EmitterSet.cat_emittersets(sets, None, 1)
-        assert 70 == cat_sets.num_emitter
+        assert 70 == len(cat_sets)
         assert 0 == cat_sets.frame_ix[0]
         assert 1 == cat_sets.frame_ix[50]
 
         sets = [RandomEmitterSet(50), RandomEmitterSet(20)]
         cat_sets = EmitterSet.cat_emittersets(sets, torch.tensor([5, 50]), None)
-        assert 70 == cat_sets.num_emitter
+        assert 70 == len(cat_sets)
         assert 5 == cat_sets.frame_ix[0]
         assert 50 == cat_sets.frame_ix[50]
 
@@ -138,7 +138,7 @@ class TestEmitterSet:
 
 def test_empty_emitterset():
     em = EmptyEmitterSet()
-    assert 0 == em.num_emitter
+    assert 0 == len(em)
 
 
 class TestLooseEmitterSet:

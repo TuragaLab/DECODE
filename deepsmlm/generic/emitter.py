@@ -3,33 +3,9 @@ import numpy as np
 import torch
 
 import torch_cpp
+
+from deepsmlm.generic.utils.test_utils import at_least_one_dim, same_shape_tensor, same_dim_tensor
 from .utils import test_utils as tutil
-
-
-def at_least_one_dim(*args):
-    for arg in args:
-        if arg.dim() == 0:
-            arg.unsqueeze_(0)
-
-
-def same_shape_tensor(dim, *args):
-    for i in range(args.__len__() - 1):
-        if args[i].size(dim) == args[i + 1].size(dim):
-            continue
-        else:
-            return False
-
-    return True
-
-
-def same_dim_tensor(*args):
-    for i in range(args.__len__() - 1):
-        if args[i].dim() == args[i + 1].dim():
-            continue
-        else:
-            return False
-
-    return True
 
 
 class EmitterSet:
@@ -102,21 +78,46 @@ class EmitterSet:
         if sanity_check:
             self._sanity_check()
 
+    def to_dict(self):
+        """
+        Returns dictionary representation of this EmitterSet so that the keys and variables correspond to what an
+        EmitterSet would be initialised.
+
+        Returns:
+            (dict)
+        """
+        em_dict = {
+            'xyz': self.xyz,
+            'phot': self.phot,
+            'frame_ix': self.frame_ix,
+            'id': self.id,
+            'prob': self.prob,
+            'bg': self.bg,
+            'xyz_cr': self.xyz_cr,
+            'phot_cr': self.phot_cr,
+            'bg_cr': self.bg_cr,
+            'xy_unit': self.xy_unit,
+            'px_size': self.px_size
+        }
+
+        return em_dict
+
     @property
     def num_emitter(self):
-        # warnings.warn("This will be soon deprecated. Use len() instead.", DeprecationWarning, stacklevel=0)
-        # return int(self.xyz.shape[0]) if self.xyz.shape[0] != 0 else 0
         raise DeprecationWarning
 
     @property
     def xyz_px(self):
+        """
+        Returns xyz in pixel coordinates and performs respective transformations if needed.
+        """
         if self.xy_unit is None:
             warnings.warn("If unit is unspecified, can not convert to px coordinates.")
             return
         elif self.xy_unit == 'nm':
             if self.px_size is None:
                 raise ValueError("Cannot convert between px and nm without px-size specified.")
-            return self.convert_coordinates(factor=1/self.px_size)
+            return self._convert_coordinates(factor=1 / self.px_size)
         elif self.xy_unit == 'px':
             return self.xyz
 
@@ -127,13 +128,16 @@ class EmitterSet:
 
     @property
     def xyz_nm(self):
+        """
+        Returns xyz in nanometres and performs respective transformations if needed.
+        """
         if self.xy_unit is None:
             warnings.warn("If unit is unspecified, can not convert to px coordinates.")
             return
         elif self.xy_unit == 'px':
             if self.px_size is None:
                 raise ValueError("Cannot convert between px and nm without px-size specified.")
-            return self.convert_coordinates(factor=self.px_size)
+            return self._convert_coordinates(factor=self.px_size)
         elif self.xy_unit == 'nm':
             return self.xyz
 
@@ -143,14 +147,14 @@ class EmitterSet:
         self.xy_unit = 'nm'
 
     @property
-    def xyz_scr(self):  # sqrt crlb
+    def xyz_scr(self):
         return self.xyz_cr.sqrt()
 
     @property
     def xyz_nm_scr(self):
         if self.px_size is None:
             raise ValueError("Cannot convert between px and nm without px-size specified.")
-        return self.convert_coordinates(factor=self.px_size, xyz=self.xyz_scr)
+        return self._convert_coordinates(factor=self.px_size, xyz=self.xyz_scr)
 
     @property
     def phot_scr(self):
@@ -161,8 +165,14 @@ class EmitterSet:
         return self.bg_cr.sqrt()
 
     def _inplace_replace(self, em):
-        """If self is derived class of EmitterSet, call the constructor of the parent instead of self.
-        However, I don't know why super().__init__(...) does not work."""
+        """
+        Inplace replacement of this self instance. Does not work for inherited methods ...
+        Args:
+            em: (EmitterSet) that should replace self
+
+        Returns:
+            (None)
+        """
         self.__init__(xyz=em.xyz,
                       phot=em.phot,
                       frame_ix=em.frame_ix,
@@ -178,8 +188,13 @@ class EmitterSet:
 
     def _sanity_check(self, check_uniqueness=False):
         """
-        Tests the integrity of the EmitterSet
-        :return: None
+        Performs several integrity tests on the EmitterSet.
+
+        Args:
+            check_uniqueness: (bool) check the uniqueness of the ID
+
+        Returns:
+            (bool) sane or not sane
         """
         if not same_shape_tensor(0, self.xyz, self.phot, self.frame_ix, self.id, self.bg,
                                  self.xyz_cr, self.phot_cr, self.bg_cr):
@@ -188,19 +203,36 @@ class EmitterSet:
         if not same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
             raise ValueError("Expected photons, probability frame index and id to be 1D.")
 
-        if self.xy_unit is not None:
+        # Motivate the user to specify an xyz unit.
+        if self.xy_unit is None:
+            warnings.warn("No xyz unit specified. No guarantees given ...")
+        else:
             if self.xy_unit not in self.xy_units:
-                warnings.warn("XY unit not known.")
+                raise ValueError("XY unit not supported.")
 
-        # check uniqueness of ID
+        # check uniqueness of identity (ID)
         if check_uniqueness:
             if torch.unique(self.id).numel() != self.id.numel():
                 raise ValueError("IDs are not unique.")
 
+        return True
+
     def __len__(self):
+        """
+        Implements length of EmitterSet. Length of EmitterSet is number of rows of xyz container.
+
+        Returns:
+            (int) length of EmitterSet
+        """
         return int(self.xyz.shape[0]) if self.xyz.shape[0] != 0 else 0
 
     def __str__(self):
+        """
+        Friendly representation of EmitterSet
+
+        Returns:
+            (string) representation of this class
+        """
         print_str = f"EmitterSet" \
                     f"\n::num emitters: {len(self)}"
 
@@ -215,35 +247,58 @@ class EmitterSet:
 
     def __eq__(self, other):
         """
-        Two emittersets are equal if all of it's (tensor) members are equal within a certain float precision
-        :param other: EmitterSet
-        :return: (bool)
+        Implements equalness check. Returns true if all attributes are the same and in the same order. The identy
+        does not have to be the same, but the values of the attributes have to.
+        Args:
+            other: (emitterset)
+
+        Returns:
+            (bool) true if as stated above.
         """
-        is_equal = True
-        is_equal *= tutil.tens_almeq(self.xyz, other.xyz, self.eq_precision)
-        is_equal *= tutil.tens_almeq(self.frame_ix, other.frame_ix, self.eq_precision)
-        is_equal *= tutil.tens_almeq(self.phot, other.phot, self.eq_precision)
-        # is_equal *= tutil.tens_almeq(self.id, other.id, self.eq_precision)  # this is in question
-        is_equal *= tutil.tens_almeq(self.prob, other.prob, self.eq_precision)
+        if not tutil.tens_almeq(self.xyz, other.xyz, self.eq_precision):
+            return False
+
+        if not tutil.tens_almeq(self.frame_ix, other.frame_ix, self.eq_precision):
+            return False
+
+        if not tutil.tens_almeq(self.phot, other.phot, self.eq_precision):
+            return False
+
+        if not tutil.tens_almeq(self.prob, other.prob, self.eq_precision):
+            return False
+
+        if not self.xy_unit == other.xy_unit:
+            return False
 
         if torch.isnan(self.bg).all():
-            is_equal *= torch.isnan(other.bg).all()
+            if not torch.isnan(other.bg).all():
+                return False
         else:
-            is_equal *= tutil.tens_almeq(self.bg, other.bg, self.eq_precision)
-        if torch.isnan(self.xyz_cr).all():
-            is_equal *= torch.isnan(other.xyz_cr).all()
-        else:
-            is_equal *= tutil.tens_almeq(self.bg, other.bg, self.eq_precision)
-        if torch.isnan(self.phot_cr).all():
-            is_equal *= torch.isnan(other.phot_cr).all()
-        else:
-            is_equal *= tutil.tens_almeq(self.bg, other.bg, self.eq_precision)
-        if torch.isnan(self.bg_cr).all():
-            is_equal *= torch.isnan(other.bg_cr).all()
-        else:
-            is_equal *= tutil.tens_almeq(self.bg, other.bg, self.eq_precision)
+            if not tutil.tens_almeq(self.bg, other.bg, self.eq_precision):
+                return False
 
-        return is_equal.item()
+        if torch.isnan(self.xyz_cr).all():
+            if not torch.isnan(other.xyz_cr).all():
+                return False
+        else:
+            if not tutil.tens_almeq(self.bg, other.bg, self.eq_precision):
+                return False
+
+        if torch.isnan(self.phot_cr).all():
+            if not torch.isnan(other.phot_cr).all():
+                return False
+        else:
+            if not tutil.tens_almeq(self.bg, other.bg, self.eq_precision):
+                return False
+
+        if torch.isnan(self.bg_cr).all():
+            if not torch.isnan(other.bg_cr).all():
+                return False
+        else:
+            if not tutil.tens_almeq(self.bg, other.bg, self.eq_precision):
+                return False
+
+        return True
 
     def __iter__(self):
         """
@@ -271,7 +326,7 @@ class EmitterSet:
 
     def __getitem__(self, item):
         """
-        Implements array indexing for Emitterset
+        Implements array indexing for this class.
 
         Args:
             item: (int), or indexing
@@ -286,7 +341,7 @@ class EmitterSet:
 
     def clone(self):
         """
-        Make a deep copy of this EmitterSet.
+        Returns a deep copy of this EmitterSet.
 
         Returns:
             (EmitterSet)
@@ -307,12 +362,17 @@ class EmitterSet:
     @staticmethod
     def cat_emittersets(emittersets, remap_frame_ix=None, step_frame_ix=None):
         """
-        Concatenates list of emitters and rempas there frame indices if they start over with 0 per item in list.
+        Concatenate multiple emittersets into one emitterset which is returned. Optionally modify the frame indices by
+        the arguments.
 
-        :param emittersets: iterable of instances of this class
-        :param remap_frame_ix: tensor of frame indices to which the 0th frame index in the emitterset corresponds to
-        :param step_frame_ix: step of frame indices between items in list
-        :return: emitterset
+        Args:
+            emittersets: (list of emittersets) emittersets to be concatenated
+            remap_frame_ix: (torch.Tensor, optional) index of 0th frame to map the corresponding emitterset to.
+            Length must correspond to length of list in first argument.
+            step_frame_ix: (int, optional) step size of 0th frame between emittersets.
+
+        Returns:
+            (emitterset) concatenated emitterset
         """
         num_emittersets = len(emittersets)
 
@@ -354,7 +414,13 @@ class EmitterSet:
         return EmitterSet(xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr, sanity_check=True,
                           xy_unit=xy_unit, px_size=px_size)
 
-    def sort_by_frame(self):
+    def sort_by_frame_(self):
+        """
+        Inplace sort this emitterset by its frame index.
+
+        Returns:
+
+        """
         self.frame_ix, ix = self.frame_ix.sort()
         self.xyz = self.xyz[ix, :]
         self.phot = self.phot[ix]
@@ -367,9 +433,22 @@ class EmitterSet:
 
         self._sorted = True
 
+    def sort_by_frame(self):
+        """
+        Sort a deepcopy of this emitterset and return it.
+
+        Returns:
+            (emitterset) Sorted copy of this emitterset.
+
+        """
+        em = self.clone()
+        em.sort_by_frame_()
+
+        return em
+
     def get_subset(self, ix):
         """
-        Returns subset of emitterset. Main implementation of __getitem__ and __next__ methods.
+        Returns subset of emitterset. Actual implementation of __getitem__ and __next__ methods.
         Args:
             ix: (int, list) integer index or list of indices
 
@@ -385,12 +464,15 @@ class EmitterSet:
 
     def get_subset_frame(self, frame_start, frame_end, shift_to=None):
         """
-        Get Emitterset for a certain frame range.
-        Inclusive behaviour, so start and end are included.
+        Returns emitters that are in the frame range as specified.
 
-        :param frame_start: (int)
-        :param frame_end: (int)
-        :shift_to: shift frame indices to a certain start value
+        Args:
+            frame_start: (int) lower frame index limit
+            frame_end: (int) upper frame index limit (including)
+            shift_to:
+
+        Returns:
+
         """
 
         ix = (self.frame_ix >= frame_start) * (self.frame_ix <= frame_end)
@@ -399,16 +481,22 @@ class EmitterSet:
             return em
         else:
             if em.num_emitter != 0:  # shifting makes only sense if we have an emitter.
-                em.frame_ix = em.frame_ix - em.frame_ix.min() + shift_to
+                raise DeprecationWarning
             return em
 
     @property
     def single_frame(self):
+        """
+        Check if all emitters belong to the same frame.
+
+        Returns:
+            (bool)
+        """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
     def compute_grand_matrix(self, ix=None, xy_unit=None, xy_unit2=None):
         """
-        Computes a grand matrix to put everything in one tensor.
+        Computes a container (grand matrix). Useful when you want to write it to a csv.
         Args:
             ix: limit the indices
             xy_unit: xy unit to write to the matrix
@@ -449,22 +537,21 @@ class EmitterSet:
 
     @staticmethod
     def _construct_from_grand_matrix(gmat):
-        return EmitterSet(xyz=gmat[:, :3], phot=gmat[:, 3], frame_ix=gmat[:, 4], id=gmat[:, 5], prob=gmat[:, 6],
-                          bg=gmat[:, 7], xyz_cr=gmat[:, 8:11], phot_cr=gmat[:, 11], bg_cr=gmat[:, 12],
-                          sanity_check=False)
+        raise DeprecationWarning
+        # return EmitterSet(xyz=gmat[:, :3], phot=gmat[:, 3], frame_ix=gmat[:, 4], id=gmat[:, 5], prob=gmat[:, 6],
+        #                   bg=gmat[:, 7], xyz_cr=gmat[:, 8:11], phot_cr=gmat[:, 11], bg_cr=gmat[:, 12],
+        #                   sanity_check=False)
 
-    def split_in_frames(self, ix_low=0, ix_up=None):
+    def split_in_frames(self, ix_low: int = 0, ix_up: int = None):
         """
-        plit an EmitterSet into list of emitters (framewise).
-        This calls C++ implementation torch_cpp for performance.
-        If neither lower nor upper are inferred (via None values),
-        output size will be a list of length (ix_up - ix_low + 1).
-        If we have an empty set of emitters which we want to split, we get a one-element empty
-        emitter 
+        Splits a set of emitters in a list of emittersets based on their respective frame index.
 
-        :param ix_low: (int) lower index, if None, use min value
-        :param ix_up: (int) upper index, if None, use max value
-        :return: list of instances of this class.
+        Args:
+            ix_low: (int, 0) lower bound
+            ix_up: (int, None) upper bound
+
+        Returns:
+
         """
 
         frame_ix, ix = self.frame_ix.sort()
@@ -488,12 +575,13 @@ class EmitterSet:
             ix_low_ = ix_low if ix_low is not None else frame_ix.min()
             ix_up_ = ix_up if ix_up is not None else frame_ix.max()
 
+            """Call C++ implementation of splitting."""
             grand_matrix_list = torch_cpp.split_tensor(grand_matrix, frame_ix, ix_low_, ix_up_)
 
         else:
             """
             If there is absolutelty nothing to split (i.e. empty emitterset) we may want to have a list of
-            empty sets of emitters. This only applies if ix_l is not inferred (i.e. -1).
+            empty sets of emitters. This only applies if ix_l is not inferred (i.e. not NoneNone).
             Otherwise we will have a one element list with an empty emitter set.
             """
             if ix_low is None:
@@ -509,17 +597,21 @@ class EmitterSet:
 
         return em_list
 
-    def convert_coordinates(self, factor=None, shift=None, axis=None, xyz=None):
+    def _convert_coordinates(self, factor=None, shift=None, axis=None):
         """
-        Convert coordinates. The order is factor -> shift -> axis
-        :param factor: scale up factor
-        :param shift: shift
-        :param axis: permute axis
-        :param xyz: overwrite xyz tensor (e.g. for using it with crlb)
-        :return:
+        Convert coordinates. Order: factor -> shift -> axis
+
+        Args:
+            factor: (torch.Tensor, None)
+            shift: (torch.Tensor, None)
+            axis: (list)
+
+        Returns:
+            xyz (torch.Tensor) modified coordinates.
+
         """
-        if xyz is None:
-            xyz = self.xyz.clone()
+
+        xyz = self.xyz.clone()
 
         if factor is not None:
             if factor.size(0) == 2:
@@ -530,79 +622,108 @@ class EmitterSet:
             xyz += shift.float().unsqueeze(0)
         if axis is not None:
             xyz = xyz[:, axis]
+
         return xyz
 
     def convert_em(self, factor=None, shift=None, axis=None, frame_shift=None, new_xy_unit=None):
         """
-        Convert a clone of the current emitter
-        :param factor:
-        :param shift:
-        :param axis:
-        :param frame_shift:
-        :param new_xy_unit: set the name of the unit
-        :return:
+        Returns a modified copy of this set of emitters.
+
+        Args:
+            factor: (torch.Tensor, None)
+            shift: (torch.Tensor, None)
+            axis: (list)
+            frame_shift:
+            new_xy_unit:
+
+        Returns:
+            EmitterSet: converted emitterset
         """
 
         emn = self.clone()
-        emn.xyz = emn.convert_coordinates(factor, shift, axis)
+
+        emn.xyz = emn._convert_coordinates(factor, shift, axis)
+
         if frame_shift is not None:
             emn.frame_ix += frame_shift
+
         if new_xy_unit is not None:
             emn.xy_unit = new_xy_unit
+
         return emn
 
     def convert_em_(self, factor=None, shift=None, axis=None, frame_shift=0, new_xy_unit=None):
         """
-        Inplace conversion of emitter
-        :param factor:
-        :param shift:
-        :param axis:
-        :param frame_shift:
-        :param new_xy_unit: set the name of the xy unit
-        :return:
+        Inplace conversion of emiterset.
+        The order of coordinate conversion is factor -> shift -> axis.
+        Factor multiplies xyz by a factor. Shift shifts the coordinates. Axis permutes the axis.
+
+        Args:
+            factor: (torch.Tensor, None)
+            shift: (torch.Tensor, None)
+            axis: (list)
+            frame_shift:
+            new_xy_unit:
+
+        Returns:
+
         """
-        self.xyz = self.convert_coordinates(factor, shift, axis)
+        self.xyz = self._convert_coordinates(factor, shift, axis)
         self.frame_ix += frame_shift
         if new_xy_unit is not None:
             self.xy_unit = new_xy_unit
 
-    def write_to_binary(self, filename):
+    def populate_crlb(self, psf, mode='single'):
         """
-        Writes the "grand_matrix" representation to a binary using pickle.
+        # ToDo: This has to change in future.
+        Fills the CRLB as by the implementation of the PSF.
 
         Args:
-            filename: output file
+            psf:
+            mode:
 
         Returns:
 
         """
+        if len(self) == 0:
+            return
 
-        gmat = self.compute_grand_matrix().clone()
-        torch.save(gmat, filename)
+        if mode == 'single':
+            crlb, _ = psf.crlb_single(self.xyz_px, self.phot, self.bg, crlb_order='xyzpb')
+            self.xyz_cr = crlb[:, :3]
+            self.phot_cr = crlb[:, 3]
+            self.bg_cr = crlb[:, 4]
+            return
 
-    @staticmethod
-    def load_from_binary(filename):
-        """
-        Loads a grand matrix and converts it into an EmitterSet
-        
-        Args:
-            filename:
+        elif mode == 'multi':
+            warnings.warn(
+                "Be advised, that at the moment, calculating the crlb in multi-mode for an EmitterSet can and most "
+                "likely will change the order of the elements in the set."
+                "If you compare this against another set, be careful.")
+            em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
 
-        Returns:
-            EmitterSet without px size and xy unit
+            for em in em_split:
 
-        """
-        gmat = torch.load(filename)
-        return EmitterSet._construct_from_grand_matrix(gmat)
+                crlb, _ = psf.crlb(em.xyz_px, em.phot, em.bg, crlb_order='xyzpb')
 
-    def write_to_csv(self, filename, xy_unit=None, model=None, comments=None, plain_header=False, xy_unit2=None):
+                em.xyz_cr = crlb[:, :3]
+                em.phot_cr = crlb[:, 3]
+                em.bg_cr = crlb[:, 4]
+
+            remerged_set = self.cat_emittersets(em_split)
+            self._inplace_replace(remerged_set)
+            return
+
+        else:
+            raise ValueError("Mode must be single or multi.")
+
+    def write_to_csv(self, filename, xy_unit=None, comments=None, plain_header=False, xy_unit2=None):
         """
         Writes the emitterset to a csv file.
 
         Args:
             filename:  csv file name
             xy_unit:  xy unit (typically 'nm' or 'px') for automatic conversion
-            model:  model to incroporate hash into the csv
             comments:  additional comments to put into the csv
             plain_header: no # at beginning of first line
 
@@ -621,12 +742,8 @@ class EmitterSet:
                  'DeepSMLM.\n' \
                  'Total number of emitters: {}'.format(len(self))
 
-        if model is not None:
-            if hasattr(model, 'hash'):
-                header += '\nModel initialisation file SHA-1 hash: {}'.format(model.hash)
-
         if comments is not None:
-            header += '\nUser comment during export: {}'.format(comments)
+            header += '\nComment during export: {}'.format(comments)
         np.savetxt(filename, grand_matrix.numpy(), delimiter=',', header=header)
 
         if plain_header:
@@ -639,7 +756,7 @@ class EmitterSet:
 
         return grand_matrix
 
-    def write_to_csv_format(self, filename, xy_unit=None, xy_unit2=None, model=None, comments=None,
+    def write_to_csv_format(self, filename, xy_unit=None, xy_unit2=None, comments=None,
                             xyz_shift=None, frame_shift=None, axis=None, plain_header=False, lud=None, lud_name=None):
         """
         Transforms the data and writes it to a csv.
@@ -647,7 +764,6 @@ class EmitterSet:
             filename:
             xy_unit:
             xy_unit2: secondary xy unit
-            model:
             comments:
             xyz_shift:
             frame_shift:
@@ -685,10 +801,11 @@ class EmitterSet:
                                    frame_shift=frame_shift,
                                    new_xy_unit=None)
 
-        em_clone.write_to_csv(filename, xy_unit, model, comments, plain_header=plain_header, xy_unit2=xy_unit2)
+        em_clone.write_to_csv(filename, xy_unit, comments, plain_header=plain_header, xy_unit2=xy_unit2)
 
     @staticmethod
     def read_csv(filename):
+        warnings.warn("This is not the proper way to save and store emittersets.")
         grand_matrix = np.loadtxt(filename, delimiter=",", comments='#')
         grand_matrix = torch.from_numpy(grand_matrix).float()
         if grand_matrix.size(1) == 7:
@@ -698,43 +815,6 @@ class EmitterSet:
         else:
             return EmitterSet(xyz=grand_matrix[:, 2:5], frame_ix=grand_matrix[:, 1],
                               phot=grand_matrix[:, 5], id=grand_matrix[:, 0])
-
-    def populate_crlb(self, psf, mode='multi'):
-        """
-        Calculate the CRLB
-        :return:
-        """
-        if len(self) == 0:
-            return
-
-        if mode == 'single':
-            crlb, _ = psf.crlb_single(self.xyz_px, self.phot, self.bg, crlb_order='xyzpb')
-            self.xyz_cr = crlb[:, :3]
-            self.phot_cr = crlb[:, 3]
-            self.bg_cr = crlb[:, 4]
-            return
-
-        elif mode == 'multi':
-            warnings.warn(
-                "Be advised, that at the moment, calculating the crlb in multi-mode for an EmitterSet can and most "
-                "likely will change the order of the elements in the set."
-                "If you compare this against another set, be careful.")
-            em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
-
-            for em in em_split:
-
-                crlb, _ = psf.crlb(em.xyz_px, em.phot, em.bg, crlb_order='xyzpb')
-
-                em.xyz_cr = crlb[:, :3]
-                em.phot_cr = crlb[:, 3]
-                em.bg_cr = crlb[:, 4]
-
-            remerged_set = self.cat_emittersets(em_split)
-            self._inplace_replace(remerged_set)
-            return
-
-        else:
-            raise ValueError("Mode must be single or multi.")
 
 
 class RandomEmitterSet(EmitterSet):

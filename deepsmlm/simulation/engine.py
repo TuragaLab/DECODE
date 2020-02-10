@@ -5,6 +5,9 @@ import copy
 import math
 import itertools
 import torch
+
+import deepsmlm.neuralfitter.utils.pytorch_customs
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.utils
 import tqdm
@@ -83,8 +86,8 @@ class SimulationEngine:
         self._batch_size = batch_size
 
         self._dl_train = torch.utils.data.DataLoader(dataset=self.ds_train, batch_size=self._batch_size, shuffle=False,
-                                               num_workers=self.cpu_worker, collate_fn=deepsmlm_utils.smlm_collate,
-                                               pin_memory=False)
+                                                     num_workers=self.cpu_worker, collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate,
+                                                     pin_memory=False)
 
         if self.ds_test is not None:
             if len(self.ds_test) < batch_size * self.cpu_worker:
@@ -93,8 +96,8 @@ class SimulationEngine:
             batch_size_test = batch_size
 
             self._dl_test = torch.utils.data.DataLoader(dataset=self.ds_test, batch_size=batch_size_test, shuffle=False,
-                                               num_workers=self.cpu_worker, collate_fn=deepsmlm_utils.smlm_collate,
-                                               pin_memory=False)
+                                                        num_workers=self.cpu_worker, collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate,
+                                                        pin_memory=False)
 
     @staticmethod
     def _get_engines(folderpath):
