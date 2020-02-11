@@ -34,3 +34,5 @@ int xc, int yc, int zc, float phot, float x_delta, float y_delta, float z_delta)
 __global__
 void fPSF(spline *sp, float *rois, int npx, int npy, 
 float* coeff, float* xc_, float* yc_, float* zc_, float* phot_);
+
+void run();
