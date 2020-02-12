@@ -22,9 +22,16 @@ struct PSFWrapper {
         psf = d_spline_init(xsize, ysize, zsize, coeff.data());
     }
 
+    auto forward_psf(py::array_t<float> x, py::array_t<float> y, py::array_t<float> z, py::array_t<float> phot) -> void {
+        int n = x.size();
+
+        compute_rois_h(psf, n, x.data(), y.data(), z.data(), phot.data());
+    }
+
 };
 
 PYBIND11_MODULE(spline_psf_cuda, m) {
     py::class_<PSFWrapper>(m, "PSFWrapper")
-        .def(py::init<int, int, int, py::array_t<float>>());
+        .def(py::init<int, int, int, py::array_t<float>>())
+        .def("forward_psf", &PSFWrapper::forward_psf);
 }

@@ -1,9 +1,6 @@
 //
-//  spline_psf.c
-//  libtorchInterface
-//
-//  Created by Lucas Müller on 15.03.19.
-//  Copyright © 2019 Lucas-Raphael Müller. All rights reserved.
+//  Created by Lucas Müller on 12.02.2020
+//  Copyright © 2020 Lucas-Raphael Müller. All rights reserved.
 //
 #include <iostream>
 #include <stdio.h>
@@ -14,26 +11,7 @@
 #include <cuda_runtime.h>
 #include <math.h>
 
-// #include <stdbool.h>
 #include "spline_psf_gpu.cuh"
-
-// spline* initSpline(int xsize, int ysize, int zsize) {
-
-//     spline* sp;
-//     sp =(spline *)malloc(sizeof(spline));
-
-//     sp->xsize = xsize;
-//     sp->ysize = ysize;
-//     sp->zsize = zsize;
-
-//     sp->roi_out_eps = 1e-10;
-//     sp->roi_out_deriv_eps = 0.0;
-
-//     sp->NV_PSP = 5;  
-//     sp->n_coeff = 64;
-
-//     return sp;
-// }
 
 __device__
 void kernel_computeDelta3D(spline *sp, 
@@ -41,14 +19,15 @@ float* delta_f, float* delta_dxf, float* delta_dyf, float* delta_dzf,
 float x_delta, float y_delta, float z_delta);
 
 __global__
-void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy, float* coeff, 
+void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy, 
 int xc, int yc, int zc, float phot, float x_delta, float y_delta, float z_delta);
 
 __global__
 void fPSF(spline *sp, float *rois, int npx, int npy, 
-float* coeff, float* xc_, float* yc_, float* zc_, float* phot_);
+float* xc_, float* yc_, float* zc_, float* phot_);
 
 spline* d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) {
+    
 
     spline* sp;
     sp = (spline *)malloc(sizeof(spline));
@@ -78,6 +57,18 @@ spline* d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) {
     return d_sp;
 }
 
+// Just a dummy for checking correct parsing from python
+__global__
+void check_spline(spline *d_sp) {
+    printf("Checking spline ...\n");
+    printf("\txs, ys, zs: %i %i %i\n", d_sp->xsize, d_sp->ysize, d_sp->zsize);
+
+    printf("\tcoeff: ");
+    for (int i = 0; i < 10; i++) {
+        printf(" %2f", d_sp->coeff[i]);
+    }
+    printf("\n");
+}
 
 __device__
 void kernel_computeDelta3D(spline *sp, 
@@ -112,7 +103,7 @@ void kernel_computeDelta3D(spline *sp,
 }
 
 __global__
-void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy, float* coeff, 
+void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy,
     int xc, int yc, int zc, float phot, float x_delta, float y_delta, float z_delta) {
     
     int i = (blockIdx.x * blockDim.x + threadIdx.x) / npx;
@@ -145,7 +136,7 @@ void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy, float* coeff,
     zc = min(zc,sp->zsize-1);
 
     for (int i=0; i < 64; i++) {
-        fv += delta_f[i] * coeff[i * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
+        fv += delta_f[i] * sp->coeff[i * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
     }
 
     // write to global roi stack
@@ -153,7 +144,7 @@ void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy, float* coeff,
 }
 
 __global__
-void fPSF(spline *sp, float *rois, int npx, int npy, float* coeff, float* xc_, float* yc_, float* zc_, float* phot_) {
+void fPSF(spline *sp, float *rois, int npx, int npy, float* xc_, float* yc_, float* zc_, float* phot_) {
     
     int r = blockIdx.x;  // roi index
 
@@ -176,21 +167,17 @@ void fPSF(spline *sp, float *rois, int npx, int npy, float* coeff, float* xc_, f
     z0 = (int)floor(zc);
     z_delta = zc - z0;
 
-    /* rewrite to start cuda childs */
-    fAt3Dj<<<1, npx * npy>>>(sp, rois, r, npx, npy, coeff, x0, y0, z0, phot, x_delta, y_delta, z_delta);
+    fAt3Dj<<<1, npx * npy>>>(sp, rois, r, npx, npy, x0, y0, z0, phot, x_delta, y_delta, z_delta);
     cudaDeviceSynchronize();
 }
 
-void forward(spline *d_sp) {
+auto compute_rois(spline *d_sp, 
+    const int n, const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float* {
 
     // init cuda_err
     cudaError_t err = cudaSuccess;
 
     // setup n random localisations and ship them to GPU
-    int n = 1000;
-    // std::cout << "Enter number of ROIs: ";
-    // std::cin >> n;
-    // std::cout << "\n";
     int roi_size_x = 13;
     int roi_size_y = 13;
 
@@ -199,26 +186,50 @@ void forward(spline *d_sp) {
     cudaMalloc(&d_y, n * sizeof(float));
     cudaMalloc(&d_z, n * sizeof(float));
     cudaMalloc(&d_phot, n * sizeof(float));
-    cudaMemset(d_x, 0, n * sizeof(float));
-    cudaMemset(d_y, 0, n * sizeof(float));
-    cudaMemset(d_z, 0, n * sizeof(float));
-    cudaMemset(d_phot, 0, n * sizeof(float));
+    cudaMemcpy(d_x, h_x, n * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_y, h_y, n * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_z, h_z, n * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_phot, h_phot, n * sizeof(float), cudaMemcpyHostToDevice);
 
     // add output rois on host and device; 
     float* d_rois;
     cudaMalloc(&d_rois, n * roi_size_x * roi_size_y * sizeof(float));
     cudaMemset(d_rois, 0, n * roi_size_x * roi_size_y * sizeof(float));
 
-    std::vector<float> h_rois(n * roi_size_x * roi_size_y);  // host
+    #if DEBUG
+        check_spline<<<1,1>>>(d_sp);
+        cudaDeviceSynchronize();
+    #endif
 
     // start n blocks which itself start number of px childs
-    fPSF<<<n, 1>>>(d_sp, d_rois, roi_size_x, roi_size_y, d_sp->coeff, d_x, d_y, d_z, d_phot);
+    fPSF<<<n, 1>>>(d_sp, d_rois, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
     cudaDeviceSynchronize();
 
+    #if DEBUG
+        std::cout << "Success.\n";
+    #endif
+
+    cudaFree(&d_x);
+    cudaFree(&d_y);
+    cudaFree(&d_z);
+    cudaFree(&d_phot);
+
+    return d_rois;  
+}
+
+// Wrapper around compute_roi function to put the results back to host
+// 
+auto compute_rois_h(spline *d_sp, const int n, const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> void {
+
+    int roi_size_x = 13;
+    int roi_size_y = 13;
+    auto d_rois = compute_rois(d_sp, n, h_x, h_y, h_z, h_phot);
+    
     // put results to host
+    std::vector<float> h_rois(n * roi_size_x * roi_size_y);  // host
     cudaMemcpy(h_rois.data(), d_rois, n * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
 
-    std::cout << "Success.\n";
+    cudaFree(&d_rois);
 
-    return;  
+    return;
 }
