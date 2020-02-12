@@ -8,7 +8,8 @@ import scipy
 from scipy.stats import binned_statistic_2d
 import torch
 from torch.autograd import Function
-from deepsmlm.generic.emitter import EmitterSet
+
+import deepsmlm.generic.emitter
 import torch_cpp as tp
 
 
@@ -48,9 +49,9 @@ class PSF(ABC):
     def forward(self, input, weight):
         """
         Abstract method to go from position-matrix and photon number (aka weight) to an image.
-        Call it before implementing your psf to be able to parse emittersets (super().forward(x, weight)).
+        Call it before implementing your psf to be able to parse deepsmlm.generic.emitter.EmitterSets (super().forward(x, weight)).
         """
-        if isinstance(input, EmitterSet):
+        if isinstance(input, deepsmlm.generic.emitter.EmitterSet):
             pos = input.xyz
             if weight is None:
                 weight = input.phot
@@ -287,6 +288,38 @@ class GaussianExpect(PSF):
         gaussCdf = torch.sum(gaussCdf, 2)
 
         return gaussCdf.unsqueeze(0)
+
+
+class GPUSplinePSF(PSF):
+
+    def __init__(self, roi_size, coeff):
+        import spline_psf_cuda
+
+        self.roi_size = roi_size
+        self._coeff = coeff
+
+        self._spline = spline_psf_cuda.PSFWrapper(coeff.shape[0], coeff.shape[1], coeff.shape[2], coeff.numpy())
+        self._spline_cpu = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2], coeff.numpy())
+
+    def forward(self, xyz, phot):
+
+        out = self._spline.forward_psf(xyz[:, 0],
+                                       xyz[:, 1],
+                                       xyz[:, 2],
+                                       phot)
+        out = torch.from_numpy(out)
+        out = out.reshape(xyz.shape[0], 26, 26)
+        return out
+
+    def forward_cpu(self, xyz, phot):
+
+        out = self._spline_cpu.forward_psf(xyz[:, 0],
+                                       xyz[:, 1],
+                                       xyz[:, 2],
+                                       phot)
+        out = torch.from_numpy(out)
+        out = out.reshape(xyz.shape[0], 26, 26)
+        return out
 
 
 class CubicSplinePSF(PSF):
@@ -550,3 +583,41 @@ class ListPseudoPSF(PSF):
             return pos[:, :2], weight
         else:
             raise ValueError("Wrong dimension.")
+
+
+if __name__ == '__main__':
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import torch
+    import os
+
+    import deepsmlm.generic.psf_kernel
+    import deepsmlm.generic.plotting.frame_coord as fc
+    import deepsmlm.generic.inout.load_calibration
+
+    deepsmlm_root = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     os.pardir, os.pardir)) + '/'
+
+    coeff = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(
+        deepsmlm_root + 'data_central/Calibration/2019/M2_CollabSpeiser/000_beads_640i100_x35_Z-stack_1_MMStack_Pos0.ome_3dcal.mat').coeff
+
+    # init CUDA spline
+    psf = deepsmlm.generic.psf_kernel.GPUSplinePSF(13, coeff.contiguous())
+
+    xyz = torch.Tensor([[14.4, 0.2, 50.]])
+    phot = torch.ones_like(xyz[:, 0])
+
+    out = psf.forward(xyz, phot)
+    out_cpu = psf.forward_cpu(xyz, phot)
+    fc.PlotFrame(out).plot()
+    plt.show()
+    fc.PlotFrame(out_cpu).plot()
+    plt.show()
+
+
+    print("Done.")
+
+
+
+

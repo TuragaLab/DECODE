@@ -130,6 +130,7 @@ float fSpline3D(spline *sp, float xc, float yc, float zc) {
     z_delta = zc - z0;
 
     kernel_computeDelta3D(sp, x_delta, y_delta, z_delta);
+    
     float f = fAt3Dj(sp, x0, y0, z0);
     return f;
 }
@@ -141,9 +142,9 @@ void fPSF(spline *sp, float *img, int npx, float xc, float yc, float zc, float c
     float x_delta,y_delta,z_delta;
 
     /* coordinate of upper left corner */
-    xc = 0 - xc + sp->x0 - corner_x0;
-    yc = 0 - yc + sp->y0 - corner_y0;
-    zc = zc / sp->dz + sp->z0;
+    // xc = 0 - xc + sp->x0 - corner_x0;
+    // yc = 0 - yc + sp->y0 - corner_y0;
+    // zc = zc / sp->dz + sp->z0;
 
     /* Compute delta. Will be the same for all following px */
 
@@ -155,10 +156,6 @@ void fPSF(spline *sp, float *img, int npx, float xc, float yc, float zc, float c
 
     z0 = (int)floor(zc);
     z_delta = zc - z0;
-
-    #if DEBUG
-        printf("Transformed coordinates are: %f %f %f\n", xc, yc, zc);
-    #endif
 
     kernel_computeDelta3D(sp, x_delta, y_delta, z_delta);
 
@@ -180,9 +177,9 @@ void f_derivative_PSF(spline *sp, float *img, float *dudt, int npx, float xc, fl
     float theta[sp->NV_PSP];
 
     /* coordinate of upper left corner */
-    xc = 0 - xc + sp->x0 - corner_x0;
-    yc = 0 - yc + sp->y0 - corner_y0;
-    zc = zc / sp->dz + sp->z0;
+    // xc = 0 - xc + sp->x0 - corner_x0;
+    // yc = 0 - yc + sp->y0 - corner_y0;
+    // zc = zc / sp->dz + sp->z0;
 
     /* Compute delta. Will be the same for all following px */
     x0 = (int)floor(xc);
@@ -236,7 +233,8 @@ void f_derivative_aggregate(spline *sp, float *dudt_px, float *dudt_agg, int npx
     
 }
 
-spline* initSpline(float *coeff, int xsize, int ysize, int zsize, float x0, float y0, float z0, float dz) {
+spline* initSpline(const float *coeff, const int xsize, int const ysize, const int zsize, 
+                   const float x0, const float y0, const float z0, const float dz) {
 
     spline * sp;
     sp =(spline *)malloc(sizeof(spline));

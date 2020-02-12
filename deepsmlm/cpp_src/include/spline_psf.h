@@ -49,10 +49,14 @@ void kernel_DerivativeSpline(spline *, int xc, int yc, int zc, float *theta, flo
 float fAt3Dj(spline *, int, int, int );
 
 float fSpline3D(spline *, float, float, float );
-void fPSF(spline *, float *, int, float, float, float, float, float, float);
+
+void fPSF(spline *sp, float *img, int npx, float xc, float yc, float zc, 
+          float corner_x0, float corner_y0, float phot);
+
 void f_derivative_PSF(spline *sp, float *img, float *dudt, int npx, float xc, float yc, float zc, float corner_x0, float corner_y0, float phot, float bg);
 void f_derivative_aggregate(spline *sp, float *dudt_px, float *dudt_agg, int npx, int npy);
 
-spline* initSpline(float *, int, int, int, float, float, float, float);
+spline* initSpline(const float *coeff, const int xsize, int const ysize, const int zsize, 
+                   const float x0, const float y0, const float z0, const float dz);
 
 #endif /* spline_psf_h */

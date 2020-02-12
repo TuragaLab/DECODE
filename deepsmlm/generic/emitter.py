@@ -4,7 +4,6 @@ import torch
 
 import torch_cpp
 
-from deepsmlm.generic.utils.test_utils import at_least_one_dim, same_shape_tensor, same_dim_tensor
 from .utils import test_utils as tutil
 
 
@@ -196,11 +195,11 @@ class EmitterSet:
         Returns:
             (bool) sane or not sane
         """
-        if not same_shape_tensor(0, self.xyz, self.phot, self.frame_ix, self.id, self.bg,
+        if not tutil.same_shape_tensor(0, self.xyz, self.phot, self.frame_ix, self.id, self.bg,
                                  self.xyz_cr, self.phot_cr, self.bg_cr):
             raise ValueError("Coordinates, photons, frame ix, id and prob are not of equal shape in 0th dimension.")
 
-        if not same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
+        if not tutil.same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
             raise ValueError("Expected photons, probability frame index and id to be 1D.")
 
         # Motivate the user to specify an xyz unit.
