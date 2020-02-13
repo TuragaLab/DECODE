@@ -9,6 +9,8 @@
 #include <pybind11/stl.h>
 
 // #include <cuda_runtime.h>
+
+// ToDo: Namespace here did not work for a reason I don't yet understand.
 // namespace splinecuda {
     #include "spline_psf_gpu.cuh"
 // }
