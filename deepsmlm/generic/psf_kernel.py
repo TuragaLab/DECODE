@@ -293,12 +293,13 @@ class GaussianExpect(PSF):
 class GPUSplinePSF(PSF):
 
     def __init__(self, roi_size, coeff):
+        # pass
         import spline_psf_cuda
 
         self.roi_size = roi_size
         self._coeff = coeff
 
-        self._spline = spline_psf_cuda.PSFWrapper(coeff.shape[0], coeff.shape[1], coeff.shape[2], coeff.numpy())
+        self._spline = spline_psf_cuda.PSFWrapper(coeff.shape[0], coeff.shape[1], coeff.shape[2], 26, 26, coeff.numpy())
         self._spline_cpu = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2], coeff.numpy())
 
     def forward(self, xyz, phot):
@@ -599,22 +600,34 @@ if __name__ == '__main__':
         os.path.join(os.path.dirname(os.path.abspath(__file__)),
                      os.pardir, os.pardir)) + '/'
 
-    coeff = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(
-        deepsmlm_root + 'data_central/Calibration/2019/M2_CollabSpeiser/000_beads_640i100_x35_Z-stack_1_MMStack_Pos0.ome_3dcal.mat').coeff
+    coeff_file = deepsmlm_root + 'data_central/Calibration/2019/M2_CollabSpeiser/000_beads_640i100_x35_Z-stack_1_MMStack_Pos0.ome_3dcal.mat'
+    coeff = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(coeff_file).coeff
 
-    # init CUDA spline
-    psf = deepsmlm.generic.psf_kernel.GPUSplinePSF(13, coeff.contiguous())
 
-    xyz = torch.Tensor([[14.4, 0.2, 50.]])
-    phot = torch.ones_like(xyz[:, 0])
+    pextent = ((-0.5, 25.5), ((-0.5, 25.5)))
+    img_shape = (26, 26)
+    # psf_torch = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(coeff_file).init_spline(*pextent,
+    #                                                                                                   img_shape)
 
-    out = psf.forward(xyz, phot)
-    out_cpu = psf.forward_cpu(xyz, phot)
-    fc.PlotFrame(out).plot()
-    plt.show()
-    fc.PlotFrame(out_cpu).plot()
-    plt.show()
+    # xyz_torch = torch.Tensor([[14.2, 15.2, 300.]])
+    # phot_torch = torch.ones_like(xyz_torch[:, 0])
+    # out_torch = psf_torch.forward(xyz_torch, phot_torch)
+    # # fc.PlotFrame(out_torch).plot()
+    # # plt.show()
+    #
+    # # init CUDA spline
+    psf_cu = deepsmlm.generic.psf_kernel.GPUSplinePSF(13, coeff.contiguous())
+    #
+    xyz_plain = torch.Tensor([[-1.2, -2.2, 130.0]])
+    phot = torch.ones_like(xyz_plain[:, 0])
+    out_cu = psf_cu.forward(xyz_plain, phot)
 
+    # out = psf.forward(xyz, phot)
+    # out_cpu = psf.forward_cpu(xyz, phot)
+    # fc.PlotFrame(out).plot()
+    # plt.show()
+    # fc.PlotFrame(out_cpu).plot()
+    # plt.show()
 
     print("Done.")
 
