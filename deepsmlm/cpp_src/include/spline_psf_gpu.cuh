@@ -31,6 +31,7 @@
 // Returns:
 //      spline*:    pointer to spline struct living on the device (!)
 spline* d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff);
+void check_host_coeff(const float *h_coeff);
 
 auto compute_rois(spline *d_sp, const int n, const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float*;
 auto compute_rois_h(spline *d_sp, const int n, const float *h_x, const float *h_y, const float *h_z, const float *h_phot, float *h_rois) -> void;

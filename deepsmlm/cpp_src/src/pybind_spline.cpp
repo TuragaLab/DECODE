@@ -25,7 +25,7 @@ struct PSFWrapper {
     spline *psf;
 
     PSFWrapper(int xsize, int ysize, int zsize, 
-               py::array_t<float, py::array::c_style | py::array::forcecast> coeff) {
+               py::array_t<float, py::array::f_style | py::array::forcecast> coeff) {
         psf = d_spline_init(xsize, ysize, zsize, coeff.data());
     }
 
@@ -49,7 +49,7 @@ struct PSFWrapperCPU {
     splinecpu::spline *psf;
 
     PSFWrapperCPU(int xsize, int ysize, int zsize,
-                  py::array_t<float, py::array::c_style | py::array::forcecast> coeff) {
+                  py::array_t<float, py::array::f_style | py::array::forcecast> coeff) {
                       psf = splinecpu::initSpline(coeff.data(), xsize, ysize, zsize, 0.0, 0.0, 0.0, 0.0);
                   }
 

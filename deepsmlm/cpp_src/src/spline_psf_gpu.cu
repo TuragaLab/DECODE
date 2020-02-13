@@ -2,6 +2,7 @@
 //  Created by Lucas Müller on 12.02.2020
 //  Copyright © 2020 Lucas-Raphael Müller. All rights reserved.
 //
+#include <assert.h>
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +28,8 @@ void fPSF(spline *sp, float *rois, int npx, int npy,
 float* xc_, float* yc_, float* zc_, float* phot_);
 
 spline* d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) {
+
+    check_host_coeff(h_coeff);
     
 
     spline* sp;
@@ -57,15 +60,25 @@ spline* d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) {
     return d_sp;
 }
 
+void check_host_coeff(const float *h_coeff) {
+    // printf("Host coeff: \n");
+    std::cout << "Host coeff: \n" << std::endl;
+    for (int i = 0; i < 10000; i++) {
+        printf("i: %d coeff: %f\n", i, h_coeff[i]);
+    }
+    printf("\n");
+    return;
+}
+
 // Just a dummy for checking correct parsing from python
 __global__
 void check_spline(spline *d_sp) {
     printf("Checking spline ...\n");
     printf("\txs, ys, zs: %i %i %i\n", d_sp->xsize, d_sp->ysize, d_sp->zsize);
 
-    printf("\tcoeff: ");
-    for (int i = 0; i < 10; i++) {
-        printf(" %2f", d_sp->coeff[i]);
+    printf("\tDevice coeff: \n");
+    for (int i = 0; i < 10000; i++) {
+        printf("i: %d coeff %f\n", d_sp->coeff[i]);
     }
     printf("\n");
 }
@@ -109,6 +122,10 @@ void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy,
     int i = (blockIdx.x * blockDim.x + threadIdx.x) / npx;
     int j = (blockIdx.x * blockDim.x + threadIdx.x) % npx;
 
+    if ((i < 0) || (i >= 26) || (j < 0) || (j >= 26)) {
+        assert((int) 0);
+    }
+
      // allocate space for df, dxf, dyf, dzf
     __shared__ float delta_f[64];
     __shared__ float dxf[64];
@@ -126,31 +143,61 @@ void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy,
     }
     __syncthreads();
 
+    // if (i == 1 and j == 1) {
+    //     printf("df, dxf, dyf, dzf\n");
+    //     for (int k = 0; k < 64; k++) {
+    //         printf("(%f, %f, %f, %f)\n", delta_f[k], dxf[k], dyf[k], dzf[k]);
+    //     }
+    // }
+    // __syncthreads();
+
+    // printf("xc: %d\n", xc);
+
     xc = xc + i;
     yc = yc + j;
+
+    // printf("xc: %d\n", xc);
     
-    float fv = 0;
     // Throw 0 for outside points (only x,y considered).
     if ((xc < 0) || (xc > sp->xsize-1) || (yc < 0) || (yc > sp->ysize-1)) {
         rois[roi_ix * npx * npy + i * npy + j] = sp->roi_out_eps;
         return;
     }
 
-    xc = max(xc,0);
-    xc = min(xc,sp->xsize-1);
+    // printf("Before max min.\n");
+    // xc = max(xc,0);
+    // xc = min(xc,sp->xsize-1);
 
-    yc = max(yc,0);
-    yc = min(yc,sp->ysize-1);
+    // yc = max(yc,0);
+    // yc = min(yc,sp->ysize-1);
 
-    zc = max(zc,0);
-    zc = min(zc,sp->zsize-1);
+    // zc = max(zc,0);
+    // zc = min(zc,sp->zsize-1);
+    // // printf("After max min.\n");
 
-    for (int k=0; k < 64; k++) {
+    float fv = 0.0;
+
+    // // for certain pixel
+    // if ((xc == 10) && (yc == 10)) {
+    //     printf("checking xc, yc: %d, %d\nchecking delta_f", xc, yc);
+    //     for (int l = 0; l < 64; l++) {
+    //         printf("%f\n", delta_f[l]);
+    //     }
+    //     // check coefficient indices
+    //     printf("Checking indices and coeff values: \n");
+    //     for (int l = 0; l < 64; l++) {
+    //         int ix = l * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc;
+    //         printf("%d %f\n", ix, sp->coeff[ix]);
+    //     }
+    // }
+    // __syncthreads();
+
+    for (int k = 0; k < 64; k++) {
         fv += delta_f[k] * sp->coeff[k * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
     }
-
     // write to global roi stack
     rois[roi_ix * npx * npy + i * npy + j] = phot * fv;
+    return;
 }
 
 __global__
@@ -166,6 +213,8 @@ void fPSF(spline *sp, float *rois, int npx, int npy, float* xc_, float* yc_, flo
     float zc = zc_[r];
     float phot = phot_[r];
 
+    printf("Trafo coord: (%f %f %f)\n", xc, yc, zc);
+
     /* Compute delta. Will be the same for all following px */
     x0 = (int)floor(xc);
     x_delta = xc - x0;
@@ -176,8 +225,20 @@ void fPSF(spline *sp, float *rois, int npx, int npy, float* xc_, float* yc_, flo
     z0 = (int)floor(zc);
     z_delta = zc - z0;
 
+    printf("r0: (%d %d %d)\n", x0, y0, z0);
+    printf("rd: (%f %f %f)\n", x_delta, y_delta, z_delta);
+
     fAt3Dj<<<1, npx * npy>>>(sp, rois, r, npx, npy, x0, y0, z0, phot, x_delta, y_delta, z_delta);
     cudaDeviceSynchronize();
+
+    cudaError_t err;
+    err = cudaGetLastError();
+
+    if (err != cudaSuccess) {
+        printf("Error. Code %d, Message: %s\n", err, cudaGetErrorString(err));
+    }
+
+    return;
 }
 
 auto compute_rois(spline *d_sp, 
@@ -202,7 +263,7 @@ auto compute_rois(spline *d_sp,
     // add output rois on host and device; 
     float* d_rois;
     cudaMalloc(&d_rois, n * roi_size_x * roi_size_y * sizeof(float));
-    cudaMemset(d_rois, 0, n * roi_size_x * roi_size_y * sizeof(float));
+    cudaMemset(d_rois, 0.0, n * roi_size_x * roi_size_y * sizeof(float));
 
     // #if DEBUG
     check_spline<<<1,1>>>(d_sp);
@@ -213,10 +274,10 @@ auto compute_rois(spline *d_sp,
     fPSF<<<n, 1>>>(d_sp, d_rois, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
     cudaDeviceSynchronize();
 
-    cudaFree(&d_x);
-    cudaFree(&d_y);
-    cudaFree(&d_z);
-    cudaFree(&d_phot);
+    cudaFree(d_x);
+    cudaFree(d_y);
+    cudaFree(d_z);
+    cudaFree(d_phot);
 
     return d_rois;  
 }
