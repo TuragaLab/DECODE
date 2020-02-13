@@ -6,6 +6,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdexcept>
 #include <vector>
 
 #include <cuda.h>
@@ -14,30 +15,41 @@
 
 #include "spline_psf_gpu.cuh"
 
+
+// internal declarations
+void check_host_coeff(const float *h_coeff);
+
 __device__
-void kernel_computeDelta3D(spline *sp, 
-float* delta_f, float* delta_dxf, float* delta_dyf, float* delta_dzf, 
-float x_delta, float y_delta, float z_delta);
+auto kernel_computeDelta3D(spline *sp, 
+    float* delta_f, float* delta_dxf, float* delta_dyf, float* delta_dzf, 
+    float x_delta, float y_delta, float z_delta) -> void;
 
 __global__
-void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy, 
-int xc, int yc, int zc, float phot, float x_delta, float y_delta, float z_delta);
+auto fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy, 
+    int xc, int yc, int zc, float phot, float x_delta, float y_delta, float z_delta) -> void;
 
 __global__
-void fPSF(spline *sp, float *rois, int npx, int npy, 
-float* xc_, float* yc_, float* zc_, float* phot_);
+auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, 
+    const float* xc_, const float* yc_, const float* zc_, const float* phot_) -> void;
 
-spline* d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) {
 
-    check_host_coeff(h_coeff);
-    
 
+// Create struct and ship it to device
+auto d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) -> spline* {
+
+    // allocate struct on host and ship it to device later
+    // ToDo: C++11ify this
     spline* sp;
     sp = (spline *)malloc(sizeof(spline));
 
     sp->xsize = xsize;
     sp->ysize = ysize;
     sp->zsize = zsize;
+
+    if ((sp->xsize > 32) || (sp->ysize > 32)) {
+        // this is because we start threads per pixel and the limit is 1024 threads per block
+        throw std::invalid_argument("Invalid ROI size. ROI size must not exceed 32 px in either dimension.");  
+    }
 
     sp->roi_out_eps = 1e-10;
     sp->roi_out_deriv_eps = 0.0;
@@ -51,8 +63,9 @@ spline* d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) {
     cudaMalloc(&d_coeff, tsize * sizeof(float));
     cudaMemcpy(d_coeff, h_coeff, tsize * sizeof(float), cudaMemcpyHostToDevice);
 
-    sp->coeff = d_coeff;
+    sp->coeff = d_coeff;  // for some reason this should happen here and not d_sp->coeff = d_coeff ...
 
+    // ship to device
     spline* d_sp;
     cudaMalloc(&d_sp, sizeof(spline));
     cudaMemcpy(d_sp, sp, sizeof(spline), cudaMemcpyHostToDevice);
@@ -60,33 +73,26 @@ spline* d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) {
     return d_sp;
 }
 
-void check_host_coeff(const float *h_coeff) {
-    // printf("Host coeff: \n");
-    std::cout << "Host coeff: \n" << std::endl;
-    for (int i = 0; i < 10000; i++) {
-        printf("i: %d coeff: %f\n", i, h_coeff[i]);
-    }
-    printf("\n");
-    return;
-}
-
 // Just a dummy for checking correct parsing from python
+// ... had to learn the hard way ...
 __global__
-void check_spline(spline *d_sp) {
+auto check_spline(spline *d_sp) -> void {
     printf("Checking spline ...\n");
     printf("\txs, ys, zs: %i %i %i\n", d_sp->xsize, d_sp->ysize, d_sp->zsize);
+    printf("\toutside-roi value: %f\n", d_sp->roi_out_eps);
+    printf("\toutside-roi derivative value: %f\n", d_sp->roi_out_deriv_eps);
 
     printf("\tDevice coeff: \n");
-    for (int i = 0; i < 10000; i++) {
-        printf("i: %d coeff %f\n", d_sp->coeff[i]);
+    for (int i = 0; i < 100; i++) {
+        printf("\t\ti: %d coeff %f\n", d_sp->coeff[i]);
     }
     printf("\n");
 }
 
+// kernel to compute common term for spline function (for all pixels this will stay the same)
 __device__
-void kernel_computeDelta3D(spline *sp, 
-    float* delta_f, float* delta_dxf, float* delta_dyf, float* delta_dzf, 
-    float x_delta, float y_delta, float z_delta) {
+auto kernel_computeDelta3D(spline *sp, float* delta_f, float* delta_dxf, float* delta_dyf, float* delta_dzf, 
+    float x_delta, float y_delta, float z_delta) -> void {
 
     int i,j,k;
     float cx,cy,cz;
@@ -115,93 +121,67 @@ void kernel_computeDelta3D(spline *sp,
     }
 }
 
+// kernel to compute pixel-wise term
 __global__
-void fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy,
-    int xc, int yc, int zc, float phot, float x_delta, float y_delta, float z_delta) {
+auto fAt3Dj(spline *sp, float* rois, const int roi_ix, const int npx, const int npy,
+    int xc, int yc, int zc, float phot, float x_delta, float y_delta, float z_delta) -> void {
     
     int i = (blockIdx.x * blockDim.x + threadIdx.x) / npx;
     int j = (blockIdx.x * blockDim.x + threadIdx.x) % npx;
-
-    if ((i < 0) || (i >= 26) || (j < 0) || (j >= 26)) {
-        assert((int) 0);
-    }
 
      // allocate space for df, dxf, dyf, dzf
     __shared__ float delta_f[64];
     __shared__ float dxf[64];
     __shared__ float dyf[64];
     __shared__ float dzf[64];
+
     if (i == 0 and j == 0) {
-        // initialise the shared memory
+
         for (int k = 0; k < 64; k++) {
             delta_f[k] = 0.0;
             dxf[k] = 0.0;
             dyf[k] = 0.0;
             dzf[k] = 0.0;
         }
+
+        // This is different to the C library since we needed to rearrange a bit to account for the GPU parallelism
         kernel_computeDelta3D(sp, delta_f, dxf, dyf, dzf, x_delta, y_delta, z_delta);
     }
     __syncthreads();
 
-    // if (i == 1 and j == 1) {
-    //     printf("df, dxf, dyf, dzf\n");
-    //     for (int k = 0; k < 64; k++) {
-    //         printf("(%f, %f, %f, %f)\n", delta_f[k], dxf[k], dyf[k], dzf[k]);
-    //     }
-    // }
-    // __syncthreads();
-
-    // printf("xc: %d\n", xc);
-
     xc = xc + i;
     yc = yc + j;
-
-    // printf("xc: %d\n", xc);
     
-    // Throw 0 for outside points (only x,y considered).
+    // If the lateral position is outside the calibration, return epsilon value
     if ((xc < 0) || (xc > sp->xsize-1) || (yc < 0) || (yc > sp->ysize-1)) {
         rois[roi_ix * npx * npy + i * npy + j] = sp->roi_out_eps;
         return;
     }
 
-    // printf("Before max min.\n");
+    // the following is unnecessary if we have the test with return as above
     // xc = max(xc,0);
     // xc = min(xc,sp->xsize-1);
 
     // yc = max(yc,0);
     // yc = min(yc,sp->ysize-1);
 
-    // zc = max(zc,0);
-    // zc = min(zc,sp->zsize-1);
-    // // printf("After max min.\n");
+    zc = max(zc,0);
+    zc = min(zc,sp->zsize-1);
 
     float fv = 0.0;
-
-    // // for certain pixel
-    // if ((xc == 10) && (yc == 10)) {
-    //     printf("checking xc, yc: %d, %d\nchecking delta_f", xc, yc);
-    //     for (int l = 0; l < 64; l++) {
-    //         printf("%f\n", delta_f[l]);
-    //     }
-    //     // check coefficient indices
-    //     printf("Checking indices and coeff values: \n");
-    //     for (int l = 0; l < 64; l++) {
-    //         int ix = l * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc;
-    //         printf("%d %f\n", ix, sp->coeff[ix]);
-    //     }
-    // }
-    // __syncthreads();
 
     for (int k = 0; k < 64; k++) {
         fv += delta_f[k] * sp->coeff[k * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
     }
+
     // write to global roi stack
     rois[roi_ix * npx * npy + i * npy + j] = phot * fv;
     return;
 }
 
+// kernel to compute psf for a single emitter
 __global__
-void fPSF(spline *sp, float *rois, int npx, int npy, float* xc_, float* yc_, float* zc_, float* phot_) {
+auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, const float* xc_, const float* yc_, const float* zc_, const float* phot_) -> void {
     
     int r = blockIdx.x;  // roi number 'r'
 
@@ -213,8 +193,6 @@ void fPSF(spline *sp, float *rois, int npx, int npy, float* xc_, float* yc_, flo
     float zc = zc_[r];
     float phot = phot_[r];
 
-    printf("Trafo coord: (%f %f %f)\n", xc, yc, zc);
-
     /* Compute delta. Will be the same for all following px */
     x0 = (int)floor(xc);
     x_delta = xc - x0;
@@ -225,31 +203,42 @@ void fPSF(spline *sp, float *rois, int npx, int npy, float* xc_, float* yc_, flo
     z0 = (int)floor(zc);
     z_delta = zc - z0;
 
-    printf("r0: (%d %d %d)\n", x0, y0, z0);
-    printf("rd: (%f %f %f)\n", x_delta, y_delta, z_delta);
+    #if DEBUG
+        printf("r0: (%d %d %d)\n", x0, y0, z0);
+        printf("rd: (%f %f %f)\n", x_delta, y_delta, z_delta);
+    #endif
 
     fAt3Dj<<<1, npx * npy>>>(sp, rois, r, npx, npy, x0, y0, z0, phot, x_delta, y_delta, z_delta);
     cudaDeviceSynchronize();
 
-    cudaError_t err;
-    err = cudaGetLastError();
+    return;
+}
 
+auto forward_rois(spline *d_sp, float *d_rois, const int n, const int roi_size_x, const int roi_size_y, 
+    const float *d_x, const float *d_y, const float *d_z, const float *d_phot) -> void {
+    
+    // init cuda_err
+    cudaError_t err = cudaSuccess;
+
+    // start n blocks which itself start threads corresponding to the number of px childs (dynamic parallelism)
+    kernel_roi<<<n, 1>>>(d_sp, d_rois, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
+    cudaDeviceSynchronize();
+    
     if (err != cudaSuccess) {
-        printf("Error. Code %d, Message: %s\n", err, cudaGetErrorString(err));
+        std::cout << "Error during ROI computation.\nCode: " << err << "Information: \n" << cudaGetErrorString(err) << std::endl;
     }
 
     return;
 }
 
-auto compute_rois(spline *d_sp, 
-    const int n, const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float* {
 
-    // init cuda_err
-    cudaError_t err = cudaSuccess;
+// Wrapper function to compute the ROIs on the device.
+// Takes in all the host arguments and returns leaves the ROIs on the device
+// 
+auto forward_rois_host2device(spline *d_sp, const int n, const int roi_size_x, const int roi_size_y,
+    const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float* {
 
-    int roi_size_x = 26;
-    int roi_size_y = 26;
-
+    // allocate and copy coordinates and photons
     float *d_x, *d_y, *d_z, *d_phot;
     cudaMalloc(&d_x, n * sizeof(float));
     cudaMalloc(&d_y, n * sizeof(float));
@@ -260,19 +249,18 @@ auto compute_rois(spline *d_sp,
     cudaMemcpy(d_z, h_z, n * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_phot, h_phot, n * sizeof(float), cudaMemcpyHostToDevice);
 
-    // add output rois on host and device; 
+    // allocate space for rois on device
     float* d_rois;
     cudaMalloc(&d_rois, n * roi_size_x * roi_size_y * sizeof(float));
     cudaMemset(d_rois, 0.0, n * roi_size_x * roi_size_y * sizeof(float));
 
-    // #if DEBUG
-    check_spline<<<1,1>>>(d_sp);
-    cudaDeviceSynchronize();
-    // #endif
+    #if DEBUG
+        check_spline<<<1,1>>>(d_sp);
+        cudaDeviceSynchronize();
+    #endif
 
-    // start n blocks which itself start number of px childs (dynamic parallelism)
-    fPSF<<<n, 1>>>(d_sp, d_rois, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
-    cudaDeviceSynchronize();
+    // call to actual implementation
+    forward_rois(d_sp, d_rois, n, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
 
     cudaFree(d_x);
     cudaFree(d_y);
@@ -282,21 +270,17 @@ auto compute_rois(spline *d_sp,
     return d_rois;  
 }
 
-// Wrapper around compute_roi function to put the results back to host
+// Wrapper function to ocmpute the ROIs on the device and ships it back to the host
+// Takes in all the host arguments and returns the ROIs to the host
+// Allocation for rois must have happened outside
 // 
-auto compute_rois_h(spline *d_sp, 
-    const int n, const float *h_x, const float *h_y, const float *h_z, const float *h_phot,
-    float *h_rois) -> void {
+auto forward_rois_host2host(spline *d_sp, float *h_rois, const int n, const int roi_size_x, const int roi_size_y,
+    const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> void {
 
-    int roi_size_x = 26;
-    int roi_size_y = 26;
-    auto d_rois = compute_rois(d_sp, n, h_x, h_y, h_z, h_phot);
+    auto d_rois = forward_rois_host2device(d_sp, n, roi_size_x, roi_size_y, h_x, h_y, h_z, h_phot);
     
-    // put results to host
-    // std::vector<float> h_rois(n * roi_size_x * roi_size_y);  // host
     cudaMemcpy(h_rois, d_rois, n * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
-
-    cudaFree(&d_rois);
+    cudaFree(d_rois);
 
     return;
 }

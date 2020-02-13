@@ -5,7 +5,7 @@
 
 /* Spline Structure */
 /**
- * @brief defines the cubic spline
+ * @brief defines the cubic spline and holds its coefficients
  * 
  **/
  typedef struct {
@@ -30,10 +30,21 @@
 //      h_coeff: coefficients on host
 // Returns:
 //      spline*:    pointer to spline struct living on the device (!)
-spline* d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff);
-void check_host_coeff(const float *h_coeff);
+auto d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) -> spline*;
 
-auto compute_rois(spline *d_sp, const int n, const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float*;
-auto compute_rois_h(spline *d_sp, const int n, const float *h_x, const float *h_y, const float *h_z, const float *h_phot, float *h_rois) -> void;
 
-#endif  // 
+// Wrapper function to compute the ROIs on the device.
+// Takes in all the host arguments and returns leaves the ROIs on the device
+// 
+auto forward_rois_host2device(spline *d_sp, const int n, const int roi_size_x, const int roi_size_y,
+    const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float*;
+
+// Wrapper function to ocmpute the ROIs on the device and ships it back to the host
+// Takes in all the host arguments and returns the ROIs to the host
+// Allocation for rois must have happened outside
+// 
+auto forward_rois_host2host(spline *d_sp, float *h_rois, const int n, const int roi_size_x, const int roi_size_y,
+    const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> void;
+
+
+#endif  // SPLINE_PSF_GPU_H_
