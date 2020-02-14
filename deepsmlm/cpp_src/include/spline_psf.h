@@ -26,11 +26,6 @@ typedef struct {
         int ysize;  // size of the spline in y
         int zsize;  // size of the spline in z
 
-        float x0;  // reference in x, y, z
-        float y0;
-        float z0;
-        float dz;  // delta between the z slices
-
         float roi_out_eps;  // epsilon value outside the roi
         float roi_out_deriv_eps; // epsilon value of derivative values outside the roi
         int NV_PSP; // number of parameters
@@ -44,19 +39,13 @@ typedef struct {
         float *delta_dzf;
 } spline;
 
-void kernel_computeDelta3D(spline *, float, float, float );
-void kernel_DerivativeSpline(spline *, int xc, int yc, int zc, float *theta, float *dudt, float *model);
-float fAt3Dj(spline *, int, int, int );
+spline* initSpline(const float *coeff, const int xsize, int const ysize, const int zsize);
+void kernel_roi(spline *sp, float *img, const int roi_ix, const int npx, const int npy, const float xc, const float yc, const float zc, const float phot);
+void forward_rois(spline *sp, float *rois, const int n_rois, const int npx, const int npy, const float *xc, const float *yc, const float *zc, const float *phot);
+void forward_frames(spline *sp, float *frames, const int frame_size_x, const int frame_size_y, const int n_rois, const int roi_size_x, const int roi_size_y,
+                    const int *frame_ix, const float *xr0, const float *yr0, const float *z0, const int *x_ix, const int *y_ix, const float *phot);
 
-float fSpline3D(spline *, float, float, float );
-
-void fPSF(spline *sp, float *img, int npx, float xc, float yc, float zc, 
-          float corner_x0, float corner_y0, float phot);
-
-void f_derivative_PSF(spline *sp, float *img, float *dudt, int npx, float xc, float yc, float zc, float corner_x0, float corner_y0, float phot, float bg);
+void f_derivative_PSF(spline *sp, float *img, float *dudt, int npx, float xc, float yc, float zc, float phot, float bg);
 void f_derivative_aggregate(spline *sp, float *dudt_px, float *dudt_agg, int npx, int npy);
-
-spline* initSpline(const float *coeff, const int xsize, int const ysize, const int zsize, 
-                   const float x0, const float y0, const float z0, const float dz);
 
 #endif /* spline_psf_h */

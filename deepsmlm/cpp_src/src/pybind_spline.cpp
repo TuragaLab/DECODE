@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <vector>
 #include <math.h>
+#include <stdexcept>
 #include <stdbool.h>
 
 #include <pybind11/pybind11.h>
@@ -29,10 +30,13 @@ class PSFWrapperBase {
     protected:
     
         T *psf;
-        int roi_size_x;
-        int roi_size_y;
+        const int roi_size_x;
+        const int roi_size_y;
+        int frame_size_x;
+        int frame_size_y;
 
         PSFWrapperBase(int rx, int ry) : roi_size_x(rx), roi_size_y(ry) { }
+        PSFWrapperBase(int rx, int ry, int fx, int fy) : roi_size_x(rx), roi_size_y(ry), frame_size_x(fx), frame_size_y(fy) { }
 
 };
 
@@ -43,7 +47,7 @@ class PSFWrapperCUDA : public PSFWrapperBase<spg::spline> {
         explicit PSFWrapperCUDA(int coeff_xsize, int coeff_ysize, int coeff_zsize, int roi_size_x_, int roi_size_y_,
             py::array_t<float, py::array::f_style | py::array::forcecast> coeff) : PSFWrapperBase{roi_size_x_, roi_size_y_} {
 
-                psf = spg::d_spline_init(coeff_xsize, coeff_ysize, coeff_zsize, coeff.data());
+                psf = spg::d_spline_init(coeff.data(), coeff_xsize, coeff_ysize, coeff_zsize);
 
             }
 
@@ -70,21 +74,47 @@ class PSFWrapperCPU : public PSFWrapperBase<spc::spline> {
         explicit PSFWrapperCPU(int coeff_xsize, int coeff_ysize, int coeff_zsize, int roi_size_x_, int roi_size_y_,
             py::array_t<float, py::array::f_style | py::array::forcecast> coeff) : PSFWrapperBase{roi_size_x_, roi_size_y_} {
 
-                psf = spc::initSpline(coeff.data(), coeff_xsize, coeff_ysize, coeff_zsize, 0.0, 0.0, 0.0, 0.0);
+                psf = spc::initSpline(coeff.data(), coeff_xsize, coeff_ysize, coeff_zsize);
 
             }
 
-        auto forward_psf(py::array_t<float, py::array::c_style | py::array::forcecast> x, 
-                        py::array_t<float, py::array::c_style | py::array::forcecast> y, 
-                        py::array_t<float, py::array::c_style | py::array::forcecast> z, 
-                        py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
+        auto forward_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x, 
+                          py::array_t<float, py::array::c_style | py::array::forcecast> y, 
+                          py::array_t<float, py::array::c_style | py::array::forcecast> z, 
+                          py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
 
-            int n = x.size();
+            const int n = x.size();
             py::array_t<float> h_rois(n * roi_size_x * roi_size_y);
 
-            spc::fPSF(psf, h_rois.mutable_data(), 26, x.data()[0], y.data()[0], z.data()[0], 0.0, 0.0, phot.data()[0]);
+            if (roi_size_x != roi_size_y) {
+                throw std::invalid_argument("ROI size must be equal currently.");
+            }
+
+            spc::forward_rois(psf, h_rois.mutable_data(), n, roi_size_x, roi_size_y, x.data(), y.data(), z.data(), phot.data());
 
             return h_rois;
+        }
+
+        auto forward_frames(const int fx, const int fy,
+                            py::array_t<int, py::array::c_style | py::array::forcecast> frame_ix,
+                            const int n_frames,
+                            py::array_t<float, py::array::c_style | py::array::forcecast> xr,
+                            py::array_t<float, py::array::c_style | py::array::forcecast> yr,
+                            py::array_t<float, py::array::c_style | py::array::forcecast> z,
+                            py::array_t<int, py::array::c_style | py::array::forcecast> x_ix,
+                            py::array_t<int, py::array::c_style | py::array::forcecast> y_ix,
+                            py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
+
+            frame_size_x = fx;
+            frame_size_y = fy;
+            const int n_emitters = xr.size();
+            py::array_t<float> h_frames(n_frames * frame_size_x * frame_size_y);
+            // std::cout << "Size of Frames: " << h_frames.size() << "frame_si<< std::endl;
+
+            spc::forward_frames(psf, h_frames.mutable_data(), frame_size_x, frame_size_y, n_emitters, roi_size_x, roi_size_y, 
+                frame_ix.data(), xr.data(), yr.data(), z.data(), x_ix.data(), y_ix.data(), phot.data());
+
+            return h_frames;
         }
 
 };
@@ -92,9 +122,10 @@ class PSFWrapperCPU : public PSFWrapperBase<spc::spline> {
 PYBIND11_MODULE(spline_psf_cuda, m) {
     py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
         .def(py::init<int, int, int, int, int, py::array_t<float>>())
-        .def("forward_psf", &PSFWrapperCUDA::forward_psf);
+        .def("forward_rois", &PSFWrapperCUDA::forward_psf);
 
     py::class_<PSFWrapperCPU>(m, "PSFWrapperCPU")
         .def(py::init<int, int, int, int, int, py::array_t<float>>())
-        .def("forward_psf", &PSFWrapperCPU::forward_psf);
+        .def("forward_rois", &PSFWrapperCPU::forward_rois)
+        .def("forward_frames", &PSFWrapperCPU::forward_frames);
 }

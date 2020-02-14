@@ -39,7 +39,7 @@ auto kernel_roi(spline *sp, float *rois, const int npx, const int npy,
 namespace spline_psf_gpu {
 
     // Create struct and ship it to device
-    auto d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) -> spline* {
+    auto d_spline_init(const float *h_coeff, int xsize, int ysize, int zsize) -> spline* {
 
         // allocate struct on host and ship it to device later
         // ToDo: C++11ify this
@@ -130,6 +130,29 @@ namespace spline_psf_gpu {
         return;
     }
 } // namespace spline_psf_gpu
+
+
+auto forward_rois(spline *d_sp, float *d_rois, const int n, const int roi_size_x, const int roi_size_y, 
+    const float *d_x, const float *d_y, const float *d_z, const float *d_phot) -> void {
+    
+    // init cuda_err
+    cudaError_t err = cudaSuccess;
+
+    // throw error if roi size is too big
+    if ((roi_size_x > 32) || (roi_size_y > 32)) {
+        throw std::invalid_argument("ROI size (per PSF) must not exceed 32 pixels.");
+    }
+
+    // start n blocks which itself start threads corresponding to the number of px childs (dynamic parallelism)
+    kernel_roi<<<n, 1>>>(d_sp, d_rois, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
+    cudaDeviceSynchronize();
+    
+    if (err != cudaSuccess) {
+        std::cout << "Error during ROI computation.\nCode: " << err << "Information: \n" << cudaGetErrorString(err) << std::endl;
+    }
+
+    return;
+}
 
 // Just a dummy for checking correct parsing from python
 // ... had to learn the hard way ...
@@ -267,27 +290,11 @@ auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, const flo
     #endif
 
     fAt3Dj<<<1, npx * npy>>>(sp, rois, r, npx, npy, x0, y0, z0, phot, x_delta, y_delta, z_delta);
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();  // not needed. Device sync once for the forward_rois thing is sufficient
 
     return;
 }
 
-auto forward_rois(spline *d_sp, float *d_rois, const int n, const int roi_size_x, const int roi_size_y, 
-    const float *d_x, const float *d_y, const float *d_z, const float *d_phot) -> void {
-    
-    // init cuda_err
-    cudaError_t err = cudaSuccess;
-
-    // start n blocks which itself start threads corresponding to the number of px childs (dynamic parallelism)
-    kernel_roi<<<n, 1>>>(d_sp, d_rois, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
-    cudaDeviceSynchronize();
-    
-    if (err != cudaSuccess) {
-        std::cout << "Error during ROI computation.\nCode: " << err << "Information: \n" << cudaGetErrorString(err) << std::endl;
-    }
-
-    return;
-}
 
 
 
