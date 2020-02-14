@@ -299,8 +299,9 @@ class GPUSplinePSF(PSF):
         self.roi_size = roi_size
         self._coeff = coeff
 
-        self._spline = spline_psf_cuda.PSFWrapper(coeff.shape[0], coeff.shape[1], coeff.shape[2], 26, 26, coeff.numpy())
-        self._spline_cpu = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2], coeff.numpy())
+        self._spline = spline_psf_cuda.PSFWrapperCUDA(coeff.shape[0], coeff.shape[1], coeff.shape[2], 26, 26,
+                                                   coeff.numpy())
+        # self._spline_cpu = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2], coeff.numpy())
 
     def forward(self, xyz, phot):
 
@@ -618,9 +619,20 @@ if __name__ == '__main__':
     # # init CUDA spline
     psf_cu = deepsmlm.generic.psf_kernel.GPUSplinePSF(13, coeff.contiguous())
     #
-    xyz_plain = torch.Tensor([[-1.2, -2.2, 130.0]])
-    phot = torch.ones_like(xyz_plain[:, 0])
+    # xyz_plain = torch.Tensor([[-1.2, -2.2, 130.0]])
+    # phot = torch.ones_like(xyz_plain[:, 0])
+    # out_cu = psf_cu.forward(xyz_plain, phot)
+
+    n = 1000000
+    xyz_plain = torch.rand((n, 3))
+    xyz_plain[:, :2] -= 0.5
+    xyz_plain[:, 2] *= 1000
+    xyz_plain[:, 2] -= 500
+    phot = torch.ones((n, ))
     out_cu = psf_cu.forward(xyz_plain, phot)
+
+    fc.PlotFrame(out_cu[500000]).plot()
+    plt.show()
 
     # out = psf.forward(xyz, phot)
     # out_cpu = psf.forward_cpu(xyz, phot)

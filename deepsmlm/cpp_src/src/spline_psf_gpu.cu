@@ -14,10 +14,14 @@
 #include <math.h>
 
 #include "spline_psf_gpu.cuh"
+using namespace spline_psf_gpu;
 
 
 // internal declarations
 void check_host_coeff(const float *h_coeff);
+
+auto forward_rois(spline *d_sp, float *d_rois, const int n, const int roi_size_x, const int roi_size_y, 
+    const float *d_x, const float *d_y, const float *d_z, const float *d_phot) -> void;
 
 __device__
 auto kernel_computeDelta3D(spline *sp, 
@@ -32,46 +36,100 @@ __global__
 auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, 
     const float* xc_, const float* yc_, const float* zc_, const float* phot_) -> void;
 
+namespace spline_psf_gpu {
 
+    // Create struct and ship it to device
+    auto d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) -> spline* {
 
-// Create struct and ship it to device
-auto d_spline_init(int xsize, int ysize, int zsize, const float *h_coeff) -> spline* {
+        // allocate struct on host and ship it to device later
+        // ToDo: C++11ify this
+        spline* sp;
+        sp = (spline *)malloc(sizeof(spline));
 
-    // allocate struct on host and ship it to device later
-    // ToDo: C++11ify this
-    spline* sp;
-    sp = (spline *)malloc(sizeof(spline));
+        sp->xsize = xsize;
+        sp->ysize = ysize;
+        sp->zsize = zsize;
 
-    sp->xsize = xsize;
-    sp->ysize = ysize;
-    sp->zsize = zsize;
+        if ((sp->xsize > 32) || (sp->ysize > 32)) {
+            // this is because we start threads per pixel and the limit is 1024 threads per block
+            throw std::invalid_argument("Invalid ROI size. ROI size must not exceed 32 px in either dimension.");  
+        }
 
-    if ((sp->xsize > 32) || (sp->ysize > 32)) {
-        // this is because we start threads per pixel and the limit is 1024 threads per block
-        throw std::invalid_argument("Invalid ROI size. ROI size must not exceed 32 px in either dimension.");  
+        sp->roi_out_eps = 1e-10;
+        sp->roi_out_deriv_eps = 0.0;
+
+        sp->NV_PSP = 5;  
+        sp->n_coeff = 64;
+
+        int tsize = xsize * ysize * zsize * 64;
+
+        float *d_coeff;
+        cudaMalloc(&d_coeff, tsize * sizeof(float));
+        cudaMemcpy(d_coeff, h_coeff, tsize * sizeof(float), cudaMemcpyHostToDevice);
+
+        sp->coeff = d_coeff;  // for some reason this should happen here and not d_sp->coeff = d_coeff ...
+
+        // ship to device
+        spline* d_sp;
+        cudaMalloc(&d_sp, sizeof(spline));
+        cudaMemcpy(d_sp, sp, sizeof(spline), cudaMemcpyHostToDevice);
+
+        return d_sp;
     }
 
-    sp->roi_out_eps = 1e-10;
-    sp->roi_out_deriv_eps = 0.0;
+    // Wrapper function to compute the ROIs on the device.
+    // Takes in all the host arguments and returns leaves the ROIs on the device
+    // 
+    auto forward_rois_host2device(spline *d_sp, const int n, const int roi_size_x, const int roi_size_y,
+        const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float* {
 
-    sp->NV_PSP = 5;  
-    sp->n_coeff = 64;
+        // allocate and copy coordinates and photons
+        float *d_x, *d_y, *d_z, *d_phot;
+        cudaMalloc(&d_x, n * sizeof(float));
+        cudaMalloc(&d_y, n * sizeof(float));
+        cudaMalloc(&d_z, n * sizeof(float));
+        cudaMalloc(&d_phot, n * sizeof(float));
+        cudaMemcpy(d_x, h_x, n * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_y, h_y, n * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_z, h_z, n * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_phot, h_phot, n * sizeof(float), cudaMemcpyHostToDevice);
 
-    int tsize = xsize * ysize * zsize * 64;
+        // allocate space for rois on device
+        float* d_rois;
+        cudaMalloc(&d_rois, n * roi_size_x * roi_size_y * sizeof(float));
+        cudaMemset(d_rois, 0.0, n * roi_size_x * roi_size_y * sizeof(float));
 
-    float *d_coeff;
-    cudaMalloc(&d_coeff, tsize * sizeof(float));
-    cudaMemcpy(d_coeff, h_coeff, tsize * sizeof(float), cudaMemcpyHostToDevice);
+        #if DEBUG
+            check_spline<<<1,1>>>(d_sp);
+            cudaDeviceSynchronize();
+        #endif
 
-    sp->coeff = d_coeff;  // for some reason this should happen here and not d_sp->coeff = d_coeff ...
+        // call to actual implementation
+        forward_rois(d_sp, d_rois, n, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
 
-    // ship to device
-    spline* d_sp;
-    cudaMalloc(&d_sp, sizeof(spline));
-    cudaMemcpy(d_sp, sp, sizeof(spline), cudaMemcpyHostToDevice);
+        cudaFree(d_x);
+        cudaFree(d_y);
+        cudaFree(d_z);
+        cudaFree(d_phot);
 
-    return d_sp;
-}
+        return d_rois;  
+    }
+
+    // Wrapper function to ocmpute the ROIs on the device and ships it back to the host
+    // Takes in all the host arguments and returns the ROIs to the host
+    // Allocation for rois must have happened outside
+    // 
+    auto forward_rois_host2host(spline *d_sp, float *h_rois, const int n, const int roi_size_x, const int roi_size_y,
+        const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> void {
+
+        auto d_rois = forward_rois_host2device(d_sp, n, roi_size_x, roi_size_y, h_x, h_y, h_z, h_phot);
+        
+        cudaMemcpy(h_rois, d_rois, n * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaFree(d_rois);
+
+        return;
+    }
+} // namespace spline_psf_gpu
 
 // Just a dummy for checking correct parsing from python
 // ... had to learn the hard way ...
@@ -232,55 +290,4 @@ auto forward_rois(spline *d_sp, float *d_rois, const int n, const int roi_size_x
 }
 
 
-// Wrapper function to compute the ROIs on the device.
-// Takes in all the host arguments and returns leaves the ROIs on the device
-// 
-auto forward_rois_host2device(spline *d_sp, const int n, const int roi_size_x, const int roi_size_y,
-    const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float* {
 
-    // allocate and copy coordinates and photons
-    float *d_x, *d_y, *d_z, *d_phot;
-    cudaMalloc(&d_x, n * sizeof(float));
-    cudaMalloc(&d_y, n * sizeof(float));
-    cudaMalloc(&d_z, n * sizeof(float));
-    cudaMalloc(&d_phot, n * sizeof(float));
-    cudaMemcpy(d_x, h_x, n * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_y, h_y, n * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_z, h_z, n * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_phot, h_phot, n * sizeof(float), cudaMemcpyHostToDevice);
-
-    // allocate space for rois on device
-    float* d_rois;
-    cudaMalloc(&d_rois, n * roi_size_x * roi_size_y * sizeof(float));
-    cudaMemset(d_rois, 0.0, n * roi_size_x * roi_size_y * sizeof(float));
-
-    #if DEBUG
-        check_spline<<<1,1>>>(d_sp);
-        cudaDeviceSynchronize();
-    #endif
-
-    // call to actual implementation
-    forward_rois(d_sp, d_rois, n, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
-
-    cudaFree(d_x);
-    cudaFree(d_y);
-    cudaFree(d_z);
-    cudaFree(d_phot);
-
-    return d_rois;  
-}
-
-// Wrapper function to ocmpute the ROIs on the device and ships it back to the host
-// Takes in all the host arguments and returns the ROIs to the host
-// Allocation for rois must have happened outside
-// 
-auto forward_rois_host2host(spline *d_sp, float *h_rois, const int n, const int roi_size_x, const int roi_size_y,
-    const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> void {
-
-    auto d_rois = forward_rois_host2device(d_sp, n, roi_size_x, roi_size_y, h_x, h_y, h_z, h_phot);
-    
-    cudaMemcpy(h_rois, d_rois, n * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaFree(d_rois);
-
-    return;
-}
