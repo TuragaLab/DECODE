@@ -7,7 +7,7 @@ import deepsmlm.generic.psf_kernel
 
 class SMAPSplineCoefficient:
     """Wrapper class as an interface for MATLAB Spline calibration data."""
-    def __init__(self, file, spline_obj=deepsmlm.generic.psf_kernel.CubicSplinePSF):
+    def __init__(self, file, spline_obj=deepsmlm.generic.psf_kernel.DeprCubicSplinePSF):
         """
 
         :param file: .mat file
@@ -40,7 +40,7 @@ class SMAPSplineCoefficient:
 
 class StormAnaCoefficient:
     """Wrapper class as an interface for MATLAB Spline calibration data."""
-    def __init__(self, file, spline_obj=deepsmlm.generic.psf_kernel.CubicSplinePSF):
+    def __init__(self, file, spline_obj=deepsmlm.generic.psf_kernel.DeprCubicSplinePSF):
         """
 
         :param file: .mat file

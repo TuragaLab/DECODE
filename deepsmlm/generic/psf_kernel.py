@@ -290,7 +290,7 @@ class GaussianExpect(PSF):
         return gaussCdf.unsqueeze(0)
 
 
-class GPUSplinePSF(PSF):
+class CubicSplinePSF(PSF):
 
     def __init__(self, xextent, yextent, img_shape, roi_size, coeff, vx_size, ref0, frame_mode='abs',
                  frame_ref=0, cuda=True):
@@ -311,17 +311,16 @@ class GPUSplinePSF(PSF):
         self._coeff = coeff
         self.vx_size = vx_size
         self.ref0 = ref0
-        self.cuda = cuda
+        self._cuda = cuda
         self.frame_mode = frame_mode
         self.frame_ref = frame_ref
 
-        if cuda:
+        if self._cuda:
             self._spline_impl = spline_psf_cuda.PSFWrapperCUDA(coeff.shape[0], coeff.shape[1], coeff.shape[2],
-                                                             roi_size[0],roi_size[1], coeff.numpy())
+                                                               roi_size[0], roi_size[1], coeff.numpy())
         else:
             self._spline_impl = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2],
-                                                             roi_size[0],
-                                                             roi_size[1], coeff.numpy())
+                                                              roi_size[0], roi_size[1], coeff.numpy())
 
         self._safety_check()
 
@@ -463,7 +462,7 @@ class GPUSplinePSF(PSF):
         return frames
 
 
-class CubicSplinePSF(PSF):
+class DeprCubicSplinePSF(PSF):
     """
     Cubic spline psf. This is the PSF of use for simulation.
     """
@@ -745,13 +744,13 @@ if __name__ == '__main__':
     smap_load = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(coeff_file)
     coeff = smap_load.coeff
 
-    psf_cu = deepsmlm.generic.psf_kernel.GPUSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (32, 32),
-                                                      coeff.contiguous(), torch.Tensor([100., 100., 10.]),
-                                                      torch.Tensor([13, 13, 100]), cuda=True)
+    psf_cu = deepsmlm.generic.psf_kernel.CubicSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (32, 32),
+                                                        coeff.contiguous(), torch.Tensor([100., 100., 10.]),
+                                                        torch.Tensor([13, 13, 100]), cuda=True)
 
-    psf_cpu = deepsmlm.generic.psf_kernel.GPUSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (32, 32),
-                                                      coeff.contiguous(), torch.Tensor([100., 100., 10.]),
-                                                      torch.Tensor([13, 13, 100]), cuda=False)
+    psf_cpu = deepsmlm.generic.psf_kernel.CubicSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (32, 32),
+                                                         coeff.contiguous(), torch.Tensor([100., 100., 10.]),
+                                                         torch.Tensor([13, 13, 100]), cuda=False)
 
     """RUNTIME TEST"""
     n = 10000
@@ -791,7 +790,6 @@ if __name__ == '__main__':
     xyz_r, ix = psf_cu.frame2roi_coord(xyz)
     rois_cu = psf_cu.forward_rois(psf_cu.frame2roi_coord(xyz)[0], phot)
     rois_cpu = psf_cpu.forward_rois(psf_cpu.frame2roi_coord(xyz)[0], phot)
-
 
     plt.figure()
     plt.subplot(121)

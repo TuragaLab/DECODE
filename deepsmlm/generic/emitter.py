@@ -58,7 +58,7 @@ class EmitterSet:
 
         self._sorted = False
         # get at least one_dim tensors
-        at_least_one_dim(self.xyz,
+        tutil.at_least_one_dim(self.xyz,
                          self.phot,
                          self.frame_ix,
                          self.id,
