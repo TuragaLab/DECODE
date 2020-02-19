@@ -9,8 +9,9 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-#if CUDA
+#if CUDA_ENABLED
     #include "spline_psf_gpu.cuh"
+    namespace spg = spline_psf_gpu;
 #endif
 
 
@@ -20,7 +21,6 @@ namespace spc {
     }
 }
 
-namespace spg = spline_psf_gpu;
 namespace py = pybind11;
 
 template <typename T>
@@ -39,7 +39,7 @@ class PSFWrapperBase {
 
 };
 
-#if CUDA
+#if CUDA_ENABLED
     class PSFWrapperCUDA : public PSFWrapperBase<spg::spline> {
 
         public:
@@ -89,13 +89,25 @@ class PSFWrapperBase {
 
     };
 #else
-    class PSFWrapperCUDA : public PSFWrapperBase<spg::spline> {
+    class PSFWrapperCUDA : public PSFWrapperBase<float> {
 
         public:
+        
         explicit PSFWrapperCUDA(int coeff_xsize, int coeff_ysize, int coeff_zsize, int roi_size_x_, int roi_size_y_,
-                py::array_t<float, py::array::f_style | py::array::forcecast> coeff) {
-                    std::runtime_error("Extension not compiled with CUDA enabled. \nPlease use CPU version or recompile with CUDA if CUDA capable device is available on your machine.");
+                py::array_t<float, py::array::f_style | py::array::forcecast> coeff) : PSFWrapperBase{roi_size_x_, roi_size_y_} {
+                    throw_cuda_error();
                 }
+
+        auto forward_rois() -> void {
+            throw_cuda_error();
+        }
+        auto forward_frames() -> void {
+            throw_cuda_error();
+        }
+        
+        auto throw_cuda_error() -> void {
+            throw std::runtime_error("Extension not compiled with CUDA enabled. \nPlease use CPU version or recompile with CUDA if CUDA capable device is available on your machine.");
+        }
 
     };
 #endif

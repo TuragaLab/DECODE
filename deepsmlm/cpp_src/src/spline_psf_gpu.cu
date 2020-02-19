@@ -353,11 +353,6 @@ auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, const flo
     z0 = (int)floor(zc);
     z_delta = zc - z0;
 
-    #if DEBUG
-        printf("r0: (%d %d %d)\n", x0, y0, z0);
-        printf("rd: (%f %f %f)\n", x_delta, y_delta, z_delta);
-    #endif
-
     fAt3Dj<<<1, npx * npy>>>(sp, rois, r, npx, npy, x0, y0, z0, phot, x_delta, y_delta, z_delta);
     // cudaDeviceSynchronize();  // not needed. Device sync once for the forward_rois thing is sufficient
 
@@ -384,10 +379,6 @@ auto roi_accumulate(float *frames, const int frame_size_x, const int frame_size_
 
         const long ii = x0[r] + i;
         const long jj = y0[r] + j;
-
-        // if (frame_ix[r] == 0) {
-        //     printf("ROI ix: %d %d, Frame Index: %d %d %d\n", i, j, frame_ix[r], ii, jj);
-        // }
 
         if ((frame_ix[r] < 0) || (frame_ix[r] >= n_frames)) {  // if frame ix is outside
             return;

@@ -381,10 +381,6 @@ class CubicSplinePSF(PSF):
     def forward_rois(self, xyz, phot):
         return self._forward_rois_impl(self.nm2impl(xyz), phot)
 
-    def forward(self, xyz, phot, frame_ix):
-        xyz_ = self.nm2impl(self.frame2roi_coord(xyz))
-        return self._forward_impl(self.nm2impl)
-
     def _forward_rois_impl(self, xyz, phot):
         """
         Computes the PSF and outputs the result ROI-wise.
@@ -741,6 +737,7 @@ if __name__ == '__main__':
                      os.pardir, os.pardir)) + '/'
 
     coeff_file = deepsmlm_root + 'data_central/Calibration/2019/M2_CollabSpeiser/000_beads_640i100_x35_Z-stack_1_MMStack_Pos0.ome_3dcal.mat'
+    # coeff_file = '/Volumes/ries/users/Lucas/deepsmlm_central_data_config_net/data/Calibration/2019/M2_CollabSpeiser/000_beads_640i100_x35_Z-stack_1_MMStack_Pos0.ome_3dcal.mat'
     smap_load = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(coeff_file)
     coeff = smap_load.coeff
 
