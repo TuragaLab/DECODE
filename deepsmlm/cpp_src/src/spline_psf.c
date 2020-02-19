@@ -68,6 +68,11 @@ void roi_accumulator(float *frames, const int frame_size_x, const int frame_size
 
 void forward_rois(spline *sp, float *rois, const int n_rois, const int npx, const int npy, const float *xc, const float *yc, const float *zc, const float *phot) {
 
+    // init rois
+    for (int i = 0; i < n_rois * npx * npy; i++) {
+        rois[i] = 0.0;
+    }
+
     for (int i = 0; i < n_rois; i++) {
         kernel_roi(sp, rois, i, npx, npy, xc[i], yc[i], zc[i], phot[i]);
     }
