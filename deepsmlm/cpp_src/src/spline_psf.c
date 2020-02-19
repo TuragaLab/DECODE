@@ -27,7 +27,7 @@ float fSpline3D(spline *, float, float, float );
 void forward_frames(spline *sp, float *frames, const int frame_size_x, const int frame_size_y, const int n_frames, 
     const int n_rois, const int roi_size_x, const int roi_size_y,
     const int *frame_ix, const float *xr0, const float *yr0, const float *z0, const int *x_ix, const int *y_ix, const float *phot) {
-        
+
     // malloc rois
     int roi_px = n_rois * roi_size_x * roi_size_y;
     float *rois = (float *)malloc(roi_px * sizeof(float));
@@ -57,6 +57,7 @@ void roi_accumulator(float *frames, const int frame_size_x, const int frame_size
             for (int j = 0; j < roi_size_y; j++) {
                 int ii = x0[r] + i;
                 int jj = y0[r] + j;
+                
                 if ((frame_ix[r] < 0) || (frame_ix[r] >= n_frames)) {  // if frame ix is outside
                     continue;
                 }
@@ -64,6 +65,7 @@ void roi_accumulator(float *frames, const int frame_size_x, const int frame_size
                 if ((ii < 0) || (jj < 0) || (ii >= frame_size_x) || (jj >= frame_size_y)) {  // if outside frame throw away
                     continue;
                 }
+                
                 frames[frame_ix[r] * frame_size_x * frame_size_y + ii * frame_size_y + jj] += rois[r * roi_size_x * roi_size_y + i * roi_size_y + j];
             }
         }

@@ -7,6 +7,7 @@ find_package(PythonInterp 3.6 REQUIRED)
 find_package(PythonLibs 3.6 REQUIRED)
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --gpu-architecture=sm_75")
+add_compile_definitions(CUDA)
 
 add_library(spline_psf_cu_impl SHARED src/spline_psf_gpu.cu)
 target_include_directories(spline_psf_cu_impl PUBLIC include)

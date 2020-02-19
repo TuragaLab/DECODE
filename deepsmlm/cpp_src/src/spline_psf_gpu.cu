@@ -36,6 +36,16 @@ __global__
 auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, 
     const float* xc_, const float* yc_, const float* zc_, const float* phot_) -> void;
 
+__global__
+auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, 
+    const float* xc_, const float* yc_, const float* zc_, const float* phot_) -> void;
+
+__global__
+auto roi_accumulate(float *frames, const int frame_size_x, const int frame_size_y, const int n_frames,
+    const float *rois, const int n_rois, 
+    const int *frame_ix, const int *x0, const int *y0, 
+    const int roi_size_x, const int roi_size_y) -> void;
+
 namespace spline_psf_gpu {
 
     // Create struct and ship it to device
@@ -125,9 +135,67 @@ namespace spline_psf_gpu {
         auto d_rois = forward_rois_host2device(d_sp, n, roi_size_x, roi_size_y, h_x, h_y, h_z, h_phot);
         
         cudaMemcpy(h_rois, d_rois, n * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
+
+        cudaFree(d_rois);
+        return;
+    }
+
+    auto forward_frames_host2host(spline *d_sp, float *h_frames, const int frame_size_x, const int frame_size_y, const int n_frames,
+        const int n_rois, const int roi_size_x, const int roi_size_y,
+        const int *h_frame_ix, const float *h_xr0, const float *h_yr0, const float *h_z0, 
+        const int *h_x_ix, const int *h_y_ix, const float *h_phot) -> void {
+
+        auto d_frames = forward_frames_host2device(d_sp, frame_size_x, frame_size_y, n_frames, 
+            n_rois, roi_size_x, roi_size_y, h_frame_ix, h_xr0, h_yr0, h_z0, h_x_ix, h_y_ix, h_phot);
+
+        cudaMemcpy(h_frames, d_frames, n_frames * frame_size_x * frame_size_y * sizeof(float), cudaMemcpyDeviceToHost);
+
+        cudaFree(d_frames);
+        return;        
+    }
+
+    auto forward_frames_host2device(spline *d_sp, const int frame_size_x, const int frame_size_y, const int n_frames,
+        const int n_rois, const int roi_size_x, const int roi_size_y,
+        const int *h_frame_ix, const float *h_xr0, const float *h_yr0, const float *h_z0, 
+        const int *h_x_ix, const int *h_y_ix, const float *h_phot) -> float* {
+
+        cudaError_t err;
+        
+        // ToDo: maybe convert to stream
+        float* d_frames;
+        cudaMalloc(&d_frames, n_frames * frame_size_x * frame_size_y * sizeof(float));
+        cudaMemset(d_frames, 0.0, n_frames * frame_size_x * frame_size_y * sizeof(float));
+
+        // allocate indices
+        int *d_xix, *d_yix, *d_fix;
+        cudaMalloc(&d_xix, n_rois * sizeof(int));
+        cudaMalloc(&d_yix, n_rois * sizeof(int));
+        cudaMalloc(&d_fix, n_rois * sizeof(int));
+        cudaMemcpy(d_xix, h_x_ix, n_rois * sizeof(int), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_yix, h_y_ix, n_rois * sizeof(int), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_fix, h_frame_ix, n_rois * sizeof(int), cudaMemcpyHostToDevice);
+
+        auto d_rois = forward_rois_host2device(d_sp, n_rois, roi_size_x, roi_size_y, h_xr0, h_yr0, h_z0, h_phot);
+
+        // accumulate rois into frames
+        const int blocks = (n_rois * roi_size_x * roi_size_y) / 256 + 1;
+        const int thread_p_block = 512;
+        roi_accumulate<<<blocks, thread_p_block>>>(d_frames, frame_size_x, frame_size_y, n_frames, 
+            d_rois, n_rois, d_fix, d_xix, d_yix, roi_size_x, roi_size_y);
+
+        cudaDeviceSynchronize();
+
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::cout << "Error during frame computation.\nCode: " << err << "Information: \n" << cudaGetErrorString(err) << std::endl;
+        }
+
+        cudaFree(d_xix);
+        cudaFree(d_yix);
+        cudaFree(d_fix);
         cudaFree(d_rois);
 
-        return;
+        return d_frames;
     }
 } // namespace spline_psf_gpu
 
@@ -146,7 +214,8 @@ auto forward_rois(spline *d_sp, float *d_rois, const int n, const int roi_size_x
     // start n blocks which itself start threads corresponding to the number of px childs (dynamic parallelism)
     kernel_roi<<<n, 1>>>(d_sp, d_rois, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot);
     cudaDeviceSynchronize();
-    
+
+    err = cudaGetLastError();
     if (err != cudaSuccess) {
         std::cout << "Error during ROI computation.\nCode: " << err << "Information: \n" << cudaGetErrorString(err) << std::endl;
     }
@@ -295,6 +364,42 @@ auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, const flo
     return;
 }
 
+// accumulate rois to frames
+__global__
+auto roi_accumulate(float *frames, const int frame_size_x, const int frame_size_y, const int n_frames,
+                    const float *rois, const int n_rois, 
+                    const int *frame_ix, const int *x0, const int *y0, 
+                    const int roi_size_x, const int roi_size_y) -> void {
 
+        // kernel ix
+        const long kx = (blockIdx.x * blockDim.x + threadIdx.x);
+        if (kx >= n_rois * roi_size_x * roi_size_y) {
+            return;
+        }
+
+        // roi index
+        const long j = kx % roi_size_y;
+        const long i = ((kx - j) / roi_size_y) % roi_size_x;
+        const long r = (((kx - j) / roi_size_y) - i) / roi_size_x;
+
+        const long ii = x0[r] + i;
+        const long jj = y0[r] + j;
+
+        // if (frame_ix[r] == 0) {
+        //     printf("ROI ix: %d %d, Frame Index: %d %d %d\n", i, j, frame_ix[r], ii, jj);
+        // }
+
+        if ((frame_ix[r] < 0) || (frame_ix[r] >= n_frames)) {  // if frame ix is outside
+            return;
+        }
+
+        if ((ii < 0) || (jj < 0) || (ii >= frame_size_x) || (jj >= frame_size_y)) {  // if outside frame throw away
+            return;
+        }
+        float val = rois[r * roi_size_x * roi_size_y + i * roi_size_y + j];
+        atomicAdd(&frames[frame_ix[r] * frame_size_x * frame_size_y + ii * frame_size_y + jj], val);  // otherwise race condition 
+
+        return;
+    }
 
 

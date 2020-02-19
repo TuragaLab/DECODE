@@ -51,7 +51,7 @@ class PSFWrapperBase {
 
                 }
 
-            auto forward_psf(py::array_t<float, py::array::c_style | py::array::forcecast> x, 
+            auto forward_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x, 
                             py::array_t<float, py::array::c_style | py::array::forcecast> y, 
                             py::array_t<float, py::array::c_style | py::array::forcecast> z, 
                             py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
@@ -64,6 +64,28 @@ class PSFWrapperBase {
 
                 return h_rois;
             }
+
+            auto forward_frames(const int fx, const int fy,
+                            py::array_t<int, py::array::c_style | py::array::forcecast> frame_ix,
+                            const int n_frames,
+                            py::array_t<float, py::array::c_style | py::array::forcecast> xr,
+                            py::array_t<float, py::array::c_style | py::array::forcecast> yr,
+                            py::array_t<float, py::array::c_style | py::array::forcecast> z,
+                            py::array_t<int, py::array::c_style | py::array::forcecast> x_ix,
+                            py::array_t<int, py::array::c_style | py::array::forcecast> y_ix,
+                            py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
+
+            frame_size_x = fx;
+            frame_size_y = fy;
+            const int n_emitters = xr.size();
+            py::array_t<float> h_frames(n_frames * frame_size_x * frame_size_y);
+
+            spg::forward_frames_host2host(psf, h_frames.mutable_data(), frame_size_x, frame_size_y, n_frames, n_emitters, roi_size_x, roi_size_y, 
+                frame_ix.data(), xr.data(), yr.data(), z.data(), x_ix.data(), y_ix.data(), phot.data());
+
+            return h_frames;
+        }
+
 
     };
 #else
@@ -132,7 +154,8 @@ class PSFWrapperCPU : public PSFWrapperBase<spc::spline> {
 PYBIND11_MODULE(spline_psf_cuda, m) {
     py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
         .def(py::init<int, int, int, int, int, py::array_t<float>>())
-        .def("forward_rois", &PSFWrapperCUDA::forward_psf);
+        .def("forward_rois", &PSFWrapperCUDA::forward_rois)
+        .def("forward_frames", &PSFWrapperCUDA::forward_frames);
 
     py::class_<PSFWrapperCPU>(m, "PSFWrapperCPU")
         .def(py::init<int, int, int, int, int, py::array_t<float>>())

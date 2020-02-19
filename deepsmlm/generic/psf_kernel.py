@@ -315,11 +315,13 @@ class GPUSplinePSF(PSF):
         self.frame_mode = frame_mode
         self.frame_ref = frame_ref
 
-        self._spline_cuda = spline_psf_cuda.PSFWrapperCUDA(coeff.shape[0], coeff.shape[1], coeff.shape[2], roi_size[0],
-                                                           roi_size[1], coeff.numpy())
-
-        self._spline_cpu = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2], roi_size[0],
-                                                         roi_size[1], coeff.numpy())
+        if cuda:
+            self._spline_impl = spline_psf_cuda.PSFWrapperCUDA(coeff.shape[0], coeff.shape[1], coeff.shape[2],
+                                                             roi_size[0],roi_size[1], coeff.numpy())
+        else:
+            self._spline_impl = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2],
+                                                             roi_size[0],
+                                                             roi_size[1], coeff.numpy())
 
         self._safety_check()
 
@@ -398,17 +400,13 @@ class GPUSplinePSF(PSF):
 
         n_rois = xyz.size(0)  # number of rois / emitters / fluorophores
 
-        if self.cuda:
-            out = self._spline_cuda.forward_rois(xyz[:, 0], xyz[:, 1], xyz[:, 2], phot)
-        else:
-            out = self._spline_cpu.forward_rois(xyz[:, 0], xyz[:, 1], xyz[:, 2], phot)
+        out = self._spline_impl.forward_rois(xyz[:, 0], xyz[:, 1], xyz[:, 2], phot)
 
         out = torch.from_numpy(out)
         out = out.reshape(n_rois, *self.roi_size_px)
         return out
 
     def _place_rois(self, rois, ix, frame_ix, n_frames):
-        raise DeprecationWarning("Was only for implementation.")
         frame = torch.zeros((n_frames, *self.img_shape))
 
         for r in range(rois.size(0)):
@@ -416,6 +414,9 @@ class GPUSplinePSF(PSF):
                 for j in range(self.roi_size_px[1]):
                     ii = ix[r, 0] + i
                     jj = ix[r, 1] + j
+                    if (frame_ix[r] < 0) or (frame_ix[r] >= n_frames):
+                        continue
+
                     if (ii < 0) or (jj < 0) or (ii >= self.img_shape[0]) or (jj >= self.img_shape[1]):
                         continue
                     frame[frame_ix[r], ii, jj] += rois[r, i, j]
@@ -449,7 +450,7 @@ class GPUSplinePSF(PSF):
         if n_frames == 0:
             return torch.zeros((0, *self.img_shape))
 
-        frames = self._spline_cpu.forward_frames(*self.img_shape,
+        frames = self._spline_impl.forward_frames(*self.img_shape,
                                                  frame_ix_,
                                                  n_frames,
                                                  xyz_r[:, 0],
@@ -730,6 +731,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     import torch
     import os
+    import time
 
     import deepsmlm.generic.psf_kernel
     import deepsmlm.generic.plotting.frame_coord as fc
@@ -743,34 +745,84 @@ if __name__ == '__main__':
     smap_load = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(coeff_file)
     coeff = smap_load.coeff
 
-    psf_cu = deepsmlm.generic.psf_kernel.GPUSplinePSF((-0.5, 63.5), (-0.5, 63.5), (64, 64), (32, 32),
+    psf_cu = deepsmlm.generic.psf_kernel.GPUSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (32, 32),
                                                       coeff.contiguous(), torch.Tensor([100., 100., 10.]),
                                                       torch.Tensor([13, 13, 100]), cuda=True)
 
-    psf_cpu = deepsmlm.generic.psf_kernel.GPUSplinePSF((-0.5, 63.5), (-0.5, 63.5), (64, 64), (32, 32),
+    psf_cpu = deepsmlm.generic.psf_kernel.GPUSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (32, 32),
                                                       coeff.contiguous(), torch.Tensor([100., 100., 10.]),
                                                       torch.Tensor([13, 13, 100]), cuda=False)
 
     """RUNTIME TEST"""
-    n = 100
+    n = 10000
     print(f"Num samples: {n}")
     xyz_plain = torch.rand((n, 3))
     xyz_plain[:, :2] *= 5000
     xyz_plain[:, 2] *= 1000
     xyz_plain[:, 2] -= 500
     phot = torch.ones((n, ))
-    frame_ix = torch.zeros_like(phot).int() - 1
-    frame_ix[-1] = 0
-    # frame_ix = torch.randint(0, 10, size=(n, ))
+    frame_ix = torch.randint(0, 1000, size=(n, )) - 1
 
+    t0 = time.time()
     frames_cpu = psf_cpu.forward(xyz_plain, phot, frame_ix)
-    fc.PlotFrame(frames_cpu[0]).plot()
+    t1 = time.time()
+    print(f"Time CPU only: {t1 - t0}")
+    t0 = time.time()
+    frames_cu = psf_cu.forward(xyz_plain, phot, frame_ix)
+    t1 = time.time()
+    print(f"Time CUDA: {t1-t0}")
+    #
+    # fc.PlotFrame(frames_cpu[1]).plot()
+    # plt.show()
+    # fc.PlotFrame(frames_cu[1]).plot()
+    # plt.show()
+
+    """Test two emitters"""
+    xyz = torch.Tensor([[1500., 500., 0.], [1000., 1000., -100.], [2000., 2000., 100.]])
+    # xyz = xyz[:2]
+    phot = torch.ones_like(xyz[:, 0])
+    # phot[1:] = 0.
+    frame_ix = torch.Tensor([0, 0, 1])
+    em = deepsmlm.generic.emitter.EmitterSet(xyz, phot, frame_ix, xy_unit='nm', px_size=[100., 100.])
+
+    f_cpu = psf_cpu.forward(xyz, phot, frame_ix)
+    f_cu = psf_cu.forward(xyz, phot, frame_ix)
+
+    xyz_r, ix = psf_cu.frame2roi_coord(xyz)
+    rois_cu = psf_cu.forward_rois(psf_cu.frame2roi_coord(xyz)[0], phot)
+    rois_cpu = psf_cpu.forward_rois(psf_cpu.frame2roi_coord(xyz)[0], phot)
+
+
+    plt.figure()
+    plt.subplot(121)
+    fc.PlotFrame(rois_cpu[2]).plot()
+    plt.subplot(122)
+    fc.PlotFrame(rois_cu[2]).plot()
+    plt.title('ROI 0')
     plt.show()
 
+    # plt.figure()
+    # plt.subplot(121)
+    # fc.PlotFrame(rois_cpu[1]).plot()
+    # plt.subplot(122)
+    # fc.PlotFrame(rois_cu[1]).plot()
+    # plt.title('ROI 1')
+    # plt.show()
 
+    plt.figure()
+    plt.subplot(121)
+    fc.PlotFrameCoord(f_cpu[0]).plot()
+    plt.subplot(122)
+    fc.PlotFrameCoord(f_cu[0]).plot()
+    plt.title('Frame 0')
+    plt.show()
+    #
+    plt.figure()
+    plt.subplot(121)
+    fc.PlotFrameCoord(f_cpu[1]).plot()
+    plt.subplot(122)
+    fc.PlotFrameCoord(f_cu[1]).plot()
+    plt.title('Frame 1')
+    plt.show()
 
-    print("Done.")
-
-
-
-
+    print("Done", flush=True)
