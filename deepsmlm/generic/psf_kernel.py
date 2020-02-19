@@ -292,7 +292,8 @@ class GaussianExpect(PSF):
 
 class GPUSplinePSF(PSF):
 
-    def __init__(self, roi_size, coeff, vx_size, ref0, cuda=True):
+    def __init__(self, xextent, yextent, img_shape, roi_size, coeff, vx_size, ref0, frame_mode='abs',
+                 frame_ref=0, cuda=True):
         """
         Initialise Spline PSF
 
@@ -303,19 +304,42 @@ class GPUSplinePSF(PSF):
             ref0: zero reference point (in px / vx units)
             cuda:
         """
+        super().__init__(xextent=xextent, yextent=yextent, zextent=None, img_shape=img_shape)
         import spline_psf_cuda
 
-        self.roi_size = roi_size
+        self.roi_size_px = roi_size
         self._coeff = coeff
         self.vx_size = vx_size
         self.ref0 = ref0
         self.cuda = cuda
+        self.frame_mode = frame_mode
+        self.frame_ref = frame_ref
 
         self._spline_cuda = spline_psf_cuda.PSFWrapperCUDA(coeff.shape[0], coeff.shape[1], coeff.shape[2], roi_size[0],
                                                            roi_size[1], coeff.numpy())
 
         self._spline_cpu = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2], roi_size[0],
-                                                      roi_size[1], coeff.numpy())
+                                                         roi_size[1], coeff.numpy())
+
+        self._safety_check()
+
+    @property
+    def _roi_size_nm(self):
+        roi_size_nm = (self.roi_size_px[0] * self.vx_size[0],
+                       self.roi_size_px[1] * self.vx_size[1])
+
+        return roi_size_nm
+
+    def _safety_check(self):
+        """
+        Perform some class specific safety checks
+        Returns:
+
+        """
+        """Test whether extent corresponds to img shape"""
+        if (self.img_shape[0] != (self.xextent[1] - self.xextent[0])) or \
+                (self.img_shape[1] != (self.yextent[1] - self.yextent[0])):
+            raise ValueError("Unequal size of extent and image shape not supported.")
 
     def nm2impl(self, xyz_nm):
         """
@@ -329,25 +353,38 @@ class GPUSplinePSF(PSF):
         """
         return -xyz_nm/self.vx_size + self.ref0
 
-    @staticmethod
-    def frame2roi_coord(xyz: torch.Tensor):
+    def frame2roi_coord(self, xyz_nm: torch.Tensor):
         """
         Computes ROI wise coordinate from the coordinate on the frame and returns the px on the frame in addition
 
         Args:
-            xyz:
+            xyz_nm:
 
         Returns:
+            xyz_r: roi-wise relative coordinates
+            onframe_ix: ix where to place the roi on the final frame (caution: might be negative when roi is outside
+            frame, but then we don't mean negative in pythonic sense)
 
         """
-        xyz_r = xyz.clone()
-        xyz_r[:, :2] %= 1
+        xyz_r = xyz_nm.clone()
+        """Get subpixel shift"""
+        xyz_r[:, 0] = (xyz_r[:, 0] / self.vx_size[0]) % 1
+        xyz_r[:, 1] = (xyz_r[:, 1] / self.vx_size[1]) % 1
+        """Place emitters in ROI centre (nm)"""
+        xyz_r[:, :2] = (xyz_r[:, :2] + self.ref0[:2]) * self.vx_size[:2]
 
-        onframe_ix = xyz[:, :2].floor().int()
+        xyz_px = (xyz_nm[:, :2] / self.vx_size[:2] - self.ref0[:2]).floor().int()
 
-        return xyz_r, onframe_ix
+        return xyz_r, xyz_px
 
-    def forward(self, xyz, phot):
+    def forward_rois(self, xyz, phot):
+        return self._forward_rois_impl(self.nm2impl(xyz), phot)
+
+    def forward(self, xyz, phot, frame_ix):
+        xyz_ = self.nm2impl(self.frame2roi_coord(xyz))
+        return self._forward_impl(self.nm2impl)
+
+    def _forward_rois_impl(self, xyz, phot):
         """
         Computes the PSF and outputs the result ROI-wise.
 
@@ -359,17 +396,70 @@ class GPUSplinePSF(PSF):
 
         """
 
-        xyz_mpl = self.nm2impl(xyz)  # coordinates in implementation units
         n_rois = xyz.size(0)  # number of rois / emitters / fluorophores
 
         if self.cuda:
-            out = self._spline_cuda.forward_rois(xyz_mpl[:, 0], xyz_mpl[:, 1], xyz_mpl[:, 2], phot)
+            out = self._spline_cuda.forward_rois(xyz[:, 0], xyz[:, 1], xyz[:, 2], phot)
         else:
-            out = self._spline_cpu.forward_rois(xyz_mpl[:, 0], xyz_mpl[:, 1], xyz_mpl[:, 2], phot)
+            out = self._spline_cpu.forward_rois(xyz[:, 0], xyz[:, 1], xyz[:, 2], phot)
 
         out = torch.from_numpy(out)
-        out = out.reshape(n_rois, *self.roi_size)
+        out = out.reshape(n_rois, *self.roi_size_px)
         return out
+
+    def _place_rois(self, rois, ix, frame_ix, n_frames):
+        raise DeprecationWarning("Was only for implementation.")
+        frame = torch.zeros((n_frames, *self.img_shape))
+
+        for r in range(rois.size(0)):
+            for i in range(self.roi_size_px[0]):
+                for j in range(self.roi_size_px[1]):
+                    ii = ix[r, 0] + i
+                    jj = ix[r, 1] + j
+                    if (ii < 0) or (jj < 0) or (ii >= self.img_shape[0]) or (jj >= self.img_shape[1]):
+                        continue
+                    frame[frame_ix[r], ii, jj] += rois[r, i, j]
+
+        return frame
+
+    def forward(self, xyz, phot, frame_ix):
+        """
+
+        Args:
+            xyz:
+            phot:
+            frame_ix:
+
+        Returns:
+
+        """
+        """Convert Coordinates into ROI based coordinates and transform into implementation coordinates"""
+        xyz_r, ix = self.frame2roi_coord(xyz)
+        xyz_r = self.nm2impl(xyz_r)
+
+        # Calc number of frames
+        if self.frame_mode == 'abs':
+            n_frames = (frame_ix.max() - self.frame_ref + 1).int().item()
+            frame_ix_ = frame_ix
+
+        elif self.frame_mode == 'rel':
+            n_frames = (frame_ix.max() - frame_ix.min() + 1).int().item()
+            frame_ix_ = frame_ix - frame_ix.min()
+
+        if n_frames == 0:
+            return torch.zeros((0, *self.img_shape))
+
+        frames = self._spline_cpu.forward_frames(*self.img_shape,
+                                                 frame_ix_,
+                                                 n_frames,
+                                                 xyz_r[:, 0],
+                                                 xyz_r[:, 1],
+                                                 xyz_r[:, 2],
+                                                 ix[:, 0],
+                                                 ix[:, 1],
+                                                 phot)
+        frames = torch.from_numpy(frames).reshape(n_frames, *self.img_shape)
+        return frames
 
 
 class CubicSplinePSF(PSF):
@@ -653,86 +743,29 @@ if __name__ == '__main__':
     smap_load = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(coeff_file)
     coeff = smap_load.coeff
 
-    psf_cu = deepsmlm.generic.psf_kernel.GPUSplinePSF([32, 32], coeff.contiguous(), torch.Tensor([100., 100., 10.]),
-                                                      torch.Tensor([13, 13, 100]))
+    psf_cu = deepsmlm.generic.psf_kernel.GPUSplinePSF((-0.5, 63.5), (-0.5, 63.5), (64, 64), (32, 32),
+                                                      coeff.contiguous(), torch.Tensor([100., 100., 10.]),
+                                                      torch.Tensor([13, 13, 100]), cuda=True)
+
+    psf_cpu = deepsmlm.generic.psf_kernel.GPUSplinePSF((-0.5, 63.5), (-0.5, 63.5), (64, 64), (32, 32),
+                                                      coeff.contiguous(), torch.Tensor([100., 100., 10.]),
+                                                      torch.Tensor([13, 13, 100]), cuda=False)
 
     """RUNTIME TEST"""
-    # n = 100000
-    # print(f"Num samples: {n}")
-    # xyz_plain = torch.rand((n, 3))
-    # xyz_plain[:, :2] *= 3200
-    # xyz_plain[:, 2] *= 1000
-    # xyz_plain[:, 2] -= 500
-    # phot = torch.ones((n, ))
-    #
-    # import time
-    #
-    # t0 = time.time()
-    # out_cu = psf_cu.forward(xyz_plain, phot)
-    # t1 = time.time()
-    # print(f"CUDA time: {t1-t0}")
-    #
-    # psf_cu.cuda = False
-    # t0 = time.time()
-    # out_cpu = psf_cu.forward(xyz_plain, phot)
-    # t1 = time.time()
-    # print(f"CPU time: {t1 - t0}")
-    # psf_cu.cuda = True
+    n = 100
+    print(f"Num samples: {n}")
+    xyz_plain = torch.rand((n, 3))
+    xyz_plain[:, :2] *= 5000
+    xyz_plain[:, 2] *= 1000
+    xyz_plain[:, 2] -= 500
+    phot = torch.ones((n, ))
+    frame_ix = torch.zeros_like(phot).int() - 1
+    frame_ix[-1] = 0
+    # frame_ix = torch.randint(0, 10, size=(n, ))
 
-    # plt.figure()
-    # plt.subplot(121)
-    # fc.PlotFrame(out_cu[50000]).plot()
-    # plt.subplot(122)
-    # fc.PlotFrame(out_cpu[50000]).plot()
-    # plt.show()
-
-    xyz_single = torch.Tensor([[1500.0, 1500.0, 0.]])
-    phot = torch.Tensor([1.])
-    frame_ix = torch.Tensor([0])
-
-    xyz_r, xy_ix = psf_cu.frame2roi_coord(psf_cu.nm2impl(xyz_single))
-
-    out = psf_cu._spline_cpu.forward_frames(50, 50, frame_ix, 1, xyz_r[:, 0], xyz_r[:, 1], xyz_r[:, 2],
-                                            xy_ix[:, 0], xy_ix[:, 1], phot)
-
-    out = torch.from_numpy(out).reshape(1, 50, 50)
-    fc.PlotFrame(out[0]).plot()
+    frames_cpu = psf_cpu.forward(xyz_plain, phot, frame_ix)
+    fc.PlotFrame(frames_cpu[0]).plot()
     plt.show()
-
-    # """Coordinates"""
-    # xyz = torch.Tensor([[0.,0., 99]])
-    # phot = torch.Tensor([1.])
-    #
-    # out = psf_cu.forward(xyz, phot)
-    #
-    # plt.figure()
-    # fc.PlotFrameCoord(out[0], pos_tar=xyz + smap_load).plot()
-    # plt.show()
-    #
-    # xyz = torch.Tensor([[5., 0., 99]])
-    # phot = torch.Tensor([1.])
-    #
-    # out = psf_cu.forward(xyz, phot)
-    #
-    # plt.figure()
-    # fc.PlotFrame(out[0]).plot()
-    # plt.show()
-    #
-    # xyz = torch.Tensor([[0., 5., 99]])
-    # phot = torch.Tensor([1.])
-    #
-    # out = psf_cu.forward(xyz, phot)
-    #
-    # plt.figure()
-    # fc.PlotFrame(out[0]).plot()
-    # plt.show()
-
-    # out = psf.forward(xyz, phot)
-    # out_cpu = psf.forward_cpu(xyz, phot)
-    # fc.PlotFrame(out).plot()
-    # plt.show()
-    # fc.PlotFrame(out_cpu).plot()
-    # plt.show()
 
 
 

@@ -15,7 +15,7 @@
 #include "spline_psf.h"
 
 // internal declarations
-void roi_accumulator(float *frames, const int frame_size_x, const int frame_size_y, 
+void roi_accumulator(float *frames, const int frame_size_x, const int frame_size_y, const int n_frames,
     const float *rois, const int n_rois, const int *frame_ix, const int *x0, const int *y0, const int roi_size_x, const int roi_size_y);
 void kernel_computeDelta3D(spline *, float, float, float );
 void kernel_DerivativeSpline(spline *, int xc, int yc, int zc, float *theta, float *dudt, float *model);
@@ -24,46 +24,52 @@ float fSpline3D(spline *, float, float, float );
 
 // definition
 
-void forward_frames(spline *sp, float *frames, const int frame_size_x, const int frame_size_y, const int n_rois, const int roi_size_x, const int roi_size_y,
+void forward_frames(spline *sp, float *frames, const int frame_size_x, const int frame_size_y, const int n_frames, 
+    const int n_rois, const int roi_size_x, const int roi_size_y,
     const int *frame_ix, const float *xr0, const float *yr0, const float *z0, const int *x_ix, const int *y_ix, const float *phot) {
-
-    printf("I AM BUGGY and NOT WORKING.\n");
         
     // malloc rois
     int roi_px = n_rois * roi_size_x * roi_size_y;
     float *rois = (float *)malloc(roi_px * sizeof(float));
 
+    // init frames
+    for (int i = 0; i < frame_size_x * frame_size_y * n_frames; i++) {
+        frames[i] = 0.0;
+    }
+
     // forrward rois and accumulate
     forward_rois(sp, rois, n_rois, roi_size_x, roi_size_y, xr0, yr0, z0, phot);
-    roi_accumulator(frames, frame_size_x, frame_size_y, rois, n_rois, frame_ix, x_ix, y_ix, roi_size_x, roi_size_y);
+    roi_accumulator(frames, frame_size_x, frame_size_y, n_frames, rois, n_rois, frame_ix, x_ix, y_ix, roi_size_x, roi_size_y);
 
     // free rois
     free(rois);
-
+    
+    return;
 }
 
-void roi_accumulator(float *frames, const int frame_size_x, const int frame_size_y, 
+void roi_accumulator(float *frames, const int frame_size_x, const int frame_size_y, const int n_frames,
     const float *rois, const int n_rois, const int *frame_ix, const int *x0, const int *y0, const int roi_size_x, const int roi_size_y) {
 
-    printf("I AM POTENTIALLY BUGGY and NOT WORKING.\n");
-
-    // loop over all rois
-    for (int i = 0; i < n_rois; i++) {
-        // loop over all roi px and write them to frames
-        for (int j = 0; j < roi_size_x; j++) {
-            for (int k = 0; k < roi_size_y; k ++) {
-
-                int frame_px_x = x0[j] + j;  // index on frame
-                int frame_px_y = y0[j] + k;
-
-                // if outside of frame bounds, continue
-                if ((frame_px_x < 0) || (frame_px_x >= frame_size_x) || (frame_px_y < 0) || (frame_px_y >= frame_size_y)) {
+    // loop over rois
+    for (int r = 0; r < n_rois; r++) {
+        // loop over all roi px
+        for (int i = 0; i < roi_size_x; i++) {
+            for (int j = 0; j < roi_size_y; j++) {
+                int ii = x0[r] + i;
+                int jj = y0[r] + j;
+                if ((frame_ix[r] < 0) || (frame_ix[r] >= n_frames)) {  // if frame ix is outside
                     continue;
                 }
-                frames[frame_ix[i] * frame_size_x * frame_size_y + frame_px_x * frame_size_y + frame_px_y] += rois[i * roi_size_x * roi_size_y + j * roi_size_y + k];
+
+                if ((ii < 0) || (jj < 0) || (ii >= frame_size_x) || (jj >= frame_size_y)) {  // if outside frame throw away
+                    continue;
+                }
+                frames[frame_ix[r] * frame_size_x * frame_size_y + ii * frame_size_y + jj] += rois[r * roi_size_x * roi_size_y + i * roi_size_y + j];
             }
         }
     }
+    
+    return;
 }
 
 void forward_rois(spline *sp, float *rois, const int n_rois, const int npx, const int npy, const float *xc, const float *yc, const float *zc, const float *phot) {
