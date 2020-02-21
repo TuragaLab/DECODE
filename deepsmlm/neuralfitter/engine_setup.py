@@ -7,6 +7,7 @@ import tensorboardX
 import torch
 
 import deepsmlm.neuralfitter.filter
+import deepsmlm.neuralfitter.target_generator
 import deepsmlm.neuralfitter.utils.pytorch_customs
 
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -201,7 +202,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
 
     tar_gen = deepsmlm.generic.utils.processing.TransformSequence.parse(
         [
-            deepsmlm.neuralfitter.pre_processing.ROIOffsetRep,
+            deepsmlm.neuralfitter.target_generator.ROIOffsetRep,
             deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale
         ], param=param)
 

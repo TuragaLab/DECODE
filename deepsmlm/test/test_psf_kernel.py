@@ -13,6 +13,26 @@ import deepsmlm.generic.utils.test_utils as tutil
 import deepsmlm.generic.plotting.frame_coord as plf
 import deepsmlm.generic.plotting.plot_utils as plu
 
+class TestPSF:
+
+    @pytest.fixture(scope='class')
+    def abs_psf(self):
+        return psf_kernel.PSF
+
+    def test_ix_splitting(self, abs_psf):
+        ix = torch.Tensor([2, -1, 2, 0, 4]).int()
+
+        out, n = abs_psf._ix_split(ix)
+
+        assert len(out) == 6
+        assert len(out) == n
+        assert ix[out[0]] == -1
+        assert ix[out[1]] == 0
+        assert ix[out[2]].numel() == 0
+        assert (ix[out[3]] == 2).all()
+        assert ix[out[4]].numel() == 0
+        assert ix[out[5]] == 4
+
 
 class TestGaussianExpect:
     @pytest.fixture(scope='class')
@@ -247,7 +267,7 @@ class TestCubicSplinePSF:
         frames_cuda = psf_cuda.forward(xyz, phot, frame_ix)
 
         assert tutil.tens_almeq(frames_cpu, frames_cuda, 1e-7)
-        # return
+        return
 
         """Additional Plotting if manual testing (comment out return statement)."""
         rix = random.randint(0, frame_ix.max().item() - 1)
@@ -261,6 +281,42 @@ class TestCubicSplinePSF:
         plt.colorbar()
         plt.title('CPU implementation')
         plt.show()
+
+    def test_derivative_calculation(self, psf_cuda):
+        """
+        Tests the derivate calculation
+
+        Args:
+            psf_cuda:
+
+        Returns:
+
+        """
+        xyz = torch.Tensor([[13., 13., 0.]])
+        phot = torch.ones_like(xyz[:, 0]) * 10000
+        bg = torch.ones_like(phot) * 10
+
+        drv, rois = psf_cuda.derivative(xyz, phot, bg)
+
+        assert True
+
+    def test_fisher(self, psf_cuda):
+        xyz = torch.Tensor([[13., 13., 0.]])
+        phot = torch.ones_like(xyz[:, 0]) * 1000
+        bg = torch.ones_like(phot) * 50
+
+        fisher, rois = psf_cuda.fisher(xyz, phot, bg)
+
+        assert True
+
+    def test_crlb(self, psf_cuda):
+        xyz = torch.Tensor([[13., 13., 0.]])
+        phot = torch.ones_like(xyz[:, 0]) * 10000
+        bg = torch.ones_like(phot) * 50
+
+        crlb, rois = psf_cuda.crlb(xyz, phot, bg, torch.pinverse)
+
+        assert True
 
 
 class TestDeprSplinePSF:

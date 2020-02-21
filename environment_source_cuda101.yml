@@ -15,6 +15,7 @@ dependencies:
   - comet_ml
   - cudatoolkit=10.1
   - comet_ml
+  - deprecated
   - dotmap
   - holoviews
   - intel-openmp

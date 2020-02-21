@@ -33,8 +33,9 @@ import deepsmlm.generic.psf_kernel as psf_kernel
 import deepsmlm.neuralfitter.pre_processing as prepro
 import deepsmlm.evaluation.evaluation as evaluation
 from deepsmlm.generic.phot_camera import Photon2Camera
-from deepsmlm.neuralfitter.pre_processing import OffsetRep, GlobalOffsetRep, ROIOffsetRep, CombineTargetBackground, \
+from deepsmlm.neuralfitter.pre_processing import CombineTargetBackground, \
     DiscardBackground
+from deepsmlm.neuralfitter.target_generator import OffsetRep, ROIOffsetRep, GlobalOffsetRep
 import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
 import deepsmlm.generic.utils.processing as processing
@@ -48,7 +49,7 @@ from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided, \
     OffSetUNetBGBranch
 import deepsmlm.neuralfitter.models.model_param as model_zoo
-from deepsmlm.neuralfitter.pre_processing import N2C, SingleEmitterOnlyZ
+from deepsmlm.neuralfitter.pre_processing import N2C
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale, InputFrameRescale
 from deepsmlm.neuralfitter.train_test import train, test
 from deepsmlm.generic.inout.util import add_root_relative

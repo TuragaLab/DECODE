@@ -32,7 +32,7 @@ class SMLMStaticDataset(Dataset):
         self.multi_frame_output = multi_frame_output
 
         # Remove the emitters which are out of the FOV.
-        emitter = RemoveOutOfFOV(self.extent[0], self.extent[1]).clean_emitter_set(emitter)
+        emitter = RemoveOutOfFOV(self.extent[0], self.extent[1]).forward(emitter)
         self.em = emitter.split_in_frames(ix_f=0, ix_l=self.__len__() - 1)
 
         self.image_shape = tuple(self.frames.shape[2:])

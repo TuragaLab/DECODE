@@ -60,3 +60,16 @@ def same_dim_tensor(*args):
             return False
 
     return True
+
+
+def equal_nonzero(*a):
+    """
+    Test whether a and b have the same non-zero elements
+    :param a: tensors
+    :return: "torch.bool"
+    """
+    is_equal = torch.equal(a[0], a[0])
+    for i in range(a.__len__() - 1):
+        is_equal = is_equal * torch.equal(a[i].nonzero(), a[i + 1].nonzero())
+
+    return is_equal

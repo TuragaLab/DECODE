@@ -297,6 +297,25 @@ class EmitterSet:
             if not tutil.tens_almeq(self.bg, other.bg, self.eq_precision):
                 return False
 
+        self.eq_attr(other)
+        return True
+
+    def eq_attr(self, other):
+        """
+        Tests whether the meta data attributes are the same
+
+        Args:
+            other: EmitterSet
+
+        Returns:
+            (bool)
+        """
+        if not self.px_size == other.px_size:
+            return False
+
+        if not self.xy_unit == other.xy_unit:
+            return False
+
         return True
 
     def __iter__(self):
@@ -333,7 +352,8 @@ class EmitterSet:
         Returns:
             (EmitterSet)
         """
-        if item >= len(self):
+
+        if isinstance(item, int) and item >= len(self):
             raise IndexError(f"Index {item} out of bounds of EmitterSet of size {len(self)}")
 
         return self.get_subset(item)
@@ -820,13 +840,13 @@ class RandomEmitterSet(EmitterSet):
     """
     A helper calss when we only want to provide a number of emitters.
     """
-    def __init__(self, num_emitters, extent=32):
+    def __init__(self, num_emitters, extent=32, xy_unit='px'):
         """
 
         :param num_emitters:
         """
         xyz = torch.rand((num_emitters, 3)) * extent
-        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]))
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]), xy_unit=xy_unit)
 
     def _inplace_replace(self, em):
         super().__init__(xyz=em.xyz,

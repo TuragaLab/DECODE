@@ -40,15 +40,33 @@ class PSF(ABC):
                                                                                        self.zextent,
                                                                                        self.img_shape)
 
+    @staticmethod
+    def _ix_split(ix: torch.Tensor):
+        """
+        Returns list of subset of indices which give access to each element of ix  # ToDo: Change this description
+        Args:
+            ix:
+
+        Returns:
+            list of logical indices
+        """
+        assert ix.dtype in (torch.short, torch.int, torch.long)
+        ix_min = ix.min().item()
+        ix_max = ix.max().item()
+        n = ix_max - ix_min + 1
+
+        log_ix = [ix == ix_c for ix_c in range(ix_min, ix_max + 1)]
+        return log_ix, n
+
     @abstractmethod
-    def forward(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
+    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
         """
         Forward coordinates frame index aware through the psf model.
         Implementation methods should call this method first in order not to handle the default argument stuff
 
         Args:
             xyz: coordinates of size N x (2 or 3)
-            phot: photon value
+            weight: photon value
             frame_ix: (optional) frame index
             ix_low: (optional) lower frame_index, if None will be determined automatically
             ix_high: (optional) upper frame_index, if None will be determined automatically
@@ -68,37 +86,10 @@ class PSF(ABC):
         """Kick out everything that is out of frame index bounds and shift the frames to start at 0"""
         in_frame = (ix_low <= frame_ix) * (frame_ix <= ix_high)
         xyz_ = xyz[in_frame, :]
-        phot_ = phot[in_frame]
+        phot_ = weight[in_frame]
         frame_ix_ = frame_ix[in_frame] - ix_low
 
         return xyz_, phot_, frame_ix_, ix_low, ix_high
-
-    # def forward_em(self, em: deepsmlm.generic.emitter.EmitterSet, frame_mode='multi', ix_low=None, ix_high=None):
-    #     """
-    #     Forward EmitterSet through psf model. Convenience wrapper
-    #
-    #     Args:
-    #         em: (EmitterSet)
-    #         frame_mode: ('multi' or 'single') put emitters on their respective frames or squeeze them on one frame
-    #         ix_low: lower index of frames to forward through
-    #         ix_high: upper index of frames to forward through
-    #
-    #     Returns:
-    #
-    #     """
-    #     raise DeprecationWarning("I am not sure whether this should be supported ...")
-    #
-    #     if not isinstance(em, deepsmlm.generic.emitter.EmitterSet):
-    #         raise ValueError("This convenience wrapper is only for EmitterSets.")
-    #
-    #     if frame_mode == 'multi':
-    #         frame_ix = em.frame_ix
-    #     elif frame_mode == 'single':
-    #         frame_ix = torch.zeros((len(em), )).int()
-    #     else:
-    #         raise ValueError("Unsupported frame mode.")
-    #
-    #     return self.forward(xyz=em.xyz, phot=em.phot, frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high)
 
 
 class DeltaPSF(PSF):
@@ -261,33 +252,30 @@ class GaussianExpect(PSF):
 
         return sigma_xy
 
-    def forward(self, input, weight=None):
+    def forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
         """
-        Forward emitters through PSF. Note that this ignores the frame_ix of a possible emitterset (so it puts all
-        emitters on the same frame). If you want different behaviour, split the emitters in frames ([
-        ].split_in_frames()) and loop over the frames or use simulator to do this for you.
+        Calculates the PSF for emitters on the same frame
 
         Args:
-            input: instance of emitterset or xyz coordinates
-            weight: override weight of emitterset (otherwise uses photon count) or specify weight if xyz were given
+            xyz: coordinates
+            weight: weight
 
         Returns:
-            single camera frame
-        """
+            (torch.Tensor)
 
-        pos, weight = super().forward(input, weight)
-        num_emitters = pos.shape[0]
+        """
+        num_emitters = xyz.shape[0]
         img_shape = self.img_shape
         sigma_0 = self.sigma_0
 
         if num_emitters == 0:
             return torch.zeros(1, img_shape[0], img_shape[1]).float()
 
-        xpos = pos[:, 0].repeat(img_shape[0], img_shape[1], 1)
-        ypos = pos[:, 1].repeat(img_shape[0], img_shape[1], 1)
+        xpos = xyz[:, 0].repeat(img_shape[0], img_shape[1], 1)
+        ypos = xyz[:, 1].repeat(img_shape[0], img_shape[1], 1)
 
         if self.zextent is not None:
-            sig = self.astigmatism(pos[:, 2], sigma_0=self.sigma_0)
+            sig = self.astigmatism(xyz[:, 2], sigma_0=self.sigma_0)
             sig_x = sig[:, 0].repeat(img_shape[0], img_shape[1], 1)
             sig_y = sig[:, 1].repeat(img_shape[0], img_shape[1], 1)
         else:
@@ -314,10 +302,43 @@ class GaussianExpect(PSF):
             gaussCdf *= 2 * math.pi * sig_x * sig_y
         gaussCdf = torch.sum(gaussCdf, 2)
 
-        return gaussCdf.unsqueeze(0)
+        return gaussCdf
+
+    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None,
+                ix_high=None):
+        """
+        Forward coordinates frame index aware through the psf model.
+
+        Args:
+            xyz: coordinates of size N x (2 or 3)
+            weight: photon value
+            frame_ix: (optional) frame index
+            ix_low: (optional) lower frame_index, if None will be determined automatically
+            ix_high: (optional) upper frame_index, if None will be determined automatically
+
+        Returns:
+            frames: (torch.Tensor)
+        """
+        xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
+
+        """
+        Because I have not implemented a function that processes in batch mode, split the emitters in frames and
+        forward them individually.
+        """
+        ix_split, n_splits = self._ix_split(frame_ix)
+        frames = [self.forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
+        frames = torch.stack(frames, 0)
+
+        return frames
 
 
 class CubicSplinePSF(PSF):
+    """
+    Cubic spline PSF.
+    """
+
+    n_par = 5  # x, y, z, phot, bg
+    inv_default = torch.inverse
 
     def __init__(self, xextent, yextent, img_shape, roi_size, coeff, vx_size, ref0, frame_mode='abs',
                  frame_ref=0, cuda=True):
@@ -466,9 +487,7 @@ class CubicSplinePSF(PSF):
         """
         if self.roi_size_px > self._roi_native:
             warnings.warn("You are trying to compute a ROI that is bigger than the "
-                             "size supported by the spline coefficients.")
-
-        # offset = (self.roi_size_px - self._roi_native) / 2
+                          "size supported by the spline coefficients.")
 
         return self._forward_rois_impl(self.coord2impl(xyz), phot)
 
@@ -492,13 +511,88 @@ class CubicSplinePSF(PSF):
         out = out.reshape(n_rois, *self.roi_size_px)
         return out
 
-    def forward(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
+    def derivative(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor):
+        """
+        Computes the px wise derivative per ROI.
+
+        Args:
+            xyz:
+            phot:
+            bg:
+
+        Returns:
+            derivatives: torch.Tensor
+            rois: torch.Tensor
+
+        """
+
+        xyz_ = self.coord2impl(xyz)
+        n_rois = xyz.size(0)
+
+        drv_rois, rois = self._spline_impl.forward_drv_rois(xyz_[:, 0], xyz_[:, 1], xyz_[:, 2], phot, bg)
+        drv_rois = torch.from_numpy(drv_rois).reshape(n_rois, self.n_par, *self.roi_size_px)
+        rois = torch.from_numpy(rois).reshape(n_rois, *self.roi_size_px)
+
+        """Convert Implementation order to natural order, i.e. x/y/z/phot/bg instead of x/y/phot/bg/z."""
+        drv_rois = drv_rois[:, [0, 1, 4, 2, 3]]
+
+        return drv_rois, rois
+
+    def fisher(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor):
+        """
+        Calculates the fisher matrix ROI wise and gives the ROIs out for free.
+
+        Args:
+            xyz:
+            phot:
+
+        Returns:
+
+        """
+        raise NotImplementedError("Work in progress.")
+        drv, rois = self.derivative(xyz, phot, bg)
+
+        """Aggregate the drv along the pixel dimension"""
+        drv_agg = drv.sum(-1).sum(-1)
+
+        """Construct fisher by batched matrix multiplication."""
+        fisher = torch.matmul(drv_agg.unsqueeze(-1), drv_agg.unsqueeze(1))
+
+        return fisher, rois
+
+    def crlb(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, inversion=None):
+        """
+        Computes the Cramer-Rao bound
+
+        Args:
+            xyz:
+            phot:
+            bg:
+            inversion: (function) overwrite default inversion with another function that can batch invert matrices
+
+        Returns:
+
+        """
+
+        if inversion is not None:
+            inv_f = inversion
+        else:
+            inv_f = self.inv_default
+
+        fisher, rois = self.fisher(xyz, phot, bg)
+        fisher_inv = inv_f(fisher)
+        crlb = torch.stack([fisher_inv[i].diag() for i in range(fisher.size(0))], 0)
+        crlb[:, :3] *= self.vx_size ** 2
+
+        return crlb, rois
+
+    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
         """
         Forward coordinates frame index aware through the psf model.
 
         Args:
             xyz: coordinates of size N x (2 or 3)
-            phot: photon value
+            weight: photon value
             frame_ix: (optional) frame index
             ix_low: (optional) lower frame_index, if None will be determined automatically
             ix_high: (optional) upper frame_index, if None will be determined automatically
@@ -506,7 +600,7 @@ class CubicSplinePSF(PSF):
         Returns:
             frames: (torch.Tensor)
         """
-        xyz, phot, frame_ix, ix_low, ix_high = super().forward(xyz, phot, frame_ix, ix_low, ix_high)
+        xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
 
         if xyz.size(0) == 0:
             return torch.zeros((0, *self.img_shape))
@@ -528,251 +622,10 @@ class CubicSplinePSF(PSF):
                                                   xyz_r[:, 2],
                                                   ix[:, 0],
                                                   ix[:, 1],
-                                                  phot)
+                                                  weight)
 
         frames = torch.from_numpy(frames).reshape(n_frames, *self.img_shape)
         return frames
-
-
-class DeprCubicSplinePSF(PSF):
-    """
-    Cubic spline psf. This is the PSF of use for simulation.
-    """
-
-    native_order = 'xypbz'
-    max_factor_nat_order = torch.tensor([10., 10., 10, 10, 10.]).unsqueeze(0) ** 2
-    max_value_nat_order = torch.tensor([3., 3., 10000., 200., 1000.]) ** 2
-    big_number_handling = 'max_value'
-    n_par = 5
-
-    def __init__(self, xextent, yextent, zextent, img_shape, coeff, ref0, dz=None, crlb_order='xyzpb'):
-        """
-        (see abstract class constructor
-
-        :param coeff: coefficient matrix / tensor of the cubic spline. Hc x Wc x Dc x 64 (Hc, Wc, DC height, width,
-                        depth with which spline was fitted)
-        :param ref0: index relative to coefficient matrix which gives the "midpoint of the psf"
-        :param dz: distance between z slices. You must provide either zextent or dz. If both, dz will be used.
-        """
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
-        if img_shape[0] != img_shape[1]:
-            raise ValueError("Image must be of equal size in x and y.")
-        self.npx = img_shape[0]
-
-        self.coeff = coeff
-        self.ref0 = ref0
-        if dz is None:  # if dz is None, zextent must not be None
-            if zextent is None:
-                raise ValueError('Either you must provide zextent or you must provide dz.')
-            dz = (self.zextent[1] - self.zextent[0]) / (self.coeff.shape[2] - 1)
-
-        self.dz = dz
-        self.crlb_order = crlb_order
-
-        self.spline_c = tp.initSpline(self.coeff.type(torch.FloatTensor),
-                                       list(self.ref0),
-                                       self.dz)
-
-        self.roi_size = (self.coeff.size(0), self.coeff.size(1), self.coeff.size(2))
-
-        """Test whether extent corresponds to img shape"""
-        if (img_shape[0] != (xextent[1] - xextent[0])) or (img_shape[1] != (yextent[1] - yextent[0])):
-            raise ValueError("Unequal size of extent and image shape not supported.")
-
-    def print_basic_properties(self):
-        super().print_basic_properties()
-        print(f' ROI size: {self.roi_size}')
-
-    def f(self, x, y, z):
-        return tp.f_spline(self.spline_c, x, y, z)
-
-    def d(self, pos, phot, bg):
-
-        return tp.f_spline_d(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
-
-    def fisher(self, pos, phot, bg):
-        """Outputs the Fisher matrix in CPP order"""
-
-        fisher = tp.f_spline_fisher(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
-        # ToDo: warning because z in the fisher is not in nm but in multiples of dz
-        return fisher
-
-    def _rearange_crlb(self, cr, crlb_order=None):
-        """Outputs the CRLB"""
-        if crlb_order == self.native_order:
-            return cr
-        elif crlb_order == 'xyzpb':
-            if cr.dim() == 1:
-                cr = cr[[0, 1, 4, 2, 3]]
-            else:
-                cr = cr[:, [0, 1, 4, 2, 3]]
-            return cr
-        else:
-            cr_dict = dict()
-            cr_dict['x'] = cr[0]
-            cr_dict['y'] = cr[1]
-            cr_dict['z'] = cr[4]
-            cr_dict['phot'] = cr[2]
-            cr_dict['bg'] = cr[3]
-            return cr_dict
-
-    def crlb_single(self, pos, phot, bg, crlb_order=None):
-        """
-        Computes the cramer rao lower bound as if the emitters were isolated
-
-        Args:
-            pos: torch.Tensor, N x 3
-            phot: torch.Tensor, N
-            bg: torch.Tensor, N
-            crlb_order: (optional) order of the output
-
-        Returns:
-            cr: cramer rao bound on pos, phot, bg in the order specified
-            img: calculated frae, since this is for free
-
-        """
-
-        cr = []
-        img = []
-
-        """Just call the standard crlb calc method but split the inputs."""
-        n_emitters = pos.size(0)
-
-        if n_emitters == 0:
-            cr = torch.zeros((0, 5))
-            img = torch.zeros(self.img_shape)
-
-            return cr, img
-
-        for i in range(n_emitters):
-            cr_, img_ = self.crlb(pos=pos[[i], :], phot=phot[[i]], bg=bg[[i]], crlb_order=crlb_order)
-            cr.append(cr_)
-            img.append(img_)
-
-        # Put things together. Stack the cr values, the img may be added.
-        cr = torch.cat(cr, dim=0)
-        img = torch.stack(img, dim=img[0].dim()).sum(-1)
-
-        return cr, img
-
-    def crlb(self, pos, phot, bg, crlb_order=None):
-        """
-           Computes the cramer rao lower bound
-
-           Args:
-                pos: torch.Tensor, N x 3
-                phot: torch.Tensor, N
-                bg: torch.Tensor, N
-                crlb_order: (optional) order of the output
-
-            Returns:
-                cr: cramer rao bound on pos, phot, bg in the order specified
-                img: calculated frae, since this is for free
-
-           """
-        if crlb_order is None:
-            crlb_order = self.crlb_order
-
-        # fisher, img = self.fisher(pos, phot, bg)
-        # cr = fisher.pinverse().diag().view(pos.size(0), -1)
-        cr, img = tp.f_spline_crlb(self.spline_c, pos, phot, bg, self.npx, list((self.xextent[0], self.yextent[0])))
-
-        # rescale the cr in z by dz because we input z in nm not in multiples of dz.
-        cr[:, 4] *= self.dz**2
-
-        cr = self._rearange_crlb(cr, crlb_order)
-        cr[torch.isnan(cr)] = float('inf')
-
-        """
-        NaN and big number handling.
-        """
-        if self.big_number_handling == 'max_value':
-            max_val_tensor = self._rearange_crlb(self.max_value_nat_order, crlb_order).unsqueeze(0)
-            max_val_tensor = max_val_tensor.repeat(cr.size(0), 1)
-            is_to_big = cr >= max_val_tensor
-            cr[is_to_big] = max_val_tensor[is_to_big]
-            cr[cr < 0] = max_val_tensor[cr < 0]
-
-        elif self.big_number_handling == 'single_crlb':
-            """
-            Clamp and NaN Handling. Calculate the crlb as if the emitter was not surrounded by others. The Multi-CRLB shall
-            then not exceed the individual crlb by a given factor. NaNs are handled by single_crlb * max_factor
-            """
-            crlb_ind, _ = self.crlb_single(pos, phot, bg, crlb_order, fisher, img)
-
-            # clamp by the max values
-            max_factor_ordered = self._rearange_crlb(self.max_factor_nat_order, crlb_order)
-            max_crlb = crlb_ind * max_factor_ordered
-            cr[cr > max_crlb] = max_crlb[cr > max_crlb]
-
-        elif self.big_number_handling is None:
-            pass
-
-        else:
-            raise ValueError("Not supported big number handling in CRLB calculation.")
-
-        return cr, img
-
-    def forward(self, pos, weight=None):
-        pos, weight = super().forward(pos, weight)
-
-        if (pos is not None) and (pos.shape[0] != 0):
-            return tp.fPSF(self.spline_c,
-                           pos.type(torch.FloatTensor),
-                           weight.type(torch.FloatTensor),
-                           self.npx,
-                           list((self.xextent[0], self.yextent[0])))
-        else:
-            return torch.zeros((1, self.img_shape[0], self.img_shape[1])).type(torch.FloatTensor)
-
-
-class GaussianSampleBased(PSF):
-    """
-    Gold standard on how to draw samples from a distribution
-    """
-
-    def __init__(self, xextent, yextent, zextent, img_shape, sigma_0):
-        """
-        (See abstract class constructor.)
-
-        :param sigma_0:   intial sigma.
-        """
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
-
-        self.sigma_0 = sigma_0
-
-    def forward(self, pos, weight):
-        raise NotImplementedError(
-            "Not implemented and useable at the moment. Needs the ability for multiple emitters.")
-
-        mu = pos[:2]
-        cov = np.power(np.array([[sig[0], 0], [0, sig[1]]]), 2)
-        cov, _, _ = astigmatism(pos, cov)
-        phot_pos = np.random.multivariate_normal(mu, cov, int(photon_count))  # in nm
-
-        shape = img_shape
-        # extent of our coordinate system
-        if xextent is None:
-            xextent = np.array([0, shape[0]], dtype=float)
-        if yextent is None:
-            yextent = np.array([0, shape[1]], dtype=float)
-
-        if origin == 'px_centre':  # shift 0 right towards the centre of the first px, and down
-            xextent -= 0.5
-            yextent -= 0.5
-        '''
-        Binning in numpy: binning is (left Bin, right Bin]
-        (open left edge, including right edge)
-        '''
-        bin_rows = np.linspace(xextent[0], xextent[1], img_shape[0] + 1, endpoint=True)
-        bin_cols = np.linspace(yextent[0], yextent[1], img_shape[1] + 1, endpoint=True)
-
-        camera, xedges, yedges = np.histogram2d(phot_pos[:, 1], phot_pos[:, 0], bins=(
-            bin_rows, bin_cols))  # bin into 2d histogram with px edges
-
-        raise NotImplementedError('Image vector has wrong dimensionality. Need to add singleton dimension for channels.')
-
-        return camera
 
 
 class ListPseudoPSF(PSF):
