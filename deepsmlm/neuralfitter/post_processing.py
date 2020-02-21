@@ -13,7 +13,7 @@ import torch
 from abc import ABC, abstractmethod  # abstract class
 
 from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
-from deepsmlm.generic.psf_kernel import OffsetPSF
+from deepsmlm.neuralfitter.target_generator import OffsetPSF
 from deepsmlm.generic.utils.warning_util import deprecated
 import deepsmlm.generic.utils.statistics as fan_stat
 

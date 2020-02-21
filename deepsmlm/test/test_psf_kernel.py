@@ -5,6 +5,7 @@ import random
 import matplotlib.pyplot as plt
 from unittest import TestCase
 
+import deepsmlm.neuralfitter.target_generator
 from deepsmlm.generic.emitter import CoordinateOnlyEmitter
 import deepsmlm.generic.emitter as emc
 import deepsmlm.generic.psf_kernel as psf_kernel
@@ -65,17 +66,17 @@ class TestOffsetPSF(TestCase):
         Implicit test on the constructor
         Do not change this here, because then the tests will be broken.
         """
-        self.psf_bin_1px = psf_kernel.OffsetPSF((-0.5, 31.5),
-                                                (-0.5, 31.5),
-                                                (32, 32))
+        self.psf_bin_1px = deepsmlm.neuralfitter.target_generator.OffsetPSF((-0.5, 31.5),
+                                                                            (-0.5, 31.5),
+                                                                            (32, 32))
 
         self.delta_psf_1px = psf_kernel.DeltaPSF((-0.5, 31.5),
                                                  (-0.5, 31.5),
                                                  None, (32, 32), 0, False, 0)
 
-        self.psf_bin_halfpx = psf_kernel.OffsetPSF((-0.5, 31.5),
-                                                   (-0.5, 31.5),
-                                                   (64, 64))
+        self.psf_bin_halfpx = deepsmlm.neuralfitter.target_generator.OffsetPSF((-0.5, 31.5),
+                                                                               (-0.5, 31.5),
+                                                                               (64, 64))
 
         self.delta_psf_hpx = psf_kernel.DeltaPSF((-0.5, 31.5),
                                                  (-0.5, 31.5),

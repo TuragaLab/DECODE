@@ -1,11 +1,10 @@
 import math
+import numpy as np
 import warnings
 from abc import ABC, abstractmethod  # abstract class
 
 import torch
-import torch_cpp as tp
 from scipy.stats import binned_statistic_2d
-from torch.autograd import Function
 
 
 class PSF(ABC):
@@ -25,8 +24,7 @@ class PSF(ABC):
             img_shape:
         """
 
-        ABC.__init__(self)
-        Function.__init__(self)
+        super().__init__()
 
         self.xextent = xextent
         self.yextent = yextent
@@ -66,7 +64,7 @@ class PSF(ABC):
 
         Args:
             xyz: coordinates of size N x (2 or 3)
-            weight: photon value
+            weight: photon values of size N or None
             frame_ix: (optional) frame index
             ix_low: (optional) lower frame_index, if None will be determined automatically
             ix_high: (optional) upper frame_index, if None will be determined automatically
@@ -86,10 +84,32 @@ class PSF(ABC):
         """Kick out everything that is out of frame index bounds and shift the frames to start at 0"""
         in_frame = (ix_low <= frame_ix) * (frame_ix <= ix_high)
         xyz_ = xyz[in_frame, :]
-        phot_ = weight[in_frame]
+        weight_ = weight[in_frame] if weight is not None else None
         frame_ix_ = frame_ix[in_frame] - ix_low
 
-        return xyz_, phot_, frame_ix_, ix_low, ix_high
+        return xyz_, weight_, frame_ix_, ix_low, ix_high
+
+    def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
+        raise NotImplementedError
+
+    def _forward_single_frame_wrapper(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor):
+        """
+        This is a convenience wrapper that splits the input in frames and forward them throguh the single frame
+        function if the implementation does not have a frame index (i.e. batched) forward method.
+
+        Args:
+            xyz: coordinates of size N x (2 or 3)
+            weight: photon value
+            frame_ix: frame index
+
+        Returns:
+
+        """
+        ix_split, n_splits = self._ix_split(frame_ix)
+        frames = [self._forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
+        frames = torch.stack(frames, 0)
+
+        return frames
 
 
 class DeltaPSF(PSF):
@@ -99,17 +119,10 @@ class DeltaPSF(PSF):
     """
 
     def __init__(self, xextent, yextent, zextent, img_shape,
-                 photon_threshold=None,
                  photon_normalise=False,
-                 dark_value=None,
-                 ambigous_default='max'):
-        """
-        (See abstract class constructor.)
-        :param photon_normalise: normalised photon count, i.e. probabilities
-        :param dark_value: Value where there is no emitter. Usually 0, but might be non-zero if used for a mask.
-        """
+                 dark_value=None):
+
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
-        self.photon_threshold = photon_threshold
         self.photon_normalise = photon_normalise
         self.dark_value = dark_value
         """
@@ -124,24 +137,27 @@ class DeltaPSF(PSF):
         if self.zextent is not None:
             raise DeprecationWarning("Not tested and not developed further.")
 
-        if self.photon_threshold is not None:
-            raise DeprecationWarning("Not supported anymore. Use a fresh target generator and put it into a sequence.")
+    def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
+        """
+        Calculates the PSF for emitters on the same frame
 
-    def forward(self, input, weight=None):
+        Args:
+            xyz: coordinates
+            weight: weight
+
+        Returns:
+            (torch.Tensor) size H x W
+
         """
 
-        :param input:  instance of emitterset or coordinates.
-        :param weight:  number of photons or any other 1:1 connection to an emitter
-
-        :return:  torch tensor of size 1 x H x W
-        """
         def max_0(values):
             if values.__len__() == 0:
                 return 0
             else:
                 return np.max(values)
 
-        xyz, weight = super().forward(input, weight)
+        if weight is not None:
+            raise NotImplementedError
 
         if self.photon_normalise:
             weight = torch.ones_like(weight)
@@ -158,53 +174,22 @@ class DeltaPSF(PSF):
 
         return camera
 
-
-class OffsetPSF(DeltaPSF):
-    """
-    Coordinate to px-offset class.
-    """
-    def __init__(self, xextent, yextent, img_shape):
-        super().__init__(xextent, yextent, None, img_shape,
-                         photon_threshold=0,
-                         photon_normalise=False,
-                         dark_value=0.)
-
-        """Setup the bin centers x and y"""
-        self.bin_x = torch.from_numpy(self.bin_x).type(torch.float)
-        self.bin_y = torch.from_numpy(self.bin_y).type(torch.float)
-        self.bin_ctr_x = (0.5 * (self.bin_x[1] + self.bin_x[0]) - self.bin_x[0] + self.bin_x)[:-1]
-        self.bin_ctr_y = (0.5 * (self.bin_y[1] + self.bin_y[0]) - self.bin_y[0] + self.bin_y)[:-1]
-
-        self.offset_max_x = self.bin_x[1] - self.bin_ctr_x[0]
-        self.offset_max_y = self.bin_y[1] - self.bin_ctr_y[0]
-
-    def forward(self, em):
+    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low=None, ix_high=None):
         """
-        :param emitter: emitterset
-        :return: (torch.tensor), dim: 2 x img_shape[0] x img_shape[1] ("C x H x W"),
-        where C=0 is the x offset and C=1 is the y offset.
+        Forward coordinates frame index aware through the psf model.
+
+        Args:
+            xyz: coordinates of size N x (2 or 3)
+            weight: photon value
+            frame_ix: (optional) frame index
+            ix_low: (optional) lower frame_index, if None will be determined automatically
+            ix_high: (optional) upper frame_index, if None will be determined automatically
+
+        Returns:
+            frames: (torch.Tensor) size N x H x W where N is the number of frames
         """
-
-        xy_offset_map = torch.zeros((2, *self.img_shape))
-        # loop over all emitter positions
-        for i in range(len(em)):
-            xy = em.xyz[i, :2]
-            """
-            If position is outside the FoV, skip.
-            Find ix of px in bin. bins must be sorted. Remember that in numpy bins are (a, b].
-            (from inner to outer). 1. get logical index of bins, 2. get nonzero where condition applies, 
-            3. use the min value
-            """
-            if xy[0] > self.bin_x.max() or xy[0] <= self.bin_x.min() \
-                    or xy[1] > self.bin_y.max() or xy[1] <= self.bin_y.min():
-                continue
-
-            x_ix = (xy[0].item() > self.bin_x).nonzero().max(0)[0].item()
-            y_ix = (xy[1].item() > self.bin_y).nonzero().max(0)[0].item()
-            xy_offset_map[0, x_ix, y_ix] = xy[0] - self.bin_ctr_x[x_ix]  # coordinate - midpoint
-            xy_offset_map[1, x_ix, y_ix] = xy[1] - self.bin_ctr_y[y_ix]  # coordinate - midpoint
-
-        return xy_offset_map
+        xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
+        return self._forward_single_frame_wrapper(xyz, weight, frame_ix)
 
 
 class GaussianExpect(PSF):
@@ -252,7 +237,7 @@ class GaussianExpect(PSF):
 
         return sigma_xy
 
-    def forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
+    def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
         """
         Calculates the PSF for emitters on the same frame
 
@@ -261,7 +246,7 @@ class GaussianExpect(PSF):
             weight: weight
 
         Returns:
-            (torch.Tensor)
+            (torch.Tensor) size H x W
 
         """
         num_emitters = xyz.shape[0]
@@ -317,19 +302,12 @@ class GaussianExpect(PSF):
             ix_high: (optional) upper frame_index, if None will be determined automatically
 
         Returns:
-            frames: (torch.Tensor)
+            frames: (torch.Tensor) size N x H x W where N is the number of frames
         """
         xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
 
-        """
-        Because I have not implemented a function that processes in batch mode, split the emitters in frames and
-        forward them individually.
-        """
-        ix_split, n_splits = self._ix_split(frame_ix)
-        frames = [self.forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
-        frames = torch.stack(frames, 0)
-
-        return frames
+        """I have no implementation that is batch-capable, therefore run this convenience wrapper."""
+        return self._forward_single_frame_wrapper(xyz=xyz, weight=weight, frame_ix=frame_ix)
 
 
 class CubicSplinePSF(PSF):
@@ -626,59 +604,3 @@ class CubicSplinePSF(PSF):
 
         frames = torch.from_numpy(frames).reshape(n_frames, *self.img_shape)
         return frames
-
-
-class ListPseudoPSF(PSF):
-    def __init__(self, xextent, yextent, zextent, dim=3, photon_threshold=0):
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=None)
-        self.dim = dim
-        self.photon_threshold = photon_threshold
-
-    def forward(self, emitter):
-        pos, weight = emitter.xyz, emitter.phot
-
-        """Threshold the photons."""
-        ix = weight > self.photon_threshold
-        pos = pos[ix, :]
-        weight = weight[ix]
-
-        if self.dim == 3:
-            return pos[:, :3], weight
-        elif self.dim == 2:
-            return pos[:, :2], weight
-        else:
-            raise ValueError("Wrong dimension.")
-
-
-if __name__ == '__main__':
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import torch
-    import os
-
-    import deepsmlm.generic.inout.load_calibration
-    import deepsmlm.generic.plotting.frame_coord as plf
-    import deepsmlm.generic.plotting.plot_utils as plu
-
-    deepsmlm_root = os.path.abspath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     os.pardir, os.pardir)) + '/'
-
-    coeff_file = deepsmlm_root + 'data_central/Calibration/2019/M2_CollabSpeiser/000_beads_640i100_x35_Z-stack_1_MMStack_Pos0.ome_3dcal.mat'
-    # coeff_file = '/Volumes/ries/users/Lucas/deepsmlm_central_data_config_net/data/Calibration/2019/M2_CollabSpeiser/000_beads_640i100_x35_Z-stack_1_MMStack_Pos0.ome_3dcal.mat'
-    smap_load = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(coeff_file)
-    coeff = smap_load.coeff
-
-    psf_cu = deepsmlm.generic.psf_kernel.CubicSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (26, 26),
-                                                        coeff.contiguous(), torch.Tensor([1., 1., 10.]),
-                                                        torch.Tensor([13, 13, 100]), cuda=True)
-
-    psf_cpu = psf_cu.cpu()
-
-    xyz = torch.Tensor([[13.01, 13.01, 0.]])
-    phot = torch.ones_like(xyz[:, 0])
-
-    roi = psf_cu.forward_rois(xyz, phot)
-    plf.PlotFrame(roi[0]).plot()
-    plt.clim(1e-10, 1e-9)
-    plt.show()

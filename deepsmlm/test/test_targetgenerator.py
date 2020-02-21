@@ -14,7 +14,7 @@ class TestDecodeRepresentation:
 
     @pytest.fixture(scope='class')
     def offset_rep(self):
-        return OffsetRep((-0.5, 31.5), (-0.5, 31.5), None, (32, 32), cat_output=False)
+        return OffsetRep(xextent=(-0.5, 31.5), yextent=(-0.5, 31.5), zextent=None, img_shape=(32, 32), cat_output=False)
 
     @pytest.fixture(scope='class')
     def em_set(self):

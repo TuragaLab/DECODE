@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
 
+import numpy as np
 import torch
 from sklearn import neighbors
 from torch.nn import functional
 
 from deepsmlm.generic import EmitterSet
 from deepsmlm.generic.coordinate_trafo import A2BTransform
-from deepsmlm.generic.psf_kernel import DeltaPSF, OffsetPSF
+from deepsmlm.generic.psf_kernel import DeltaPSF
 
 
 class TargetGenerator(ABC):
@@ -38,24 +39,21 @@ class OffsetRep(TargetGenerator):
     3rd ch: dy subpixel offset
     4th ch: z values
     """
-    def __init__(self, xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=None):
+    def __init__(self, xextent, yextent, zextent, img_shape, cat_output=True):
         super().__init__()
-        if photon_threshold is not None:
-            raise ValueError("Photon threshold not supported within here.")
+
         self.delta = DeltaPSF(xextent,
                               yextent,
                               zextent,
                               img_shape,
-                              photon_normalise=False,
-                              photon_threshold=photon_threshold)
+                              photon_normalise=False)
 
         # this might seem as a duplicate, but we need to make sure not to use a photon threshold for generating the z map.
         self.delta_z = DeltaPSF(xextent,
                               yextent,
                               zextent,
                               img_shape,
-                              photon_normalise=False,
-                              photon_threshold=None)
+                              photon_normalise=False)
 
         self.offset = OffsetPSF(xextent, yextent, img_shape)
         self.cat_out = cat_output
@@ -75,7 +73,7 @@ class OffsetRep(TargetGenerator):
         p_map[p_map > 1] = 1
 
         phot_map = self.delta.forward(x, x.phot)
-        xy_map = self.offset.forward(x)
+        xy_map = self.offset.forward(x.xyz)
         z_map = self.delta_z.forward(x, x.xyz[:, 2])
 
         if self.cat_out:
@@ -224,3 +222,70 @@ class GlobalOffsetRep(OffsetRep):
         target = torch.cat((p_map, phot_map.unsqueeze(0), dx.unsqueeze(0), dy.unsqueeze(0), z.unsqueeze(0)), 0)
         target[1:] *= photxyz_mask.float()
         return target
+
+
+class OffsetPSF(DeltaPSF):
+    """
+    Coordinate to px-offset class.
+    """
+    def __init__(self, xextent, yextent, img_shape):
+        super().__init__(xextent, yextent, None, img_shape,
+                         photon_normalise=False,
+                         dark_value=0.)
+
+        """Setup the bin centers x and y"""
+        self.bin_x = torch.from_numpy(self.bin_x).type(torch.float)
+        self.bin_y = torch.from_numpy(self.bin_y).type(torch.float)
+        self.bin_ctr_x = (0.5 * (self.bin_x[1] + self.bin_x[0]) - self.bin_x[0] + self.bin_x)[:-1]
+        self.bin_ctr_y = (0.5 * (self.bin_y[1] + self.bin_y[0]) - self.bin_y[0] + self.bin_y)[:-1]
+
+        self.offset_max_x = self.bin_x[1] - self.bin_ctr_x[0]
+        self.offset_max_y = self.bin_y[1] - self.bin_ctr_y[0]
+
+    def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
+        """
+
+        Args:
+            xyz:
+            weight:
+
+        Returns:
+
+        """
+
+        xy_offset_map = torch.zeros((2, *self.img_shape))
+        # loop over all emitter positions
+        for i in range(xyz.size(0)):
+            xy = xyz[i, :2]
+            """
+            If position is outside the FoV, skip.
+            Find ix of px in bin. bins must be sorted. Remember that in numpy bins are (a, b].
+            (from inner to outer). 1. get logical index of bins, 2. get nonzero where condition applies, 
+            3. use the min value
+            """
+            if xy[0] > self.bin_x.max() or xy[0] <= self.bin_x.min() \
+                    or xy[1] > self.bin_y.max() or xy[1] <= self.bin_y.min():
+                continue
+
+            x_ix = (xy[0].item() > self.bin_x).nonzero().max(0)[0].item()
+            y_ix = (xy[1].item() > self.bin_y).nonzero().max(0)[0].item()
+            xy_offset_map[0, x_ix, y_ix] = xy[0] - self.bin_ctr_x[x_ix]  # coordinate - midpoint
+            xy_offset_map[1, x_ix, y_ix] = xy[1] - self.bin_ctr_y[y_ix]  # coordinate - midpoint
+
+        return xy_offset_map
+
+    def forward(self, xyz: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
+        """
+
+        Args:
+            xyz:
+            weight:
+            frame_ix:
+            ix_low:
+            ix_high:
+
+        Returns:
+
+        """
+        xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, None, frame_ix, ix_low, ix_high)
+        return self._forward_single_frame_wrapper(xyz=xyz, weight=weight, frame_ix=frame_ix)
