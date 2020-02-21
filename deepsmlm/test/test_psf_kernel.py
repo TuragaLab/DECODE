@@ -1,5 +1,8 @@
 import torch
 import pytest
+import numpy as np
+import random
+import matplotlib.pyplot as plt
 from unittest import TestCase
 
 from deepsmlm.generic.emitter import CoordinateOnlyEmitter
@@ -7,6 +10,8 @@ import deepsmlm.generic.emitter as emc
 import deepsmlm.generic.psf_kernel as psf_kernel
 import deepsmlm.generic.inout.load_calibration as load_cal
 import deepsmlm.generic.utils.test_utils as tutil
+import deepsmlm.generic.plotting.frame_coord as plf
+import deepsmlm.generic.plotting.plot_utils as plu
 
 
 class TestGaussianExpect:
@@ -140,7 +145,125 @@ class TestOffsetPSF(TestCase):
         return True
 
 
-class TestSplinePSF:
+class TestCubicSplinePSF:
+    bead_cal = 'assets/bead_cal_for_testing.mat'
+
+    @pytest.fixture(scope='class')
+    def psf_cpu(self):
+        xextent = (-0.5, 63.5)
+        yextent = (-0.5, 63.5)
+        img_shape = (64, 64)
+
+        smap_psf = load_cal.SMAPSplineCoefficient(file=self.bead_cal)
+        psf = psf_kernel.CubicSplinePSF(xextent=xextent,
+                                        yextent=yextent,
+                                        img_shape=img_shape,
+                                        roi_size=(32, 32),
+                                        coeff=smap_psf.coeff,
+                                        vx_size=(1., 1., 10),
+                                        ref0=smap_psf.ref0,
+                                        cuda=False)
+
+        return psf
+
+    @pytest.fixture(scope='class')
+    def psf_cuda(self, psf_cpu):
+        return psf_cpu.cuda()
+
+    def test_ship(self, psf_cpu, psf_cuda):
+        """
+        Tests ships to CPU / CUDA
+        Args:
+            psf_cpu:
+            psf_cuda:
+
+        Returns:
+
+        """
+        import spline_psf_cuda
+
+        """Test implementation state before"""
+        assert isinstance(psf_cpu._spline_impl, spline_psf_cuda.PSFWrapperCPU)
+        assert isinstance(psf_cuda._spline_impl, spline_psf_cuda.PSFWrapperCUDA)
+
+        """Test implementation state after"""
+        assert isinstance(psf_cpu.cuda()._spline_impl, spline_psf_cuda.PSFWrapperCUDA)
+        assert isinstance(psf_cuda.cpu()._spline_impl, spline_psf_cuda.PSFWrapperCPU)
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="can not test CUDA against CPU if CUDA is not available.")
+    def test_roi_cuda_cpu(self, psf_cpu, psf_cuda):
+        """
+        Tests approximate equality of CUDA vs CPU implementation for a few ROIs
+        Args:
+            psf_cpu: psf implementation on CPU
+            psf_cuda: psf implementation on CUDA
+
+        Returns:
+
+        """
+        n = 1000
+        xyz = torch.rand((n, 3))
+        xyz[:, :2] += psf_cpu.ref0[:2]
+        xyz[:, 2] = xyz[:, 2] * 1000 - 500
+        phot = torch.ones((n, ))
+
+        roi_cpu = psf_cpu.forward_rois(xyz, phot)
+        roi_cuda = psf_cuda.forward_rois(xyz, phot)
+
+        assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-7)
+        return
+
+        """Additional Plotting if manual testing (comment out return statement)"""
+        rix = random.randint(0, n - 1)
+        plt.figure()
+        plt.subplot(121)
+        plf.PlotFrame(roi_cpu[rix]).plot()
+        plt.colorbar()
+        plt.title('CPU implementation')
+        plt.subplot(122)
+        plf.PlotFrame(roi_cuda[rix]).plot()
+        plt.colorbar()
+        plt.title('CPU implementation')
+        plt.show()
+
+    def test_frame_cuda_cpu(self, psf_cpu, psf_cuda):
+        """
+        Tests approximate equality of CUDA vs CPU implementation for a few frames
+
+        Args:
+            psf_cpu: psf implementation on CPU
+            psf_cuda: psf implementation on CUDA
+
+        Returns:
+
+        """
+        n = 10000
+        xyz = torch.rand((n, 3)) * 64
+        xyz[:, 2] = torch.randn_like(xyz[:, 2]) * 1000 - 500
+        phot = torch.ones((n,))
+        frame_ix = torch.randint(0, 500, size=(n, ))
+
+        frames_cpu = psf_cpu.forward(xyz, phot, frame_ix)
+        frames_cuda = psf_cuda.forward(xyz, phot, frame_ix)
+
+        assert tutil.tens_almeq(frames_cpu, frames_cuda, 1e-7)
+        # return
+
+        """Additional Plotting if manual testing (comment out return statement)."""
+        rix = random.randint(0, frame_ix.max().item() - 1)
+        plt.figure()
+        plt.subplot(121)
+        plf.PlotFrame(frames_cpu[rix]).plot()
+        plt.colorbar()
+        plt.title('CPU implementation')
+        plt.subplot(122)
+        plf.PlotFrame(frames_cuda[rix]).plot()
+        plt.colorbar()
+        plt.title('CPU implementation')
+        plt.show()
+
+
+class TestDeprSplinePSF:
     bead_cal = 'assets/bead_cal_for_testing.mat'
 
     @pytest.fixture(scope='class')

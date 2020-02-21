@@ -14,7 +14,6 @@
     namespace spg = spline_psf_gpu;
 #endif
 
-
 namespace spc {
     extern "C" {
         #include "spline_psf.h"
@@ -65,6 +64,25 @@ class PSFWrapperBase {
                 return h_rois;
             }
 
+            auto forward_drv_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x, 
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> y, 
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> z, 
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> phot,
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> bg) -> std::tuple<py::array_t<float>, py::array_t<float>> {
+
+
+                const int n_par = 5;
+                int n = x.size();  // number of ROIs
+
+                py::array_t<float> h_rois(n * roi_size_x * roi_size_y);
+                py::array_t<float> h_drv_rois(n_par * n * roi_size_x * roi_size_y);
+
+                spg::forward_drv_rois_host2host(psf, h_rois.mutable_data(), h_drv_rois.mutable_data(), n, roi_size_x, roi_size_y, 
+                                                x.data(), y.data(), z.data(), phot.data(), bg.data());
+
+                return std::make_tuple(h_rois, h_drv_rois);
+            }
+
             auto forward_frames(const int fx, const int fy,
                             py::array_t<int, py::array::c_style | py::array::forcecast> frame_ix,
                             const int n_frames,
@@ -75,16 +93,16 @@ class PSFWrapperBase {
                             py::array_t<int, py::array::c_style | py::array::forcecast> y_ix,
                             py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
 
-            frame_size_x = fx;
-            frame_size_y = fy;
-            const int n_emitters = xr.size();
-            py::array_t<float> h_frames(n_frames * frame_size_x * frame_size_y);
+                frame_size_x = fx;
+                frame_size_y = fy;
+                const int n_emitters = xr.size();
+                py::array_t<float> h_frames(n_frames * frame_size_x * frame_size_y);
 
-            spg::forward_frames_host2host(psf, h_frames.mutable_data(), frame_size_x, frame_size_y, n_frames, n_emitters, roi_size_x, roi_size_y, 
-                frame_ix.data(), xr.data(), yr.data(), z.data(), x_ix.data(), y_ix.data(), phot.data());
+                spg::forward_frames_host2host(psf, h_frames.mutable_data(), frame_size_x, frame_size_y, n_frames, n_emitters, roi_size_x, roi_size_y, 
+                    frame_ix.data(), xr.data(), yr.data(), z.data(), x_ix.data(), y_ix.data(), phot.data());
 
-            return h_frames;
-        }
+                return h_frames;
+            }
 
 
     };
@@ -167,6 +185,7 @@ PYBIND11_MODULE(spline_psf_cuda, m) {
     py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
         .def(py::init<int, int, int, int, int, py::array_t<float>>())
         .def("forward_rois", &PSFWrapperCUDA::forward_rois)
+        .def("forward_drv_rois", &PSFWrapperCUDA::forward_drv_rois)
         .def("forward_frames", &PSFWrapperCUDA::forward_frames);
 
     py::class_<PSFWrapperCPU>(m, "PSFWrapperCPU")

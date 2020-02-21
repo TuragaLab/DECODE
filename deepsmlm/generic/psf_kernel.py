@@ -1,39 +1,28 @@
 import math
-import os
-import sys
+import warnings
 from abc import ABC, abstractmethod  # abstract class
 
-import numpy as np
-import scipy
-from scipy.stats import binned_statistic_2d
 import torch
-from torch.autograd import Function
-
-import deepsmlm.generic.emitter
 import torch_cpp as tp
+from scipy.stats import binned_statistic_2d
+from torch.autograd import Function
 
 
 class PSF(ABC):
     """
     Abstract class to represent a point spread function.
-    __init__ and forward must be overwritten.
+    forward must be overwritten and shall be called via super().forward(...) before the subclass implementation follows.
     """
 
-    @abstractmethod
-    def __init__(self,
-                 xextent=(None, None),
-                 yextent=(None, None),
-                 zextent=None,
-                 img_shape=(None, None)):
+    def __init__(self, xextent=(None, None), yextent=(None, None), zextent=None, img_shape=(None, None)):
         """
-        Note: xextent should include the complete pixel area/volume, i.e. not
-        only the px midpoint coordinates. If we have two 1D "pixels", which midpoints
-        are to be at 0 and 1, then xextent is (-.5, 1.5)
+        Constructor to comprise a couple of default attributes
 
-        :param xextent: extent in x in px
-        :param yextent: extent in y in px
-        :param zextent: extent in z in px / voxel (not in nm) or None
-        :param img_shape: shape of the image, tuple of 2 or 3 elements (2D / 3D)
+        Args:
+            xextent:
+            yextent:
+            zextent:
+            img_shape:
         """
 
         ABC.__init__(self)
@@ -45,30 +34,71 @@ class PSF(ABC):
 
         self.img_shape = img_shape
 
-    @abstractmethod
-    def forward(self, input, weight):
-        """
-        Abstract method to go from position-matrix and photon number (aka weight) to an image.
-        Call it before implementing your psf to be able to parse deepsmlm.generic.emitter.EmitterSets (super().forward(x, weight)).
-        """
-        if isinstance(input, deepsmlm.generic.emitter.EmitterSet):
-            pos = input.xyz
-            if weight is None:
-                weight = input.phot
-
-            return pos, weight
-
-        else:
-            return input, weight
-
     def __str__(self):
         return 'PSF: \n xextent: {}\n yextent: {}\n zextent: {}\n img_shape: {}'.format(self.xextent,
                                                                                        self.yextent,
                                                                                        self.zextent,
                                                                                        self.img_shape)
 
-    def print_basic_properties(self):
-        print(self)
+    @abstractmethod
+    def forward(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
+        """
+        Forward coordinates frame index aware through the psf model.
+        Implementation methods should call this method first in order not to handle the default argument stuff
+
+        Args:
+            xyz: coordinates of size N x (2 or 3)
+            phot: photon value
+            frame_ix: (optional) frame index
+            ix_low: (optional) lower frame_index, if None will be determined automatically
+            ix_high: (optional) upper frame_index, if None will be determined automatically
+
+        Returns:
+            frames: (torch.Tensor)
+        """
+        if frame_ix is None:
+            frame_ix = torch.zeros((xyz.size(0), )).int()
+
+        if ix_low is None:
+            ix_low = frame_ix.min().item()
+
+        if ix_high is None:
+            ix_high = frame_ix.max().item()
+
+        """Kick out everything that is out of frame index bounds and shift the frames to start at 0"""
+        in_frame = (ix_low <= frame_ix) * (frame_ix <= ix_high)
+        xyz_ = xyz[in_frame, :]
+        phot_ = phot[in_frame]
+        frame_ix_ = frame_ix[in_frame] - ix_low
+
+        return xyz_, phot_, frame_ix_, ix_low, ix_high
+
+    # def forward_em(self, em: deepsmlm.generic.emitter.EmitterSet, frame_mode='multi', ix_low=None, ix_high=None):
+    #     """
+    #     Forward EmitterSet through psf model. Convenience wrapper
+    #
+    #     Args:
+    #         em: (EmitterSet)
+    #         frame_mode: ('multi' or 'single') put emitters on their respective frames or squeeze them on one frame
+    #         ix_low: lower index of frames to forward through
+    #         ix_high: upper index of frames to forward through
+    #
+    #     Returns:
+    #
+    #     """
+    #     raise DeprecationWarning("I am not sure whether this should be supported ...")
+    #
+    #     if not isinstance(em, deepsmlm.generic.emitter.EmitterSet):
+    #         raise ValueError("This convenience wrapper is only for EmitterSets.")
+    #
+    #     if frame_mode == 'multi':
+    #         frame_ix = em.frame_ix
+    #     elif frame_mode == 'single':
+    #         frame_ix = torch.zeros((len(em), )).int()
+    #     else:
+    #         raise ValueError("Unsupported frame mode.")
+    #
+    #     return self.forward(xyz=em.xyz, phot=em.phot, frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high)
 
 
 class DeltaPSF(PSF):
@@ -103,6 +133,9 @@ class DeltaPSF(PSF):
         if self.zextent is not None:
             raise DeprecationWarning("Not tested and not developed further.")
 
+        if self.photon_threshold is not None:
+            raise DeprecationWarning("Not supported anymore. Use a fresh target generator and put it into a sequence.")
+
     def forward(self, input, weight=None):
         """
 
@@ -119,15 +152,9 @@ class DeltaPSF(PSF):
 
         xyz, weight = super().forward(input, weight)
 
-        if self.photon_threshold is not None:
-            raise DeprecationWarning("Not supported anymore. Use a fresh target generator and put it into a sequence.")
-
         if self.photon_normalise:
             weight = torch.ones_like(weight)
 
-        # camera, _, _ = np.histogram2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(),  # reverse order
-        #                               bins=(self.bin_x, self.bin_y),
-        #                               weights=weight.numpy())
         if xyz.size(0) == 0:
             camera = torch.zeros(self.img_shape).numpy()
         else:
@@ -309,8 +336,9 @@ class CubicSplinePSF(PSF):
 
         self.roi_size_px = roi_size
         self._coeff = coeff
-        self.vx_size = vx_size
-        self.ref0 = ref0
+        self._roi_native = self._coeff.size()[:2]  # native roi based on the coeff's size
+        self.vx_size = vx_size if isinstance(vx_size, torch.Tensor) else torch.Tensor(vx_size)
+        self.ref0 = ref0 if isinstance(ref0, torch.Tensor) else torch.Tensor(ref0)
         self._cuda = cuda
         self.frame_mode = frame_mode
         self.frame_ref = frame_ref
@@ -342,17 +370,62 @@ class CubicSplinePSF(PSF):
                 (self.img_shape[1] != (self.yextent[1] - self.yextent[0])):
             raise ValueError("Unequal size of extent and image shape not supported.")
 
-    def nm2impl(self, xyz_nm):
+    def cuda(self):
+        """
+        Returns a copy of this object with implementation in CUDA. If already on CUDA, return original object.
+
+        Returns:
+            CubicSplinePSF instance
+
+        """
+        if self._cuda:
+            return self
+
+        return CubicSplinePSF(xextent=self.xextent,
+                              yextent=self.yextent,
+                              img_shape=self.img_shape,
+                              roi_size=self.roi_size_px,
+                              coeff=self._coeff,
+                              vx_size=self.vx_size,
+                              ref0=self.ref0,
+                              frame_mode=self.frame_mode,
+                              frame_ref=self.frame_ref,
+                              cuda=True)
+
+    def cpu(self):
+        """
+        Returns a copy of this object with implementation in CPU code. If already on CPU, return original object.
+
+        Returns:
+            CubicSplinePSF instance
+
+        """
+        if not self._cuda:
+            return self
+
+        return CubicSplinePSF(xextent=self.xextent,
+                              yextent=self.yextent,
+                              img_shape=self.img_shape,
+                              roi_size=self.roi_size_px,
+                              coeff=self._coeff,
+                              vx_size=self.vx_size,
+                              ref0=self.ref0,
+                              frame_mode=self.frame_mode,
+                              frame_ref=self.frame_ref,
+                              cuda=False)
+
+    def coord2impl(self, xyz):
         """
         Transforms nanometre coordinates to implementation coordiantes
 
         Args:
-            xyz_nm: (torch.Tensor)
+            xyz: (torch.Tensor)
 
         Returns:
 
         """
-        return -xyz_nm/self.vx_size + self.ref0
+        offset = torch.Tensor([self.xextent[0] + 0.5, self.yextent[0] + 0.5, 0.]).float()
+        return -(xyz - offset) / self.vx_size + self.ref0
 
     def frame2roi_coord(self, xyz_nm: torch.Tensor):
         """
@@ -379,7 +452,25 @@ class CubicSplinePSF(PSF):
         return xyz_r, xyz_px
 
     def forward_rois(self, xyz, phot):
-        return self._forward_rois_impl(self.nm2impl(xyz), phot)
+        """
+        Computes a ROI per coordinate
+
+        Args:
+            xyz: xyz coordinate within in the ROI
+            phot: photon count
+
+        Returns:
+            torch.Tensor with size N x roi_x x roi_y where N is the number of emitters / coordinates
+                and roi_x/y the respective ROI size
+
+        """
+        if self.roi_size_px > self._roi_native:
+            warnings.warn("You are trying to compute a ROI that is bigger than the "
+                             "size supported by the spline coefficients.")
+
+        # offset = (self.roi_size_px - self._roi_native) / 2
+
+        return self._forward_rois_impl(self.coord2impl(xyz), phot)
 
     def _forward_rois_impl(self, xyz, phot):
         """
@@ -401,59 +492,44 @@ class CubicSplinePSF(PSF):
         out = out.reshape(n_rois, *self.roi_size_px)
         return out
 
-    def _place_rois(self, rois, ix, frame_ix, n_frames):
-        frame = torch.zeros((n_frames, *self.img_shape))
-
-        for r in range(rois.size(0)):
-            for i in range(self.roi_size_px[0]):
-                for j in range(self.roi_size_px[1]):
-                    ii = ix[r, 0] + i
-                    jj = ix[r, 1] + j
-                    if (frame_ix[r] < 0) or (frame_ix[r] >= n_frames):
-                        continue
-
-                    if (ii < 0) or (jj < 0) or (ii >= self.img_shape[0]) or (jj >= self.img_shape[1]):
-                        continue
-                    frame[frame_ix[r], ii, jj] += rois[r, i, j]
-
-        return frame
-
-    def forward(self, xyz, phot, frame_ix):
+    def forward(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
         """
+        Forward coordinates frame index aware through the psf model.
 
         Args:
-            xyz:
-            phot:
-            frame_ix:
+            xyz: coordinates of size N x (2 or 3)
+            phot: photon value
+            frame_ix: (optional) frame index
+            ix_low: (optional) lower frame_index, if None will be determined automatically
+            ix_high: (optional) upper frame_index, if None will be determined automatically
 
         Returns:
-
+            frames: (torch.Tensor)
         """
-        """Convert Coordinates into ROI based coordinates and transform into implementation coordinates"""
-        xyz_r, ix = self.frame2roi_coord(xyz)
-        xyz_r = self.nm2impl(xyz_r)
+        xyz, phot, frame_ix, ix_low, ix_high = super().forward(xyz, phot, frame_ix, ix_low, ix_high)
 
-        # Calc number of frames
-        if self.frame_mode == 'abs':
-            n_frames = (frame_ix.max() - self.frame_ref + 1).int().item()
-            frame_ix_ = frame_ix
-
-        elif self.frame_mode == 'rel':
-            n_frames = (frame_ix.max() - frame_ix.min() + 1).int().item()
-            frame_ix_ = frame_ix - frame_ix.min()
-
-        if n_frames == 0:
+        if xyz.size(0) == 0:
             return torch.zeros((0, *self.img_shape))
 
+        """Convert Coordinates into ROI based coordinates and transform into implementation coordinates"""
+        xyz_r, ix = self.frame2roi_coord(xyz)
+        xyz_r = self.coord2impl(xyz_r)
+
+        n_frames = ix_high - ix_low + 1
+
+        if n_frames == 0:
+            raise ValueError("Can that happen?")  # ToDo: Test and remove
+
         frames = self._spline_impl.forward_frames(*self.img_shape,
-                                                 frame_ix_,
-                                                 n_frames,
-                                                 xyz_r[:, 0],
-                                                 xyz_r[:, 1],
-                                                 xyz_r[:, 2],
-                                                 ix[:, 0],
-                                                 ix[:, 1],
-                                                 phot)
+                                                  frame_ix,
+                                                  n_frames,
+                                                  xyz_r[:, 0],
+                                                  xyz_r[:, 1],
+                                                  xyz_r[:, 2],
+                                                  ix[:, 0],
+                                                  ix[:, 1],
+                                                  phot)
+
         frames = torch.from_numpy(frames).reshape(n_frames, *self.img_shape)
         return frames
 
@@ -726,11 +802,10 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     import torch
     import os
-    import time
 
-    import deepsmlm.generic.psf_kernel
-    import deepsmlm.generic.plotting.frame_coord as fc
     import deepsmlm.generic.inout.load_calibration
+    import deepsmlm.generic.plotting.frame_coord as plf
+    import deepsmlm.generic.plotting.plot_utils as plu
 
     deepsmlm_root = os.path.abspath(
         os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -741,83 +816,16 @@ if __name__ == '__main__':
     smap_load = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(coeff_file)
     coeff = smap_load.coeff
 
-    psf_cu = deepsmlm.generic.psf_kernel.CubicSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (32, 32),
-                                                        coeff.contiguous(), torch.Tensor([100., 100., 10.]),
+    psf_cu = deepsmlm.generic.psf_kernel.CubicSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (26, 26),
+                                                        coeff.contiguous(), torch.Tensor([1., 1., 10.]),
                                                         torch.Tensor([13, 13, 100]), cuda=True)
 
-    psf_cpu = deepsmlm.generic.psf_kernel.CubicSplinePSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), (32, 32),
-                                                         coeff.contiguous(), torch.Tensor([100., 100., 10.]),
-                                                         torch.Tensor([13, 13, 100]), cuda=False)
+    psf_cpu = psf_cu.cpu()
 
-    """RUNTIME TEST"""
-    n = 10000
-    print(f"Num samples: {n}")
-    xyz_plain = torch.rand((n, 3))
-    xyz_plain[:, :2] *= 5000
-    xyz_plain[:, 2] *= 1000
-    xyz_plain[:, 2] -= 500
-    phot = torch.ones((n, ))
-    frame_ix = torch.randint(0, 1000, size=(n, )) - 1
-
-    t0 = time.time()
-    frames_cpu = psf_cpu.forward(xyz_plain, phot, frame_ix)
-    t1 = time.time()
-    print(f"Time CPU only: {t1 - t0}")
-    t0 = time.time()
-    frames_cu = psf_cu.forward(xyz_plain, phot, frame_ix)
-    t1 = time.time()
-    print(f"Time CUDA: {t1-t0}")
-    #
-    # fc.PlotFrame(frames_cpu[1]).plot()
-    # plt.show()
-    # fc.PlotFrame(frames_cu[1]).plot()
-    # plt.show()
-
-    """Test two emitters"""
-    xyz = torch.Tensor([[1500., 500., 0.], [1000., 1000., -100.], [2000., 2000., 100.]])
-    # xyz = xyz[:2]
+    xyz = torch.Tensor([[13.01, 13.01, 0.]])
     phot = torch.ones_like(xyz[:, 0])
-    # phot[1:] = 0.
-    frame_ix = torch.Tensor([0, 0, 1])
-    em = deepsmlm.generic.emitter.EmitterSet(xyz, phot, frame_ix, xy_unit='nm', px_size=[100., 100.])
 
-    f_cpu = psf_cpu.forward(xyz, phot, frame_ix)
-    f_cu = psf_cu.forward(xyz, phot, frame_ix)
-
-    xyz_r, ix = psf_cu.frame2roi_coord(xyz)
-    rois_cu = psf_cu.forward_rois(psf_cu.frame2roi_coord(xyz)[0], phot)
-    rois_cpu = psf_cpu.forward_rois(psf_cpu.frame2roi_coord(xyz)[0], phot)
-
-    plt.figure()
-    plt.subplot(121)
-    fc.PlotFrame(rois_cpu[2]).plot()
-    plt.subplot(122)
-    fc.PlotFrame(rois_cu[2]).plot()
-    plt.title('ROI 0')
+    roi = psf_cu.forward_rois(xyz, phot)
+    plf.PlotFrame(roi[0]).plot()
+    plt.clim(1e-10, 1e-9)
     plt.show()
-
-    # plt.figure()
-    # plt.subplot(121)
-    # fc.PlotFrame(rois_cpu[1]).plot()
-    # plt.subplot(122)
-    # fc.PlotFrame(rois_cu[1]).plot()
-    # plt.title('ROI 1')
-    # plt.show()
-
-    plt.figure()
-    plt.subplot(121)
-    fc.PlotFrameCoord(f_cpu[0]).plot()
-    plt.subplot(122)
-    fc.PlotFrameCoord(f_cu[0]).plot()
-    plt.title('Frame 0')
-    plt.show()
-    #
-    plt.figure()
-    plt.subplot(121)
-    fc.PlotFrameCoord(f_cpu[1]).plot()
-    plt.subplot(122)
-    fc.PlotFrameCoord(f_cu[1]).plot()
-    plt.title('Frame 1')
-    plt.show()
-
-    print("Done", flush=True)

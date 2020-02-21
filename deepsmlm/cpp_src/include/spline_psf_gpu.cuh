@@ -22,7 +22,7 @@ namespace spline_psf_gpu {
         float roi_out_eps;  // epsilon value outside the roi
         float roi_out_deriv_eps; // epsilon value of derivative values outside the roi
         
-        int NV_PSP;  // number of parameters to fit
+        int n_par;  // number of parameters to fit
         int n_coeff;  // number of coefficients per pixel
 
         float *coeff;
@@ -45,6 +45,9 @@ namespace spline_psf_gpu {
     auto forward_rois_host2device(spline *d_sp, const int n, const int roi_size_x, const int roi_size_y,
         const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float*;
 
+    auto forward_drv_rois_host2device(spline *d_sp, float *d_rois, float *d_drv_rois, const int n, const int roi_size_x, const int roi_size_y,
+        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg) -> void;
+
     auto forward_frames_host2device(spline *d_sp, const int frame_size_x, const int frame_size_y, const int n_frames,
         const int n_rois, const int roi_size_x, const int roi_size_y,
         const int *h_frame_ix, const float *h_xr0, const float *h_yr0, const float *h_z0, 
@@ -56,6 +59,9 @@ namespace spline_psf_gpu {
     // 
     auto forward_rois_host2host(spline *d_sp, float *h_rois, const int n, const int roi_size_x, const int roi_size_y,
         const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> void;
+
+    auto forward_drv_rois_host2host(spline *d_sp, float *h_rois, float *h_drv_rois, const int n, const int roi_size_x, const int roi_size_y,
+        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg) -> void;
 
     auto forward_frames_host2host(spline *d_sp, float *h_frames, const int frame_size_x, const int frame_size_y, const int n_frames,
         const int n_rois, const int roi_size_x, const int roi_size_y,

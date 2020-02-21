@@ -18,7 +18,7 @@
 void roi_accumulator(float *frames, const int frame_size_x, const int frame_size_y, const int n_frames,
     const float *rois, const int n_rois, const int *frame_ix, const int *x0, const int *y0, const int roi_size_x, const int roi_size_y);
 void kernel_computeDelta3D(spline *, float, float, float );
-void kernel_DerivativeSpline(spline *, int xc, int yc, int zc, float *theta, float *dudt, float *model);
+void kernel_DerivativeSpline(spline *sp, const int xc, const int yc, int zc, const float *theta, float *dudt, float *model);
 float fAt3Dj(spline *, int, int, int );
 float fSpline3D(spline *, float, float, float );
 
@@ -118,7 +118,7 @@ void kernel_computeDelta3D(spline *sp, float x_delta, float y_delta, float z_del
     }
 }
 
-void kernel_DerivativeSpline(spline *sp, int xc, int yc, int zc, float *theta, float *dudt, float *model)
+void kernel_DerivativeSpline(spline *sp, const int xc, const int yc, int zc, const float *theta, float *dudt, float *model)
 {
     int i;
     float temp = 0;
@@ -137,12 +137,6 @@ void kernel_DerivativeSpline(spline *sp, int xc, int yc, int zc, float *theta, f
         }
         return;
     }
-
-    // xc = fmax(xc, 0);
-    // xc = fmin(xc, sp->xsize - 1);
-
-    // yc = fmax(yc, 0);
-    // yc = fmin(yc, sp->ysize - 1);
 
     zc = fmax(zc, 0);
     zc = fmin(zc, sp->zsize - 1);
@@ -172,12 +166,6 @@ float fAt3Dj(spline *sp, int xc, int yc, int zc) {
     if ((xc < 0) || (xc > sp->xsize-1) || (yc < 0) || (yc > sp->ysize-1)) {
         return sp->roi_out_eps;
     }
-
-    // xc = fmax(xc,0);
-    // xc = fmin(xc,sp->xsize-1);
-
-    // yc = fmax(yc,0);
-    // yc = fmin(yc,sp->ysize-1);
 
     zc = fmax(zc,0);
     zc = fmin(zc,sp->zsize-1);
@@ -214,13 +202,6 @@ float fSpline3D(spline *sp, float xc, float yc, float zc) {
 
 void kernel_roi(spline *sp, float *img, const int roi_ix, const int npx, const int npy, const float xc, const float yc, const float zc, const float phot) {
     
-    /* coordinate of upper left corner */
-    // xc = 0 - xc + sp->x0 - corner_x0;
-    // yc = 0 - yc + sp->y0 - corner_y0;
-    // zc = zc / sp->dz + sp->z0;
-
-    // printf("Trafo coord: (%f %f %f)\n", xc, yc, zc);
-
     /* Compute delta. Will be the same for all following px */
 
     int x0 = (int)floor(xc);
@@ -248,13 +229,7 @@ void f_derivative_PSF(spline *sp, float *img, float *dudt, int npx, float xc, fl
     int npy = npx;
     int x0, y0, z0; // px indices
     float model;  // model value
-    // float* theta = (float *)malloc(sizeof(float) * sp->NV_PSP);
     float theta[sp->NV_PSP];
-
-    /* coordinate of upper left corner */
-    // xc = 0 - xc + sp->x0 - corner_x0;
-    // yc = 0 - yc + sp->y0 - corner_y0;
-    // zc = zc / sp->dz + sp->z0;
 
     /* Compute delta. Will be the same for all following px */
     x0 = (int)floor(xc);
@@ -281,17 +256,16 @@ void f_derivative_PSF(spline *sp, float *img, float *dudt, int npx, float xc, fl
             kernel_DerivativeSpline(sp, x0 + i, y0 + j, z0, theta, deriv_px, &model);
             
             // set model image (almost for free when calc. gradient)
-            img[i * npx + j] += model; // unlike in kernel_roi, background and photons is already in theta.
+            img[i * npy + j] += model; // unlike in kernel_roi, background and photons is already in theta.
 
             // store gradient
             for (int k = 0; k < sp->NV_PSP; k++) {
-                dudt[k * npx * npx + i * npx + j] = deriv_px[k];
+                dudt[k * npx * npy + i * npy + j] = deriv_px[k];
             }
   
         }
     }
 
-    // free(theta);
 }
 
 /** Aggregate Derivatives (over pixels)
