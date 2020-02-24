@@ -181,7 +181,7 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
 
     if param['InOut']['data_set'] == 'precomputed':
         """Load Data from binary."""
-        emitter, extent, frames = NumpyInterface().load_binary(param['InOut']['data_set'])
+        emitter, extent, frames = NumpyInterface().load(param['InOut']['data_set'])
 
         data_smlm = SMLMStaticDataset(emitter, extent, frames, target_generator, multi_frame_output=False)
 

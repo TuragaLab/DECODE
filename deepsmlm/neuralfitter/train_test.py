@@ -291,7 +291,7 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
             outputs.append(output.detach().clone().cpu())
             target_frames.append(target.detach().clone().cpu())
             weight_frames.append(weights.detach().clone().cpu())
-            tars.append(deepcopy(EmitterSet.cat_emittersets(em_tar, step_frame_ix=1)))  # returns emittersets
+            tars.append(deepcopy(EmitterSet.cat(em_tar, step_frame_ix=1)))  # returns emittersets
 
             del x_in
             del output
@@ -307,8 +307,8 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
     weight_frames = torch.cat(weight_frames, 0)
 
     """Construct 'epoch' emittersets"""
-    em_outs = EmitterSet.cat_emittersets(em_outs, step_frame_ix=val_loader.batch_size)
-    tars = EmitterSet.cat_emittersets(tars, step_frame_ix=val_loader.batch_size)
+    em_outs = EmitterSet.cat(em_outs, step_frame_ix=val_loader.batch_size)
+    tars = EmitterSet.cat(tars, step_frame_ix=val_loader.batch_size)
 
     """Batch evaluation and log"""
     batch_ev.forward(em_outs, tars)

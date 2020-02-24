@@ -306,7 +306,7 @@ class SMLMDatasetOneTimer(SMLMDatasetOnFly):
         if output_format == 'list':
             return self.em_tar
         elif output_format == 'cat':
-            return EmitterSet.cat_emittersets(self.em_tar, step_frame_ix=1)
+            return EmitterSet.cat(self.em_tar, step_frame_ix=1)
 
     def __getitem__(self, index):
 

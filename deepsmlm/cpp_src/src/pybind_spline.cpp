@@ -107,27 +107,14 @@ class PSFWrapperBase {
 
     };
 #else
-    class PSFWrapperCUDA : public PSFWrapperBase<float> {
-
+    class PSFWrapperCUDA {
+        
         public:
-        
-        explicit PSFWrapperCUDA(int coeff_xsize, int coeff_ysize, int coeff_zsize, int roi_size_x_, int roi_size_y_,
-                py::array_t<float, py::array::f_style | py::array::forcecast> coeff) : PSFWrapperBase{roi_size_x_, roi_size_y_} {
-                    throw_cuda_error();
-                }
 
-        auto forward_rois() -> void {
-            throw_cuda_error();
-        }
-        auto forward_frames() -> void {
-            throw_cuda_error();
-        }
-        
-        auto throw_cuda_error() -> void {
-            throw std::runtime_error("Extension not compiled with CUDA enabled. \nPlease use CPU version or recompile with CUDA if CUDA capable device is available on your machine.");
-        }
-
-    };
+            PSFWrapperCUDA() {
+                throw std::runtime_error("Not compiled with CUDA enabled. Please refer to CPU version.");
+            }
+    }
 #endif
 
 class PSFWrapperCPU : public PSFWrapperBase<spc::spline> {
@@ -182,14 +169,21 @@ class PSFWrapperCPU : public PSFWrapperBase<spc::spline> {
 };
 
 PYBIND11_MODULE(spline_psf_cuda, m) {
-    py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
-        .def(py::init<int, int, int, int, int, py::array_t<float>>())
-        .def("forward_rois", &PSFWrapperCUDA::forward_rois)
-        .def("forward_drv_rois", &PSFWrapperCUDA::forward_drv_rois)
-        .def("forward_frames", &PSFWrapperCUDA::forward_frames);
-
     py::class_<PSFWrapperCPU>(m, "PSFWrapperCPU")
         .def(py::init<int, int, int, int, int, py::array_t<float>>())
         .def("forward_rois", &PSFWrapperCPU::forward_rois)
         .def("forward_frames", &PSFWrapperCPU::forward_frames);
+
+    #if CUDA_ENABLED
+        py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
+            .def(py::init<int, int, int, int, int, py::array_t<float>>())
+            .def("forward_rois", &PSFWrapperCUDA::forward_rois)
+            .def("forward_drv_rois", &PSFWrapperCUDA::forward_drv_rois)
+            .def("forward_frames", &PSFWrapperCUDA::forward_frames);
+
+    #else
+        py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
+            .def(py::init<>());
+            
+    #endif  // CUDA_ENABLED
 }

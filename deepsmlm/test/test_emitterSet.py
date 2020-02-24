@@ -1,33 +1,56 @@
-import torch
-import pytest
-import time
 import os
 
-from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
+import pytest
+import torch
+
 import deepsmlm.generic.emitter as emitter
-import deepsmlm.generic.utils.test_utils as tutil
+from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
 
 
 class TestEmitterSet:
 
     @pytest.fixture(scope='class')
     def em2d(self):
+        """
+        Fixture 2D EmitterSet.
+
+        Returns:
+            EmitterSet
+
+        """
         return EmitterSet(xyz=torch.rand((25, 2)),
-                               phot=torch.rand(25),
-                               frame_ix=torch.zeros(25))
+                          phot=torch.rand(25),
+                          frame_ix=torch.zeros(25).int())
 
     @pytest.fixture(scope='class')
     def em3d(self):
+        """
+        3D EmitterSet.
+        Returns:
+            EmitterSet
+        """
         frames = torch.arange(25)
         frames[[0, 1, 2]] = 1
         return EmitterSet(xyz=torch.rand((25, 3)),
-                               phot=torch.rand(25),
-                               frame_ix=frames)
+                          phot=torch.rand(25),
+                          frame_ix=frames)
 
-    def test_init(self, em2d, em3d):
+    def test_shape_dtype(self, em2d, em3d):
+        """
+        Tests shape and correct data type
+        Args:
+            em2d: fixture (see above)
+            em3d: fixture (see above)
+
+        Returns:
+
+        """
+
         # 2D input get's converted to 3D with zeros
         assert em2d.xyz.shape[1] == 3
         assert em3d.xyz.shape[1] == 3
+
+        assert em3d.frame_ix.dtype in (torch.int, torch.long, torch.short)
 
     def test_split_in_frames(self, em2d, em3d):
         splits = em2d.split_in_frames(None, None)
@@ -39,16 +62,16 @@ class TestEmitterSet:
         """Test negative numbers in Frame ix."""
         neg_frames = EmitterSet(torch.rand((3, 3)),
                                 torch.rand(3),
-                                torch.tensor([-1, 0., 1]))
+                                torch.tensor([-1, 0, 1]))
         splits = neg_frames.split_in_frames(None, None)
-        assert  splits.__len__() == 3
+        assert splits.__len__() == 3
         splits = neg_frames.split_in_frames(0, None)
         assert splits.__len__() == 2
 
     def test_adjacent_frame_split(self):
         xyz = torch.rand((500, 3))
         phot = torch.rand_like(xyz[:, 0])
-        frame_ix = torch.randint_like(xyz[:, 0], low=-1, high=2)
+        frame_ix = torch.randint_like(xyz[:, 0], low=-1, high=2).int()
         em = EmitterSet(xyz, phot, frame_ix)
 
         em_split = em.split_in_frames(-1, 1)
@@ -74,19 +97,18 @@ class TestEmitterSet:
         :return:
         """
         sets = [RandomEmitterSet(50), RandomEmitterSet(20)]
-        cat_sets = EmitterSet.cat_emittersets(sets, None, 1)
+        cat_sets = EmitterSet.cat(sets, None, 1)
         assert 70 == len(cat_sets)
         assert 0 == cat_sets.frame_ix[0]
         assert 1 == cat_sets.frame_ix[50]
 
         sets = [RandomEmitterSet(50), RandomEmitterSet(20)]
-        cat_sets = EmitterSet.cat_emittersets(sets, torch.tensor([5, 50]), None)
+        cat_sets = EmitterSet.cat(sets, torch.tensor([5, 50]), None)
         assert 70 == len(cat_sets)
         assert 5 == cat_sets.frame_ix[0]
         assert 50 == cat_sets.frame_ix[50]
 
     def test_sanity_check(self):
-
         """Test correct shape of 1D tensors in EmitterSet"""
         xyz = torch.rand((10, 3))
         phot = torch.rand((10, 1))
@@ -101,6 +123,7 @@ class TestEmitterSet:
         with pytest.raises(ValueError):
             EmitterSet(xyz, phot, frame_ix)
 
+    @pytest.mark.skip("Function deprecated and will be moved.")
     def test_write_to_csv(self):
         """
         Test to write to csv file.
@@ -116,6 +139,7 @@ class TestEmitterSet:
         assert os.path.isfile(fname)
         os.remove(fname)
 
+    @pytest.mark.skip("Function deprecated and will be moved.")
     def test_write_to_SMAP(self):
         deepsmlm_root = os.path.abspath(
             os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -148,10 +172,10 @@ class TestLooseEmitterSet:
         num_emitters = 10000
         t0_max = 5000
         em = emitter.LooseEmitterSet(torch.rand((num_emitters, 3)),
-                                torch.ones(num_emitters) * 10000,
-                                None,
-                                torch.rand(num_emitters) * t0_max,
-                                torch.rand(num_emitters) * 3)
+                                     torch.ones(num_emitters) * 10000,
+                                     None,
+                                     torch.rand(num_emitters) * t0_max,
+                                     torch.rand(num_emitters) * 3)
 
         return em
 
@@ -163,25 +187,3 @@ class TestLooseEmitterSet:
                                            torch.tensor([1., 5]))
 
         em = loose_em.return_emitterset()
-        print("Done")
-
-    @pytest.mark.skip(reason="C++ currently not implemented for updated generator.")
-    def test_eq_distribute(self, dummy_set):
-        """
-        Test whether the C++ and the Python implementations return the same stuff.
-        """
-        # Time the stuff
-        t = time.process_time()
-        xyz_py, phot_py, frame_py, id_py = dummy_set.distribute_framewise_py()
-        t_py = time.process_time() - t
-        t = time.process_time()
-        xyz_cpp, phot_cpp, frame_cpp, id_cpp = dummy_set.distribute_framewise_cpp()
-        t_cpp = time.process_time() - t
-
-        assert tutil.tens_almeq(xyz_py, xyz_cpp)
-        assert tutil.tens_almeq(phot_py, phot_cpp)
-        assert tutil.tens_almeq(frame_py, frame_cpp)
-        assert tutil.tens_almeq(id_py, id_cpp)
-
-        """Print timing."""
-        print("Elapsed time Python: {} - C++: {}".format(t_py, t_cpp))

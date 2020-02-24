@@ -27,4 +27,4 @@ def density_estimate(emitter, band_with=0.18):
         d = torch.from_numpy(d)
         em_.bg = d.float()
 
-    return deepsmlm.generic.emitter.EmitterSet.cat_emittersets(em_split)
+    return deepsmlm.generic.emitter.EmitterSet.cat(em_split)

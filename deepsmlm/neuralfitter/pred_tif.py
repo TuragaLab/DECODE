@@ -66,7 +66,7 @@ class PredictEval(ABC):
         # put model back to cpu
         self.model = self.model.to(torch.device('cpu'))
 
-        em_merged = em.EmitterSet.cat_emittersets(em_outs, step_frame_ix=self.batch_size)
+        em_merged = em.EmitterSet.cat(em_outs, step_frame_ix=self.batch_size)
         self.prediction = em_merged
         if output_raw:
             raw_frames = torch.cat(raw_frames, 0)

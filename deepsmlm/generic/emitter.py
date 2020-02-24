@@ -1,7 +1,7 @@
 import warnings
+
 import numpy as np
 import torch
-
 import torch_cpp
 
 from .utils import test_utils as tutil
@@ -9,64 +9,60 @@ from .utils import test_utils as tutil
 
 class EmitterSet:
     """
-    Class, storing a set of emitters. Each attribute is a torch.Tensor.
+    Class, storing a set of emitters and its attributes.
     """
     eq_precision = 1E-8
     xy_units = ('px', 'nm')
 
-    def __init__(self, xyz, phot, frame_ix, id=None, prob=None, bg=None, xyz_cr=None, phot_cr=None, bg_cr=None,
-                 sanity_check=True, xy_unit=None, px_size=None):
+    def __init__(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
+                 id: torch.Tensor = None, prob: torch.Tensor = None, bg: torch.Tensor = None,
+                 xyz_cr: torch.Tensor = None, phot_cr: torch.Tensor = None, bg_cr: torch.Tensor = None,
+                 sanity_check: bool = True, xy_unit=None, px_size=None):
         """
-        Constructor. Coordinates, photons, frame_ix must be provided. Id is optional.
+        Initialises EmitterSet of size N.
 
-        :param xyz: torch.Tensor of size N x 3 (2). x, y, z are in arbitrary units.
-        often [x] in px, [y] in px, [z] in nm.
-        :param phot: torch.Tensor of size N. number of photons.
-        :param frame_ix: integer or torch.Tensor. If it's one element, the whole set belongs to
-        the frame, if it's a tensor, it must be of length N.
-        :param id: torch.Tensor of size N. id of an emitter. -1 is an arbitrary non uniquely used
-         fallback id.
-        :param prob: torch.Tensor of size N. probability of observation. will be 1 by default.
-        :param bg: constant assumed background value, or N x {Background - Dim}
-        :param xyz_cr: Cramer Rao Bound of xyz
-        :param phot_cr: Cramer Rao of phot
-        :param bg_cr: Cramer Rao of background
+        Args:
+            xyz: Coordinates of size N x [2,3]. Must be tensor float type
+            phot: Photon count of size N (will be converted to float)
+            frame_ix: size N. Index on which the emitter appears. Must be tensor integer type
+            id: size N. Identity the emitter. Must be tensor integer type and the same type as frame_ix
+            prob: size N. Probability estimate of the emitter.
+            bg: size N. Background estimate of emitter.
+            xyz_cr: size N x 3. Cramer-Rao estimate of the emitters position.
+            phot_cr: size N. Cramer-Rao estimate of the emitters photon count.
+            bg_cr: size N. Cramer-Rao estimate of the emitters background value.
+            sanity_check: performs a sanity check if true.
+            xy_unit: Unit of the x and y coordinate.
+            px_size: Pixel size for unit conversion. If not specified, derived attributes (xyz_px and xyz_nm)
+            can not be accessed
         """
-        num_emitter_input = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
 
-        if num_emitter_input != 0:
-            self.xyz = xyz if xyz.shape[1] == 3 else torch.cat((xyz, torch.zeros_like(xyz[:, [0]])), 1)
-            self.phot = phot.type(xyz.dtype)
-            self.frame_ix = frame_ix.type(xyz.dtype)
-            self.id = id if id is not None else -torch.ones_like(frame_ix).type(xyz.dtype)
-            self.prob = prob if prob is not None else torch.ones_like(frame_ix).type(xyz.dtype)
-            self.bg = bg if bg is not None else float('nan') * torch.ones_like(frame_ix).type(xyz.dtype)
-            self.xyz_cr = xyz_cr if xyz_cr is not None else float('nan') * torch.ones_like(self.xyz).type(xyz.dtype)
-            self.phot_cr = phot_cr if phot_cr is not None else float('nan') * torch.ones_like(self.phot).type(xyz.dtype)
-            self.bg_cr = bg_cr if bg_cr is not None else float('nan') * torch.ones_like(self.bg).type(xyz.dtype)
+        self.xyz = None
+        self.phot = None
+        self.frame_ix = None
+        self.id = None
+        self.prob = None
+        self.bg = None
 
-        else:
-            self.xyz = torch.zeros((0, 3), dtype=torch.float)
-            self.phot = torch.zeros((0,), dtype=torch.float)
-            self.frame_ix = torch.zeros((0,), dtype=torch.float)
-            self.id = -torch.ones((0,), dtype=torch.float)
-            self.prob = torch.ones((0,), dtype=torch.float)
-            self.bg = float('nan') * torch.ones_like(self.prob)
-            self.xyz_cr = float('nan') * torch.ones((0, 3), dtype=torch.float)
-            self.phot_cr = float('nan') * torch.ones_like(self.prob)
-            self.bg_cr = float('nan') * torch.ones_like(self.prob)
+        # Cramer-Rao values
+        self.xyz_cr = None
+        self.phot_cr = None
+        self.bg_cr = None
+
+        self._set_typed(xyz=xyz, phot=phot, frame_ix=frame_ix, id=id, prob=prob, bg=bg,
+                        xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr)
 
         self._sorted = False
         # get at least one_dim tensors
         tutil.at_least_one_dim(self.xyz,
-                         self.phot,
-                         self.frame_ix,
-                         self.id,
-                         self.prob,
-                         self.bg,
-                         self.xyz_cr,
-                         self.phot_cr,
-                         self.bg_cr)
+                               self.phot,
+                               self.frame_ix,
+                               self.id,
+                               self.prob,
+                               self.bg,
+                               self.xyz_cr,
+                               self.phot_cr,
+                               self.bg_cr)
 
         self.xy_unit = xy_unit
         self.px_size = px_size
@@ -76,6 +72,55 @@ class EmitterSet:
 
         if sanity_check:
             self._sanity_check()
+
+    def _set_typed(self, xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr):
+        """
+        Sets the attributes in the correct type and with default argument if None
+        """
+
+        if xyz.dtype not in (torch.float, torch.double, torch.half):
+            raise ValueError("XYZ coordinates must be float type.")
+        else:
+            f_type = xyz.dtype
+
+        if frame_ix.dtype not in (torch.int16, torch.int32, torch.int64):
+            raise ValueError(f"Frame index must be integer type and not {frame_ix.dtype}")
+
+        if id is not None and (id.dtype not in (torch.int16, torch.int32, torch.int64) or id.dtype != frame_ix.dtype):
+            raise ValueError(f"ID must be None or integer type and the same as frame_ix dtype and not {id.dtype}")
+        else:
+            i_type = frame_ix.dtype
+
+        xyz = xyz if xyz.shape[1] == 3 else torch.cat((xyz, torch.zeros_like(xyz[:, [0]])), 1)
+
+        num_input = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
+
+        """Set values"""
+        if num_input != 0:
+            self.xyz = xyz
+            self.phot = phot.type(f_type)
+            self.frame_ix = frame_ix
+
+            # Optionals
+            self.id = id if id is not None else -torch.ones_like(frame_ix)
+            self.prob = prob if prob is not None else torch.ones_like(frame_ix).type(f_type)
+            self.bg = bg if bg is not None else float('nan') * torch.ones_like(frame_ix).type(f_type)
+            self.xyz_cr = xyz_cr if xyz_cr is not None else float('nan') * torch.ones_like(self.xyz)
+            self.phot_cr = phot_cr if phot_cr is not None else float('nan') * torch.ones_like(self.phot)
+            self.bg_cr = bg_cr if bg_cr is not None else float('nan') * torch.ones_like(self.bg)
+
+        else:
+            self.xyz = torch.zeros((0, 3)).type(f_type)
+            self.phot = torch.zeros((0,)).type(f_type)
+            self.frame_ix = torch.zeros((0,)).type(i_type)
+
+            # Optionals
+            self.id = -torch.ones((0,)).type(i_type)
+            self.prob = torch.ones((0,)).type(f_type)
+            self.bg = float('nan') * torch.ones_like(self.prob)
+            self.xyz_cr = float('nan') * torch.ones((0, 3)).type(f_type)
+            self.phot_cr = float('nan') * torch.ones_like(self.prob)
+            self.bg_cr = float('nan') * torch.ones_like(self.prob)
 
     def to_dict(self):
         """
@@ -141,26 +186,26 @@ class EmitterSet:
             return self.xyz
 
     @xyz_nm.setter
-    def xyz_nm(self, xyz):
+    def xyz_nm(self, xyz):  # xyz in nanometres
         self.xyz = xyz
         self.xy_unit = 'nm'
 
     @property
-    def xyz_scr(self):
+    def xyz_scr(self):  # sqrt cramer-rao of xyz in px
         return self.xyz_cr.sqrt()
 
     @property
-    def xyz_nm_scr(self):
+    def xyz_nm_scr(self):  # sqrt cramer-rao of xyz in nm
         if self.px_size is None:
             raise ValueError("Cannot convert between px and nm without px-size specified.")
         return self._convert_coordinates(factor=self.px_size, xyz=self.xyz_scr)
 
     @property
-    def phot_scr(self):
+    def phot_scr(self):  # sqrt cramer-rao of photon count
         return self.phot_cr.sqrt()
 
     @property
-    def bg_scr(self):
+    def bg_scr(self):  # sqrt cramer-rao of bg count
         return self.bg_cr.sqrt()
 
     def _inplace_replace(self, em):
@@ -196,7 +241,7 @@ class EmitterSet:
             (bool) sane or not sane
         """
         if not tutil.same_shape_tensor(0, self.xyz, self.phot, self.frame_ix, self.id, self.bg,
-                                 self.xyz_cr, self.phot_cr, self.bg_cr):
+                                       self.xyz_cr, self.phot_cr, self.bg_cr):
             raise ValueError("Coordinates, photons, frame ix, id and prob are not of equal shape in 0th dimension.")
 
         if not tutil.same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
@@ -379,7 +424,7 @@ class EmitterSet:
                           px_size=self.px_size)
 
     @staticmethod
-    def cat_emittersets(emittersets, remap_frame_ix=None, step_frame_ix=None):
+    def cat(emittersets, remap_frame_ix=None, step_frame_ix=None):
         """
         Concatenate multiple emittersets into one emitterset which is returned. Optionally modify the frame indices by
         the arguments.
@@ -467,7 +512,7 @@ class EmitterSet:
 
     def get_subset(self, ix):
         """
-        Returns subset of emitterset. Actual implementation of __getitem__ and __next__ methods.
+        Returns subset of emitterset. Implementation of __getitem__ and __next__ methods.
         Args:
             ix: (int, list) integer index or list of indices
 
@@ -495,12 +540,12 @@ class EmitterSet:
         """
 
         ix = (self.frame_ix >= frame_start) * (self.frame_ix <= frame_end)
-        em = self.get_subset(ix)
+        em = self[ix]
         if not shift_to:
             return em
         else:
             if em.num_emitter != 0:  # shifting makes only sense if we have an emitter.
-                raise DeprecationWarning
+                raise ValueError
             return em
 
     @property
@@ -512,54 +557,6 @@ class EmitterSet:
             (bool)
         """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
-
-    def compute_grand_matrix(self, ix=None, xy_unit=None, xy_unit2=None):
-        """
-        Computes a container (grand matrix). Useful when you want to write it to a csv.
-        Args:
-            ix: limit the indices
-            xy_unit: xy unit to write to the matrix
-            xy_unit2: secondary xy unit to append to the back of the grand matrix, helpful for csv export, but redundant info
-
-        Returns:
-            grand_matrix: (torch.Tensor) of size num_emitter x large_number
-        """
-
-        def xy_mapping(unit):
-            if unit is None:
-                return self.xyz
-            elif unit == 'px':
-                return self.xyz_px
-            elif xy_unit == 'nm':
-                return self.xyz_nm
-            else:
-                raise ValueError("Other units not supported.")
-
-        if ix is None:
-            ix = slice(self.xyz.size(0))
-
-        xyz = xy_mapping(xy_unit)
-        xyz2 = xy_mapping(xy_unit2)  # secondary xy unit (it's redundant but sometimes helpful)
-
-        grand_matrix = torch.cat((xyz[ix, :],
-                                  self.phot[ix].unsqueeze(1),
-                                  self.frame_ix[ix].unsqueeze(1),
-                                  self.id[ix].unsqueeze(1),
-                                  self.prob[ix].unsqueeze(1),
-                                  self.bg[ix].unsqueeze(1),
-                                  self.xyz_cr[ix, :],
-                                  self.phot_cr[ix].unsqueeze(1),
-                                  self.bg_cr[ix].unsqueeze(1),
-                                  xyz2[ix, :]), dim=1)
-
-        return grand_matrix
-
-    @staticmethod
-    def _construct_from_grand_matrix(gmat):
-        raise DeprecationWarning
-        # return EmitterSet(xyz=gmat[:, :3], phot=gmat[:, 3], frame_ix=gmat[:, 4], id=gmat[:, 5], prob=gmat[:, 6],
-        #                   bg=gmat[:, 7], xyz_cr=gmat[:, 8:11], phot_cr=gmat[:, 11], bg_cr=gmat[:, 12],
-        #                   sanity_check=False)
 
     def split_in_frames(self, ix_low: int = 0, ix_up: int = None):
         """
@@ -576,18 +573,15 @@ class EmitterSet:
         frame_ix, ix = self.frame_ix.sort()
         frame_ix = frame_ix.type(self.xyz.dtype)
 
-        if self.id is not None:
-            grand_matrix = torch.cat((self.xyz[ix, :],
-                                      self.phot[ix].unsqueeze(1),
-                                      frame_ix.unsqueeze(1),
-                                      self.id[ix].unsqueeze(1),
-                                      self.prob[ix].unsqueeze(1),
-                                      self.bg[ix].unsqueeze(1),
-                                      self.xyz_cr[ix, :],
-                                      self.phot_cr[ix].unsqueeze(1),
-                                      self.bg_cr[ix].unsqueeze(1)), dim=1)
-        else:
-            raise DeprecationWarning("No Id is not supported any more.")
+        grand_matrix = torch.cat((self.xyz[ix, :],
+                                  self.phot[ix].unsqueeze(1),
+                                  frame_ix.unsqueeze(1).type(self.xyz.dtype),
+                                  self.id[ix].unsqueeze(1).type(self.xyz.dtype),
+                                  self.prob[ix].unsqueeze(1),
+                                  self.bg[ix].unsqueeze(1),
+                                  self.xyz_cr[ix, :],
+                                  self.phot_cr[ix].unsqueeze(1),
+                                  self.bg_cr[ix].unsqueeze(1)), dim=1)
 
         """The first frame is assumed to be 0. If it's negative go to the lowest negative."""
         if len(self) != 0:
@@ -607,12 +601,11 @@ class EmitterSet:
                 grand_matrix_list = [grand_matrix]
             else:
                 grand_matrix_list = [grand_matrix] * (ix_up - ix_low + 1)
-        em_list = []
 
-        for i, em in enumerate(grand_matrix_list):
-            em_list.append(EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4], id=em[:, 5], prob=em[:, 6],
-                                      bg=em[:, 7], xyz_cr=em[:, 8:11], phot_cr=em[:, 11], bg_cr=em[:, 12],
-                                      sanity_check=False, xy_unit=self.xy_unit, px_size=self.px_size))
+        em_list = [EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4].int(), id=em[:, 5].int(), prob=em[:, 6],
+                              bg=em[:, 7], xyz_cr=em[:, 8:11], phot_cr=em[:, 11], bg_cr=em[:, 12],
+                              sanity_check=False, xy_unit=self.xy_unit, px_size=self.px_size) for em in
+                   grand_matrix_list]
 
         return em_list
 
@@ -692,49 +685,8 @@ class EmitterSet:
         if new_xy_unit is not None:
             self.xy_unit = new_xy_unit
 
-    def populate_crlb(self, psf, mode='single'):
-        """
-        # ToDo: This has to change in future.
-        Fills the CRLB as by the implementation of the PSF.
-
-        Args:
-            psf:
-            mode:
-
-        Returns:
-
-        """
-        if len(self) == 0:
-            return
-
-        if mode == 'single':
-            crlb, _ = psf.crlb_single(self.xyz_px, self.phot, self.bg, crlb_order='xyzpb')
-            self.xyz_cr = crlb[:, :3]
-            self.phot_cr = crlb[:, 3]
-            self.bg_cr = crlb[:, 4]
-            return
-
-        elif mode == 'multi':
-            warnings.warn(
-                "Be advised, that at the moment, calculating the crlb in multi-mode for an EmitterSet can and most "
-                "likely will change the order of the elements in the set."
-                "If you compare this against another set, be careful.")
-            em_split = self.split_in_frames(self.frame_ix.min(), self.frame_ix.max())
-
-            for em in em_split:
-
-                crlb, _ = psf.crlb(em.xyz_px, em.phot, em.bg, crlb_order='xyzpb')
-
-                em.xyz_cr = crlb[:, :3]
-                em.phot_cr = crlb[:, 3]
-                em.bg_cr = crlb[:, 4]
-
-            remerged_set = self.cat_emittersets(em_split)
-            self._inplace_replace(remerged_set)
-            return
-
-        else:
-            raise ValueError("Mode must be single or multi.")
+    def populate_crlb(self, psf, **kwargs):
+        raise NotImplementedError
 
     def write_to_csv(self, filename, xy_unit=None, comments=None, plain_header=False, xy_unit2=None):
         """
@@ -794,7 +746,7 @@ class EmitterSet:
         Returns:
             (None)
         """
-        import deepsmlm.generic.inout.csv_transformations as tra
+        import deepsmlm.generic.inout.csv_in_out as tra
         """Checks before actual run"""
         # lud and lud_name are XOR
         if lud is not None and lud_name is not None:
@@ -840,13 +792,14 @@ class RandomEmitterSet(EmitterSet):
     """
     A helper calss when we only want to provide a number of emitters.
     """
+
     def __init__(self, num_emitters, extent=32, xy_unit='px'):
         """
 
         :param num_emitters:
         """
         xyz = torch.rand((num_emitters, 3)) * extent
-        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]), xy_unit=xy_unit)
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).int(), xy_unit=xy_unit)
 
     def _inplace_replace(self, em):
         super().__init__(xyz=em.xyz,
@@ -868,13 +821,14 @@ class CoordinateOnlyEmitter(EmitterSet):
     A helper class when we only want to provide xyz, but not photons and frame_ix.
     Useful for testing. Photons will be tensor of 1, frame_ix tensor of 0.
     """
+
     def __init__(self, xyz):
         """
 
         :param xyz: (torch.tensor) N x 2, N x 3
         """
-        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]))
-    
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).int())
+
     def _inplace_replace(self, em):
         super().__init__(xyz=em.xyz,
                          phot=em.phot,
@@ -892,6 +846,7 @@ class CoordinateOnlyEmitter(EmitterSet):
 
 class EmptyEmitterSet(CoordinateOnlyEmitter):
     """An empty emitter set."""
+
     def __init__(self):
         super().__init__(torch.zeros((0, 3)))
 
@@ -901,18 +856,27 @@ class EmptyEmitterSet(CoordinateOnlyEmitter):
 
 class LooseEmitterSet:
     """
-    An emitterset where we don't specify the frame_ix of an emitter but rather it's (real) time when
-    it's starts to blink and it's ontime and then construct the EmitterSet (framewise) out of it.
+    Related to the standard EmitterSet. However, here we do not specify a frame_ix but rather a (non-integer)
+    initial point in time where the emitter starts to blink and an on-time.
+
+    Attributes:
+        xyz (torch.Tensor): coordinates. Dimension: N x 3
+        intensity (torch.Tensor): intensity, i.e. photon flux per time unit. Dimension N
+        id (torch.Tensor, int): identity of the emitter. Dimension: N
+        t0 (torch.Tensor, float): initial blink event. Dimension: N
+        ontime (torch.Tensor): duration in frame-time units how long the emitter blinks. Dimension N
     """
-    def __init__(self, xyz, intensity, id=None, t0=None, ontime=None):
+
+    def __init__(self, xyz: torch.Tensor, intensity: torch.Tensor,
+                 id: torch.Tensor = None, t0=None, ontime=None):
         """
 
-        :param xyz: Coordinates
-        :param phot: Photons
-        :param intensity: Intensity (i.e. photons per time)
-        :param id: ID
-        :param t0: Timepoint of first occurences
-        :param ontime: Duration in frames how long the emitter is on.
+        Args:
+            xyz (torch.Tensor): coordinates. Dimension: N x 3
+            intensity (torch.Tensor): intensity, i.e. photon flux per time unit. Dimension N
+            id (torch.Tensor, int): identity of the emitter. Dimension: N
+            t0 (torch.Tensor, float): initial blink event. Dimension: N
+            ontime (torch.Tensor): duration in frame-time units how long the emitter blinks. Dimension N
         """
 
         """If no ID specified, give them one."""
@@ -920,12 +884,15 @@ class LooseEmitterSet:
             id = torch.arange(xyz.shape[0])
 
         self.xyz = xyz
-        self.phot = None
+        self._phot = None
         self.intensity = intensity
         self.id = id
         self.t0 = t0
-        self.te = None
         self.ontime = ontime
+
+    @property
+    def te(self):  # end time
+        return self.t0 + self.ontime
 
     def return_emitterset(self):
         """
@@ -933,17 +900,17 @@ class LooseEmitterSet:
 
         :return: Instance of EmitterSet class.
         """
-        xyz_, phot_, frame_ix_, id_ = self.distribute_framewise_py()
-        return EmitterSet(xyz_, phot_, frame_ix_, id_)
+        xyz_, phot_, frame_ix_, id_ = self.distribute_framewise()
+        return EmitterSet(xyz_, phot_, frame_ix_.int(), id_.int())
 
-    def distribute_framewise_py(self):
+    def distribute_framewise(self):
         """
         Distribute the emitters with arbitrary starting point and intensity over the frames so as to get a proper
         set of emitters (instance of EmitterSet) with photons.
         :return:
         """
         frame_start = torch.floor(self.t0)
-        self.te = self.t0 + self.ontime  # endpoint
+
         frame_last = torch.ceil(self.te)
         frame_dur = (frame_last - frame_start).type(torch.LongTensor)
 
@@ -970,20 +937,3 @@ class LooseEmitterSet:
 
     def _inplace_replace(self, em):
         raise NotImplementedError("Inplace not yet implemented.")
-
-
-if __name__ == '__main__':
-    num_emitter = 25000
-    xyz = torch.rand((num_emitter, 3))
-    phot = torch.ones_like(xyz[:, 0])
-    t0 = torch.rand((num_emitter,)) * 10 - 1
-    ontime = torch.rand((num_emitter,)) * 1.5
-
-    LE = LooseEmitterSet(xyz, phot, None, t0, ontime)
-    E = LE.return_emitterset()
-
-    frame_ix = torch.zeros_like(xyz[:,0])
-    em = EmitterSet(xyz, phot, frame_ix)
-    em_splitted = em.split_in_frames(0, 0)
-
-    print("Pseudo-Test successfull.")

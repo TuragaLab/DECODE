@@ -169,10 +169,10 @@ class GreedyHungarianMatching:
             tpml.append(tp_match)
 
         """Concat them back"""
-        tp = emitter.EmitterSet.cat_emittersets(tpl)
-        fp = emitter.EmitterSet.cat_emittersets(fpl)
-        fn = emitter.EmitterSet.cat_emittersets(fnl)
-        tp_match = emitter.EmitterSet.cat_emittersets(tpml)
+        tp = emitter.EmitterSet.cat(tpl)
+        fp = emitter.EmitterSet.cat(fpl)
+        fn = emitter.EmitterSet.cat(fnl)
+        tp_match = emitter.EmitterSet.cat(tpml)
 
         """Let tp and tp_match share the same id's"""
         if (tp_match.id == -1).all().item():

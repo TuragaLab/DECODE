@@ -22,3 +22,5 @@ pre_trafo = {
     }
 }
 
+def save(em, file):
+    pass

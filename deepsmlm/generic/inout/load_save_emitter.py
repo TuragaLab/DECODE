@@ -21,16 +21,14 @@ class BinaryInterface(ABC):
     def __init__(self):
         super().__init__()
 
-    @abstractmethod
-    def load_binary(self):
+    def load(self):
         raise NotImplementedError
 
-    @abstractmethod
-    def save_binary(self):
+    def save(self):
         raise NotImplementedError
 
 
-class MatlabInterface:
+class MatlabInterface(BinaryInterface):
     """
     Load an SML localisation file from SMAP. Assumes it is stored in the modern -v7.3 format (i.e. a HDF5).
     """
@@ -53,12 +51,12 @@ class MatlabInterface:
             axis: swap axis
 
         """
-
+        super().__init__()
         self.frame_shift = frame_shift
         self.axis_trafo = axis
         self._cache_sml = None
 
-    def load_binary(self, mat_file):
+    def load(self, mat_file):
         """
         Loads the savelocs struct from Matlab. Applies transformations as specified
 
@@ -88,42 +86,3 @@ class MatlabInterface:
         em.frame_ix += self.frame_shift
 
         return em
-
-
-class NumpyInterface(BinaryInterface):
-
-    def __init__(self,
-                 xyz_key='xyz', phot_key='phot', fix_key='frame_ix',
-                 extent_key='extent', frame_key='frames', id_key='id', unsupervised=False):
-        super().__init__(unsupervised)
-
-        self.xyz_key = xyz_key
-        self.phot_key = phot_key
-        self.fix_key = fix_key
-        self.id_key = id_key
-
-        self.extent_key = extent_key
-        self.frame_key = frame_key
-
-    def load_binary(self, mat_file):
-
-        def totuple(a):
-            try:
-                return tuple(totuple(i) for i in a)
-            except TypeError:
-                return a
-
-        bin = np.load(mat_file)
-
-        emitter_set = EmitterSet(xyz=torch.from_numpy(bin[self.xyz_key]),
-                                 phot=torch.from_numpy(bin[self.phot_key]),
-                                 frame_ix=torch.from_numpy(bin[self.fix_key]),
-                                 id=torch.from_numpy(bin[self.id_key]))
-
-        extent = totuple(bin[self.extent_key])
-        frames = torch.from_numpy(bin[self.frame_key]).type(torch.FloatTensor)
-
-        return emitter_set, extent, frames
-
-    def save_binary(self, emitter_set, mat_file):
-        raise NotImplementedError('Not Implemented.')
