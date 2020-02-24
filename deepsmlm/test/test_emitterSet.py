@@ -171,19 +171,15 @@ class TestLooseEmitterSet:
     def dummy_set(self):
         num_emitters = 10000
         t0_max = 5000
-        em = emitter.LooseEmitterSet(torch.rand((num_emitters, 3)),
-                                     torch.ones(num_emitters) * 10000,
-                                     None,
-                                     torch.rand(num_emitters) * t0_max,
-                                     torch.rand(num_emitters) * 3)
+        em = emitter.LooseEmitterSet(torch.rand((num_emitters, 3)), torch.ones(num_emitters) * 10000,
+                                     torch.rand(num_emitters) * 3, torch.rand(num_emitters) * t0_max, None,
+                                     xy_unit='px')
 
         return em
 
     def test_distribution(self):
-        loose_em = emitter.LooseEmitterSet(torch.zeros((2, 3)),
-                                           torch.tensor([1000., 10]),
-                                           None,
-                                           torch.tensor([-0.2, 0.9]),
-                                           torch.tensor([1., 5]))
+        loose_em = emitter.LooseEmitterSet(torch.zeros((2, 3)), torch.tensor([1000., 10]), torch.tensor([1., 5]),
+                                           torch.tensor([-0.2, 0.9]), None,
+                                           xy_unit='px')
 
         em = loose_em.return_emitterset()

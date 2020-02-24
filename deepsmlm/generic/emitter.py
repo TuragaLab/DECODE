@@ -9,7 +9,22 @@ from .utils import test_utils as tutil
 
 class EmitterSet:
     """
-    Class, storing a set of emitters and its attributes.
+    Class, storing a set of emitters and its attributes. Probably the most commonly used class of this framework.
+
+    Attributes:
+            xyz: Coordinates of size N x [2,3].
+            phot: Photon count of size N
+            frame_ix: size N. Index on which the emitter appears.
+            id: size N. Identity the emitter.
+            prob: size N. Probability estimate of the emitter.
+            bg: size N. Background estimate of emitter.
+            xyz_cr: size N x 3. Cramer-Rao estimate of the emitters position.
+            phot_cr: size N. Cramer-Rao estimate of the emitters photon count.
+            bg_cr: size N. Cramer-Rao estimate of the emitters background value.
+            sanity_check: performs a sanity check if true.
+            xy_unit: Unit of the x and y coordinate.
+            px_size: Pixel size for unit conversion. If not specified, derived attributes (xyz_px and xyz_nm)
+                can not be accessed
     """
     eq_precision = 1E-8
     xy_units = ('px', 'nm')
@@ -34,7 +49,7 @@ class EmitterSet:
             sanity_check: performs a sanity check if true.
             xy_unit: Unit of the x and y coordinate.
             px_size: Pixel size for unit conversion. If not specified, derived attributes (xyz_px and xyz_nm)
-            can not be accessed
+                can not be accessed
         """
 
         self.xyz = None
@@ -248,11 +263,12 @@ class EmitterSet:
             raise ValueError("Expected photons, probability frame index and id to be 1D.")
 
         # Motivate the user to specify an xyz unit.
-        if self.xy_unit is None:
-            warnings.warn("No xyz unit specified. No guarantees given ...")
-        else:
-            if self.xy_unit not in self.xy_units:
-                raise ValueError("XY unit not supported.")
+        if len(self) > 0:
+            if self.xy_unit is None:
+                warnings.warn("No xyz unit specified. No guarantees given ...")
+            else:
+                if self.xy_unit not in self.xy_units:
+                    raise ValueError("XY unit not supported.")
 
         # check uniqueness of identity (ID)
         if check_uniqueness:
@@ -851,7 +867,18 @@ class EmptyEmitterSet(CoordinateOnlyEmitter):
         super().__init__(torch.zeros((0, 3)))
 
     def _inplace_replace(self, em):
-        raise NotImplementedError("Inplace not yet implemented.")
+        super().__init__(xyz=em.xyz,
+                         phot=em.phot,
+                         frame_ix=em.frame_ix,
+                         id=em.id,
+                         prob=em.prob,
+                         bg=em.bg,
+                         xyz_cr=em.xyz_cr,
+                         phot_cr=em.phot_cr,
+                         bg_cr=em.bg_cr,
+                         sanity_check=False,
+                         xy_unit=em.xy_unit,
+                         px_size=em.px_size)
 
 
 class LooseEmitterSet:
@@ -865,18 +892,20 @@ class LooseEmitterSet:
         id (torch.Tensor, int): identity of the emitter. Dimension: N
         t0 (torch.Tensor, float): initial blink event. Dimension: N
         ontime (torch.Tensor): duration in frame-time units how long the emitter blinks. Dimension N
+        xy_unit (string): unit of the coordinates
     """
 
-    def __init__(self, xyz: torch.Tensor, intensity: torch.Tensor,
-                 id: torch.Tensor = None, t0=None, ontime=None):
+    def __init__(self, xyz: torch.Tensor, intensity: torch.Tensor, ontime: torch.Tensor, t0: torch.Tensor,
+                 id: torch.Tensor = None, xy_unit=None):
         """
 
         Args:
             xyz (torch.Tensor): coordinates. Dimension: N x 3
             intensity (torch.Tensor): intensity, i.e. photon flux per time unit. Dimension N
-            id (torch.Tensor, int): identity of the emitter. Dimension: N
             t0 (torch.Tensor, float): initial blink event. Dimension: N
             ontime (torch.Tensor): duration in frame-time units how long the emitter blinks. Dimension N
+            id (torch.Tensor, int, optional): identity of the emitter. Dimension: N
+            xy_unit (string): unit of the coordinates
         """
 
         """If no ID specified, give them one."""
@@ -884,6 +913,7 @@ class LooseEmitterSet:
             id = torch.arange(xyz.shape[0])
 
         self.xyz = xyz
+        self.xy_unit = xy_unit
         self._phot = None
         self.intensity = intensity
         self.id = id
@@ -894,23 +924,18 @@ class LooseEmitterSet:
     def te(self):  # end time
         return self.t0 + self.ontime
 
-    def return_emitterset(self):
+    def _distribute_framewise(self):
         """
-        Returns an emitter set
+        Distributes the emitters framewise and prepares them for EmitterSet format.
 
-        :return: Instance of EmitterSet class.
-        """
-        xyz_, phot_, frame_ix_, id_ = self.distribute_framewise()
-        return EmitterSet(xyz_, phot_, frame_ix_.int(), id_.int())
+        Returns:
+            xyz_ (torch.Tensor): coordinates
+            phot_ (torch.Tensor): photon count
+            frame_ (torch.Tensor): frame indices (the actual distribution)
+            id_ (torch.Tensor): identities
 
-    def distribute_framewise(self):
-        """
-        Distribute the emitters with arbitrary starting point and intensity over the frames so as to get a proper
-        set of emitters (instance of EmitterSet) with photons.
-        :return:
         """
         frame_start = torch.floor(self.t0)
-
         frame_last = torch.ceil(self.te)
         frame_dur = (frame_last - frame_start).type(torch.LongTensor)
 
@@ -922,18 +947,29 @@ class LooseEmitterSet:
         id_ = torch.zeros_like(frame_ix_)
 
         c = 0
-        for i in range(self.xyz.shape[0]):
-            for j in range(frame_dur[i]):
+        for i in range(self.xyz.shape[0]):  # loop over emitters
+            for j in range(frame_dur[i]):  # loop over its frames
                 xyz_[c, :] = self.xyz[i]
                 frame_ix_[c] = frame_start[i] + j
                 id_[c] = self.id[i]
 
                 """Calculate time on frame and multiply that by the intensity."""
                 ontime_on_frame = torch.min(self.te[i], frame_ix_[c] + 1) - torch.max(self.t0[i], frame_ix_[c])
-                phot_[c] = ontime_on_frame * self.intensity[i]
+                phot_[c] = ontime_on_frame * self.intensity[i]  # photon flux times on-time = photons
 
                 c += 1
+
         return xyz_, phot_, frame_ix_, id_
 
-    def _inplace_replace(self, em):
-        raise NotImplementedError("Inplace not yet implemented.")
+    def return_emitterset(self):
+        """
+        Returns EmitterSet with distributed emitters.
+
+        Returns:
+            EmitterSet
+        """
+
+        xyz_, phot_, frame_ix_, id_ = self._distribute_framewise()
+        return EmitterSet(xyz_, phot_, frame_ix_.int(), id_.int(), xy_unit=self.xy_unit)
+
+
