@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod  # abstract class
 import torch
 from scipy.stats import binned_statistic_2d
 
+from .utils import generic as gutil
+
 
 class PSF(ABC):
     """
@@ -37,24 +39,6 @@ class PSF(ABC):
                                                                                        self.yextent,
                                                                                        self.zextent,
                                                                                        self.img_shape)
-
-    @staticmethod
-    def _ix_split(ix: torch.Tensor):
-        """
-        Returns list of subset of indices which give access to each element of ix  # ToDo: Change this description
-        Args:
-            ix:
-
-        Returns:
-            list of logical indices
-        """
-        assert ix.dtype in (torch.short, torch.int, torch.long)
-        ix_min = ix.min().item()
-        ix_max = ix.max().item()
-        n = ix_max - ix_min + 1
-
-        log_ix = [ix == ix_c for ix_c in range(ix_min, ix_max + 1)]
-        return log_ix, n
 
     @abstractmethod
     def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
@@ -94,7 +78,8 @@ class PSF(ABC):
 
     def _forward_single_frame_wrapper(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor):
         """
-        This is a convenience wrapper that splits the input in frames and forward them throguh the single frame
+        This is a convenience (fallback) wrapper that splits the input in frames and forward them throguh the single
+        frame
         function if the implementation does not have a frame index (i.e. batched) forward method.
 
         Args:
@@ -103,9 +88,9 @@ class PSF(ABC):
             frame_ix: frame index
 
         Returns:
-
+            frames (torch.Tensor): N x H x W, stacked frames
         """
-        ix_split, n_splits = self._ix_split(frame_ix)
+        ix_split, n_splits = gutil.ix_split(frame_ix)
         frames = [self._forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
         frames = torch.stack(frames, 0)
 

@@ -114,7 +114,7 @@ class PSFWrapperBase {
             PSFWrapperCUDA() {
                 throw std::runtime_error("Not compiled with CUDA enabled. Please refer to CPU version.");
             }
-    }
+    };
 #endif
 
 class PSFWrapperCPU : public PSFWrapperBase<spc::spline> {

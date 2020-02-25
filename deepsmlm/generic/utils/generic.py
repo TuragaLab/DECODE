@@ -8,6 +8,8 @@ def split_sliceable(x, x_ix: torch.Tensor, ix_low: int, ix_high: int):
     Not present elements will be filled with empty instances of the iterable itself.
 
     This function is mainly used to split the EmitterSet in list of EmitterSets according to its frame index.
+    This function can also be called with arguments x and x_ix being the same. In this case you get a list of indices
+        out which can be used for further indexing.
 
     Args:
         x: sliceable / iterable
@@ -42,3 +44,23 @@ def split_sliceable(x, x_ix: torch.Tensor, ix_low: int, ix_high: int):
         x_list = x_list + [x_[0:0]] * n_empt
 
     return x_list
+
+
+def ix_split(ix: torch.Tensor):
+    """
+    Splits an index rather than a sliceable (as above). Might be slower than splitting the sliceable because here we can
+    not just sort once and return the element of interest but must rather return the index.
+
+    Args:
+        ix (torch.Tensor): index to split
+
+    Returns:
+        list of logical(!) indices
+    """
+    assert ix.dtype in (torch.short, torch.int, torch.long)
+    ix_min = ix.min().item()
+    ix_max = ix.max().item()
+    n = ix_max - ix_min + 1
+
+    log_ix = [ix == ix_c for ix_c in range(ix_min, ix_max + 1)]
+    return log_ix, n

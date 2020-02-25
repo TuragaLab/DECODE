@@ -14,25 +14,50 @@ import deepsmlm.generic.utils.test_utils as tutil
 import deepsmlm.generic.plotting.frame_coord as plf
 import deepsmlm.generic.plotting.plot_utils as plu
 
+
 class TestPSF:
 
     @pytest.fixture(scope='class')
     def abs_psf(self):
-        return psf_kernel.PSF
+        """
+        Abstract PSF class fixture
 
-    def test_ix_splitting(self, abs_psf):
-        ix = torch.Tensor([2, -1, 2, 0, 4]).int()
+        Returns:
+            psf_kernel.PSF: abstract PSF
+        """
+        class PseudoAbsPSF(psf_kernel.PSF):
+            def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
+                if xyz.numel() >= 1:
+                    return torch.ones((32, 32)) * xyz[0, 0]
+                else:
+                    return torch.zeros((32, 32))
 
-        out, n = abs_psf._ix_split(ix)
+            def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
+                super().forward(xyz, weight, frame_ix, ix_low, ix_high)
+                return self._forward_single_frame_wrapper(xyz, weight, frame_ix)
 
-        assert len(out) == 6
-        assert len(out) == n
-        assert ix[out[0]] == -1
-        assert ix[out[1]] == 0
-        assert ix[out[2]].numel() == 0
-        assert (ix[out[3]] == 2).all()
-        assert ix[out[4]].numel() == 0
-        assert ix[out[5]] == 4
+        return PseudoAbsPSF(None, None, None, None)
+
+    def test_single_frame_wrapper(self, abs_psf):
+        """
+        Tests whether the general impl
+        Args:
+            abs_psf:
+
+        Returns:
+
+        """
+
+        xyz = torch.Tensor([[15., 15., 0.], [0.5, 0.3, 0.]])
+        phot = torch.ones_like(xyz[:, 0])
+        frame_ix = torch.Tensor([1, -2]).int()
+
+        frames = abs_psf._forward_single_frame_wrapper(xyz, phot, frame_ix)
+
+        assert frames.dim() == 3
+        assert (frames[0] == 0.5).all()
+        assert (frames[1:3] == 0).all()
+        assert (frames[-1] == 15).all()
 
 
 class TestGaussianExpect:
