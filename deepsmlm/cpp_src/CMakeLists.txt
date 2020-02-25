@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
-set(CMAKE_CUDA_COMPILER "/usr/local/cuda/bin/nvcc")  # ToDo: Remove hard coed path later on
-
 project(splininger LANGUAGES CXX C)
 
 include(CheckLanguage)
@@ -9,10 +7,11 @@ check_language(CUDA)
 
 find_package(PythonInterp 3.6 REQUIRED)
 find_package(PythonLibs 3.6 REQUIRED)
+find_package(CUDA)
 
-if(CMAKE_CUDA_COMPILER)
+if(CUDA_FOUND)
    enable_language(CUDA)
-   find_package(CUDA REQUIRED)
+   # find_package(CUDA REQUIRED)
 
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --gpu-architecture=sm_75")
    add_compile_definitions(CUDA_ENABLED)
