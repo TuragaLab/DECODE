@@ -257,7 +257,7 @@ class TestCubicSplinePSF:
         roi_cuda = psf_cuda.forward_rois(xyz, phot)
 
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-7)
-        return
+        # return
 
         """Additional Plotting if manual testing (comment out return statement)"""
         rix = random.randint(0, n - 1)
@@ -269,7 +269,7 @@ class TestCubicSplinePSF:
         plt.subplot(122)
         plf.PlotFrame(roi_cuda[rix]).plot()
         plt.colorbar()
-        plt.title('CPU implementation')
+        plt.title('CUDA implementation')
         plt.show()
 
     def test_frame_cuda_cpu(self, psf_cpu, psf_cuda):
@@ -305,7 +305,7 @@ class TestCubicSplinePSF:
         plt.subplot(122)
         plf.PlotFrame(frames_cuda[rix]).plot()
         plt.colorbar()
-        plt.title('CPU implementation')
+        plt.title('CUDA implementation')
         plt.show()
 
     def test_derivative_calculation(self, psf_cuda):
@@ -318,9 +318,12 @@ class TestCubicSplinePSF:
         Returns:
 
         """
-        xyz = torch.Tensor([[13., 13., 0.]])
-        phot = torch.ones_like(xyz[:, 0]) * 10000
-        bg = torch.ones_like(phot) * 10
+        n = 1000
+        xyz = torch.rand((n, 3))
+        xyz[:, :2] += psf_cuda.ref0[:2]
+        xyz[:, 2] = xyz[:, 2] * 1000 - 500
+        phot = torch.ones((n,)) * 10000
+        bg = 50 * torch.ones((n,))
 
         drv, rois = psf_cuda.derivative(xyz, phot, bg)
 

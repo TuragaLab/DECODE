@@ -199,7 +199,7 @@ namespace spline_psf_gpu {
         forward_drv_rois_host2device(d_sp, d_rois, d_drv_rois, n, roi_size_x, roi_size_y, h_x, h_y, h_z, h_phot, h_bg);
 
         cudaMemcpy(h_rois, d_rois, n * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(h_drv_rois, d_drv_rois, 5 * n * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(h_drv_rois, d_drv_rois, n * n_par * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
 
         cudaFree(d_rois);
         cudaFree(d_drv_rois);
@@ -520,12 +520,12 @@ int xc, int yc, int zc, const float phot, const float bg, const float x_delta, c
     float fv;  // taken from yiming, not entirely understood by myself
 
     // actual derivative computation
-    for (i = 0; i < 64; i++)
+    for (int k = 0; k < 64; k++)
     {
-        fv += delta_f[i] * sp->coeff[i * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
-        dudt[0] += dxf[i] * sp->coeff[i * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
-        dudt[1] += dyf[i] * sp->coeff[i * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
-        dudt[4] += dzf[i] * sp->coeff[i * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
+        fv += delta_f[k] * sp->coeff[k * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
+        dudt[0] += dxf[k] * sp->coeff[k * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
+        dudt[1] += dyf[k] * sp->coeff[k * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
+        dudt[4] += dzf[k] * sp->coeff[k * (sp->xsize * sp->ysize * sp->zsize) + zc * (sp->xsize * sp->ysize) + yc * sp->xsize + xc];
     }
 
     dudt[0] *= -1 * phot;

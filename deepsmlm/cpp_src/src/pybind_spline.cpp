@@ -80,7 +80,7 @@ class PSFWrapperBase {
                 spg::forward_drv_rois_host2host(psf, h_rois.mutable_data(), h_drv_rois.mutable_data(), n, roi_size_x, roi_size_y, 
                                                 x.data(), y.data(), z.data(), phot.data(), bg.data());
 
-                return std::make_tuple(h_rois, h_drv_rois);
+                return std::make_tuple(h_drv_rois, h_rois);
             }
 
             auto forward_frames(const int fx, const int fy,
