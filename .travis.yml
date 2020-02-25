@@ -22,12 +22,8 @@ install:
   - pip install tensorboardX
 
   # build the C and C++ libraries
-  - mkdir $TRAVIS_BUILD_DIR/deepsmlm/cpp_src/build
-  - cd $TRAVIS_BUILD_DIR/deepsmlm/cpp_src/build
-  - cmake -DCMAKE_BUILD_TYPE=Release ..
-  - make
-  - cd ..
-  - NO_CUDA=1 python setup.py clean --all install
+  - cd $TRAVIS_BUILD_DIR/deepsmlm/cpp_src
+  - python setup.py install
 
   - cd $TRAVIS_BUILD_DIR
 
