@@ -1,15 +1,57 @@
+import functools
+import torch
 
 
-class InputFrameRescale:
+class SpatialInterpolation:
     """
-    Simple U-Net that rescales the frame counts, i.e. divides over the expected max.
+    Up or downscales by a given method.
+
+    Attributes:
+        dim (int): dimensionality for safety checks
+    """
+    def __init__(self, dim=2, mode='nearest', size=None, scale_factor=None, impl=None):
+        """
+
+        Args:
+            mode (string): mode which is used for interpolation. Those are the modes by the torch interpolation function
+            impl (optional): override function for interpolation
+        """
+        self.dim = dim
+
+        if impl is not None:
+            self._inter_impl = impl
+        else:
+            self._inter_impl = functools.partial(torch.nn.functional.interpolate,
+                                                 mode=mode, size=size, scale_factor=scale_factor)
+
+    def forward(self, x: torch.Tensor):
+        """
+        Forward a tensor through the interpolation process.
+
+        Args:
+            x (torch.Tensor): arbitrary tensor complying with the interpolation function.
+                Must have a batch and channel dimension.
+
+        Returns:
+            x_inter: interpolated tensor
+        """
+        if x.dim() != self.dim + 2:  # dimensionality plus channel and batch
+            raise ValueError(f"Dimensionality does not comply to specified initialisation. Expected tensor with "
+                             "minibatch and channels plus {self.dim} dimensions (height, width ...)")
+
+        return self._inter_impl(x)
+
+
+class AmplitudeRescale:
+    """
+    Simple Processing that rescales the amplitude, i.e. the pixel values
     """
     def __init__(self, max_frame_count: float):
         self.max_frame_count = max_frame_count
 
     @staticmethod
     def parse(param):
-        return InputFrameRescale(max_frame_count=param['Scaling']['in_count_max'])
+        return AmplitudeRescale(max_frame_count=param['Scaling']['in_count_max'])
 
     def forward(self, frames):
         return frames / self.max_frame_count

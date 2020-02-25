@@ -13,7 +13,7 @@ from deepsmlm.generic.utils.processing import TransformSequence
 from deepsmlm.neuralfitter.dataset import UnsupervisedDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer
 from deepsmlm.neuralfitter.pre_processing import N2C
 from deepsmlm.neuralfitter.target_generator import ROIOffsetRep
-from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, InputFrameRescale
+from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, AmplitudeRescale
 
 
 class PredictEval(ABC):
@@ -165,7 +165,7 @@ class PredictEvalSimulation(PredictEval):
         if self.input_preparation is None:
             self.input_preparation = TransformSequence([
                 N2C(),
-                InputFrameRescale.parse(param)
+                AmplitudeRescale.parse(param)
             ])
             print("Setting Input Preparation to: Order Sample axis, Rescale Input Frame.")
 

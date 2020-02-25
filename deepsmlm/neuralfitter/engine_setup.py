@@ -195,7 +195,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     in_prep = deepsmlm.generic.utils.processing.TransformSequence.parse(
         [
             deepsmlm.neuralfitter.filter.FrameFilter,
-            deepsmlm.neuralfitter.scale_transform.InputFrameRescale
+            deepsmlm.neuralfitter.scale_transform.AmplitudeRescale
         ], param=param)
 
     em_filter = deepsmlm.neuralfitter.filter.TarEmitterFilter()

@@ -50,7 +50,7 @@ from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUN
     OffSetUNetBGBranch
 import deepsmlm.neuralfitter.models.model_param as model_zoo
 from deepsmlm.neuralfitter.pre_processing import N2C
-from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale, InputFrameRescale
+from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale, AmplitudeRescale
 from deepsmlm.neuralfitter.train_test import train, test
 from deepsmlm.generic.inout.util import add_root_relative
 
@@ -244,7 +244,7 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
         input_preparation = processing.TransformSequence([
             DiscardBackground(),
             N2C(),
-            InputFrameRescale.parse(param)
+            AmplitudeRescale.parse(param)
         ])
 
         if param.HyperParameter.weight_base in ('crlb', 'crlb_single', 'crlb_multi'):

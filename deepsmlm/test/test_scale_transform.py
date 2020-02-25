@@ -1,3 +1,4 @@
+import functools
 import pytest
 import torch
 
@@ -5,7 +6,51 @@ import deepsmlm.neuralfitter.scale_transform as scf
 import deepsmlm.generic.utils.test_utils as t_util
 
 
-class TestRescaling:
+class TestSpatialinterpolation:
+
+    @pytest.fixture(scope='class')
+    def interp(self):
+        return scf.SpatialInterpolation(dim=2, mode='nearest', scale_factor=2)
+
+    @pytest.fixture(scope='class')
+    def interp_new_impl(self):
+        impl = functools.partial(torch.nn.functional.interpolate, mode='nearest', scale_factor=2)
+        return scf.SpatialInterpolation(mode=None, impl=impl)
+
+    @pytest.mark.parametrize("x", [torch.rand((32, 32)), torch.rand((1, 32, 32))])
+    def test_dimensionality_test(self, interp, x):
+        """
+        Tests the dimensionality assertions
+
+        Args:
+            interp: fixture as above
+            x: tensors that are of the wrong dimensionality and should lead to fail
+
+        """
+
+        with pytest.raises(ValueError):
+            interp.forward(x)
+
+    def test_default_forward(self, interp):
+        """
+        Tests the forward with the default implementation
+
+        Args:
+            interp: fixture as above
+        """
+
+        x = torch.rand((1, 1, 32, 32))
+        x_out = interp.forward(x)
+
+        """Dimension"""
+        assert x.size(-1) * 2 == x_out.size(-1)
+        assert x.size(-2) * 2 == x_out.size(-2)
+
+        """Values"""
+        assert (x_out[0, 0, :2, :2] == x[0, 0, 0, 0]).all()
+
+
+class TestTargetRescale:
 
     @pytest.fixture(scope='class')
     def offset_rescale(self):
