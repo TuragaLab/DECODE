@@ -476,7 +476,7 @@ class CubicSplinePSF(PSF):
 
     def derivative(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor):
         """
-        Computes the px wise derivative per ROI.
+        Computes the px wise derivative per ROI. Outputs ROIs additionally (since its computationally free of charge).
 
         Args:
             xyz:
@@ -484,9 +484,8 @@ class CubicSplinePSF(PSF):
             bg:
 
         Returns:
-            derivatives: torch.Tensor
-            rois: torch.Tensor
-
+            derivatives (torch.Tensor): derivatives in correct units. Dimension N x N_par x H x W
+            rois (torch.Tensor): ROIs. Dimension N x H x W
         """
 
         xyz_ = self.coord2impl(xyz)
@@ -499,33 +498,41 @@ class CubicSplinePSF(PSF):
         """Convert Implementation order to natural order, i.e. x/y/z/phot/bg instead of x/y/phot/bg/z."""
         drv_rois = drv_rois[:, [0, 1, 4, 2, 3]]
 
+        """Apply correct units."""
+        drv_rois[:, :3] /= self.vx_size.unsqueeze(-1).unsqueeze(-1)
+
         return drv_rois, rois
 
     def fisher(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor):
         """
-        Calculates the fisher matrix ROI wise and gives the ROIs out for free.
+        Calculates the fisher matrix ROI wise. Outputs ROIs additionally (since its computationally free of charge).
 
         Args:
             xyz:
             phot:
 
         Returns:
-
+            fisher (torch.Tensor): Fisher Matrix. Dimension N x N_par x N_par
+            rois (torch.Tensor): ROIs. Dimension N x H x W
         """
-        raise NotImplementedError("Work in progress.")
         drv, rois = self.derivative(xyz, phot, bg)
 
-        """Aggregate the drv along the pixel dimension"""
-        drv_agg = drv.sum(-1).sum(-1)
+        """
+        Construct fisher by batched matrix multiplication. For this we have to play around with the axis of the 
+        derivatives.
+        """
+        drv_ = drv.permute(0, 2, 3, 1)
+        fisher = torch.matmul(drv_.unsqueeze(-1), drv_.unsqueeze(-2))  # derivative contribution
+        fisher = fisher / rois.unsqueeze(-1).unsqueeze(-1)  # px value contribution
 
-        """Construct fisher by batched matrix multiplication."""
-        fisher = torch.matmul(drv_agg.unsqueeze(-1), drv_agg.unsqueeze(1))
+        """Aggregate the drv along the pixel dimension"""
+        fisher = fisher.sum(1).sum(1)
 
         return fisher, rois
 
     def crlb(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, inversion=None):
         """
-        Computes the Cramer-Rao bound
+        Computes the Cramer-Rao bound. Outputs ROIs additionally (since its computationally free of charge).
 
         Args:
             xyz:
@@ -534,7 +541,8 @@ class CubicSplinePSF(PSF):
             inversion: (function) overwrite default inversion with another function that can batch invert matrices
 
         Returns:
-
+            crlb (torch.Tensor): Cramer-Rao-Lower Bound. Dimension N x N_par
+            rois (torch.Tensor): ROIs. Dimension N x H x W
         """
 
         if inversion is not None:
@@ -544,10 +552,27 @@ class CubicSplinePSF(PSF):
 
         fisher, rois = self.fisher(xyz, phot, bg)
         fisher_inv = inv_f(fisher)
-        crlb = torch.stack([fisher_inv[i].diag() for i in range(fisher.size(0))], 0)
-        crlb[:, :3] *= self.vx_size ** 2
+        crlb = torch.diagonal(fisher_inv, dim1=1, dim2=2)
 
         return crlb, rois
+
+    def crlb_sq(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, inversion=None):
+        """
+        Function for the lazy ones to compute the sqrt Cramer-Rao bound. Outputs ROIs additionally (since its
+        computationally free of charge).
+
+        Args:
+            xyz:
+            phot:
+            bg:
+            inversion: (function) overwrite default inversion with another function that can batch invert matrices
+
+        Returns:
+            crlb (torch.Tensor): Cramer-Rao-Lower Bound. Dimension N x N_par
+            rois (torch.Tensor): ROIs. Dimension N x H x W
+        """
+        crlb, rois = self.crlb(xyz, phot, bg, inversion)
+        return crlb.sqrt(), rois
 
     def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
         """

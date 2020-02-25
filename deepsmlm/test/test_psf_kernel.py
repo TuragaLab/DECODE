@@ -308,7 +308,7 @@ class TestCubicSplinePSF:
         plt.title('CUDA implementation')
         plt.show()
 
-    def test_derivative_calculation(self, psf_cuda):
+    def test_derivatives(self, psf_cuda):
         """
         Tests the derivate calculation
 
