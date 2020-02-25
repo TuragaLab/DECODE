@@ -2,9 +2,9 @@ import warnings
 
 import numpy as np
 import torch
-import torch_cpp
 
 from .utils import test_utils as tutil
+from .utils import generic as gutil
 
 
 class EmitterSet:
@@ -538,6 +538,12 @@ class EmitterSet:
         if isinstance(ix, int):
             ix = [ix]
 
+        if isinstance(ix, torch.Tensor) and ix.numel() == 1:  # PyTorch single element support
+            ix = [int(ix)]
+
+        if isinstance(ix, (np.ndarray, np.generic)) and ix.size == 1:  # numpy support
+            ix = [int(ix)]
+
         return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix], self.prob[ix], self.bg[ix],
                           self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix], sanity_check=False,
                           xy_unit=self.xy_unit, px_size=self.px_size)
@@ -586,44 +592,11 @@ class EmitterSet:
 
         """
 
-        frame_ix, ix = self.frame_ix.sort()
-        frame_ix = frame_ix.type(self.xyz.dtype)
-
-        grand_matrix = torch.cat((self.xyz[ix, :],
-                                  self.phot[ix].unsqueeze(1),
-                                  frame_ix.unsqueeze(1).type(self.xyz.dtype),
-                                  self.id[ix].unsqueeze(1).type(self.xyz.dtype),
-                                  self.prob[ix].unsqueeze(1),
-                                  self.bg[ix].unsqueeze(1),
-                                  self.xyz_cr[ix, :],
-                                  self.phot_cr[ix].unsqueeze(1),
-                                  self.bg_cr[ix].unsqueeze(1)), dim=1)
-
         """The first frame is assumed to be 0. If it's negative go to the lowest negative."""
-        if len(self) != 0:
-            ix_low_ = ix_low if ix_low is not None else frame_ix.min()
-            ix_up_ = ix_up if ix_up is not None else frame_ix.max()
+        ix_low = ix_low if ix_low is not None else self.frame_ix.min().item()
+        ix_up = ix_up if ix_up is not None else self.frame_ix.max().item()
 
-            """Call C++ implementation of splitting."""
-            grand_matrix_list = torch_cpp.split_tensor(grand_matrix, frame_ix, ix_low_, ix_up_)
-
-        else:
-            """
-            If there is absolutelty nothing to split (i.e. empty emitterset) we may want to have a list of
-            empty sets of emitters. This only applies if ix_l is not inferred (i.e. not NoneNone).
-            Otherwise we will have a one element list with an empty emitter set.
-            """
-            if ix_low is None:
-                grand_matrix_list = [grand_matrix]
-            else:
-                grand_matrix_list = [grand_matrix] * (ix_up - ix_low + 1)
-
-        em_list = [EmitterSet(xyz=em[:, :3], phot=em[:, 3], frame_ix=em[:, 4].int(), id=em[:, 5].int(), prob=em[:, 6],
-                              bg=em[:, 7], xyz_cr=em[:, 8:11], phot_cr=em[:, 11], bg_cr=em[:, 12],
-                              sanity_check=False, xy_unit=self.xy_unit, px_size=self.px_size) for em in
-                   grand_matrix_list]
-
-        return em_list
+        return gutil.split_sliceable(x=self, x_ix=self.frame_ix, ix_low=ix_low, ix_high=ix_up)
 
     def _convert_coordinates(self, factor=None, shift=None, axis=None):
         """
