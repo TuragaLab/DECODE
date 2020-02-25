@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
+set(CMAKE_CUDA_COMPILER "/usr/local/cuda/bin/nvcc")  # ToDo: Remove hard coed path later on
+
 project(splininger LANGUAGES CXX C)
 
 include(CheckLanguage)
