@@ -474,7 +474,7 @@ class CubicSplinePSF(PSF):
         out = out.reshape(n_rois, *self.roi_size_px)
         return out
 
-    def derivative(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor):
+    def derivative(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, add_bg: bool = True):
         """
         Computes the px wise derivative per ROI. Outputs ROIs additionally (since its computationally free of charge).
 
@@ -482,6 +482,7 @@ class CubicSplinePSF(PSF):
             xyz:
             phot:
             bg:
+            add_bg (bool): add background value in ROI calculation
 
         Returns:
             derivatives (torch.Tensor): derivatives in correct units. Dimension N x N_par x H x W
@@ -491,7 +492,7 @@ class CubicSplinePSF(PSF):
         xyz_ = self.coord2impl(xyz)
         n_rois = xyz.size(0)
 
-        drv_rois, rois = self._spline_impl.forward_drv_rois(xyz_[:, 0], xyz_[:, 1], xyz_[:, 2], phot, bg)
+        drv_rois, rois = self._spline_impl.forward_drv_rois(xyz_[:, 0], xyz_[:, 1], xyz_[:, 2], phot, bg, add_bg)
         drv_rois = torch.from_numpy(drv_rois).reshape(n_rois, self.n_par, *self.roi_size_px)
         rois = torch.from_numpy(rois).reshape(n_rois, *self.roi_size_px)
 
@@ -510,12 +511,13 @@ class CubicSplinePSF(PSF):
         Args:
             xyz:
             phot:
+            bg:
 
         Returns:
             fisher (torch.Tensor): Fisher Matrix. Dimension N x N_par x N_par
-            rois (torch.Tensor): ROIs. Dimension N x H x W
+            rois (torch.Tensor): ROIs with background added. Dimension N x H x W
         """
-        drv, rois = self.derivative(xyz, phot, bg)
+        drv, rois = self.derivative(xyz, phot, bg, True)
 
         """
         Construct fisher by batched matrix multiplication. For this we have to play around with the axis of the 
@@ -538,11 +540,13 @@ class CubicSplinePSF(PSF):
             xyz:
             phot:
             bg:
-            inversion: (function) overwrite default inversion with another function that can batch invert matrices
+            inversion: (function) overwrite default inversion with another function that can batch(!) invert matrices.
+                The last two dimensions are the the to be inverted dimensions. Dimension of fisher matrix: N x H x W
+                where N is the batch dimension.
 
         Returns:
             crlb (torch.Tensor): Cramer-Rao-Lower Bound. Dimension N x N_par
-            rois (torch.Tensor): ROIs. Dimension N x H x W
+            rois (torch.Tensor): ROIs with background added. Dimension N x H x W
         """
 
         if inversion is not None:
@@ -569,7 +573,7 @@ class CubicSplinePSF(PSF):
 
         Returns:
             crlb (torch.Tensor): Cramer-Rao-Lower Bound. Dimension N x N_par
-            rois (torch.Tensor): ROIs. Dimension N x H x W
+            rois (torch.Tensor): ROIs with background added. Dimension N x H x W
         """
         crlb, rois = self.crlb(xyz, phot, bg, inversion)
         return crlb.sqrt(), rois

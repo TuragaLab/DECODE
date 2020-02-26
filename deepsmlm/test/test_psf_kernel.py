@@ -1,18 +1,13 @@
-import torch
-import pytest
-import numpy as np
 import random
-import matplotlib.pyplot as plt
-from unittest import TestCase
 
-import deepsmlm.neuralfitter.target_generator
-from deepsmlm.generic.emitter import CoordinateOnlyEmitter
-import deepsmlm.generic.emitter as emc
-import deepsmlm.generic.psf_kernel as psf_kernel
+import matplotlib.pyplot as plt
+import pytest
+import torch
+
 import deepsmlm.generic.inout.load_calibration as load_cal
-import deepsmlm.generic.utils.test_utils as tutil
 import deepsmlm.generic.plotting.frame_coord as plf
-import deepsmlm.generic.plotting.plot_utils as plu
+import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.generic.utils.test_utils as tutil
 
 
 class TestPSF:
@@ -25,6 +20,7 @@ class TestPSF:
         Returns:
             psf_kernel.PSF: abstract PSF
         """
+
         class PseudoAbsPSF(psf_kernel.PSF):
             def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
                 if xyz.numel() >= 1:
@@ -85,112 +81,6 @@ class TestGaussianExpect:
         assert pytest.approx(normgauss2d.forward(xyz, phot).max().item(), 0.05) == 1
 
 
-class TestOffsetPSF(TestCase):
-    def setUp(self) -> None:
-        """
-        Implicit test on the constructor
-        Do not change this here, because then the tests will be broken.
-        """
-        self.psf_bin_1px = deepsmlm.neuralfitter.target_generator.OffsetPSF((-0.5, 31.5),
-                                                                            (-0.5, 31.5),
-                                                                            (32, 32))
-
-        self.delta_psf_1px = psf_kernel.DeltaPSF((-0.5, 31.5),
-                                                 (-0.5, 31.5),
-                                                 None, (32, 32), 0, False, 0)
-
-        self.psf_bin_halfpx = deepsmlm.neuralfitter.target_generator.OffsetPSF((-0.5, 31.5),
-                                                                               (-0.5, 31.5),
-                                                                               (64, 64))
-
-        self.delta_psf_hpx = psf_kernel.DeltaPSF((-0.5, 31.5),
-                                                 (-0.5, 31.5),
-                                                 None, (64, 64), 0, False, 0)
-
-    def test_bin_centrs(self):
-        """
-        Test the bin centers.
-        :return:
-        """
-        self.assertEqual(-0.5, self.psf_bin_1px.bin_x[0])
-        self.assertEqual(0.5, self.psf_bin_1px.bin_x[1])
-        self.assertEqual(0., self.psf_bin_1px.bin_ctr_x[0])
-        self.assertEqual(0., self.psf_bin_1px.bin_ctr_y[0])
-
-        self.assertEqual(-0.5, self.psf_bin_halfpx.bin_x[0])
-        self.assertEqual(0., self.psf_bin_halfpx.bin_x[1])
-        self.assertEqual(-0.25, self.psf_bin_halfpx.bin_ctr_x[0])
-        self.assertEqual(-0.25, self.psf_bin_halfpx.bin_ctr_y[0])
-
-    def test_offset_range(self):
-        self.assertEqual(0.5, self.psf_bin_1px.offset_max_x)
-        self.assertEqual(0.5, self.psf_bin_1px.offset_max_x)
-        self.assertEqual(0.25, self.psf_bin_halfpx.offset_max_y)
-        self.assertEqual(0.25, self.psf_bin_halfpx.offset_max_y)
-
-    def test_foward_range(self):
-        xyz = CoordinateOnlyEmitter(torch.rand((1000, 3)) * 40)
-        offset_1px = self.psf_bin_1px.forward(xyz)
-        offset_hpx = self.psf_bin_halfpx.forward(xyz)
-
-        self.assertTrue(offset_1px.max().item() <= 0.5)
-        self.assertTrue(offset_1px.min().item() > -0.5)
-        self.assertTrue(offset_hpx.max().item() <= 0.25)
-        self.assertTrue(offset_hpx.min().item() > -0.25)
-
-    def test_forward_indexing_hc(self):
-        """
-        Test whether delta psf and offset map share the same indexing (i.e. the order of the axis
-        is consistent).
-        :return:
-        """
-        xyz = CoordinateOnlyEmitter(torch.tensor([[15.1, 2.9, 0.]]))
-
-        img_nonzero = self.delta_psf_1px.forward(xyz)[0].nonzero()
-        self.assertTrue(torch.equal(img_nonzero, self.psf_bin_1px.forward(xyz)[0].nonzero()))
-        self.assertTrue(torch.equal(img_nonzero, self.psf_bin_1px.forward(xyz)[1].nonzero()))
-
-        img_nonzero = self.delta_psf_hpx.forward(xyz)[0].nonzero()
-        self.assertTrue(torch.equal(img_nonzero, self.psf_bin_halfpx.forward(xyz)[0].nonzero()))
-        self.assertTrue(torch.equal(img_nonzero, self.psf_bin_halfpx.forward(xyz)[1].nonzero()))
-
-    def test_outofrange(self):
-        """
-        Test whether delta psf and offset map share the same indexing (i.e. the order of the axis
-        is consistent).
-        :return:
-        """
-        xyz = CoordinateOnlyEmitter(torch.tensor([[31.6, 16., 0.]]))
-        offset_map = self.psf_bin_1px.forward(xyz)
-        self.assertTrue(torch.equal(torch.zeros_like(offset_map), offset_map))
-
-    def test_forward_offset_1px_units(self):
-        """
-        Test forward with 1 px = 1 unit
-        :return:
-        """
-        xyz = CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.],
-                                                  [1.5, 1.2, 0.],
-                                                  [2.7, 0.5, 0.]]))
-
-        offset_1px = self.psf_bin_1px.forward(xyz)
-
-        self.assertTrue(torch.allclose(torch.tensor([0., 0.]), offset_1px[:, 0, 0]))
-        self.assertTrue(torch.allclose(torch.tensor([0.5, 0.2]), offset_1px[:, 1, 1]))
-        self.assertTrue(torch.allclose(torch.tensor([-0.3, 0.5]), offset_1px[:, 3, 0]))
-
-    def test_forward_offset_hpx(self):
-        xyz = CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.],
-                                                  [0.5, 0.2, 0.]]))
-
-        offset_hpx = self.psf_bin_halfpx.forward(xyz)
-
-        # x_exp = torch.tensor([[0]])
-        #
-        # self.assertTrue(torch.allclose(torch.tensor([])))
-        return True
-
-
 class TestCubicSplinePSF:
     bead_cal = 'assets/bead_cal_for_testing.mat'
 
@@ -215,6 +105,27 @@ class TestCubicSplinePSF:
     @pytest.fixture(scope='class')
     def psf_cuda(self, psf_cpu):
         return psf_cpu.cuda()
+
+    @pytest.fixture(scope='class')
+    def onek_rois(self, psf_cpu):
+        """
+        Thousand random emitters in ROI
+
+        Returns:
+            xyz:
+            phot:
+            bg:
+            n (int): number of emitters
+
+        """
+        n = 1000
+        xyz = torch.rand((n, 3))
+        xyz[:, :2] += psf_cpu.ref0[:2]
+        xyz[:, 2] = xyz[:, 2] * 1000 - 500
+        phot = torch.ones((n,)) * 10000
+        bg = 50 * torch.ones((n,))
+
+        return xyz, phot, bg, n
 
     def test_ship(self, psf_cpu, psf_cuda):
         """
@@ -251,7 +162,7 @@ class TestCubicSplinePSF:
         xyz = torch.rand((n, 3))
         xyz[:, :2] += psf_cpu.ref0[:2]
         xyz[:, 2] = xyz[:, 2] * 1000 - 500
-        phot = torch.ones((n, ))
+        phot = torch.ones((n,))
 
         roi_cpu = psf_cpu.forward_rois(xyz, phot)
         roi_cuda = psf_cuda.forward_rois(xyz, phot)
@@ -277,8 +188,8 @@ class TestCubicSplinePSF:
         Tests approximate equality of CUDA vs CPU implementation for a few frames
 
         Args:
-            psf_cpu: psf implementation on CPU
-            psf_cuda: psf implementation on CUDA
+            psf_cpu: psf fixture, CPU version
+            psf_cuda: psf fixture, CUDA version
 
         Returns:
 
@@ -287,7 +198,7 @@ class TestCubicSplinePSF:
         xyz = torch.rand((n, 3)) * 64
         xyz[:, 2] = torch.randn_like(xyz[:, 2]) * 1000 - 500
         phot = torch.ones((n,))
-        frame_ix = torch.randint(0, 500, size=(n, ))
+        frame_ix = torch.randint(0, 500, size=(n,))
 
         frames_cpu = psf_cpu.forward(xyz, phot, frame_ix)
         frames_cuda = psf_cuda.forward(xyz, phot, frame_ix)
@@ -308,105 +219,76 @@ class TestCubicSplinePSF:
         plt.title('CUDA implementation')
         plt.show()
 
-    def test_derivatives(self, psf_cuda):
+    def test_derivatives(self, psf_cuda, onek_rois):
         """
         Tests the derivate calculation
 
         Args:
-            psf_cuda:
+            psf_cuda: psf fixture (see above)
+            onek_rois: 1k roi fixture (see above)
 
         Returns:
 
         """
-        n = 1000
-        xyz = torch.rand((n, 3))
-        xyz[:, :2] += psf_cuda.ref0[:2]
-        xyz[:, 2] = xyz[:, 2] * 1000 - 500
-        phot = torch.ones((n,)) * 10000
-        bg = 50 * torch.ones((n,))
+        """Setup"""
+        xyz, phot, bg, n = onek_rois
 
+        """Run"""
         drv, rois = psf_cuda.derivative(xyz, phot, bg)
 
-        assert True
+        """Test"""
+        assert drv.size() == torch.Size([n, psf_cuda.n_par, *psf_cuda.roi_size_px]), "Wrong dimension of derivatives."
+        assert tutil.tens_almeq(drv[:, -1].unique(), torch.Tensor([0., 1.])), "Derivative of background must be 1 or 0."
 
-    def test_fisher(self, psf_cuda):
-        xyz = torch.Tensor([[13., 13., 0.]])
-        phot = torch.ones_like(xyz[:, 0]) * 1000
-        bg = torch.ones_like(phot) * 50
+        assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."
 
+    def test_fisher(self, psf_cuda, onek_rois):
+        """
+        Tests the fisher matrix calculation.
+
+        Args:
+            psf_cuda: psf fixture (see above)
+            onek_rois: 1k roi fixture (see above)
+
+        Returns:
+
+        """
+        """Setup"""
+        xyz, phot, bg, n = onek_rois
+
+        """Run"""
         fisher, rois = psf_cuda.fisher(xyz, phot, bg)
 
-        assert True
+        """Test"""
+        assert fisher.size() == torch.Size([n, psf_cuda.n_par, psf_cuda.n_par])
 
-    def test_crlb(self, psf_cuda):
-        xyz = torch.Tensor([[13., 13., 0.]])
-        phot = torch.ones_like(xyz[:, 0]) * 10000
-        bg = torch.ones_like(phot) * 50
+        assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."
 
-        crlb, rois = psf_cuda.crlb(xyz, phot, bg, torch.pinverse)
+    def test_crlb(self, psf_cuda, onek_rois):
+        """
+        Tests the crlb calculation
+        Args:
+            psf_cuda: psf fixture (see above)
+            onek_rois: 1k roi fixture (see above)
 
-        assert True
+        Returns:
 
+        """
+        """Setup"""
+        xyz, phot, bg, n = onek_rois
+        alt_inv = torch.pinverse
 
-class TestDeprSplinePSF:
-    bead_cal = 'assets/bead_cal_for_testing.mat'
+        """Run"""
+        crlb, rois = psf_cuda.crlb(xyz, phot, bg)
+        if float(torch.__version__[:3]) >= 1.4:
+            crlb_p, _ = psf_cuda.crlb(xyz, phot, bg, inversion=alt_inv)
 
-    @pytest.fixture(scope='class')
-    def psf(self):
-        xextent = (-0.5, 63.5)
-        yextent = (-0.5, 63.5)
-        img_shape = (64, 64)
-        psf = load_cal.SMAPSplineCoefficient(self.bead_cal, psf_kernel.DeprCubicSplinePSF).init_spline(xextent, yextent,
-                                                                                                       img_shape)
+        """Test"""
+        assert crlb.size() == torch.Size([n, psf_cuda.n_par]), "Wrong CRLB dimension."
+        assert (torch.Tensor([.01, .01, .02]) ** 2 <= crlb[:, :3]).all(), "CRLB in wrong range (lower bound)."
+        assert (torch.Tensor([.1, .1, 100]) ** 2 >= crlb[:, :3]).all(), "CRLB in wrong range (upper bound)."
 
-        return psf
+        if float(torch.__version__[:3]) >= 1.4:
+            assert tutil.tens_almeq(crlb, crlb_p, 1e-1)
 
-    def test_crlb_one_em(self, psf):
-        em = emc.CoordinateOnlyEmitter(torch.tensor([[32., 32., 0.]]))
-        em.phot = torch.tensor([5000.])
-        em.bg = torch.tensor([10.])
-
-        em.populate_crlb(psf)
-        assert tutil.tens_seq(em.xyz_scr, torch.tensor([[0.1, 0.1, 1.5]]))
-        assert tutil.tens_seq(em.phot_cr, torch.tensor([[200.]]))
-        assert not torch.isnan(em.bg_cr).any().item()
-
-    def test_crlb_multi(self, psf):
-        em = emc.RandomEmitterSet(10, 64)
-        em.phot *= torch.rand((1,)) * 5000
-        em.bg = 100 * torch.ones_like(em.bg)
-
-        em_single = em.get_subset([0])
-        assert tutil.tens_almeq(psf.crlb(em_single.xyz, em_single.phot, em_single.bg, 'xyzpb')[0],
-                                psf.crlb_single(em.xyz, em.phot, em.bg, 'xyzpb')[0][0, :], 1e-4)
-
-    def test_crlb_single(self, psf):
-        em = emc.CoordinateOnlyEmitter(torch.tensor([[32., 32., 0.]]))
-        em.phot = torch.tensor([5000.])
-        em.bg = torch.tensor([10.])
-
-        cr_m, img_m = psf.crlb(em.xyz, em.phot, em.bg)
-        cr_s, img_s = psf.crlb_single(em.xyz, em.phot, em.bg)
-
-        assert tutil.tens_almeq(cr_m, cr_s)
-        assert tutil.tens_almeq(img_m, img_s)
-        
-        em = emc.RandomEmitterSet(20, 64)
-        em.xyz[:, 2] *= (torch.rand_like(em.xyz[:, 2]) - 0.5) * 2 * 750
-        em.phot *= 10000 * torch.rand_like(em.phot)
-        em.bg = 10. * torch.ones_like(em.bg)
-
-        cr_m, img_m = psf.crlb(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
-        cr_s, img_s = psf.crlb_single(em.xyz, em.phot, em.bg, crlb_order='xyzpb')
-
-        ix_weird = (cr_m - cr_s < -1e-2)[:, :2].any(1)
-        print(cr_m.sqrt() - cr_s.sqrt())
-        em.phot *= 0
-        em.phot[ix_weird] = 1.
-
-        from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord
-        import matplotlib.pyplot as plt
-        PlotFrameCoord(img_m, pos_tar=em.xyz, phot_tar=em.phot).plot()
-        plt.colorbar()
-        plt.show()
-
+        assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."
