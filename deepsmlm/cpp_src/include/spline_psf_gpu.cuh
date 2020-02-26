@@ -27,6 +27,8 @@ namespace spline_psf_gpu {
 
         float *coeff;
 
+        // bool add_bg_drv_roi;  // add background value in roi-wise calculation of the derivatives where the ROIs are output as well
+
     } spline;
 
 
@@ -46,7 +48,7 @@ namespace spline_psf_gpu {
         const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float*;
 
     auto forward_drv_rois_host2device(spline *d_sp, float *d_rois, float *d_drv_rois, const int n, const int roi_size_x, const int roi_size_y,
-        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg) -> void;
+        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg, const bool add_bg) -> void;
 
     auto forward_frames_host2device(spline *d_sp, const int frame_size_x, const int frame_size_y, const int n_frames,
         const int n_rois, const int roi_size_x, const int roi_size_y,
@@ -61,7 +63,7 @@ namespace spline_psf_gpu {
         const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> void;
 
     auto forward_drv_rois_host2host(spline *d_sp, float *h_rois, float *h_drv_rois, const int n, const int roi_size_x, const int roi_size_y,
-        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg) -> void;
+        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg, const bool add_bg) -> void;
 
     auto forward_frames_host2host(spline *d_sp, float *h_frames, const int frame_size_x, const int frame_size_y, const int n_frames,
         const int n_rois, const int roi_size_x, const int roi_size_y,

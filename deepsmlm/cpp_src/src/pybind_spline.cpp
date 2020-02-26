@@ -68,7 +68,8 @@ class PSFWrapperBase {
                                     py::array_t<float, py::array::c_style | py::array::forcecast> y, 
                                     py::array_t<float, py::array::c_style | py::array::forcecast> z, 
                                     py::array_t<float, py::array::c_style | py::array::forcecast> phot,
-                                    py::array_t<float, py::array::c_style | py::array::forcecast> bg) -> std::tuple<py::array_t<float>, py::array_t<float>> {
+                                    py::array_t<float, py::array::c_style | py::array::forcecast> bg,
+                                    const bool add_bg) -> std::tuple<py::array_t<float>, py::array_t<float>> {
 
 
                 const int n_par = 5;
@@ -78,7 +79,7 @@ class PSFWrapperBase {
                 py::array_t<float> h_drv_rois(n_par * n * roi_size_x * roi_size_y);
 
                 spg::forward_drv_rois_host2host(psf, h_rois.mutable_data(), h_drv_rois.mutable_data(), n, roi_size_x, roi_size_y, 
-                                                x.data(), y.data(), z.data(), phot.data(), bg.data());
+                                                x.data(), y.data(), z.data(), phot.data(), bg.data(), add_bg);
 
                 return std::make_tuple(h_drv_rois, h_rois);
             }

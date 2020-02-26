@@ -24,7 +24,7 @@ auto forward_rois(spline *d_sp, float *d_rois, const int n, const int roi_size_x
     const float *d_x, const float *d_y, const float *d_z, const float *d_phot) -> void;
 
 auto forward_drv_rois(spline *d_sp, float *d_rois, float *d_drv_rois, const int n, const int roi_size_x, const int roi_size_y, 
-    const float *d_x, const float *d_y, const float *d_z, const float *d_phot, const float *d_bg) -> void;
+    const float *d_x, const float *d_y, const float *d_z, const float *d_phot, const float *d_bg, const bool add_bg) -> void;
 
 __device__
 auto kernel_computeDelta3D(spline *sp, 
@@ -34,7 +34,7 @@ auto kernel_computeDelta3D(spline *sp,
 __global__
 auto kernel_derivative(spline *sp, float *rois, float *drv_rois, const int roi_ix, const int npx, 
     const int npy, int xc, int yc, int zc, const float phot, const float bg, 
-    const float x_delta, const float y_delta, const float z_delta) -> void;
+    const float x_delta, const float y_delta, const float z_delta, const bool add_bg) -> void;
 
 __global__
 auto fAt3Dj(spline *sp, float* rois, int roi_ix, int npx, int npy, 
@@ -45,13 +45,9 @@ auto kernel_roi(spline *sp, float *rois, const int npx, const int npy,
     const float* xc_, const float* yc_, const float* zc_, const float* phot_) -> void;
 
 __global__
-auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, 
-    const float* xc_, const float* yc_, const float* zc_, const float* phot_) -> void;
-
-__global__
 auto kernel_derivative_roi(spline *sp, float *rois, float *drv_rois, const int npx, const int npy, 
     const float *xc_, const float *yc_, const float *zc_, 
-    const float *phot_, const float *bg_) -> void;
+    const float *phot_, const float *bg_, const bool add_bg) -> void;
 
 __global__
 auto roi_accumulate(float *frames, const int frame_size_x, const int frame_size_y, const int n_frames,
@@ -154,7 +150,7 @@ namespace spline_psf_gpu {
     }
 
     auto forward_drv_rois_host2device(spline *d_sp, float *d_rois, float *d_drv_rois, const int n, const int roi_size_x, const int roi_size_y,
-        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg) -> void {
+        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg, const bool add_bg) -> void {
     
         // allocate and copy coordinates and photons
         float *d_x, *d_y, *d_z, *d_phot, *d_bg;
@@ -175,7 +171,7 @@ namespace spline_psf_gpu {
         cudaMemset(d_drv_rois, 0.0, n_par * n * roi_size_x * roi_size_y * sizeof(float));
 
         // call to actual implementation
-        forward_drv_rois(d_sp, d_rois, d_drv_rois, n, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot, d_bg);
+        forward_drv_rois(d_sp, d_rois, d_drv_rois, n, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot, d_bg, add_bg);
 
         cudaFree(d_x);
         cudaFree(d_y);
@@ -187,7 +183,7 @@ namespace spline_psf_gpu {
     }
 
     auto forward_drv_rois_host2host(spline *d_sp, float *h_rois, float *h_drv_rois, const int n, const int roi_size_x, const int roi_size_y,
-        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg) -> void {
+        const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg, const bool add_bg) -> void {
         
         // allocate space for rois and derivatives on device
         const int n_par = 5;
@@ -196,7 +192,7 @@ namespace spline_psf_gpu {
         cudaMalloc(&d_drv_rois, n_par * n * roi_size_x * roi_size_y * sizeof(float));
 
         // forward
-        forward_drv_rois_host2device(d_sp, d_rois, d_drv_rois, n, roi_size_x, roi_size_y, h_x, h_y, h_z, h_phot, h_bg);
+        forward_drv_rois_host2device(d_sp, d_rois, d_drv_rois, n, roi_size_x, roi_size_y, h_x, h_y, h_z, h_phot, h_bg, add_bg);
 
         cudaMemcpy(h_rois, d_rois, n * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(h_drv_rois, d_drv_rois, n * n_par * roi_size_x * roi_size_y * sizeof(float), cudaMemcpyDeviceToHost);
@@ -291,7 +287,7 @@ auto forward_rois(spline *d_sp, float *d_rois, const int n, const int roi_size_x
 }
 
 auto forward_drv_rois(spline *d_sp, float *d_rois, float *d_drv_rois, const int n, const int roi_size_x, const int roi_size_y, 
-    const float *d_x, const float *d_y, const float *d_z, const float *d_phot, const float *d_bg) -> void {
+    const float *d_x, const float *d_y, const float *d_z, const float *d_phot, const float *d_bg, const bool add_bg) -> void {
     
     // init cuda_err
     cudaError_t err = cudaSuccess;
@@ -302,7 +298,7 @@ auto forward_drv_rois(spline *d_sp, float *d_rois, float *d_drv_rois, const int 
     }
 
     // start n blocks which itself start threads corresponding to the number of px childs (dynamic parallelism)
-    kernel_derivative_roi<<<n, 1>>>(d_sp, d_rois, d_drv_rois, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot, d_bg);
+    kernel_derivative_roi<<<n, 1>>>(d_sp, d_rois, d_drv_rois, roi_size_x, roi_size_y, d_x, d_y, d_z, d_phot, d_bg, add_bg);
     cudaDeviceSynchronize();
 
     err = cudaGetLastError();
@@ -394,6 +390,7 @@ auto fAt3Dj(spline *sp, float* rois, const int roi_ix, const int npx, const int 
     
     // If the lateral position is outside the calibration, return epsilon value
     if ((xc < 0) || (xc > sp->xsize-1) || (yc < 0) || (yc > sp->ysize-1)) {
+
         rois[roi_ix * npx * npy + i * npy + j] = sp->roi_out_eps;
         return;
     }
@@ -442,7 +439,9 @@ auto kernel_roi(spline *sp, float *rois, const int npx, const int npy, const flo
 }
 
 __global__
-auto kernel_derivative_roi(spline *sp, float *rois, float *drv_rois, const int npx, const int npy, const float *xc_, const float *yc_, const float *zc_, const float *phot_, const float *bg_) -> void {
+auto kernel_derivative_roi(spline *sp, float *rois, float *drv_rois, const int npx, const int npy, 
+    const float *xc_, const float *yc_, const float *zc_, const float *phot_, const float *bg_, const bool add_bg) -> void {
+
     int r = blockIdx.x;  // roi number 'r'
 
     int x0, y0, z0;
@@ -464,14 +463,14 @@ auto kernel_derivative_roi(spline *sp, float *rois, float *drv_rois, const int n
     z0 = (int)floor(zc);
     z_delta = zc - z0;
 
-    kernel_derivative<<<1, npx * npy>>>(sp, rois, drv_rois, r, npx, npy, x0, y0, z0, phot, bg, x_delta, y_delta, z_delta);
+    kernel_derivative<<<1, npx * npy>>>(sp, rois, drv_rois, r, npx, npy, x0, y0, z0, phot, bg, x_delta, y_delta, z_delta, add_bg);
 
     return;
 }
 
 __global__
 auto kernel_derivative(spline *sp, float *rois, float *drv_rois, const int roi_ix, const int npx, const int npy,
-int xc, int yc, int zc, const float phot, const float bg, const float x_delta, const float y_delta, const float z_delta) -> void {
+    int xc, int yc, int zc, const float phot, const float bg, const float x_delta, const float y_delta, const float z_delta, const bool add_bg) -> void {
 
     int i = (blockIdx.x * blockDim.x + threadIdx.x) / npx;
     int j = (blockIdx.x * blockDim.x + threadIdx.x) % npx;
@@ -508,8 +507,13 @@ int xc, int yc, int zc, const float phot, const float bg, const float x_delta, c
         for (int k = 0; k < sp->n_par; k++) {
             dudt[k] = sp->roi_out_deriv_eps;
         }
-
-        rois[roi_ix * npx * npy + i * npy + j] = sp->roi_out_eps;
+        
+        if (add_bg) {
+            rois[roi_ix * npx * npy + i * npy + j] = sp->roi_out_eps + bg;
+        } 
+        else {
+            rois[roi_ix * npx * npy + i * npy + j] = sp->roi_out_eps;
+        }
         return;
     }
 
@@ -535,7 +539,12 @@ int xc, int yc, int zc, const float phot, const float bg, const float x_delta, c
     dudt[3] = 1;
 
     // write to global roi and derivate stack
-    rois[roi_ix * npx * npy + i * npy + j] = phot * fv;
+    if (add_bg) {
+        rois[roi_ix * npx * npy + i * npy + j] = phot * fv + bg;
+    }
+    else {
+        rois[roi_ix * npx * npy + i * npy + j] = phot * fv;
+    }
 
     for (int k = 0; k < sp->n_par; k++) {
         drv_rois[roi_ix * sp->n_par * npx * npy + k * npx * npy + i * npy + j] = dudt[k];
