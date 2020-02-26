@@ -1,0 +1,45 @@
+name: deepsmlm_py38_pt14
+channels:
+  - pytorch
+  - conda-forge
+  - anaconda
+  - anaconda-fusion
+  - comet_ml
+  - pyviz
+  - defaults
+
+dependencies:
+  - bokeh
+  - click
+  - cmake=3.15
+  - comet_ml
+  - cudatoolkit=10.1
+  - deprecated
+  - dotmap
+  - holoviews
+  - intel-openmp
+  - jupyter_contrib_nbextensions
+  - jupyterlab
+  - nb_conda
+  - matplotlib
+  - nodejs
+  - numpy
+  - opencv
+  - pillow
+  - pyyaml
+  - python=3.8
+  - pytorch=1.4.*
+  - pytest
+  - pywavelets
+  - scikit-image
+  - scipy
+  - seaborn
+  - setuptools
+  - scikit-learn
+  - snakeviz
+  - sqlite
+  - tifffile
+  - tikzplotlib
+  - torchvision
+  - tqdm
+dm
