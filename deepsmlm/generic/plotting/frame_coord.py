@@ -41,7 +41,7 @@ class PlotFrame:
 
         self.frame = frame.detach().squeeze()
         self.extent = extent
-        self.norm = LogNorm() if norm is 'log' else None
+        self.norm = LogNorm() if norm == 'log' else None
         self.clim = clim
         self.plot_colorbar = plot_colorbar
 

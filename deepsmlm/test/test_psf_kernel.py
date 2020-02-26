@@ -48,7 +48,7 @@ class TestPSF:
         phot = torch.ones_like(xyz[:, 0])
         frame_ix = torch.Tensor([1, -2]).int()
 
-        frames = abs_psf._forward_single_frame_wrapper(xyz, phot, frame_ix)
+        frames = abs_psf._forward_single_frame_wrapper(xyz, phot, frame_ix, -2, 1)
 
         assert frames.dim() == 3
         assert (frames[0] == 0.5).all()
@@ -56,7 +56,55 @@ class TestPSF:
         assert (frames[-1] == 15).all()
 
 
+class TestDeltaPSF:
+
+    @pytest.fixture(scope='class')
+    def delta_1px(self):
+        return psf_kernel.DeltaPSF(xextent=(-0.5, 31.5),
+                                   yextent=(-0.5, 31.5),
+                                   img_shape=(32, 32))
+
+    @pytest.fixture(scope='class')
+    def delta_05px(self):
+        return psf_kernel.DeltaPSF(xextent=(-0.5, 31.5),
+                                   yextent=(-0.5, 31.5),
+                                   img_shape=(64, 64))
+
+    def test_forward(self, delta_1px, delta_05px):
+        """
+        Tests the implementation
+        Args:
+            delta_1px:
+            delta_05px:
+
+        Returns:
+
+        """
+
+        xyz = torch.Tensor([[0., 0., 0.], [15.0, 15.0, 200.], [4.8, 4.8, 200.], [4.79, 4.79, 500.]])
+        phot = torch.ones_like(xyz[:, 0])
+        frame_ix = torch.tensor([1, 0, 1, 1])
+
+        """Run"""
+        out_1px = delta_1px.forward(xyz, phot, frame_ix, 0, 2)
+        out_05px = delta_05px.forward(xyz, phot, frame_ix, 0, 2)
+
+        """Test"""
+        assert out_1px.size() == torch.Size([3, 32, 32]), "Wrong output shape."
+        assert out_05px.size() == torch.Size([3, 64, 64]), "Wrong output shape."
+
+        assert out_1px[0, 15, 15] == 1.
+        assert out_05px[0, 31, 31] == 1.
+
+        assert out_1px[1, 0, 0] == 1.
+        assert out_05px[1, 1, 1] == 1.
+
+        assert (out_1px.unique() == torch.Tensor([0., 1.])).all()
+        assert (out_05px.unique() == torch.Tensor([0., 1.])).all()
+
+
 class TestGaussianExpect:
+
     @pytest.fixture(scope='class')
     def normgauss2d(self):
         return psf_kernel.GaussianExpect((-0.5, 63.5), (-0.5, 63.5), None, img_shape=(64, 64), sigma_0=1.5)
@@ -264,6 +312,8 @@ class TestCubicSplinePSF:
 
         assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."
 
+    @pytest.mark.xfail(float(torch.__version__[:3]) < 1.4, reason="Pseudo inverse is not implemented in batch mode "
+                                                                  "for older pytorch versions.")
     def test_crlb(self, psf_cuda, onek_rois):
         """
         Tests the crlb calculation
@@ -280,15 +330,18 @@ class TestCubicSplinePSF:
 
         """Run"""
         crlb, rois = psf_cuda.crlb(xyz, phot, bg)
-        if float(torch.__version__[:3]) >= 1.4:
-            crlb_p, _ = psf_cuda.crlb(xyz, phot, bg, inversion=alt_inv)
+        crlb_p, _ = psf_cuda.crlb(xyz, phot, bg, inversion=alt_inv)
 
         """Test"""
         assert crlb.size() == torch.Size([n, psf_cuda.n_par]), "Wrong CRLB dimension."
         assert (torch.Tensor([.01, .01, .02]) ** 2 <= crlb[:, :3]).all(), "CRLB in wrong range (lower bound)."
         assert (torch.Tensor([.1, .1, 100]) ** 2 >= crlb[:, :3]).all(), "CRLB in wrong range (upper bound)."
 
-        if float(torch.__version__[:3]) >= 1.4:
-            assert tutil.tens_almeq(crlb, crlb_p, 1e-1)
+        diff_inv = (crlb_p - crlb).abs()
+
+        assert tutil.tens_almeq(diff_inv[:, :2], torch.zeros_like(diff_inv[:, :2]), 1e-4)
+        assert tutil.tens_almeq(diff_inv[:, 2], torch.zeros_like(diff_inv[:, 2]), 1e-1)
+        assert tutil.tens_almeq(diff_inv[:, 3], torch.zeros_like(diff_inv[:, 3]), 1e2)
+        assert tutil.tens_almeq(diff_inv[:, 4], torch.zeros_like(diff_inv[:, 4]), 1e-3)
 
         assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."

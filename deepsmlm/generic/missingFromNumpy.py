@@ -143,9 +143,3 @@ def np_cache(*args, **kwargs):
         return wrapper
 
     return decorator
-
-
-if __name__ == '__main__':
-    x = torch.rand(8, 2)
-    print(x)
-    print(splitbatchandrunfunc(x, lambda x: x + 2, [], None), True)

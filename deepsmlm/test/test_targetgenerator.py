@@ -2,36 +2,40 @@ import pytest
 import torch
 from matplotlib import pyplot as plt
 
+import deepsmlm.generic.psf_kernel as psf_kernel
 from deepsmlm.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
 from deepsmlm.generic.plotting.frame_coord import PlotFrame, PlotFrameCoord
 from deepsmlm.generic.utils import test_utils as tutil
+from deepsmlm.generic.utils.test_utils import equal_nonzero
 from deepsmlm.neuralfitter.losscollection import OffsetROILoss
 from deepsmlm.neuralfitter.target_generator import OffsetRep, ROIOffsetRep, GlobalOffsetRep, OffsetPSF
-from deepsmlm.generic.utils.test_utils import equal_nonzero
-import deepsmlm.generic.psf_kernel as psf_kernel
 
 
-class TestOffsetPSF(TestCase):
-    def setUp(self) -> None:
-        """
-        Implicit test on the constructor
-        Do not change this here, because then the tests will be broken.
-        """
-        self.psf_bin_1px = OffsetPSF((-0.5, 31.5),
-                                     (-0.5, 31.5),
-                                     (32, 32))
+class TestOffsetPSF:
 
-        self.delta_psf_1px = psf_kernel.DeltaPSF((-0.5, 31.5),
-                                                 (-0.5, 31.5),
-                                                 None, (32, 32), 0, False, 0)
+    @pytest.fixture(scope='class')
+    def tar_bin_1px(self):
+        return OffsetPSF((-0.5, 31.5),
+                         (-0.5, 31.5),
+                         (32, 32))
 
-        self.psf_bin_halfpx = OffsetPSF((-0.5, 31.5),
-                                        (-0.5, 31.5),
-                                        (64, 64))
+    @pytest.fixture(scope='class')
+    def tar_bin_05px(self):
+        return OffsetPSF((-0.5, 31.5),
+                         (-0.5, 31.5),
+                         (64, 64))
 
-        self.delta_psf_hpx = psf_kernel.DeltaPSF((-0.5, 31.5),
-                                                 (-0.5, 31.5),
-                                                 None, (64, 64), 0, False, 0)
+    @pytest.fixture(scope='class')
+    def delta_1px(self):
+        return psf_kernel.DeltaPSF((-0.5, 31.5),
+                                   (-0.5, 31.5),
+                                   None, (32, 32), 0, False, 0)
+
+    @pytest.fixture(scope='class')
+    def delta_05px(self):
+        return psf_kernel.DeltaPSF((-0.5, 31.5),
+                                   (-0.5, 31.5),
+                                   None, (64, 64), 0, False, 0)
 
     def test_bin_centrs(self):
         """

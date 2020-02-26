@@ -44,14 +44,12 @@ class OffsetRep(TargetGenerator):
 
         self.delta = DeltaPSF(xextent,
                               yextent,
-                              zextent,
                               img_shape,
                               photon_normalise=False)
 
         # this might seem as a duplicate, but we need to make sure not to use a photon threshold for generating the z map.
         self.delta_z = DeltaPSF(xextent,
                               yextent,
-                              zextent,
                               img_shape,
                               photon_normalise=False)
 

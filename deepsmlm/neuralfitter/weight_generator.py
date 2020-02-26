@@ -86,7 +86,7 @@ class SimpleWeight(WeightGenerator):
         super().__init__()
         self.target_roi_size = target_roi_size
         self.channels = channels
-        self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, None, img_shape, None)
+        self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape, None)
         self.delta2roi = Delta2ROI(roi_size=self.target_roi_size,
                                    channels=4,
                                    overlap_mode='zero')
@@ -158,9 +158,9 @@ class DerivePseudobgFromBg(WeightGenerator):
 
         self.kernel = torch.ones((bg_roi_size[0], bg_roi_size[1])).unsqueeze(0).unsqueeze(0) / (bg_roi_size[0] * bg_roi_size[1])
         self.kernel = self.kernel.float()
-        self.delta_psf = psf_kernel.DeltaPSF(xextent, yextent, None, img_shape)
-        self.bin_x = self.delta_psf.bin_x
-        self.bin_y = self.delta_psf.bin_y
+        self.delta_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape)
+        self.bin_x = self.delta_psf._bin_x
+        self.bin_y = self.delta_psf._bin_y
 
     def forward_impl(self, x):
         """
@@ -254,7 +254,7 @@ class GenerateWeightMaskFromCRLB(WeightGenerator):
     def __init__(self, xextent, yextent, img_shape, roi_size, chwise_rescale=True):
         super().__init__()
 
-        self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, None, img_shape, None)
+        self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape, None)
         self.rep_kernel = torch.ones((1, 1, roi_size, roi_size))
 
         self.roi_increaser = Delta2ROI(roi_size, channels=6, overlap_mode='zero')

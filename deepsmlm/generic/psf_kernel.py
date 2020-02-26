@@ -54,7 +54,7 @@ class PSF(ABC):
             ix_high: (optional) upper frame_index, if None will be determined automatically
 
         Returns:
-            frames: (torch.Tensor)
+            frames (torch.Tensor): frames of size N x H x W where N is the batch dimension.
         """
         if frame_ix is None:
             frame_ix = torch.zeros((xyz.size(0), )).int()
@@ -76,7 +76,8 @@ class PSF(ABC):
     def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
         raise NotImplementedError
 
-    def _forward_single_frame_wrapper(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor):
+    def _forward_single_frame_wrapper(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor,
+                                      ix_low: int, ix_high: int):
         """
         This is a convenience (fallback) wrapper that splits the input in frames and forward them throguh the single
         frame
@@ -86,11 +87,13 @@ class PSF(ABC):
             xyz: coordinates of size N x (2 or 3)
             weight: photon value
             frame_ix: frame index
+            ix_low (int):  lower frame_index, if None will be determined automatically
+            ix_high (int):  upper frame_index, if None will be determined automatically
 
         Returns:
             frames (torch.Tensor): N x H x W, stacked frames
         """
-        ix_split, n_splits = gutil.ix_split(frame_ix)
+        ix_split, n_splits = gutil.ix_split(frame_ix, ix_min=ix_low, ix_max=ix_high)
         frames = [self._forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
         frames = torch.stack(frames, 0)
 
@@ -99,28 +102,29 @@ class PSF(ABC):
 
 class DeltaPSF(PSF):
     """
-    Delta function PSF. You input a list of coordinates,
-    psf forwards an image where a single non-zero px corresponds to an emitter.
+    Delta function PSF. You input a list of coordinates, this class outputs a single one-hot representation in 2D of
+    your input.
+
+    Attributes:
+        photon_normalise (bool):
+        dark_value (float, optional): value where no binning happened, if None, the default will be 0
+        _bin_x
     """
 
-    def __init__(self, xextent, yextent, zextent, img_shape,
-                 photon_normalise=False,
-                 dark_value=None):
+    def __init__(self, xextent, yextent, img_shape, photon_normalise=False, dark_value=None):
 
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
+        super().__init__(xextent=xextent, yextent=yextent, zextent=None, img_shape=img_shape)
+
         self.photon_normalise = photon_normalise
         self.dark_value = dark_value
         """
         Binning in numpy: binning is (left Bin, right Bin]
         (open left edge, including right edge)
         """
-        self.bin_x = np.linspace(xextent[0], xextent[1],
-                                 img_shape[0] + 1, endpoint=True)
-        self.bin_y = np.linspace(yextent[0], yextent[1],
-                                 img_shape[1] + 1, endpoint=True)
-
-        if self.zextent is not None:
-            raise DeprecationWarning("Not tested and not developed further.")
+        self._bin_x = np.linspace(xextent[0], xextent[1],
+                                  img_shape[0] + 1, endpoint=True)
+        self._bin_y = np.linspace(yextent[0], yextent[1],
+                                  img_shape[1] + 1, endpoint=True)
 
     def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
         """
@@ -141,9 +145,6 @@ class DeltaPSF(PSF):
             else:
                 return np.max(values)
 
-        if weight is not None:
-            raise NotImplementedError
-
         if self.photon_normalise:
             weight = torch.ones_like(weight)
 
@@ -151,9 +152,10 @@ class DeltaPSF(PSF):
             camera = torch.zeros(self.img_shape).numpy()
         else:
             camera, _, _, _ = binned_statistic_2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(), weight.numpy(),
-                                                  bins=(self.bin_x, self.bin_y), statistic=max_0)
+                                                  bins=(self._bin_x, self._bin_y), statistic=max_0)
 
-        camera = torch.from_numpy(camera.astype(np.float32)).unsqueeze(0)
+        camera = torch.from_numpy(camera.astype(np.float32))
+
         if self.dark_value is not None:
             camera[camera == 0.] = self.dark_value
 
@@ -171,10 +173,10 @@ class DeltaPSF(PSF):
             ix_high: (optional) upper frame_index, if None will be determined automatically
 
         Returns:
-            frames: (torch.Tensor) size N x H x W where N is the number of frames
+            frames (torch.Tensor): frames of size N x H x W where N is the batch dimension.
         """
         xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
-        return self._forward_single_frame_wrapper(xyz, weight, frame_ix)
+        return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
 
 
 class GaussianExpect(PSF):
@@ -287,12 +289,11 @@ class GaussianExpect(PSF):
             ix_high: (optional) upper frame_index, if None will be determined automatically
 
         Returns:
-            frames: (torch.Tensor) size N x H x W where N is the number of frames
+            frames (torch.Tensor): frames of size N x H x W where N is the batch dimension.
         """
         xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
-
-        """I have no implementation that is batch-capable, therefore run this convenience wrapper."""
-        return self._forward_single_frame_wrapper(xyz=xyz, weight=weight, frame_ix=frame_ix)
+        return self._forward_single_frame_wrapper(xyz=xyz, weight=weight, frame_ix=frame_ix,
+                                                  ix_low=ix_low, ix_high=ix_high)
 
 
 class CubicSplinePSF(PSF):
