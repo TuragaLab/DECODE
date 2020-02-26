@@ -8,7 +8,7 @@ from deepsmlm.generic.plotting.frame_coord import PlotFrame, PlotFrameCoord
 from deepsmlm.generic.utils import test_utils as tutil
 from deepsmlm.generic.utils.test_utils import equal_nonzero
 from deepsmlm.neuralfitter.losscollection import OffsetROILoss
-from deepsmlm.neuralfitter.target_generator import OffsetRep, ROIOffsetRep, GlobalOffsetRep, SpatialEmbedding
+from deepsmlm.neuralfitter.target_generator import SinglePxEmbedding, KernelEmbedding, GlobalOffsetRep, SpatialEmbedding
 
 
 class TestSpatialEmbedding:
@@ -94,8 +94,6 @@ class TestSpatialEmbedding:
             tar_bin_1px: fixture
             tar_bin_05px: fixture
 
-        Returns:
-
         """
         xyz = CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.],
                                                   [1.5, 1.2, 0.],
@@ -108,60 +106,55 @@ class TestSpatialEmbedding:
         assert torch.allclose(torch.tensor([-0.3, 0.5]), offset_1px[:, 3, 0])
 
 
-class TestDecodeRepresentation:
+class TestOffsetRep:
 
     @pytest.fixture(scope='class')
     def offset_rep(self):
-        return OffsetRep(xextent=(-0.5, 31.5), yextent=(-0.5, 31.5), zextent=None, img_shape=(32, 32), cat_output=False)
+        return SinglePxEmbedding(xextent=(-0.5, 31.5), yextent=(-0.5, 31.5), img_shape=(32, 32))
 
     @pytest.fixture(scope='class')
     def em_set(self):
         num_emitter = 100
         return EmitterSet(torch.rand((num_emitter, 3)) * 40,
                           torch.rand(num_emitter),
-                          torch.zeros(num_emitter))
-
-    def test_forward_shape(self, offset_rep, em_set):
-        p, I, x, y, z = offset_rep.forward(em_set)
-        assert p.shape == I.shape, "Maps of Decode Rep. must have equal dimension."
-        assert I.shape == x.shape, "Maps of Decode Rep. must have equal dimension."
-        assert x.shape == y.shape, "Maps of Decode Rep. must have equal dimension."
-        assert y.shape == z.shape, "Maps of Decode Rep. must have equal dimension."
+                          torch.zeros(num_emitter).int(), xy_unit='px')
 
     def test_forward_equal_nonzeroness(self, offset_rep, em_set):
         """
-        Test whether the non-zero entries are the same in all channels.
-        Note that this in principle stochastic but the chance of having random float exactly == 0 is super small.
-        :return:
+        Test whether the non-zero entries are the same in all channels. Assumes that nothing is exactly at 0.0...
         """
-        p, I, x, y, z = offset_rep.forward(em_set)
-        assert equal_nonzero(p, I, x, y, z)
+        out = offset_rep.forward(em_set.xyz, em_set.phot, em_set.frame_ix)
+        assert equal_nonzero(out[:, 0], out[:, 1], out[:, 2], out[:, 3], out[:, 4])
 
     def test_output_range(self, offset_rep, em_set):
         """
-        Test whether delta x/y are between -0.5 and 0.5 (which they need to be for 1 coordinate unit == 1px
-        :param offset_rep:
-        :param em_set:
-        :return:
+        Test whether delta x/y are between -0.5 and 0.5 (which they need to be for 1 coordinate unit == 1px)
         """
-        p, I, dx, dy, z = offset_rep.forward(em_set)
+        out = offset_rep.forward(em_set.xyz, em_set.phot, em_set.frame_ix)
+        p, I, dx, dy, z = out[:, 0], out[:, 1], out[:, 2], out[:, 3], out[:, 4]
+
         assert (dx <= 0.5).all(), "delta x/y must be between -0.5 and 0.5"
         assert (dx >= -0.5).all(), "delta x/y must be between -0.5 and 0.5"
         assert (dy <= 0.5).all(), "delta x/y must be between -0.5 and 0.5"
         assert (dy >= -0.5).all(), "delta x/y must be between -0.5 and 0.5"
 
     def test_single_emitter(self, offset_rep):
-        em = CoordinateOnlyEmitter(torch.tensor([[15.1, 19.6, 250.]]))
-        offset_rep.cat_out = True
-        target = offset_rep.forward(em)
-        assert tutil.tens_almeq(target[:, 15, 20], torch.tensor([1., 1., 0.1, -0.4, 250.]), 1e-5)
+        """
+        Tests a single emitter for which I know the exact values.
+        Args:
+            offset_rep: fixture
+
+        """
+        em_set = CoordinateOnlyEmitter(torch.tensor([[15.1, 19.6, 250.]]), xy_unit='px')
+        out = offset_rep.forward(em_set.xyz, em_set.phot, em_set.frame_ix)[0]  # single frame
+        assert tutil.tens_almeq(out[:, 15, 20], torch.tensor([1., 1., 0.1, -0.4, 250.]), 1e-5)
 
 
-class TestROIOffsetRep(TestDecodeRepresentation):
+class TestROIOffsetRep(TestOffsetRep):
 
     @pytest.fixture(scope='class')
     def roi_offset(self):
-        return ROIOffsetRep((-0.5, 31.5), (-0.5, 31.5), None, (32, 32))
+        return KernelEmbedding((-0.5, 31.5), (-0.5, 31.5), (32, 32))
 
     @pytest.fixture(scope='class')
     def em_set(self):

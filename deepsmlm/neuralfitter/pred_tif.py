@@ -12,7 +12,7 @@ from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
 from deepsmlm.generic.utils.processing import TransformSequence
 from deepsmlm.neuralfitter.dataset import UnsupervisedDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer
 from deepsmlm.neuralfitter.pre_processing import N2C
-from deepsmlm.neuralfitter.target_generator import ROIOffsetRep
+from deepsmlm.neuralfitter.target_generator import KernelEmbedding
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, AmplitudeRescale
 
 

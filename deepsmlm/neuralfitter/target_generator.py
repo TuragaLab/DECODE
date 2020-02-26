@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-
+import deprecated
 import numpy as np
 import torch
 from sklearn import neighbors
@@ -10,27 +10,92 @@ from deepsmlm.generic.coordinate_trafo import A2BTransform
 from deepsmlm.generic.psf_kernel import PSF, DeltaPSF
 
 
-class TargetGenerator(ABC):
-    def __init__(self):
-        super().__init__()
+# class TargetGeneratorWrapper(ABC):
+#     def __init__(self):
+#         super().__init__()
+#
+#     @abstractmethod
+#     def forward(self):
+#         pass
 
-    @abstractmethod
-    def forward(self, x_in, weight):
+
+class SpatialEmbedding(DeltaPSF):
+    """
+    Compute Spatial Embedding.
+    """
+    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple):
         """
 
-        :param x: input. Will be usually instance of emitterset.
-        :return: target
+        Args:
+            xextent (tuple): extent of the frame in x
+            yextent (tuple): extent of the frame in y
+            img_shape (tuple): img shape
         """
-        if isinstance(x_in, EmitterSet):
-            pos = x_in.xyz
-            if weight is None:
-                weight = x_in.phot
-            return pos, weight
-        else:
-            return x_in, weight
+        super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape, dark_value=0.)
+
+        """Setup the bin centers x and y"""
+        self._bin_x = torch.from_numpy(self._bin_x).float()
+        self._bin_y = torch.from_numpy(self._bin_y).float()
+        self._bin_ctr_x = (0.5 * (self._bin_x[1] + self._bin_x[0]) - self._bin_x[0] + self._bin_x)[:-1]
+        self._bin_ctr_y = (0.5 * (self._bin_y[1] + self._bin_y[0]) - self._bin_y[0] + self._bin_y)[:-1]
+
+        self._offset_max_x = self._bin_x[1] - self._bin_ctr_x[0]
+        self._offset_max_y = self._bin_y[1] - self._bin_ctr_y[0]
+
+    def _forward_single_frame(self, xyz: torch.Tensor, weight: None):
+        """
+        Actual implementation.
+
+        Args:
+            xyz (torch.Tensor): coordinates
+            weight (None): must be None. Only out of implementational reasons.
+
+        Returns:
+
+        """
+
+        if weight is not None:
+            raise ValueError
+
+        xy_offset_map = torch.zeros((2, *self.img_shape))
+        # loop over all emitter positions
+        for i in range(xyz.size(0)):
+            xy = xyz[i, :2]
+            """
+            If position is outside the FoV, skip.
+            Find ix of px in bin. bins must be sorted. Remember that in numpy bins are (a, b].
+            (from inner to outer). 1. get logical index of bins, 2. get nonzero where condition applies, 
+            3. use the min value
+            """
+            if xy[0] > self._bin_x.max() or xy[0] <= self._bin_x.min() \
+                    or xy[1] > self._bin_y.max() or xy[1] <= self._bin_y.min():
+                continue
+
+            x_ix = (xy[0].item() > self._bin_x).nonzero().max(0)[0].item()
+            y_ix = (xy[1].item() > self._bin_y).nonzero().max(0)[0].item()
+            xy_offset_map[0, x_ix, y_ix] = xy[0] - self._bin_ctr_x[x_ix]  # coordinate - midpoint
+            xy_offset_map[1, x_ix, y_ix] = xy[1] - self._bin_ctr_y[y_ix]  # coordinate - midpoint
+
+        return xy_offset_map
+
+    def forward(self, xyz: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
+        """
+
+        Args:
+            xyz: coordinates of size N x (2 or 3)
+            frame_ix: (optional) frame index
+            ix_low: (optional) lower frame_index, if None will be determined automatically
+            ix_high: (optional) upper frame_index, if None will be determined automatically
+
+        Returns:
+
+        """
+        xyz, weight, frame_ix, ix_low, ix_high = PSF.forward(self, xyz, None, frame_ix, ix_low, ix_high)
+        return self._forward_single_frame_wrapper(xyz=xyz, weight=weight, frame_ix=frame_ix,
+                                                  ix_low=ix_low, ix_high=ix_high)
 
 
-class OffsetRep(TargetGenerator):
+class SinglePxEmbedding:
     """
     Generate binary target and embeddings of coordinates and photons.
     """
@@ -42,7 +107,6 @@ class OffsetRep(TargetGenerator):
             yextent (tuple): extent of the target map in y
             img_shape (tuple): image shape
         """
-        super().__init__()
 
         self._delta = DeltaPSF(xextent,
                                yextent,
@@ -75,35 +139,56 @@ class OffsetRep(TargetGenerator):
         xy_map = self._offset.forward(xyz, frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high)
         z_map = self._delta.forward(xyz, weight=xyz[:, 2], frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high)
 
-        return torch.stack((p_map, phot_map, xy_map, z_map), 1)
+        return torch.cat((p_map.unsqueeze(1),
+                          phot_map.unsqueeze(1),
+                          xy_map,
+                          z_map.unsqueeze(1)), 1)
 
 
-class ROIOffsetRep(OffsetRep):
+class KernelEmbedding(SinglePxEmbedding):
     """
-    Generate a target with increased size as compared to OffsetRep.
+    Generate a target with ROI wise embedding (kernel).
+
+    Attributes:
+        roi_size (int): size of the ROI in which we define a target
     """
-    def __init__(self, xextent, yextent, zextent, img_shape, roi_size=3):
-        super().__init__(xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=None)
+    def __init__(self, xextent, yextent, img_shape, roi_size=3):
+        super().__init__(xextent, yextent, img_shape)
+        self._xextent = xextent
+        self._yextent = yextent
+        self._img_shape = img_shape
+
         self.roi_size = roi_size
+
+        """Addition 'kernel' for phot channel, dxyz"""
+        dx = (self.xextent[1] - self.xextent[0]) / self.img_shape[0]
+        dy = (self.yextent[1] - self.xextent[0]) / self.img_shape[1]
+        self._kern_dx = torch.tensor([[dx, dx, dx], [0., 0., 0.], [-dx, -dx, -dx]])
+        self._kern_dy = torch.tensor([[dy, 0., -dy], [dy, 0., -dy], [dy, 0., -dy]])
+
+        """Sanity checks."""
         if self.roi_size != 3:
             raise NotImplementedError("Currently only ROI size 3 is implemented and tested.")
 
-        """Addition 'kernel' for phot channel, dxyz"""
-        self.kern_dy = torch.tensor([[1., 0., -1.], [1., 0., -1.], [1., 0., -1.]])
-        self.kern_dx = torch.tensor([[1., 1., 1], [0., 0., 0.], [-1., -1., -1.]])
-
     @staticmethod
     def parse(param):
-        return ROIOffsetRep(xextent=param.Simulation.psf_extent[0],
-                            yextent=param.Simulation.psf_extent[1],
-                            zextent=None,
-                            img_shape=param.Simulation.img_size,
-                            roi_size=param.HyperParameter.target_roi_size)
+        return KernelEmbedding(xextent=param.Simulation.psf_extent[0],
+                               yextent=param.Simulation.psf_extent[1],
+                               img_shape=param.Simulation.img_size,
+                               roi_size=param.HyperParameter.target_roi_size)
 
-    def forward(self, x, aux):
-        offset_target = super().forward(x)
+    def _forward_single_frame(self, offset_target):
+        """
 
-        """In the photon, dx, dy, dz channel we want to increase the area of information."""
+        Args:
+            xyz:
+            phot:
+            frame_ix:
+
+        Returns:
+
+        """
+
         # zero pad the target in image space so that we don't have border problems
         offset_target_pad = functional.pad(offset_target, (1, 1, 1, 1), mode='constant', value=0.)
         target = torch.zeros_like(offset_target_pad)
@@ -114,25 +199,30 @@ class ROIOffsetRep(OffsetRep):
             ix_x = slice(is_emitter[i, 0].item() - 1, is_emitter[i, 0].item() + 2)
             ix_y = slice(is_emitter[i, 1].item() - 1, is_emitter[i, 1].item() + 2)
 
-            # leave p_channel unchanged, all others use addition kernel
+            """
+            Leave p channel unchanged. For the other channels increase the target.
+            That means increase target in phot and z channel that we replicate the value (roi-wise constant).
+            For x and y we make pointers.
+            """
             target[1, ix_x, ix_y] = offset_target_pad[1, is_emitter[i, 0], is_emitter[i, 1]]
-            target[2, ix_x, ix_y] = self.kern_dx + offset_target_pad[2, is_emitter[i, 0], is_emitter[i, 1]]
-            target[3, ix_x, ix_y] = self.kern_dy + offset_target_pad[3, is_emitter[i, 0], is_emitter[i, 1]]
+            target[2, ix_x, ix_y] = self._kern_dx + offset_target_pad[2, is_emitter[i, 0], is_emitter[i, 1]]
+            target[3, ix_x, ix_y] = self._kern_dy + offset_target_pad[3, is_emitter[i, 0], is_emitter[i, 1]]
             target[4, ix_x, ix_y] = offset_target_pad[4, is_emitter[i, 0], is_emitter[i, 1]]
 
-        # set px centres to original value
+        """Set px centres to original value and remove padding."""
         target[:, is_emitter[:, 0], is_emitter[:, 1]] = offset_target_pad[:, is_emitter[:, 0], is_emitter[:, 1]]
-
-        # remove padding
         target = target[:, 1:-1, 1:-1]
-
-        """Add background that was parsed as first auxiliary"""
-        target = torch.cat([target, aux[[1]]], 0)
 
         return target
 
+    def forward(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
+                ix_low: int = None, ix_high: int = None):
 
-class GlobalOffsetRep(OffsetRep):
+        offset_target = super().forward(xyz, phot, frame_ix, ix_low, ix_high)
+
+
+@deprecated.deprecated("Tried some time ago but never used. Probably not up to date. Not tested.")
+class GlobalOffsetRep(SinglePxEmbedding):
     def __init__(self, xextent, yextent, zextent, img_shape, photon_threshold=None, masked=False):
         super().__init__(xextent, yextent, zextent, img_shape, cat_output=True, photon_threshold=photon_threshold)
         self.xextent = xextent
@@ -218,79 +308,3 @@ class GlobalOffsetRep(OffsetRep):
         target = torch.cat((p_map, phot_map.unsqueeze(0), dx.unsqueeze(0), dy.unsqueeze(0), z.unsqueeze(0)), 0)
         target[1:] *= photxyz_mask.float()
         return target
-
-
-class SpatialEmbedding(DeltaPSF):
-    """
-    Compute Spatial Embedding.
-    """
-    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple):
-        """
-
-        Args:
-            xextent (tuple): extent of the frame in x
-            yextent (tuple): extent of the frame in y
-            img_shape (tuple): img shape
-        """
-        super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape, dark_value=0.)
-
-        """Setup the bin centers x and y"""
-        self._bin_x = torch.from_numpy(self._bin_x).float()
-        self._bin_y = torch.from_numpy(self._bin_y).float()
-        self._bin_ctr_x = (0.5 * (self._bin_x[1] + self._bin_x[0]) - self._bin_x[0] + self._bin_x)[:-1]
-        self._bin_ctr_y = (0.5 * (self._bin_y[1] + self._bin_y[0]) - self._bin_y[0] + self._bin_y)[:-1]
-
-        self._offset_max_x = self._bin_x[1] - self._bin_ctr_x[0]
-        self._offset_max_y = self._bin_y[1] - self._bin_ctr_y[0]
-
-    def _forward_single_frame(self, xyz: torch.Tensor, weight: None):
-        """
-        Actual implementation.
-
-        Args:
-            xyz (torch.Tensor): coordinates
-            weight (None): must be None. Only out of implementational reasons.
-
-        Returns:
-
-        """
-
-        if weight is not None:
-            raise ValueError
-
-        xy_offset_map = torch.zeros((2, *self.img_shape))
-        # loop over all emitter positions
-        for i in range(xyz.size(0)):
-            xy = xyz[i, :2]
-            """
-            If position is outside the FoV, skip.
-            Find ix of px in bin. bins must be sorted. Remember that in numpy bins are (a, b].
-            (from inner to outer). 1. get logical index of bins, 2. get nonzero where condition applies, 
-            3. use the min value
-            """
-            if xy[0] > self._bin_x.max() or xy[0] <= self._bin_x.min() \
-                    or xy[1] > self._bin_y.max() or xy[1] <= self._bin_y.min():
-                continue
-
-            x_ix = (xy[0].item() > self._bin_x).nonzero().max(0)[0].item()
-            y_ix = (xy[1].item() > self._bin_y).nonzero().max(0)[0].item()
-            xy_offset_map[0, x_ix, y_ix] = xy[0] - self._bin_ctr_x[x_ix]  # coordinate - midpoint
-            xy_offset_map[1, x_ix, y_ix] = xy[1] - self._bin_ctr_y[y_ix]  # coordinate - midpoint
-
-        return xy_offset_map
-
-    def forward(self, xyz: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
-        """
-
-        Args:
-            xyz: coordinates of size N x (2 or 3)
-            frame_ix: (optional) frame index
-            ix_low: (optional) lower frame_index, if None will be determined automatically
-            ix_high: (optional) upper frame_index, if None will be determined automatically
-
-        Returns:
-
-        """
-        xyz, weight, frame_ix, ix_low, ix_high = PSF.forward(self, xyz, None, frame_ix, ix_low, ix_high)
-        return self._forward_single_frame_wrapper(xyz=xyz, weight=weight, frame_ix=frame_ix,
-                                                  ix_low=ix_low, ix_high=ix_high)

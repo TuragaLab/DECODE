@@ -35,7 +35,7 @@ import deepsmlm.evaluation.evaluation as evaluation
 from deepsmlm.generic.phot_camera import Photon2Camera
 from deepsmlm.neuralfitter.pre_processing import CombineTargetBackground, \
     DiscardBackground
-from deepsmlm.neuralfitter.target_generator import OffsetRep, ROIOffsetRep, GlobalOffsetRep
+from deepsmlm.neuralfitter.target_generator import SinglePxEmbedding, KernelEmbedding, GlobalOffsetRep
 import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
 import deepsmlm.generic.utils.processing as processing
@@ -169,13 +169,13 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
     if param['HyperParameter']['predict_bg']:
         target_generator = processing.TransformSequence([
             prepro.ThresholdPhotons.parse(param, mode='target'),
-            CombineTargetBackground(ROIOffsetRep.parse(param), num_input_frames=param['HyperParameter']['channels_in']),
+            CombineTargetBackground(KernelEmbedding.parse(param), num_input_frames=param['HyperParameter']['channels_in']),
             InverseOffsetRescale.parse(param)
         ])
     else:
         target_generator = processing.TransformSequence([
             prepro.ThresholdPhotons.parse(param, mode='target'),
-            ROIOffsetRep.parse(param),
+            KernelEmbedding.parse(param),
             InverseOffsetRescale.parse(param)
         ])
 

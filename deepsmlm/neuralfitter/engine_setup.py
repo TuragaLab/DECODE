@@ -202,7 +202,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
 
     tar_gen = deepsmlm.generic.utils.processing.TransformSequence.parse(
         [
-            deepsmlm.neuralfitter.target_generator.ROIOffsetRep,
+            deepsmlm.neuralfitter.target_generator.KernelEmbedding,
             deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale
         ], param=param)
 
