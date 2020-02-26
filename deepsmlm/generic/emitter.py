@@ -811,12 +811,12 @@ class CoordinateOnlyEmitter(EmitterSet):
     Useful for testing. Photons will be tensor of 1, frame_ix tensor of 0.
     """
 
-    def __init__(self, xyz):
+    def __init__(self, xyz, xy_unit=None):
         """
 
         :param xyz: (torch.tensor) N x 2, N x 3
         """
-        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).int())
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).int(), xy_unit=xy_unit)
 
     def _inplace_replace(self, em):
         super().__init__(xyz=em.xyz,

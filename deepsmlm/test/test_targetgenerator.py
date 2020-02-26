@@ -8,117 +8,104 @@ from deepsmlm.generic.plotting.frame_coord import PlotFrame, PlotFrameCoord
 from deepsmlm.generic.utils import test_utils as tutil
 from deepsmlm.generic.utils.test_utils import equal_nonzero
 from deepsmlm.neuralfitter.losscollection import OffsetROILoss
-from deepsmlm.neuralfitter.target_generator import OffsetRep, ROIOffsetRep, GlobalOffsetRep, OffsetPSF
+from deepsmlm.neuralfitter.target_generator import OffsetRep, ROIOffsetRep, GlobalOffsetRep, SpatialEmbedding
 
 
-class TestOffsetPSF:
+class TestSpatialEmbedding:
 
     @pytest.fixture(scope='class')
     def tar_bin_1px(self):
-        return OffsetPSF((-0.5, 31.5),
-                         (-0.5, 31.5),
-                         (32, 32))
+        return SpatialEmbedding((-0.5, 31.5),
+                                (-0.5, 31.5),
+                                (32, 32))
 
     @pytest.fixture(scope='class')
     def tar_bin_05px(self):
-        return OffsetPSF((-0.5, 31.5),
-                         (-0.5, 31.5),
-                         (64, 64))
+        return SpatialEmbedding((-0.5, 31.5),
+                                (-0.5, 31.5),
+                                (64, 64))
 
     @pytest.fixture(scope='class')
     def delta_1px(self):
-        return psf_kernel.DeltaPSF((-0.5, 31.5),
-                                   (-0.5, 31.5),
-                                   None, (32, 32), 0, False, 0)
+        return psf_kernel.DeltaPSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), False, None)
 
     @pytest.fixture(scope='class')
     def delta_05px(self):
-        return psf_kernel.DeltaPSF((-0.5, 31.5),
-                                   (-0.5, 31.5),
-                                   None, (64, 64), 0, False, 0)
+        return psf_kernel.DeltaPSF((-0.5, 31.5), (-0.5, 31.5), (64, 64), False, None)
 
-    def test_bin_centrs(self):
+    def test_binning(self, tar_bin_1px, tar_bin_05px):
         """
-        Test the bin centers.
-        :return:
+        Tests the bins
+
+        Returns:
+
         """
-        self.assertEqual(-0.5, self.psf_bin_1px.bin_x[0])
-        self.assertEqual(0.5, self.psf_bin_1px.bin_x[1])
-        self.assertEqual(0., self.psf_bin_1px.bin_ctr_x[0])
-        self.assertEqual(0., self.psf_bin_1px.bin_ctr_y[0])
+        assert -0.5 == tar_bin_1px._bin_x[0]
+        assert 0.5 == tar_bin_1px._bin_x[1]
+        assert 0. == tar_bin_1px._bin_ctr_x[0]
+        assert 0. == tar_bin_1px._bin_ctr_y[0]
 
-        self.assertEqual(-0.5, self.psf_bin_halfpx.bin_x[0])
-        self.assertEqual(0., self.psf_bin_halfpx.bin_x[1])
-        self.assertEqual(-0.25, self.psf_bin_halfpx.bin_ctr_x[0])
-        self.assertEqual(-0.25, self.psf_bin_halfpx.bin_ctr_y[0])
+        assert -0.5 == tar_bin_05px._bin_x[0]
+        assert 0. == tar_bin_05px._bin_x[1]
+        assert -0.25 == tar_bin_05px._bin_ctr_x[0]
+        assert -0.25 == tar_bin_05px._bin_ctr_y[0]
 
-    def test_offset_range(self):
-        self.assertEqual(0.5, self.psf_bin_1px.offset_max_x)
-        self.assertEqual(0.5, self.psf_bin_1px.offset_max_x)
-        self.assertEqual(0.25, self.psf_bin_halfpx.offset_max_y)
-        self.assertEqual(0.25, self.psf_bin_halfpx.offset_max_y)
+        assert 0.5 == tar_bin_1px._offset_max_x
+        assert 0.5 == tar_bin_1px._offset_max_x
+        assert 0.25 == tar_bin_05px._offset_max_y
+        assert 0.25 == tar_bin_05px._offset_max_y
 
-    def test_foward_range(self):
-        xyz = CoordinateOnlyEmitter(torch.rand((1000, 3)) * 40)
-        offset_1px = self.psf_bin_1px.forward(xyz)
-        offset_hpx = self.psf_bin_halfpx.forward(xyz)
+    def test_forward_range(self, tar_bin_1px, tar_bin_05px):
+        em = CoordinateOnlyEmitter(torch.rand((1000, 3)) * 40)
+        offset_1px = tar_bin_1px.forward(em.xyz)
+        offset_hpx = tar_bin_05px.forward(em.xyz)
 
-        self.assertTrue(offset_1px.max().item() <= 0.5)
-        self.assertTrue(offset_1px.min().item() > -0.5)
-        self.assertTrue(offset_hpx.max().item() <= 0.25)
-        self.assertTrue(offset_hpx.min().item() > -0.25)
+        assert offset_1px.max().item() <= 0.5
+        assert offset_1px.min().item() > -0.5
+        assert offset_hpx.max().item() <= 0.25
+        assert offset_hpx.min().item() > -0.25
 
-    def test_forward_indexing_hc(self):
+    def test_forward_indexing_hc(self, tar_bin_1px, tar_bin_05px, delta_1px, delta_05px):
         """
-        Test whether delta psf and offset map share the same indexing (i.e. the order of the axis
-        is consistent).
-        :return:
+        Test whether delta psf and offset map share the same indexing
         """
-        xyz = CoordinateOnlyEmitter(torch.tensor([[15.1, 2.9, 0.]]))
+        xyz = CoordinateOnlyEmitter(torch.tensor([[15.1, 2.9, 0.]]), xy_unit='px').xyz
 
-        img_nonzero = self.delta_psf_1px.forward(xyz)[0].nonzero()
-        self.assertTrue(torch.equal(img_nonzero, self.psf_bin_1px.forward(xyz)[0].nonzero()))
-        self.assertTrue(torch.equal(img_nonzero, self.psf_bin_1px.forward(xyz)[1].nonzero()))
+        img_ = delta_1px.forward(xyz)
+        tar_ = tar_bin_1px.forward(xyz)
+        assert torch.equal(img_.nonzero(), tar_[:, 0].nonzero())
+        assert torch.equal(img_.nonzero(), tar_[:, 1].nonzero())
 
-        img_nonzero = self.delta_psf_hpx.forward(xyz)[0].nonzero()
-        self.assertTrue(torch.equal(img_nonzero, self.psf_bin_halfpx.forward(xyz)[0].nonzero()))
-        self.assertTrue(torch.equal(img_nonzero, self.psf_bin_halfpx.forward(xyz)[1].nonzero()))
+        img_ = delta_05px.forward(xyz)
+        tar_ = tar_bin_05px.forward(xyz)
+        assert torch.equal(img_.nonzero(), tar_[:, 0].nonzero())
+        assert torch.equal(img_.nonzero(), tar_[:, 1].nonzero())
 
-    def test_outofrange(self):
+        """Test an out of range emitter."""
+        xyz = CoordinateOnlyEmitter(torch.tensor([[31.6, 16., 0.]]), xy_unit='px').xyz
+        offset_map = tar_bin_1px.forward(xyz)
+        assert torch.equal(torch.zeros_like(offset_map), offset_map)
+
+    def test_forward_offset_1px_units(self, tar_bin_1px, tar_bin_05px):
         """
-        Test whether delta psf and offset map share the same indexing (i.e. the order of the axis
-        is consistent).
-        :return:
-        """
-        xyz = CoordinateOnlyEmitter(torch.tensor([[31.6, 16., 0.]]))
-        offset_map = self.psf_bin_1px.forward(xyz)
-        self.assertTrue(torch.equal(torch.zeros_like(offset_map), offset_map))
+        Another value test during implementation
 
-    def test_forward_offset_1px_units(self):
-        """
-        Test forward with 1 px = 1 unit
-        :return:
+        Args:
+            tar_bin_1px: fixture
+            tar_bin_05px: fixture
+
+        Returns:
+
         """
         xyz = CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.],
                                                   [1.5, 1.2, 0.],
-                                                  [2.7, 0.5, 0.]]))
+                                                  [2.7, 0.5, 0.]])).xyz
 
-        offset_1px = self.psf_bin_1px.forward(xyz)
+        offset_1px = tar_bin_1px.forward(xyz).squeeze(0)
 
-        self.assertTrue(torch.allclose(torch.tensor([0., 0.]), offset_1px[:, 0, 0]))
-        self.assertTrue(torch.allclose(torch.tensor([0.5, 0.2]), offset_1px[:, 1, 1]))
-        self.assertTrue(torch.allclose(torch.tensor([-0.3, 0.5]), offset_1px[:, 3, 0]))
-
-    def test_forward_offset_hpx(self):
-        xyz = CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.],
-                                                  [0.5, 0.2, 0.]]))
-
-        offset_hpx = self.psf_bin_halfpx.forward(xyz)
-
-        # x_exp = torch.tensor([[0]])
-        #
-        # self.assertTrue(torch.allclose(torch.tensor([])))
-        return True
+        assert torch.allclose(torch.tensor([0., 0.]), offset_1px[:, 0, 0])
+        assert torch.allclose(torch.tensor([0.5, 0.2]), offset_1px[:, 1, 1])
+        assert torch.allclose(torch.tensor([-0.3, 0.5]), offset_1px[:, 3, 0])
 
 
 class TestDecodeRepresentation:

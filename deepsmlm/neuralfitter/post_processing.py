@@ -13,7 +13,7 @@ import torch
 from abc import ABC, abstractmethod  # abstract class
 
 from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
-from deepsmlm.neuralfitter.target_generator import OffsetPSF
+from deepsmlm.neuralfitter.target_generator import SpatialEmbedding
 from deepsmlm.generic.utils.warning_util import deprecated
 import deepsmlm.generic.utils.statistics as fan_stat
 
@@ -863,11 +863,11 @@ class Offset2Coordinate:
     """
     def __init__(self, xextent, yextent, img_shape):
 
-        off_psf = OffsetPSF(xextent=xextent,
-                            yextent=yextent,
-                            img_shape=img_shape)
+        off_psf = SpatialEmbedding(xextent=xextent,
+                                   yextent=yextent,
+                                   img_shape=img_shape)
 
-        xv, yv = torch.meshgrid([off_psf.bin_ctr_x, off_psf.bin_ctr_y])
+        xv, yv = torch.meshgrid([off_psf._bin_ctr_x, off_psf._bin_ctr_y])
         self.x_mesh = xv.unsqueeze(0)
         self.y_mesh = yv.unsqueeze(0)
 

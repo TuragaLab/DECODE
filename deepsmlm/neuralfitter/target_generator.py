@@ -7,7 +7,7 @@ from torch.nn import functional
 
 from deepsmlm.generic import EmitterSet
 from deepsmlm.generic.coordinate_trafo import A2BTransform
-from deepsmlm.generic.psf_kernel import DeltaPSF
+from deepsmlm.generic.psf_kernel import PSF, DeltaPSF
 
 
 class TargetGenerator(ABC):
@@ -32,52 +32,50 @@ class TargetGenerator(ABC):
 
 class OffsetRep(TargetGenerator):
     """
-    Target generator to generate a 5 channel target.
-    0th ch: emitter prob
-    1st ch: photon value
-    2nd ch: dx subpixel offset
-    3rd ch: dy subpixel offset
-    4th ch: z values
+    Generate binary target and embeddings of coordinates and photons.
     """
-    def __init__(self, xextent, yextent, zextent, img_shape, cat_output=True):
+    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple):
+        """
+
+        Args:
+            xextent (tuple): extent of the target map in x
+            yextent (tuple): extent of the target map in y
+            img_shape (tuple): image shape
+        """
         super().__init__()
 
-        self.delta = DeltaPSF(xextent,
-                              yextent,
-                              img_shape,
-                              photon_normalise=False)
+        self._delta = DeltaPSF(xextent,
+                               yextent,
+                               img_shape,
+                               photon_normalise=False)
 
-        # this might seem as a duplicate, but we need to make sure not to use a photon threshold for generating the z map.
-        self.delta_z = DeltaPSF(xextent,
-                              yextent,
-                              img_shape,
-                              photon_normalise=False)
+        self._offset = SpatialEmbedding(xextent, yextent, img_shape)
 
-        self.offset = OffsetPSF(xextent, yextent, img_shape)
-        self.cat_out = cat_output
-
-    def forward(self, x, weight=None):
+    def forward(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
+                ix_low: int = None, ix_high: int = None):
         """
-        Create 5 channel output, decode_like
-        :param x: emitter instance
-        :return: concatenated maps, or single maps with 1 x H x W each (channel order: p, I, x  y, z)
+        Forward through target generator.
+
+        Args:
+            xyz (torch.Tensor): coordinates. Dimension N x 3
+            phot (torch.Tensor): photon count. Dimension N
+            frame_ix (torch.Tensor(int)): frame_index. Dimension N
+            ix_low (int): lower bound for frame_ix
+            ix_high (int): upper bound for frame_ix
+
+        Returns:
+            target (torch.Tensor): Target frames. Dimension F x 5 x H x W, where F are the frames.
         """
-        if weight is None:
-            weight = torch.ones_like(x.phot)
 
-        p_map = self.delta.forward(x, weight)
-        """It might happen that we see that two emitters are in the same px. p_map will then be 2 or greater.
-        As the offset map allows for only one emitter, set the greater than 1 px to 1."""
-        p_map[p_map > 1] = 1
+        p_map = self._delta.forward(xyz, torch.ones_like(xyz[:, 0]), frame_ix, ix_low, ix_high)
+        p_map[p_map > 1] = 1  # if we have duplicates in one pixel
 
-        phot_map = self.delta.forward(x, x.phot)
-        xy_map = self.offset.forward(x.xyz)
-        z_map = self.delta_z.forward(x, x.xyz[:, 2])
+        phot_map = self._delta.forward(xyz, phot, frame_ix, ix_low, ix_high)
 
-        if self.cat_out:
-            return torch.cat((p_map, phot_map, xy_map, z_map), 0)
-        else:
-            return p_map, phot_map, xy_map[[0]], xy_map[[1]], z_map
+        xy_map = self._offset.forward(xyz, frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high)
+        z_map = self._delta.forward(xyz, weight=xyz[:, 2], frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high)
+
+        return torch.stack((p_map, phot_map, xy_map, z_map), 1)
 
 
 class ROIOffsetRep(OffsetRep):
@@ -180,7 +178,7 @@ class GlobalOffsetRep(OffsetRep):
         :param x: emitter instance
         :return: 5 ch output
         """
-        p_map = self.delta.forward(x, torch.ones_like(x.phot))
+        p_map = self._delta.forward(x, torch.ones_like(x.phot))
         p_map[p_map > 1] = 1
 
         """If masked: Do not output phot / dx, dy, dz everywhere but just around an emitter."""
@@ -222,34 +220,43 @@ class GlobalOffsetRep(OffsetRep):
         return target
 
 
-class OffsetPSF(DeltaPSF):
+class SpatialEmbedding(DeltaPSF):
     """
-    Coordinate to px-offset class.
+    Compute Spatial Embedding.
     """
-    def __init__(self, xextent, yextent, img_shape):
-        super().__init__(xextent, yextent, None, img_shape,
-                         photon_normalise=False,
-                         dark_value=0.)
-
-        """Setup the bin centers x and y"""
-        self.bin_x = torch.from_numpy(self.bin_x).type(torch.float)
-        self.bin_y = torch.from_numpy(self.bin_y).type(torch.float)
-        self.bin_ctr_x = (0.5 * (self.bin_x[1] + self.bin_x[0]) - self.bin_x[0] + self.bin_x)[:-1]
-        self.bin_ctr_y = (0.5 * (self.bin_y[1] + self.bin_y[0]) - self.bin_y[0] + self.bin_y)[:-1]
-
-        self.offset_max_x = self.bin_x[1] - self.bin_ctr_x[0]
-        self.offset_max_y = self.bin_y[1] - self.bin_ctr_y[0]
-
-    def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
+    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple):
         """
 
         Args:
-            xyz:
-            weight:
+            xextent (tuple): extent of the frame in x
+            yextent (tuple): extent of the frame in y
+            img_shape (tuple): img shape
+        """
+        super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape, dark_value=0.)
+
+        """Setup the bin centers x and y"""
+        self._bin_x = torch.from_numpy(self._bin_x).float()
+        self._bin_y = torch.from_numpy(self._bin_y).float()
+        self._bin_ctr_x = (0.5 * (self._bin_x[1] + self._bin_x[0]) - self._bin_x[0] + self._bin_x)[:-1]
+        self._bin_ctr_y = (0.5 * (self._bin_y[1] + self._bin_y[0]) - self._bin_y[0] + self._bin_y)[:-1]
+
+        self._offset_max_x = self._bin_x[1] - self._bin_ctr_x[0]
+        self._offset_max_y = self._bin_y[1] - self._bin_ctr_y[0]
+
+    def _forward_single_frame(self, xyz: torch.Tensor, weight: None):
+        """
+        Actual implementation.
+
+        Args:
+            xyz (torch.Tensor): coordinates
+            weight (None): must be None. Only out of implementational reasons.
 
         Returns:
 
         """
+
+        if weight is not None:
+            raise ValueError
 
         xy_offset_map = torch.zeros((2, *self.img_shape))
         # loop over all emitter positions
@@ -261,14 +268,14 @@ class OffsetPSF(DeltaPSF):
             (from inner to outer). 1. get logical index of bins, 2. get nonzero where condition applies, 
             3. use the min value
             """
-            if xy[0] > self.bin_x.max() or xy[0] <= self.bin_x.min() \
-                    or xy[1] > self.bin_y.max() or xy[1] <= self.bin_y.min():
+            if xy[0] > self._bin_x.max() or xy[0] <= self._bin_x.min() \
+                    or xy[1] > self._bin_y.max() or xy[1] <= self._bin_y.min():
                 continue
 
-            x_ix = (xy[0].item() > self.bin_x).nonzero().max(0)[0].item()
-            y_ix = (xy[1].item() > self.bin_y).nonzero().max(0)[0].item()
-            xy_offset_map[0, x_ix, y_ix] = xy[0] - self.bin_ctr_x[x_ix]  # coordinate - midpoint
-            xy_offset_map[1, x_ix, y_ix] = xy[1] - self.bin_ctr_y[y_ix]  # coordinate - midpoint
+            x_ix = (xy[0].item() > self._bin_x).nonzero().max(0)[0].item()
+            y_ix = (xy[1].item() > self._bin_y).nonzero().max(0)[0].item()
+            xy_offset_map[0, x_ix, y_ix] = xy[0] - self._bin_ctr_x[x_ix]  # coordinate - midpoint
+            xy_offset_map[1, x_ix, y_ix] = xy[1] - self._bin_ctr_y[y_ix]  # coordinate - midpoint
 
         return xy_offset_map
 
@@ -276,14 +283,14 @@ class OffsetPSF(DeltaPSF):
         """
 
         Args:
-            xyz:
-            weight:
-            frame_ix:
-            ix_low:
-            ix_high:
+            xyz: coordinates of size N x (2 or 3)
+            frame_ix: (optional) frame index
+            ix_low: (optional) lower frame_index, if None will be determined automatically
+            ix_high: (optional) upper frame_index, if None will be determined automatically
 
         Returns:
 
         """
-        xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, None, frame_ix, ix_low, ix_high)
-        return self._forward_single_frame_wrapper(xyz=xyz, weight=weight, frame_ix=frame_ix)
+        xyz, weight, frame_ix, ix_low, ix_high = PSF.forward(self, xyz, None, frame_ix, ix_low, ix_high)
+        return self._forward_single_frame_wrapper(xyz=xyz, weight=weight, frame_ix=frame_ix,
+                                                  ix_low=ix_low, ix_high=ix_high)

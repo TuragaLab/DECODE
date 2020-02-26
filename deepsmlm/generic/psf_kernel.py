@@ -94,7 +94,10 @@ class PSF(ABC):
             frames (torch.Tensor): N x H x W, stacked frames
         """
         ix_split, n_splits = gutil.ix_split(frame_ix, ix_min=ix_low, ix_max=ix_high)
-        frames = [self._forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
+        if weight is not None:
+            frames = [self._forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
+        else:
+            frames = [self._forward_single_frame(xyz[ix_split[i]], None) for i in range(n_splits)]
         frames = torch.stack(frames, 0)
 
         return frames
@@ -145,6 +148,9 @@ class DeltaPSF(PSF):
             else:
                 return np.max(values)
 
+        if weight is None:
+            weight = torch.ones_like(xyz[:, 0])
+
         if self.photon_normalise:
             weight = torch.ones_like(weight)
 
@@ -161,7 +167,8 @@ class DeltaPSF(PSF):
 
         return camera
 
-    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low=None, ix_high=None):
+    def forward(self, xyz: torch.Tensor, weight: torch.Tensor = None, frame_ix: torch.Tensor = None,
+                ix_low=None, ix_high=None):
         """
         Forward coordinates frame index aware through the psf model.
 
@@ -579,7 +586,8 @@ class CubicSplinePSF(PSF):
         crlb, rois = self.crlb(xyz, phot, bg, inversion)
         return crlb.sqrt(), rois
 
-    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
+    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None,
+                ix_high=None):
         """
         Forward coordinates frame index aware through the psf model.
 
