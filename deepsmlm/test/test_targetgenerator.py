@@ -74,7 +74,7 @@ class TestSpatialEmbedding:
         img_ = delta_1px.forward(xyz)
         tar_ = tar_bin_1px.forward(xyz)
         assert torch.equal(img_.nonzero(), tar_[:, 0].nonzero())
-        assert torch.equal(img_.nonzero(), tar_[:, 1].nonzero())
+        assert torch.equal(img_.psf_cpu.nonzero(), tar_[:, 1].nonzero())
 
         img_ = delta_05px.forward(xyz)
         tar_ = tar_bin_05px.forward(xyz)
@@ -150,7 +150,7 @@ class TestOffsetRep:
         assert tutil.tens_almeq(out[:, 15, 20], torch.tensor([1., 1., 0.1, -0.4, 250.]), 1e-5)
 
 
-class TestROIOffsetRep(TestOffsetRep):
+class TestKernelEmbedding(TestOffsetRep):
 
     @pytest.fixture(scope='class')
     def roi_offset(self):
@@ -174,6 +174,17 @@ class TestROIOffsetRep(TestOffsetRep):
     def test_values(self, roi_offset, em_set, loss):
         target = roi_offset.forward(em_set)
 
+        assert tutil.tens_almeq(target[:, 15, 17], torch.tensor([1., 1., -0.1, 0.2, 300.]), 1e-5)
+        assert tutil.tens_almeq(target[2, 15, 16:19], torch.tensor([-0.1, -0.1, -0.1]), 1e-5)
+        assert tutil.tens_almeq(target[3, 14:17, 17], torch.tensor([0.2, 0.2, 0.2]), 1e-5)
+
+        """Test it together with the loss"""
+        prediction = torch.rand((1, 5, 32, 32))
+        loss_v = loss(prediction, target.unsqueeze(0))
+        assert tutil.tens_almeq(loss_v[0, 1:, 1, 0], torch.zeros(4))
+        assert tutil.tens_almeq(loss_v[0, 1:, 0, 1], torch.zeros(4))
+
+        """Some plotting if you want."""
         # plt.figure(figsize=(12, 8))
         # plt.subplot(231)
         # PlotFrame(target[0]).plot()
@@ -187,17 +198,8 @@ class TestROIOffsetRep(TestOffsetRep):
         # PlotFrame(target[4]).plot()
         # plt.show()
 
-        assert tutil.tens_almeq(target[:, 15, 17], torch.tensor([1., 1., -0.1, 0.2, 300.]), 1e-5)
-        assert tutil.tens_almeq(target[2, 15, 16:19], torch.tensor([-0.1, -0.1, -0.1]), 1e-5)
-        assert tutil.tens_almeq(target[3, 14:17, 17], torch.tensor([0.2, 0.2, 0.2]), 1e-5)
 
-        """Test it together with the loss"""
-        prediction = torch.rand((1, 5, 32, 32))
-        loss_v = loss(prediction, target.unsqueeze(0))
-        assert tutil.tens_almeq(loss_v[0, 1:, 1, 0], torch.zeros(4))
-        assert tutil.tens_almeq(loss_v[0, 1:, 0, 1], torch.zeros(4))
-
-
+@pytest.mark.skip("Deprecated.")
 class TestGlobalOffsetRep:
 
     @pytest.fixture(scope='class')

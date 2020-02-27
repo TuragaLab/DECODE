@@ -2,11 +2,11 @@ import math
 import numpy as np
 import warnings
 from abc import ABC, abstractmethod  # abstract class
-
 import torch
 from scipy.stats import binned_statistic_2d
 
 from .utils import generic as gutil
+import spline_psf_cuda  # CPP / CUDA implementation
 
 
 class PSF(ABC):
@@ -324,7 +324,6 @@ class CubicSplinePSF(PSF):
             cuda:
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=None, img_shape=img_shape)
-        import spline_psf_cuda
 
         self.roi_size_px = roi_size
         self._coeff = coeff
@@ -343,6 +342,19 @@ class CubicSplinePSF(PSF):
                                                               roi_size[0], roi_size[1], coeff.numpy())
 
         self._safety_check()
+
+    @property
+    def cuda_is_available(self):
+        return self._spline_impl.cuda_is_available
+
+    @staticmethod
+    def _cuda_compiled():
+        """
+        This is a dummy method to check whether CUDA is available without the need to init the class.
+        Returns:
+
+        """
+        return spline_psf_cuda.PSFWrapperCPU(1, 1, 1, 1, 1, torch.zeros((1, 64)).numpy()).cuda_is_available
 
     @property
     def _roi_size_nm(self):

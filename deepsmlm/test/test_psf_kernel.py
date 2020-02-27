@@ -1,5 +1,4 @@
 import random
-
 import matplotlib.pyplot as plt
 import pytest
 import torch
@@ -152,6 +151,14 @@ class TestCubicSplinePSF:
 
     @pytest.fixture(scope='class')
     def psf_cuda(self, psf_cpu):
+        """
+        Returns CUDA version of CPU implementation. Will make tests fail if not compiled with CUDA support enabled.
+        Args:
+            psf_cpu:
+
+        Returns:
+
+        """
         return psf_cpu.cuda()
 
     @pytest.fixture(scope='class')
@@ -175,6 +182,8 @@ class TestCubicSplinePSF:
 
         return xyz, phot, bg, n
 
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+                       reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_ship(self, psf_cpu, psf_cuda):
         """
         Tests ships to CPU / CUDA
@@ -195,8 +204,9 @@ class TestCubicSplinePSF:
         assert isinstance(psf_cpu.cuda()._spline_impl, spline_psf_cuda.PSFWrapperCUDA)
         assert isinstance(psf_cuda.cpu()._spline_impl, spline_psf_cuda.PSFWrapperCPU)
 
-    @pytest.mark.skipif(not torch.cuda.is_available(), reason="can not test CUDA against CPU if CUDA is not available.")
-    def test_roi_cuda_cpu(self, psf_cpu, psf_cuda):
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+                       reason="Skipped because PSF implementation not compiled with CUDA support.")
+    def test_roi_cuda_cpu(self, psf_cpu, psf_cuda, onek_rois):
         """
         Tests approximate equality of CUDA vs CPU implementation for a few ROIs
         Args:
@@ -206,31 +216,29 @@ class TestCubicSplinePSF:
         Returns:
 
         """
-        n = 1000
-        xyz = torch.rand((n, 3))
-        xyz[:, :2] += psf_cpu.ref0[:2]
-        xyz[:, 2] = xyz[:, 2] * 1000 - 500
-        phot = torch.ones((n,))
+        xyz, phot, bg, n = onek_rois
+        phot = torch.ones_like(phot)
 
         roi_cpu = psf_cpu.forward_rois(xyz, phot)
         roi_cuda = psf_cuda.forward_rois(xyz, phot)
 
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-7)
-        # return
+
+    @pytest.mark.skip_plot
+    def test_roi_visual(self, psf_cpu, onek_rois):
+        xyz, phot, bg, n = onek_rois
+        phot = torch.ones_like(phot)
+        roi_cpu = psf_cpu.forward_rois(xyz, phot)
 
         """Additional Plotting if manual testing (comment out return statement)"""
         rix = random.randint(0, n - 1)
         plt.figure()
-        plt.subplot(121)
-        plf.PlotFrame(roi_cpu[rix]).plot()
-        plt.colorbar()
-        plt.title('CPU implementation')
-        plt.subplot(122)
-        plf.PlotFrame(roi_cuda[rix]).plot()
-        plt.colorbar()
-        plt.title('CUDA implementation')
+        plf.PlotFrameCoord(roi_cpu[rix], pos_tar=xyz[[rix]]).plot()
+        plt.title("Random ROI sample.\nShould show a single emitter in the centre of a ROI.")
         plt.show()
 
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+                       reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_frame_cuda_cpu(self, psf_cpu, psf_cuda):
         """
         Tests approximate equality of CUDA vs CPU implementation for a few frames
@@ -252,21 +260,25 @@ class TestCubicSplinePSF:
         frames_cuda = psf_cuda.forward(xyz, phot, frame_ix)
 
         assert tutil.tens_almeq(frames_cpu, frames_cuda, 1e-7)
-        return
+
+    @pytest.mark.skip_plot
+    def test_frame_visual(self, psf_cpu):
+        n = 10
+        xyz = torch.rand((n, 3)) * 64
+        xyz[:, 2] = torch.randn_like(xyz[:, 2]) * 1000 - 500
+        phot = torch.ones((n,))
+        frame_ix = torch.zeros_like(phot).int()
+
+        frames_cpu = psf_cpu.forward(xyz, phot, frame_ix)
 
         """Additional Plotting if manual testing (comment out return statement)."""
-        rix = random.randint(0, frame_ix.max().item() - 1)
         plt.figure()
-        plt.subplot(121)
-        plf.PlotFrame(frames_cpu[rix]).plot()
-        plt.colorbar()
-        plt.title('CPU implementation')
-        plt.subplot(122)
-        plf.PlotFrame(frames_cuda[rix]).plot()
-        plt.colorbar()
-        plt.title('CUDA implementation')
+        plf.PlotFrameCoord(frames_cpu[0], pos_tar=xyz).plot()
+        plt.title("Random Frame sample.\nShould show a single emitter distributed over a frame.")
         plt.show()
 
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+                       reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_derivatives(self, psf_cuda, onek_rois):
         """
         Tests the derivate calculation
@@ -290,6 +302,8 @@ class TestCubicSplinePSF:
 
         assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."
 
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+                       reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_fisher(self, psf_cuda, onek_rois):
         """
         Tests the fisher matrix calculation.
@@ -312,8 +326,10 @@ class TestCubicSplinePSF:
 
         assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."
 
-    @pytest.mark.xfail(float(torch.__version__[:3]) < 1.4, reason="Pseudo inverse is not implemented in batch mode "
-                                                                  "for older pytorch versions.")
+    @pytest.mark.xfail(float(torch.__version__[:3]) < 1.4,
+                       reason="Pseudo inverse is not implemented in batch mode for older pytorch versions.")
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+                       reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_crlb(self, psf_cuda, onek_rois):
         """
         Tests the crlb calculation
