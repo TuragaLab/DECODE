@@ -74,7 +74,7 @@ class TestSpatialEmbedding:
         img_ = delta_1px.forward(xyz)
         tar_ = tar_bin_1px.forward(xyz)
         assert torch.equal(img_.nonzero(), tar_[:, 0].nonzero())
-        assert torch.equal(img_.psf_cpu.nonzero(), tar_[:, 1].nonzero())
+        assert torch.equal(img_.nonzero(), tar_[:, 1].nonzero())
 
         img_ = delta_05px.forward(xyz)
         tar_ = tar_bin_05px.forward(xyz)
@@ -157,46 +157,36 @@ class TestKernelEmbedding(TestOffsetRep):
         return KernelEmbedding((-0.5, 31.5), (-0.5, 31.5), (32, 32))
 
     @pytest.fixture(scope='class')
-    def em_set(self):
-        """An easy emitter, two adjacent emitters, two overlaying emitters"""
+    def em_set_fixed_values(self):
+        """
+        Fixture to test hand-calculated values.
+        One easy emitter, two adjacent emitters, two overlaying emitters.
+        """
         return CoordinateOnlyEmitter(torch.tensor([[14.9, 17.2, 300.],
                                                    [0.01, 0.01, 250.],
                                                    [0.99, 0.99, -250.],
                                                    [25., 25., 500.],
                                                    [25.2, 25.2, 700.],
                                                    [10., 10., 200.],
-                                                   [11., 11., 500.]]))
+                                                   [11., 11., 500.]]), xy_unit='px')
 
     @pytest.fixture(scope='class')
     def loss(self):
         return OffsetROILoss(roi_size=3)
 
-    def test_values(self, roi_offset, em_set, loss):
-        target = roi_offset.forward(em_set)
+    def test_forward_equal_nonzeroness(self, roi_offset, em_set):
+        """
+        Test whether the non-zero entries are the same in all channels. Assumes that nothing is exactly at 0.0...
+        """
+        out = roi_offset.forward(em_set.xyz, em_set.phot, em_set.frame_ix)
+        assert equal_nonzero(out[:, 1], out[:, 2], out[:, 3], out[:, 4])
+
+    def test_values(self, roi_offset, em_set_fixed_values, loss):
+        target = roi_offset.forward(em_set_fixed_values.xyz, em_set_fixed_values.phot, None)[0]  # single frame
 
         assert tutil.tens_almeq(target[:, 15, 17], torch.tensor([1., 1., -0.1, 0.2, 300.]), 1e-5)
         assert tutil.tens_almeq(target[2, 15, 16:19], torch.tensor([-0.1, -0.1, -0.1]), 1e-5)
         assert tutil.tens_almeq(target[3, 14:17, 17], torch.tensor([0.2, 0.2, 0.2]), 1e-5)
-
-        """Test it together with the loss"""
-        prediction = torch.rand((1, 5, 32, 32))
-        loss_v = loss(prediction, target.unsqueeze(0))
-        assert tutil.tens_almeq(loss_v[0, 1:, 1, 0], torch.zeros(4))
-        assert tutil.tens_almeq(loss_v[0, 1:, 0, 1], torch.zeros(4))
-
-        """Some plotting if you want."""
-        # plt.figure(figsize=(12, 8))
-        # plt.subplot(231)
-        # PlotFrame(target[0]).plot()
-        # plt.subplot(232)
-        # PlotFrame(target[1]).plot()
-        # plt.subplot(234)
-        # PlotFrame(target[2]).plot()
-        # plt.subplot(235)
-        # PlotFrame(target[3]).plot()
-        # plt.subplot(236)
-        # PlotFrame(target[4]).plot()
-        # plt.show()
 
 
 @pytest.mark.skip("Deprecated.")

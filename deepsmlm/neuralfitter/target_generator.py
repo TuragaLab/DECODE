@@ -161,8 +161,8 @@ class KernelEmbedding(SinglePxEmbedding):
         self.roi_size = roi_size
 
         """Addition 'kernel' for phot channel, dxyz"""
-        dx = (self.xextent[1] - self.xextent[0]) / self.img_shape[0]
-        dy = (self.yextent[1] - self.xextent[0]) / self.img_shape[1]
+        dx = (self._xextent[1] - self._xextent[0]) / self._img_shape[0]
+        dy = (self._yextent[1] - self._xextent[0]) / self._img_shape[1]
         self._kern_dx = torch.tensor([[dx, dx, dx], [0., 0., 0.], [-dx, -dx, -dx]])
         self._kern_dy = torch.tensor([[dy, 0., -dy], [dy, 0., -dy], [dy, 0., -dy]])
 
@@ -177,7 +177,7 @@ class KernelEmbedding(SinglePxEmbedding):
                                img_shape=param.Simulation.img_size,
                                roi_size=param.HyperParameter.target_roi_size)
 
-    def _forward_single_frame(self, offset_target):
+    def _roi_increaser(self, offset_target):
         """
 
         Args:
@@ -190,7 +190,7 @@ class KernelEmbedding(SinglePxEmbedding):
         """
 
         # zero pad the target in image space so that we don't have border problems
-        offset_target_pad = functional.pad(offset_target, (1, 1, 1, 1), mode='constant', value=0.)
+        offset_target_pad = functional.pad(offset_target, [1, 1, 1, 1], mode='constant', value=0.)
         target = torch.zeros_like(offset_target_pad)
 
         is_emitter = offset_target_pad[0].nonzero()
@@ -219,6 +219,10 @@ class KernelEmbedding(SinglePxEmbedding):
                 ix_low: int = None, ix_high: int = None):
 
         offset_target = super().forward(xyz, phot, frame_ix, ix_low, ix_high)
+        for i in range(offset_target.size(0)):
+            offset_target[i] = self._roi_increaser(offset_target[i])
+
+        return offset_target
 
 
 @deprecated.deprecated("Tried some time ago but never used. Probably not up to date. Not tested.")
