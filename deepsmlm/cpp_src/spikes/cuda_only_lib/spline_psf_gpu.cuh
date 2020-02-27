@@ -13,7 +13,7 @@
     float roi_out_eps;  // epsilon value outside the roi
     float roi_out_deriv_eps; // epsilon value of derivative values outside the roi
     
-    int NV_PSP;  // number of parameters to fit
+    int n_par;  // number of parameters to fit
     int n_coeff;  // number of coefficients per pixel
 
 

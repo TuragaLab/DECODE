@@ -16,37 +16,45 @@
 
 #include <stdbool.h>
 
-/* Spline Structure */
-/**
- * @brief defines the cubic spline
- * 
- **/
+/// Spline struct holding all relevant attributes to it.
+///
+///
 typedef struct {
-        int xsize;  // size of the spline in x
-        int ysize;  // size of the spline in y
-        int zsize;  // size of the spline in z
+    int xsize;  // size of the spline in x
+    int ysize;  // size of the spline in y
+    int zsize;  // size of the spline in z
 
-        float roi_out_eps;  // epsilon value outside the roi
-        float roi_out_deriv_eps; // epsilon value of derivative values outside the roi
-        int NV_PSP; // number of parameters
+    float roi_out_eps;  // epsilon value outside the roi
+    float roi_out_deriv_eps; // epsilon value of derivative values outside the roi
+    int n_par; // number of parameters
 
-        bool add_bg_to_model;
+    bool add_bg_to_model;
 
-        float *coeff;  // coefficients
-        float *delta_f;  // internal helper
-        float *delta_dxf;
-        float *delta_dyf;
-        float *delta_dzf;
+    float *coeff;  // coefficients
 } spline;
 
-spline* initSpline(const float *coeff, const int xsize, int const ysize, const int zsize);
-void kernel_roi(spline *sp, float *img, const int roi_ix, const int npx, const int npy, const float xc, const float yc, const float zc, const float phot);
-void forward_rois(spline *sp, float *rois, const int n_rois, const int npx, const int npy, const float *xc, const float *yc, const float *zc, const float *phot);
-void forward_frames(spline *sp, float *frames, const int frame_size_x, const int frame_size_y, const int n_frames, 
-                    const int n_rois, const int roi_size_x, const int roi_size_y,
-                    const int *frame_ix, const float *xr0, const float *yr0, const float *z0, const int *x_ix, const int *y_ix, const float *phot);
+/// Initialises spline struct
+///
+/// \param [in] coeff: spline coefficients
+/// \param [in] xsize: size of the coefficients in x
+/// \param [in] ysize: size of the coefficients in y
+/// \param [in] zsize: size of the coefficients in z
+/// \return spline*: pointer to spline struct
+spline *initSpline(const float *coeff, int xsize, int ysize, int zsize);
 
-void f_derivative_PSF(spline *sp, float *img, float *dudt, int npx, float xc, float yc, float zc, float phot, float bg);
-void f_derivative_aggregate(spline *sp, float *dudt_px, float *dudt_agg, int npx, int npy);
+
+
+void forward_rois(spline *sp, float *rois, int n_rois, int npx, int npy,
+                  const float *xc, const float *yc, const float *zc, const float *phot);
+
+void forward_drv_rois(spline *sp, float *rois, float *drv_rois, int n_rois, int npx, int npy,
+                      const float *xc, const float *yc, const float *zc, const float *phot, const float *bg,
+                      const bool add_bg);
+
+void forward_frames(spline *sp, float *frames, int frame_size_x, int frame_size_y, int n_frames,
+                    int n_rois, int roi_size_x, int roi_size_y,
+                    const int *frame_ix, const float *xr0, const float *yr0, const float *z0, const int *x_ix,
+                    const int *y_ix, const float *phot);
+
 
 #endif /* spline_psf_h */

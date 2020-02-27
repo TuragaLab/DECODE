@@ -10,181 +10,222 @@
 #include <pybind11/stl.h>
 
 #if CUDA_ENABLED
-    #include "spline_psf_gpu.cuh"
-    namespace spg = spline_psf_gpu;
+#include "spline_psf_gpu.cuh"
+namespace spg = spline_psf_gpu;
 #endif
 
 namespace spc {
     extern "C" {
-        #include "spline_psf.h"
+
+#include "spline_psf.h"
+
     }
 }
 
 namespace py = pybind11;
 
-template <typename T>
+template<typename T>
 class PSFWrapperBase {
 
-    protected:
-    
-        T *psf;
-        const int roi_size_x;
-        const int roi_size_y;
-        int frame_size_x;
-        int frame_size_y;
+public:
 
-        PSFWrapperBase(int rx, int ry) : roi_size_x(rx), roi_size_y(ry) { }
-        PSFWrapperBase(int rx, int ry, int fx, int fy) : roi_size_x(rx), roi_size_y(ry), frame_size_x(fx), frame_size_y(fy) { }
+    bool cuda_is_available = false;
+
+protected:
+
+    T *psf;
+    const int roi_size_x;
+    const int roi_size_y;
+    int frame_size_x;
+    int frame_size_y;
+
+    PSFWrapperBase(int rx, int ry) : roi_size_x(rx), roi_size_y(ry) {}
+
+    PSFWrapperBase(int rx, int ry, int fx, int fy) : roi_size_x(rx), roi_size_y(ry), frame_size_x(fx),
+                                                     frame_size_y(fy) {}
 
 };
 
 #if CUDA_ENABLED
-    class PSFWrapperCUDA : public PSFWrapperBase<spg::spline> {
-
-        public:
-
-            explicit PSFWrapperCUDA(int coeff_xsize, int coeff_ysize, int coeff_zsize, int roi_size_x_, int roi_size_y_,
-                py::array_t<float, py::array::f_style | py::array::forcecast> coeff) : PSFWrapperBase{roi_size_x_, roi_size_y_} {
-
-                    psf = spg::d_spline_init(coeff.data(), coeff_xsize, coeff_ysize, coeff_zsize);
-
-                }
-
-            auto forward_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x, 
-                            py::array_t<float, py::array::c_style | py::array::forcecast> y, 
-                            py::array_t<float, py::array::c_style | py::array::forcecast> z, 
-                            py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
-
-
-                int n = x.size();  // number of ROIs
-                py::array_t<float> h_rois(n * roi_size_x * roi_size_y);
-
-                spg::forward_rois_host2host(psf, h_rois.mutable_data(), n, roi_size_x, roi_size_y, x.data(), y.data(), z.data(), phot.data());
-
-                return h_rois;
-            }
-
-            auto forward_drv_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x, 
-                                    py::array_t<float, py::array::c_style | py::array::forcecast> y, 
-                                    py::array_t<float, py::array::c_style | py::array::forcecast> z, 
-                                    py::array_t<float, py::array::c_style | py::array::forcecast> phot,
-                                    py::array_t<float, py::array::c_style | py::array::forcecast> bg,
-                                    const bool add_bg) -> std::tuple<py::array_t<float>, py::array_t<float>> {
-
-
-                const int n_par = 5;
-                int n = x.size();  // number of ROIs
-
-                py::array_t<float> h_rois(n * roi_size_x * roi_size_y);
-                py::array_t<float> h_drv_rois(n_par * n * roi_size_x * roi_size_y);
-
-                spg::forward_drv_rois_host2host(psf, h_rois.mutable_data(), h_drv_rois.mutable_data(), n, roi_size_x, roi_size_y, 
-                                                x.data(), y.data(), z.data(), phot.data(), bg.data(), add_bg);
-
-                return std::make_tuple(h_drv_rois, h_rois);
-            }
-
-            auto forward_frames(const int fx, const int fy,
-                            py::array_t<int, py::array::c_style | py::array::forcecast> frame_ix,
-                            const int n_frames,
-                            py::array_t<float, py::array::c_style | py::array::forcecast> xr,
-                            py::array_t<float, py::array::c_style | py::array::forcecast> yr,
-                            py::array_t<float, py::array::c_style | py::array::forcecast> z,
-                            py::array_t<int, py::array::c_style | py::array::forcecast> x_ix,
-                            py::array_t<int, py::array::c_style | py::array::forcecast> y_ix,
-                            py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
-
-                frame_size_x = fx;
-                frame_size_y = fy;
-                const int n_emitters = xr.size();
-                py::array_t<float> h_frames(n_frames * frame_size_x * frame_size_y);
-
-                spg::forward_frames_host2host(psf, h_frames.mutable_data(), frame_size_x, frame_size_y, n_frames, n_emitters, roi_size_x, roi_size_y, 
-                    frame_ix.data(), xr.data(), yr.data(), z.data(), x_ix.data(), y_ix.data(), phot.data());
-
-                return h_frames;
-            }
-
-
-    };
-#else
-    class PSFWrapperCUDA {
-        
-        public:
-
-            PSFWrapperCUDA() {
-                throw std::runtime_error("Not compiled with CUDA enabled. Please refer to CPU version.");
-            }
-    };
-#endif
-
-class PSFWrapperCPU : public PSFWrapperBase<spc::spline> {
+class PSFWrapperCUDA : public PSFWrapperBase<spg::spline> {
 
     public:
 
-        explicit PSFWrapperCPU(int coeff_xsize, int coeff_ysize, int coeff_zsize, int roi_size_x_, int roi_size_y_,
+        explicit PSFWrapperCUDA(int coeff_xsize, int coeff_ysize, int coeff_zsize, int roi_size_x_, int roi_size_y_,
             py::array_t<float, py::array::f_style | py::array::forcecast> coeff) : PSFWrapperBase{roi_size_x_, roi_size_y_} {
 
-                psf = spc::initSpline(coeff.data(), coeff_xsize, coeff_ysize, coeff_zsize);
+                psf = spg::d_spline_init(coeff.data(), coeff_xsize, coeff_ysize, coeff_zsize);
+                cuda_is_available = true;
 
             }
 
-        auto forward_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x, 
-                          py::array_t<float, py::array::c_style | py::array::forcecast> y, 
-                          py::array_t<float, py::array::c_style | py::array::forcecast> z, 
-                          py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
+        auto forward_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> y,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> z,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
 
-            const int n = x.size();
+
+            int n = x.size();  // number of ROIs
             py::array_t<float> h_rois(n * roi_size_x * roi_size_y);
 
-            if (roi_size_x != roi_size_y) {
-                throw std::invalid_argument("ROI size must be equal currently.");
-            }
-
-            spc::forward_rois(psf, h_rois.mutable_data(), n, roi_size_x, roi_size_y, x.data(), y.data(), z.data(), phot.data());
+            spg::forward_rois_host2host(psf, h_rois.mutable_data(), n, roi_size_x, roi_size_y, x.data(), y.data(), z.data(), phot.data());
 
             return h_rois;
         }
 
+        auto forward_drv_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x,
+                                py::array_t<float, py::array::c_style | py::array::forcecast> y,
+                                py::array_t<float, py::array::c_style | py::array::forcecast> z,
+                                py::array_t<float, py::array::c_style | py::array::forcecast> phot,
+                                py::array_t<float, py::array::c_style | py::array::forcecast> bg,
+                                const bool add_bg) -> std::tuple<py::array_t<float>, py::array_t<float>> {
+
+
+            const int n_par = 5;
+            int n = x.size();  // number of ROIs
+
+            py::array_t<float> h_rois(n * roi_size_x * roi_size_y);
+            py::array_t<float> h_drv_rois(n_par * n * roi_size_x * roi_size_y);
+
+            spg::forward_drv_rois_host2host(psf, h_rois.mutable_data(), h_drv_rois.mutable_data(), n, roi_size_x, roi_size_y,
+                                            x.data(), y.data(), z.data(), phot.data(), bg.data(), add_bg);
+
+            return std::make_tuple(h_drv_rois, h_rois);
+        }
+
         auto forward_frames(const int fx, const int fy,
-                            py::array_t<int, py::array::c_style | py::array::forcecast> frame_ix,
-                            const int n_frames,
-                            py::array_t<float, py::array::c_style | py::array::forcecast> xr,
-                            py::array_t<float, py::array::c_style | py::array::forcecast> yr,
-                            py::array_t<float, py::array::c_style | py::array::forcecast> z,
-                            py::array_t<int, py::array::c_style | py::array::forcecast> x_ix,
-                            py::array_t<int, py::array::c_style | py::array::forcecast> y_ix,
-                            py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
+                        py::array_t<int, py::array::c_style | py::array::forcecast> frame_ix,
+                        const int n_frames,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> xr,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> yr,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> z,
+                        py::array_t<int, py::array::c_style | py::array::forcecast> x_ix,
+                        py::array_t<int, py::array::c_style | py::array::forcecast> y_ix,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
 
             frame_size_x = fx;
             frame_size_y = fy;
             const int n_emitters = xr.size();
             py::array_t<float> h_frames(n_frames * frame_size_x * frame_size_y);
 
-            spc::forward_frames(psf, h_frames.mutable_data(), frame_size_x, frame_size_y, n_frames, n_emitters, roi_size_x, roi_size_y, 
+            spg::forward_frames_host2host(psf, h_frames.mutable_data(), frame_size_x, frame_size_y, n_frames, n_emitters, roi_size_x, roi_size_y,
                 frame_ix.data(), xr.data(), yr.data(), z.data(), x_ix.data(), y_ix.data(), phot.data());
 
             return h_frames;
         }
 
+
+};
+#else
+
+class PSFWrapperCUDA {
+
+public:
+
+    PSFWrapperCUDA(int coeff_xsize, int coeff_ysize, int coeff_zsize, int roi_size_x_, int roi_size_y_,
+                   py::array_t<float, py::array::f_style | py::array::forcecast> coeff) {
+        throw std::runtime_error("Not compiled with CUDA enabled. Please refer to CPU version.");
+    }
+};
+
+#endif
+
+class PSFWrapperCPU : public PSFWrapperBase<spc::spline> {
+
+public:
+
+    explicit PSFWrapperCPU(int coeff_xsize, int coeff_ysize, int coeff_zsize, int roi_size_x_, int roi_size_y_,
+                           py::array_t<float, py::array::f_style | py::array::forcecast> coeff) : PSFWrapperBase{
+            roi_size_x_, roi_size_y_} {
+
+        psf = spc::initSpline(coeff.data(), coeff_xsize, coeff_ysize, coeff_zsize);
+#if CUDA_ENABLED
+        cuda_is_available = true;
+#endif  // CUDA_ENABLED
+
+    }
+
+    auto forward_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x,
+                      py::array_t<float, py::array::c_style | py::array::forcecast> y,
+                      py::array_t<float, py::array::c_style | py::array::forcecast> z,
+                      py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
+
+        const int n = x.size();
+        py::array_t<float> h_rois(n * roi_size_x * roi_size_y);
+
+        if (roi_size_x != roi_size_y) {
+            throw std::invalid_argument("ROI size must be equal currently.");
+        }
+
+        spc::forward_rois(psf, h_rois.mutable_data(), n, roi_size_x, roi_size_y, x.data(), y.data(), z.data(),
+                          phot.data());
+
+        return h_rois;
+    }
+
+    auto forward_drv_rois(py::array_t<float, py::array::c_style | py::array::forcecast> x,
+                          py::array_t<float, py::array::c_style | py::array::forcecast> y,
+                          py::array_t<float, py::array::c_style | py::array::forcecast> z,
+                          py::array_t<float, py::array::c_style | py::array::forcecast> phot,
+                          py::array_t<float, py::array::c_style | py::array::forcecast> bg,
+                          const bool add_bg) -> std::tuple<py::array_t<float>, py::array_t<float>> {
+
+
+        const int n_par = 5;
+        int n = x.size();  // number of ROIs
+
+        py::array_t<float> h_rois(n * roi_size_x * roi_size_y);
+        py::array_t<float> h_drv_rois(n_par * n * roi_size_x * roi_size_y);
+
+        spc::forward_drv_rois(psf, h_rois.mutable_data(), h_drv_rois.mutable_data(), n, roi_size_x, roi_size_y,
+                              x.data(), y.data(), z.data(), phot.data(), bg.data(), add_bg);
+
+        return std::make_tuple(h_drv_rois, h_rois);
+    }
+
+    auto forward_frames(const int fx, const int fy,
+                        py::array_t<int, py::array::c_style | py::array::forcecast> frame_ix,
+                        const int n_frames,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> xr,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> yr,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> z,
+                        py::array_t<int, py::array::c_style | py::array::forcecast> x_ix,
+                        py::array_t<int, py::array::c_style | py::array::forcecast> y_ix,
+                        py::array_t<float, py::array::c_style | py::array::forcecast> phot) -> py::array_t<float> {
+
+        frame_size_x = fx;
+        frame_size_y = fy;
+        const int n_emitters = xr.size();
+        py::array_t<float> h_frames(n_frames * frame_size_x * frame_size_y);
+
+        spc::forward_frames(psf, h_frames.mutable_data(), frame_size_x, frame_size_y, n_frames, n_emitters, roi_size_x,
+                            roi_size_y,
+                            frame_ix.data(), xr.data(), yr.data(), z.data(), x_ix.data(), y_ix.data(), phot.data());
+
+        return h_frames;
+    }
+
 };
 
 PYBIND11_MODULE(spline_psf_cuda, m) {
     py::class_<PSFWrapperCPU>(m, "PSFWrapperCPU")
-        .def(py::init<int, int, int, int, int, py::array_t<float>>())
-        .def("forward_rois", &PSFWrapperCPU::forward_rois)
-        .def("forward_frames", &PSFWrapperCPU::forward_frames);
-
-    #if CUDA_ENABLED
-        py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
             .def(py::init<int, int, int, int, int, py::array_t<float>>())
-            .def("forward_rois", &PSFWrapperCUDA::forward_rois)
-            .def("forward_drv_rois", &PSFWrapperCUDA::forward_drv_rois)
-            .def("forward_frames", &PSFWrapperCUDA::forward_frames);
+            .def_readonly("cuda_is_available", &PSFWrapperCPU::cuda_is_available)
+            .def("forward_rois", &PSFWrapperCPU::forward_rois)
+            .def("forward_drv_rois", &PSFWrapperCPU::forward_drv_rois)
+            .def("forward_frames", &PSFWrapperCPU::forward_frames);
 
-    #else
-        py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
-            .def(py::init<>());
-            
-    #endif  // CUDA_ENABLED
+#if CUDA_ENABLED
+    py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
+        .def(py::init<int, int, int, int, int, py::array_t<float>>())
+        .def_readonly("cuda_is_available", &PSFWrapperCUDA::cuda_is_available)
+        .def("forward_rois", &PSFWrapperCUDA::forward_rois)
+        .def("forward_drv_rois", &PSFWrapperCUDA::forward_drv_rois)
+        .def("forward_frames", &PSFWrapperCUDA::forward_frames);
+
+#else
+    py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
+            .def(py::init<int, int, int, int, int, py::array_t<float>>());
+
+#endif  // CUDA_ENABLED
 }

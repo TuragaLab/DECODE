@@ -17,7 +17,7 @@ if(CUDA_FOUND)
    add_compile_definitions(CUDA_ENABLED)
 
 else()
-   message(WARNING "No CUDA compiler found. \nYou may need to specify its path via like 'export CUDACXX=/usr/local/cuda/bin/nvcc'")
+   message(WARNING "No CUDA compiler found. \nYou may need to specify its path like 'export CUDACXX=/usr/local/cuda/bin/nvcc'")
 
 endif()
 

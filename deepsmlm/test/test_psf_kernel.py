@@ -137,7 +137,7 @@ class TestCubicSplinePSF:
         yextent = (-0.5, 63.5)
         img_shape = (64, 64)
 
-        smap_psf = load_cal.SMAPSplineCoefficient(file=self.bead_cal)
+        smap_psf = load_cal.SMAPSplineCoefficient(calib_file=self.bead_cal)
         psf = psf_kernel.CubicSplinePSF(xextent=xextent,
                                         yextent=yextent,
                                         img_shape=img_shape,
@@ -209,11 +209,10 @@ class TestCubicSplinePSF:
     def test_roi_cuda_cpu(self, psf_cpu, psf_cuda, onek_rois):
         """
         Tests approximate equality of CUDA vs CPU implementation for a few ROIs
+
         Args:
             psf_cpu: psf implementation on CPU
             psf_cuda: psf implementation on CUDA
-
-        Returns:
 
         """
         xyz, phot, bg, n = onek_rois
@@ -236,6 +235,67 @@ class TestCubicSplinePSF:
         plf.PlotFrameCoord(roi_cpu[rix], pos_tar=xyz[[rix]]).plot()
         plt.title("Random ROI sample.\nShould show a single emitter in the centre of a ROI.")
         plt.show()
+
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+                       reason="Skipped because PSF implementation not compiled with CUDA support.")
+    def test_roi_drv_cuda_cpu(self, psf_cpu, psf_cuda, onek_rois):
+        """
+        Tests approximate equality of CUDA and CPU implementation for a few ROIs on the derivatives.
+
+        Args:
+            psf_cpu: psf implementation on CPU
+            psf_cuda: psf implementation on CUDA
+
+        """
+        xyz, phot, bg, n = onek_rois
+        phot = torch.ones_like(phot)
+
+        drv_roi_cpu, _ = psf_cpu.derivative(xyz, phot, bg)
+        drv_roi_cuda, _ = psf_cuda.derivative(xyz, phot, bg)
+
+        assert tutil.tens_almeq(drv_roi_cpu, drv_roi_cuda, 1e-7)
+
+    @pytest.mark.skip_plot
+    def test_roi_visual(self, psf_cpu, onek_rois):
+        xyz, phot, bg, n = onek_rois
+        phot = torch.ones_like(phot)
+
+        drv_rois, rois = psf_cpu.derivative(xyz, phot, bg)
+
+        """Additional Plotting if manual testing."""
+        rix = random.randint(0, n - 1)  # pick random sample
+        dr = drv_rois[rix]
+        r = rois[rix]
+        xyzr = xyz[[rix]]
+
+        plt.figure(figsize=(20, 12))
+
+        plt.subplot(231)
+        plf.PlotFrameCoord(r, pos_tar=xyzr).plot()
+        plt.title("Random ROI sample.\nShould show a single emitter in the centre of a ROI.")
+
+        plt.subplot(232)
+        plf.PlotFrame(dr[0], plot_colorbar=True).plot()
+        plt.title('d/dx')
+
+        plt.subplot(233)
+        plf.PlotFrame(dr[1], plot_colorbar=True).plot()
+        plt.title('d/dy')
+
+        plt.subplot(234)
+        plf.PlotFrame(dr[2], plot_colorbar=True).plot()
+        plt.title('d/dz')
+
+        plt.subplot(235)
+        plf.PlotFrame(dr[3], plot_colorbar=True).plot()
+        plt.title('d/dphot')
+
+        plt.subplot(236)
+        plf.PlotFrame(dr[4], plot_colorbar=True).plot()
+        plt.title('d/dbg')
+
+        plt.show()
+
 
     @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
