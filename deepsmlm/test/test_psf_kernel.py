@@ -129,7 +129,7 @@ class TestGaussianExpect:
 
 
 class TestCubicSplinePSF:
-    bead_cal = 'assets/bead_cal_for_testing.mat'
+    bead_cal = 'deepsmlm/test/assets/bead_cal_for_testing.mat'
 
     @pytest.fixture(scope='class')
     def psf_cpu(self):
