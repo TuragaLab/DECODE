@@ -337,9 +337,7 @@ class TestCubicSplinePSF:
         plt.title("Random Frame sample.\nShould show a single emitter distributed over a frame.")
         plt.show()
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
-                       reason="Skipped because PSF implementation not compiled with CUDA support.")
-    def test_derivatives(self, psf_cuda, onek_rois):
+    def test_derivatives(self, psf_cpu, onek_rois):
         """
         Tests the derivate calculation
 
@@ -354,17 +352,15 @@ class TestCubicSplinePSF:
         xyz, phot, bg, n = onek_rois
 
         """Run"""
-        drv, rois = psf_cuda.derivative(xyz, phot, bg)
+        drv, rois = psf_cpu.derivative(xyz, phot, bg)
 
         """Test"""
-        assert drv.size() == torch.Size([n, psf_cuda.n_par, *psf_cuda.roi_size_px]), "Wrong dimension of derivatives."
+        assert drv.size() == torch.Size([n, psf_cpu.n_par, *psf_cpu.roi_size_px]), "Wrong dimension of derivatives."
         assert tutil.tens_almeq(drv[:, -1].unique(), torch.Tensor([0., 1.])), "Derivative of background must be 1 or 0."
 
-        assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."
+        assert rois.size() == torch.Size([n, *psf_cpu.roi_size_px]), "Wrong dimension of ROIs."
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
-                       reason="Skipped because PSF implementation not compiled with CUDA support.")
-    def test_fisher(self, psf_cuda, onek_rois):
+    def test_fisher(self, psf_cpu, onek_rois):
         """
         Tests the fisher matrix calculation.
 
@@ -379,18 +375,16 @@ class TestCubicSplinePSF:
         xyz, phot, bg, n = onek_rois
 
         """Run"""
-        fisher, rois = psf_cuda.fisher(xyz, phot, bg)
+        fisher, rois = psf_cpu.fisher(xyz, phot, bg)
 
         """Test"""
-        assert fisher.size() == torch.Size([n, psf_cuda.n_par, psf_cuda.n_par])
+        assert fisher.size() == torch.Size([n, psf_cpu.n_par, psf_cpu.n_par])
 
-        assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."
+        assert rois.size() == torch.Size([n, *psf_cpu.roi_size_px]), "Wrong dimension of ROIs."
 
     @pytest.mark.xfail(float(torch.__version__[:3]) < 1.4,
                        reason="Pseudo inverse is not implemented in batch mode for older pytorch versions.")
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
-                       reason="Skipped because PSF implementation not compiled with CUDA support.")
-    def test_crlb(self, psf_cuda, onek_rois):
+    def test_crlb(self, psf_cpu, onek_rois):
         """
         Tests the crlb calculation
         Args:
@@ -405,11 +399,11 @@ class TestCubicSplinePSF:
         alt_inv = torch.pinverse
 
         """Run"""
-        crlb, rois = psf_cuda.crlb(xyz, phot, bg)
-        crlb_p, _ = psf_cuda.crlb(xyz, phot, bg, inversion=alt_inv)
+        crlb, rois = psf_cpu.crlb(xyz, phot, bg)
+        crlb_p, _ = psf_cpu.crlb(xyz, phot, bg, inversion=alt_inv)
 
         """Test"""
-        assert crlb.size() == torch.Size([n, psf_cuda.n_par]), "Wrong CRLB dimension."
+        assert crlb.size() == torch.Size([n, psf_cpu.n_par]), "Wrong CRLB dimension."
         assert (torch.Tensor([.01, .01, .02]) ** 2 <= crlb[:, :3]).all(), "CRLB in wrong range (lower bound)."
         assert (torch.Tensor([.1, .1, 100]) ** 2 >= crlb[:, :3]).all(), "CRLB in wrong range (upper bound)."
 
@@ -420,4 +414,4 @@ class TestCubicSplinePSF:
         assert tutil.tens_almeq(diff_inv[:, 3], torch.zeros_like(diff_inv[:, 3]), 1e2)
         assert tutil.tens_almeq(diff_inv[:, 4], torch.zeros_like(diff_inv[:, 4]), 1e-3)
 
-        assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px]), "Wrong dimension of ROIs."
+        assert rois.size() == torch.Size([n, *psf_cpu.roi_size_px]), "Wrong dimension of ROIs."
