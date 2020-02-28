@@ -1,5 +1,6 @@
 import random
 import matplotlib.pyplot as plt
+import pathlib
 import pytest
 import torch
 
@@ -129,7 +130,8 @@ class TestGaussianExpect:
 
 
 class TestCubicSplinePSF:
-    bead_cal = 'deepsmlm/test/assets/bead_cal_for_testing.mat'
+    cdir = pathlib.Path(__file__).resolve().parent
+    bead_cal = str((cdir / pathlib.Path('assets/bead_cal_for_testing.mat')))
 
     @pytest.fixture(scope='class')
     def psf_cpu(self):
@@ -250,10 +252,11 @@ class TestCubicSplinePSF:
         xyz, phot, bg, n = onek_rois
         phot = torch.ones_like(phot)
 
-        drv_roi_cpu, _ = psf_cpu.derivative(xyz, phot, bg)
-        drv_roi_cuda, _ = psf_cuda.derivative(xyz, phot, bg)
+        drv_roi_cpu, roi_cpu = psf_cpu.derivative(xyz, phot, bg)
+        drv_roi_cuda, roi_cuda = psf_cuda.derivative(xyz, phot, bg)
 
         assert tutil.tens_almeq(drv_roi_cpu, drv_roi_cuda, 1e-7)
+        assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-5)  # side output, seems to be a bit more numerially off
 
     @pytest.mark.skip_plot
     def test_roi_visual(self, psf_cpu, onek_rois):
