@@ -49,8 +49,6 @@ spline *initSpline(const float *coeff, const int xsize, int const ysize, const i
     sp->roi_out_deriv_eps = 0.0;
     sp->n_par = 5; // number of parameters
 
-    sp->add_bg_to_model = false;
-
     int tsize = xsize * ysize * zsize * 64;
     sp->coeff = (float *) malloc(sizeof(float) * tsize);
 
@@ -105,7 +103,8 @@ kernel_DerivativeSpline(spline *sp, const int xc, const int yc, int zc, const fl
         dudt[2] = sp->roi_out_deriv_eps;
         dudt[3] = sp->roi_out_deriv_eps;
         dudt[4] = sp->roi_out_deriv_eps;
-        if (sp->add_bg_to_model) {
+
+        if (add_bg) {
             *model = sp->roi_out_eps * theta[2] + theta[3];
         } else {
             *model = sp->roi_out_eps * theta[2];

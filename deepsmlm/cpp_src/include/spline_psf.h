@@ -28,8 +28,6 @@ typedef struct {
     float roi_out_deriv_eps; // epsilon value of derivative values outside the roi
     int n_par; // number of parameters
 
-    bool add_bg_to_model;
-
     float *coeff;  // coefficients
 } spline;
 
