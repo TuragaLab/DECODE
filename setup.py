@@ -1,14 +1,13 @@
+import setuptools
 from setuptools import setup
 
 setup(
     name='deepsmlm',
-    version='0.1',
-    packages=['deepsmlm', 'deepsmlm.test', 'deepsmlm.fitter', 'deepsmlm.cpp_src', 'deepsmlm.cpp_src.libtorchInterface',
-              'deepsmlm.generic', 'deepsmlm.generic.inout', 'deepsmlm.generic.utils', 'deepsmlm.generic.plotting',
-              'deepsmlm.simulation', 'deepsmlm.evaluation', 'deepsmlm.neuralfitter', 'deepsmlm.neuralfitter.models'],
+    version='0.1dev',
+    packages=setuptools.find_packages(),
     url='',
     license='',
-    author='lucasmueller',
+    author='Lucas-Raphael Mueller',
     author_email='',
     description=''
 )
