@@ -34,10 +34,12 @@ def split_sliceable(x, x_ix: torch.Tensor, ix_low: int, ix_high: int):
     x_list = [x_[ix_sort[i]:ix_sort[i + 1]] for i in range(ix_sort.size - 1)]
 
     """This needs to happen because searchsorted has some complicated logic."""
-    if ix_sort[-1] + 1 == picker.max() and len(x_) >= 1:
-        x_list.append(x_[ix_sort[-1]])
+    if len(x_) >= 1 and x_ix_[ix_sort[-1]] == picker.max():  # if the last element is present add it
+        # indices that match upper bound, could potentially be many
+        up_ix = slice(ix_sort[-1], (x_ix_ == ix_high).nonzero()[-1].item() + 1)  # ToDo: Change this to a better logic
+        x_list.append(x_[up_ix])
 
-    else:
+    else:  # if some empty are missing at the tail
         # how many empty ones at the end are missing
         n_empt = (ix_high - ix_low + 1) - len(x_list)
 
