@@ -102,7 +102,7 @@ class OutOfFocusEmitters:
                                                    sigma_0=2.5,
                                                    peak_weight=True)
         self.level_dist = torch.distributions.uniform.Uniform(low=ampl[0], high=ampl[1])
-        self.num_emitter_dist = partial(torch.randint, low=self.num_oof_rg[0], high=self.num_oof_rg[1], size=(1, ))
+        self.num_emitter_dist = partial(torch.randint, low=self.num_oof_rg[0], high=self.num_oof_rg[1] + 1, size=(1, ))
 
     @staticmethod
     def parse(param):

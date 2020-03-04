@@ -1,10 +1,10 @@
-import torch
-import pytest
 import matplotlib.pyplot as plt
-import deepsmlm.generic.background as background
-from deepsmlm.generic.plotting.frame_coord import PlotFrame
+import pytest
+import torch
 
+import deepsmlm.generic.background as background
 import deepsmlm.generic.utils.test_utils as tutil
+from deepsmlm.generic.plotting.frame_coord import PlotFrame
 
 
 class TestBackground:
@@ -17,6 +17,7 @@ class TestBackground:
         Returns:
 
         """
+
         class DummyBG(background.Background):
             def __init__(self, xextent, yextent, img_shape):
                 super().__init__()
@@ -115,15 +116,14 @@ class TestPerlinBg(TestBackground):
 class TestMultiPerlin(TestBackground):
 
     @pytest.fixture(scope='class')
-    def
+    def bgf(self):
+        return background.MultiPerlin((64, 64), [64, 32, 16, 8], [1, 1, 1, 1],
+                                      norm_amps=False,
+                                      draw_amps=True)
 
     @pytest.mark.skip_plot
-    def test_multiscale(self):
-        img_size = (64, 64)
-        cand = background.MultiPerlin(img_size, [64, 32, 16, 8], [1, 1, 1, 1],
-                                                            norm_amps=False,
-                                                            draw_amps=True)
-        out = cand.forward(torch.zeros((2, 3, 64, 64)))
+    def test_multiscale(self, bgf):
+        out = bgf.forward(torch.zeros((2, 3, 64, 64)))
         PlotFrame(out[0, 0]).plot()
         plt.colorbar()
         plt.show()
