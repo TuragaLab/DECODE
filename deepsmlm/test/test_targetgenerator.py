@@ -11,6 +11,52 @@ from deepsmlm.neuralfitter.losscollection import OffsetROILoss
 from deepsmlm.neuralfitter.target_generator import SinglePxEmbedding, KernelEmbedding, GlobalOffsetRep, SpatialEmbedding
 
 
+class TestTargetGenerator:
+
+    @pytest.fixture(scope='class')
+    def targ(self):
+        """
+        Setup dummy target generator for inheritors.
+
+        """
+        class DummyTarget:
+            def __init__(self, xextent, yextent, img_shape):
+                self.xextent = xextent
+                self.yextent = yextent
+                self.img_shape = img_shape
+
+                self.delta = psf_kernel.DeltaPSF(xextent=self.xextent,
+                                                 yextent=self.yextent,
+                                                 img_shape=self.img_shape)
+
+            def forward(self, x: EmitterSet) -> torch.Tensor:
+                return self.delta.forward(x.xyz, x.phot).unsqueeze(1)
+
+        xextent = (-0.5, 63.5)
+        yextent = (-0.5, 63.5)
+        img_shape = (64, 64)
+        return DummyTarget(xextent, yextent, img_shape)
+
+    @pytest.fixture(scope='class')
+    def fem(self):
+        return EmitterSet(xyz=torch.tensor([[0., 0., 0.]]), phot=torch.Tensor([1.]), frame_ix=torch.tensor([0]))
+
+    def test_shape(self, targ, fem):
+        """
+        Tests the frame_shape
+
+        Args:
+            targ:
+            fem:
+
+        """
+
+        out = targ.forward(fem)
+
+        """Tests"""
+        assert out.dim() == 4, "Wrong dimensionality."
+
+
 class TestSpatialEmbedding:
 
     @pytest.fixture(scope='class')
