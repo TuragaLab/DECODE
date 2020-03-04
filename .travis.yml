@@ -22,7 +22,7 @@ install:
   - pip install tensorboardX
 
   # build the C and C++ libraries
-  - cd $TRAVIS_BUILD_DIR/deepsmlm/cpp_src
+  - cd $TRAVIS_BUILD_DIR
   - python setup.py install
 
   # download the test assets
