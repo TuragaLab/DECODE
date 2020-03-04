@@ -30,6 +30,7 @@ dependencies:
   - python=3.6
   - pytorch=1.2.*
   - pytest
+  - pytest-repeat
   - pywavelets
   - scikit-image
   - scipy

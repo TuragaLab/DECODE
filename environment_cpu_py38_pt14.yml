@@ -29,6 +29,7 @@ dependencies:
   - pytorch=1.4.*
   - pyyaml
   - pytest
+  - pytest-repeat
   - pywavelets
   - scikit-image
   - scipy

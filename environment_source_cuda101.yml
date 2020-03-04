@@ -39,6 +39,7 @@ dependencies:
   - magma-cuda101
 
   - pytest
+  - pytest-repeat
   - pywavelets
   - scikit-image
   - scipy

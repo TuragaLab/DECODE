@@ -5,69 +5,145 @@ import torch
 import tqdm
 from torch.utils.data import Dataset
 
-import deepsmlm.neuralfitter.engine
 from deepsmlm.generic.emitter import EmitterSet
-from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV
 
 
 class SMLMStaticDataset(Dataset):
     """
-    A SMLMDataset derived from the Dataset class.
+    A simple and static SMLMDataset.
+
+    Attributes:
+        fwindow (int): width of frame window
+
+        tar_gen: target generator function
+        frame_proc: frame processing function
+        em_proc: emitter processing / filter function
+
+        return_em (bool): return EmitterSet in getitem method.
     """
 
-    def __init__(self, emitter, extent, frames, tar_gen, multi_frame_output=True):
+    def __init__(self, *, frames, em, tar_gen, frame_proc, em_proc, fwindow=3, return_em=True):
         """
 
-        :param emitter: set of emitters loaded by binary loader
-        :param extent: extent of the dataset
+        Args:
+            frames (torch.Tensor): frames. N x C x H x W
+            em (list of EmitterSets): ground-truth emitter-sets
+            tar_gen: target generator function
+            frame_proc: frame processing function
+            em_proc: emitter processing / filter function
+            fwindow (int): width of frame window
+            return_em (bool): return EmitterSet in getitem method.
         """
 
         super().__init__()
 
-        self.frames = frames
-        self.image_shape = None
-        self.em = None
-        self.extent = extent
-        self.upsampling = 1
-        self.multi_frame_output = multi_frame_output
+        self._frames = frames
+        self._em = em
 
-        # Remove the emitters which are out of the FOV.
-        emitter = RemoveOutOfFOV(self.extent[0], self.extent[1]).forward(emitter)
-        self.em = emitter.split_in_frames(ix_f=0, ix_l=self.__len__() - 1)
+        self.frame_proc = frame_proc
+        self.em_proc = em_proc
+        self.tar_gen = tar_gen
+        self.multi_frame = fwindow if fwindow is not None else 1  # otherwise the slicing logic does not work
 
-        self.image_shape = tuple(self.frames.shape[2:])
-        self.image_shape_hr = (self.image_shape[0] * self.upsampling,
-                               self.image_shape[1] * self.upsampling)
+        self.return_em = return_em
 
-        """Target data generation. Borrowed from psf-kernel."""
-        self.target_generator = tar_gen
+        """Sanity checks."""
+        if self.multi_frame is not None and self.multi_frame % 2 != 1:
+            raise ValueError("Multi-Frame must be None or odd integer.")
 
-        print("Dataset loaded. N: {} samples.".format(self.__len__()))
+        if self._em is not None and not isinstance(self._em, (list, tuple)):
+            raise ValueError("EM must be None, list or tuple.")
+
+        if self._frames.size(1) != 1:
+            raise ValueError("Frames must be one-channeled, i.e. N x C=1 x H x W.")
 
     def __len__(self):
+        return self._frames.size(0)
+
+    def _get_frame_window(self, index):
         """
-        :return:    length of the dataset.
+        Get frames in a given window and pad with same.
+
+        Args:
+            index:
+
+        Returns:
+            frames:
+
         """
-        return self.frames.shape[0]
+        hw = (self.multi_frame - 1) // 2  # half window without centre
+        frame_ix = torch.arange(index - hw, index + hw + 1).clamp(0, len(self) - 1)
+        frames = self._frames[frame_ix].squeeze(1)
+        return frames
 
     def __getitem__(self, index):
         """
-        :param index: index of the sample.
-        :return: a sample, i.e. an input image and a target
-        """
-        """Get adjacent frames. Pad borders with 'same'. Therefore we use the max(0, ix-1) and min(lastix, index+1)."""
-        if self.multi_frame_output:
-            img = torch.cat((
-                self.frames[max(0, index - 1), :, :, :],
-                self.frames[index, :, :, :],
-                self.frames[min(self.__len__() - 1, index + 1), :, :, :]), dim=0)
-        else:
-            img = self.frames[index, :, :, :]
+        Get a training sample.
 
-        """Forward Emitters thorugh target generator."""
-        em_tar = self.em[index]
-        target = self.target_generator.forward(em_tar)
-        return img, target, em_tar, index
+        Args:
+            index (int): index
+
+        Returns:
+            frames (torch.Tensor): processed frames. C x H x W
+            tar (torch.Tensor): target
+            em_tar (optional): Ground truth emitters
+
+        """
+        """Get frames. Pad with same."""
+        frames = self._get_frame_window(index)
+
+        if self.frame_proc:
+            frames = self.frame_proc.forward(frames)
+
+        """Process Emitters"""
+        em_tar = self._em[index] if self._em is not None else None
+        if self.em_proc:
+            em_tar = self.em_proc.forward(em_tar)
+
+        """Generate target"""
+        if self.tar_gen:
+            tar = self.tar_gen.forward(em_tar)
+
+        if self.return_em:
+            return frames, tar, em_tar
+        else:
+            if self.tar_gen:
+                return frames, tar
+            else:
+                return frames
+
+
+class InferenceDataset(SMLMStaticDataset):
+    """
+    A SMLM dataset without ground truth data. This is dummy wrapper to keep the visual appearance of a separate dataset.
+    """
+    def __init__(self, *, frames, frame_proc, fwindow):
+        """
+
+        Args:
+            frames (torch.Tensor): frames
+            frame_proc: frame processing function
+            fwindow (int): frame window
+        """
+        super().__init__(frames=frames, em=None, tar_gen=None, frame_proc=frame_proc, em_proc=None,
+                         fwindow=fwindow, return_em=False)
+
+    def __getitem__(self, index):
+        """
+        Get an inference sample.
+
+        Args:
+           index (int): index
+
+        Returns:
+           frames (torch.Tensor): processed frames. C x H x W
+        """
+        frames = self._get_frame_window(index)
+
+        if self.frame_proc:
+            frames = self.frame_proc.forward(frames)
+
+        return frames
 
 
 class SMLMTrainingEngineDataset(Dataset):
@@ -138,10 +214,10 @@ class SMLMTrainingEngineDataset(Dataset):
         aux = [a[ix] for a in self._aux]
 
         """Preparation on input, emitter filtering, target generation"""
-        x_in = self.input_prep.forward(x_in)
-        tar_em = self.em_filter.forward(tar_em)
-        tar_frame = self.target_gen.forward(tar_em, *aux)
-        weight = self.weight_gen.forward(x_in, tar_em, *aux)
+        x_in = self.input_prep.forward_(x_in)
+        tar_em = self.em_filter.forward_(tar_em)
+        tar_frame = self.target_gen.forward_(tar_em, *aux)
+        weight = self.weight_gen.forward_(x_in, tar_em, *aux)
 
         if not self.return_em_tar:
             return x_in, tar_frame, weight
@@ -188,7 +264,7 @@ class SMLMSimulationDatasetOnFly(Dataset):
             bg_frames: background frames
         """
 
-        cam_frames, bg_frames, em_tar = self.sim.forward()
+        cam_frames, bg_frames, em_tar = self.sim.forward_()
         return em_tar, cam_frames, bg_frames
 
 
@@ -229,20 +305,20 @@ class SMLMDatasetOnFly(Dataset):
                  emitters on the target frame (i.e. the middle frame)
         """
         emitter = self.prior.pop()
-        frame_sim, bg_sim = self.simulator.forward(emitter)
-        frame = self.input_preperator.forward(frame_sim)  # C x H x W
+        frame_sim, bg_sim = self.simulator.forward_(emitter)
+        frame = self.input_preperator.forward_(frame_sim)  # C x H x W
         emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
 
         if self.weight_generator is not None:
             # generate the weight mask
-            weight_mask = self.weight_generator.forward(frame, emitter_on_tar_frame, bg_sim[0])
+            weight_mask = self.weight_generator.forward_(frame, emitter_on_tar_frame, bg_sim[0])
         else:
             weight_mask = torch.zeros(0)
 
         if self.predict_bg and self.target_generator is not None:
-            target = self.target_generator.forward(emitter_on_tar_frame, bg_sim)
+            target = self.target_generator.forward_(emitter_on_tar_frame, bg_sim)
         elif self.target_generator is not None:
-            target = self.target_generator.forward(emitter_on_tar_frame)
+            target = self.target_generator.forward_(emitter_on_tar_frame)
         else:
             target = torch.zeros(0)
 
@@ -398,42 +474,4 @@ class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
             return frame, target, weight_mask
 
 
-class UnsupervisedDataset(Dataset):
-    def __init__(self, extent, frames, multi_frame_output=True):
-        super().__init__()
 
-        self.frames = frames
-        self.image_shape = None
-        self.multi_frame_output = multi_frame_output
-
-        # self.extent = (extent[0], extent[1], None)
-        self.image_shape = tuple(self.frames.shape[2:])
-
-        print("Dataset initialised. N: {} samples.".format(self.__len__()))
-
-    def __len__(self):
-        """
-        Get the length of the dataset.
-
-        :return:    length of the dataset.
-        """
-
-        return self.frames.shape[0]
-
-    def __getitem__(self, index):
-        """
-        Method to retrieve a sample.
-
-        :param index: index of the sample.
-        :return: a sample, i.e. an input image and a target
-        """
-        if self.multi_frame_output:
-            """Get adjacent frames. Pad borders with 'same'. Therefore we use the max(0, ix-1) and min(lastix, index+1)."""
-            img = torch.cat((
-                self.frames[max(0, index - 1), :, :, :],
-                self.frames[index, :, :, :],
-                self.frames[min(self.__len__() - 1, index + 1), :, :, :]), dim=0)
-        else:
-            img = self.frames[index, :, :, :]
-
-        return img, index

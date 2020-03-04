@@ -10,7 +10,7 @@ from tqdm import tqdm
 import deepsmlm.generic.emitter as em
 from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
 from deepsmlm.generic.utils.processing import TransformSequence
-from deepsmlm.neuralfitter.dataset import UnsupervisedDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer
+from deepsmlm.neuralfitter.dataset import InferenceDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer
 from deepsmlm.neuralfitter.pre_processing import N2C
 from deepsmlm.neuralfitter.target_generator import KernelEmbedding
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, AmplitudeRescale
@@ -262,8 +262,8 @@ class PredictEvalTif(PredictEval):
         if frames is None:
             frames = self.frames
 
-        self.dataset = UnsupervisedDataset(None, frames=frames,
-                                           multi_frame_output=self.multi_frame)
+        self.dataset = InferenceDataset(None, frames=frames,
+                                        multi_frame_output=self.multi_frame)
         self.dataloader = torch.utils.data.DataLoader(self.dataset,
                                                       batch_size=self.batch_size, shuffle=False,
                                                       num_workers=8, pin_memory=False)

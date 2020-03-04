@@ -10,13 +10,40 @@ from deepsmlm.generic.coordinate_trafo import A2BTransform
 from deepsmlm.generic.psf_kernel import PSF, DeltaPSF
 
 
-# class TargetGeneratorWrapper(ABC):
-#     def __init__(self):
-#         super().__init__()
-#
-#     @abstractmethod
-#     def forward(self):
-#         pass
+class TargetGenerator(ABC):
+    def __init__(self, unit='px'):
+        """
+
+        Args:
+            unit: Which unit to use for target generator.
+        """
+        super().__init__()
+        self._unit = unit
+
+    @abstractmethod
+    def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
+                 ix_low: int = None, ix_high: int = None):
+
+        raise NotImplementedError
+
+    def forward(self, em: EmitterSet, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
+        """
+
+        Args:
+            em (EmitterSet): EmitterSet. Defaults to xyz_nm coordinates.
+            ix_low (int): lower frame index
+            ix_high (int): upper frame index
+
+        Returns:
+            tar (torch.Tensor): Target.
+
+        """
+        if self._unit == 'px':
+            return self.forward_(xyz=em.xyz_px, phot=em.phot, frame_ix=em.frame_ix, ix_low=ix_low, ix_high=ix_high)
+        elif self._unit == 'nm':
+            return self.forward_(xyz=em.xyz_nm, phot=em.phot, frame_ix=em.frame_ix, ix_low=ix_low, ix_high=ix_high)
+        else:
+            raise ValueError
 
 
 class SpatialEmbedding(DeltaPSF):
@@ -78,7 +105,7 @@ class SpatialEmbedding(DeltaPSF):
 
         return xy_offset_map
 
-    def forward(self, xyz: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
+    def forward_(self, xyz: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None, ix_high=None):
         """
 
         Args:
@@ -94,8 +121,11 @@ class SpatialEmbedding(DeltaPSF):
         return self._forward_single_frame_wrapper(xyz=xyz, weight=weight, frame_ix=frame_ix,
                                                   ix_low=ix_low, ix_high=ix_high)
 
+    def forward(self, em: EmitterSet, ix_low: int = None, ix_high: int = None):
+        return self.forward_(em.xyz_px, em.frame_ix, ix_low, ix_high)
 
-class SinglePxEmbedding:
+
+class SinglePxEmbedding(TargetGenerator):
     """
     Generate binary target and embeddings of coordinates and photons.
     """
@@ -108,6 +138,8 @@ class SinglePxEmbedding:
             img_shape (tuple): image shape
         """
 
+        super().__init__(unit='px')
+
         self._delta = DeltaPSF(xextent,
                                yextent,
                                img_shape,
@@ -115,8 +147,8 @@ class SinglePxEmbedding:
 
         self._offset = SpatialEmbedding(xextent, yextent, img_shape)
 
-    def forward(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
-                ix_low: int = None, ix_high: int = None):
+    def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
+                 ix_low: int = None, ix_high: int = None):
         """
         Forward through target generator.
 
@@ -136,7 +168,7 @@ class SinglePxEmbedding:
 
         phot_map = self._delta.forward(xyz, phot, frame_ix, ix_low, ix_high)
 
-        xy_map = self._offset.forward(xyz, frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high)
+        xy_map = self._offset.forward_(xyz, frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high)
         z_map = self._delta.forward(xyz, weight=xyz[:, 2], frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high)
 
         return torch.cat((p_map.unsqueeze(1),
@@ -215,10 +247,10 @@ class KernelEmbedding(SinglePxEmbedding):
 
         return target
 
-    def forward(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
-                ix_low: int = None, ix_high: int = None):
+    def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
+                 ix_low: int = None, ix_high: int = None):
 
-        offset_target = super().forward(xyz, phot, frame_ix, ix_low, ix_high)
+        offset_target = super().forward_(xyz, phot, frame_ix, ix_low, ix_high)
         for i in range(offset_target.size(0)):
             offset_target[i] = self._roi_increaser(offset_target[i])
 
@@ -266,7 +298,7 @@ class GlobalOffsetRep(SinglePxEmbedding):
 
         return torch.from_numpy(pred_ix)
 
-    def forward(self, x):
+    def forward_(self, x):
         """
 
         :param x: emitter instance
