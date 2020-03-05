@@ -34,6 +34,10 @@ class TestSimulator:
         assert em_ == em
 
     def test_framerange(self, sim, em):
+        """
+        Tests whether the frames are okay.
+
+        """
 
         """Run"""
         frames, bg, _ = sim.forward(em)

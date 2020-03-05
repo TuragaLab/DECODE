@@ -1,6 +1,3 @@
-"""
-This module sets up a simulation engine which writes to a binary
-"""
 import copy
 import math
 import itertools
