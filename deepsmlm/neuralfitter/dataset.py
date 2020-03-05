@@ -1,11 +1,10 @@
 import ctypes
 import multiprocessing as mp
+
 import numpy as np
 import torch
 import tqdm
 from torch.utils.data import Dataset
-
-from deepsmlm.generic.emitter import EmitterSet
 
 
 class SMLMStaticDataset(Dataset):
@@ -13,25 +12,27 @@ class SMLMStaticDataset(Dataset):
     A simple and static SMLMDataset.
 
     Attributes:
-        fwindow (int): width of frame window
+        f_win (int): width of frame window
 
         tar_gen: target generator function
         frame_proc: frame processing function
         em_proc: emitter processing / filter function
+        weight_gen: weight generator function
 
         return_em (bool): return EmitterSet in getitem method.
     """
 
-    def __init__(self, *, frames, em, tar_gen, frame_proc, em_proc, fwindow=3, return_em=True):
+    def __init__(self, *, frames, em, frame_proc, em_proc, tar_gen, weight_gen=None, f_win=3, return_em=True):
         """
 
         Args:
             frames (torch.Tensor): frames. N x C x H x W
             em (list of EmitterSets): ground-truth emitter-sets
-            tar_gen: target generator function
             frame_proc: frame processing function
             em_proc: emitter processing / filter function
-            fwindow (int): width of frame window
+            tar_gen: target generator function
+            weight_gen: weight generator function
+            f_win (int): width of frame window
             return_em (bool): return EmitterSet in getitem method.
         """
 
@@ -43,7 +44,8 @@ class SMLMStaticDataset(Dataset):
         self.frame_proc = frame_proc
         self.em_proc = em_proc
         self.tar_gen = tar_gen
-        self.multi_frame = fwindow if fwindow is not None else 1  # otherwise the slicing logic does not work
+        self.weight_gen = weight_gen
+        self.multi_frame = f_win if f_win is not None else 1  # otherwise the slicing logic does not work
 
         self.return_em = return_em
 
@@ -101,32 +103,35 @@ class SMLMStaticDataset(Dataset):
             em_tar = self.em_proc.forward(em_tar)
 
         """Generate target"""
-        if self.tar_gen:
-            tar = self.tar_gen.forward(em_tar)
+        tar = self.tar_gen.forward(em_tar)
+
+        """Generate weight mask"""
+        if self.weight_gen:
+            weight = self.weight_gen.forward(frames, em_tar)
+        else:
+            weight = None
 
         if self.return_em:
-            return frames, tar, em_tar
-        else:
-            if self.tar_gen:
-                return frames, tar
-            else:
-                return frames
+            return frames, tar, weight, em_tar
+
+        return frames, tar, weight
 
 
 class InferenceDataset(SMLMStaticDataset):
     """
     A SMLM dataset without ground truth data. This is dummy wrapper to keep the visual appearance of a separate dataset.
     """
-    def __init__(self, *, frames, frame_proc, fwindow):
+
+    def __init__(self, *, frames, frame_proc, f_win=3):
         """
 
         Args:
             frames (torch.Tensor): frames
             frame_proc: frame processing function
-            fwindow (int): frame window
+            f_win (int): frame window
         """
-        super().__init__(frames=frames, em=None, tar_gen=None, frame_proc=frame_proc, em_proc=None,
-                         fwindow=fwindow, return_em=False)
+        super().__init__(frames=frames, em=None, frame_proc=frame_proc, em_proc=None, tar_gen=None, f_win=f_win,
+                         return_em=False)
 
     def __getitem__(self, index):
         """
@@ -147,17 +152,29 @@ class InferenceDataset(SMLMStaticDataset):
 
 
 class SMLMTrainingEngineDataset(Dataset):
-    def __init__(self, engine,
-                 em_filter, input_prep, target_gen, weight_gen, return_em_tar=False):
+    """
+    A dataset to use in conjunction with the training engine. It serves the purpose to load the data from the engine.
+
+    Attributes:
+
+    tar_gen: target generator function
+    frame_proc: frame processing function
+    em_proc: emitter processing / filter function
+    weight_gen: weight generator function
+
+    return_em (bool): return EmitterSet in getitem method.
+
+    """
+    def __init__(self, *, engine, em_proc, frame_proc, tar_gen, weight_gen, return_em=False):
         """
 
         Args:
             engine: (SMLMTrainingEngine)
-            em_filter: (callable) that filters the emitters as provided by the simulation engine
-            input_prep: (callable) that prepares the input data for the network (e.g. rescaling)
-            target_gen: (callable) that generates the training data
+            em_proc: (callable) that filters the emitters as provided by the simulation engine
+            frame_proc: (callable) that prepares the input data for the network (e.g. rescaling)
+            tar_gen: (callable) that generates the training data
             weight_gen: (callable) that generates a weight mask corresponding to the target / output data
-            return_em_tar: (bool) return target emitters in the form of an emitter set. use for test set
+            return_em: (bool) return target emitters in the form of an emitter set. use for test set
 
         """
         self._engine = engine
@@ -165,11 +182,12 @@ class SMLMTrainingEngineDataset(Dataset):
         self._tar_em = None  # emitter target
         self._aux = None  # auxiliary things
 
-        self.em_filter = em_filter
-        self.input_prep = input_prep
-        self.target_gen = target_gen
+        self.frame_proc = frame_proc
+        self.em_proc = em_proc
+        self.tar_gen = tar_gen
         self.weight_gen = weight_gen
-        self.return_em_tar = return_em_tar
+
+        self.return_em = return_em
 
     def load_from_engine(self):
         """
@@ -187,7 +205,7 @@ class SMLMTrainingEngineDataset(Dataset):
         data = self._engine.load_and_touch()
         self._tar_em = data[0]
         self._x_in = data[1]
-        if len(data) >= 3:
+        if len(data) >= 3:  # auxiliary stuff is appended at the end
             self._aux = data[2:]
         else:
             self._aux = [None] * self._x_in.size(0)
@@ -214,196 +232,124 @@ class SMLMTrainingEngineDataset(Dataset):
         aux = [a[ix] for a in self._aux]
 
         """Preparation on input, emitter filtering, target generation"""
-        x_in = self.input_prep.forward_(x_in)
-        tar_em = self.em_filter.forward_(tar_em)
-        tar_frame = self.target_gen.forward_(tar_em, *aux)
-        weight = self.weight_gen.forward_(x_in, tar_em, *aux)
+        x_in = self.frame_proc.forward(x_in)
+        tar_em = self.em_proc.forward(tar_em)
+        tar_frame = self.tar_gen.forward(tar_em, *aux)
+        weight = self.weight_gen.forward(x_in, tar_em, *aux)
 
-        if not self.return_em_tar:
+        if not self.return_em:
             return x_in, tar_frame, weight
         else:
             return x_in, tar_frame, weight, tar_em
 
 
-class SMLMSimulationDatasetOnFly(Dataset):
+class SMLMDatasetOnFly(Dataset):
     """
-    Simple implementation of a dataset which can generate samples from a simulator and returns them along with the
-    emitters that are on the frame.
-    I did this mainly here because I did not want to care about the multiprocessing myself and rather use the pytorch
-    dataset thingy which does that for me.
-    In itself this class will not be used for training a network directly.
+    A dataset in which the samples are generated on the fly.
+
+    Attributes:
+        ds_size (int): dataset (pseudo) size
+        prior: something with a pop() method to pop new samples
+        simulator:
+
     """
-
-    def __init__(self, simulator, ds_size: int):
-        """
-
-        Args:
-            simulator: (Simulation) (in principle anything with a) forward method
-            ds_size: (int) size of the dataset
-        """
+    def __init__(self, *, prior, simulator, ds_size: int, frame_proc, em_proc, tar_gen, weight_gen,
+                 return_em: bool =False):
         super().__init__()
-        self.sim = simulator
+
         self.ds_size = ds_size
 
-        # make sure that simulator has a prior to sample from and not a static emitter set
-        assert not isinstance(self.sim.em, EmitterSet)
+        self.prior = prior
+        self.simulator = simulator
+
+        self.frame_proc = frame_proc
+        self.em_proc = em_proc
+        self.tar_gen = tar_gen
+        self.weight_gen = weight_gen
+
+        self.return_em = return_em
+
+    def _pop_sample(self):
+        """
+        Generate new training sample
+
+        Returns:
+            emitter: all emitters
+            tar_em: target emitters (emitters on the central frame)
+            frame: input frames
+            target: target frames
+            weight: weight "frame"
+        """
+
+        emitter = self.prior.pop()  # pop new emitters (on all frames, those are not necessarily the target emitters)
+
+        frame, bg, _ = self.simulator.forward(emitter)
+        frame = self.frame_proc.forward(frame)
+        tar_em = emitter.get_subset_frame(0, 0)  # target emitters
+
+        if self.weight_gen is not None:
+            weight = self.weight_gen.forward(frame, tar_em, bg)
+        else:
+            weight = None
+
+        target = self.tar_gen.forward_(tar_em)
+
+        return emitter, tar_em, frame, target, weight
 
     def __len__(self):
         return self.ds_size
 
-    def __getitem__(self, item):
-        """
-        Returns the items
-
-        Args:
-            item: (int) index of sample
-
-        Returns:
-            em_tar: emitter target
-            cam_frames: camera frames
-            bg_frames: background frames
-        """
-
-        cam_frames, bg_frames, em_tar = self.sim.forward_()
-        return em_tar, cam_frames, bg_frames
-
-
-class SMLMDatasetOnFly(Dataset):
-    def __init__(self, extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, return_em_tar=False,
-                 predict_bg=True):
-        """
-
-        :param extent:
-        :param prior:
-        :param simulator:
-        :param ds_size:
-        :param in_prep: Prepare input to NN. Any instance with forwrard method
-        :param tar_gen: Generate target for learning.
-        :param static:
-        :param lifetime:
-        :param return_em_tar: __getitem__ method returns em_target
-        """
-        super().__init__()
-
-        self.extent = extent
-        self.data_set_size = ds_size
-
-        self.return_em_tar = return_em_tar
-        self.predict_bg = predict_bg
-        self.prior = prior
-        self.simulator = simulator
-
-        self.input_preperator = in_prep  # N2C()
-        self.target_generator = tar_gen
-        self.weight_generator = w_gen
-
-    def pop_new(self):
-        """
-        :return: emitter (all three frames)
-                 frames
-                 target frames
-                 emitters on the target frame (i.e. the middle frame)
-        """
-        emitter = self.prior.pop()
-        frame_sim, bg_sim = self.simulator.forward_(emitter)
-        frame = self.input_preperator.forward_(frame_sim)  # C x H x W
-        emitter_on_tar_frame = emitter.get_subset_frame(0, 0)
-
-        if self.weight_generator is not None:
-            # generate the weight mask
-            weight_mask = self.weight_generator.forward_(frame, emitter_on_tar_frame, bg_sim[0])
-        else:
-            weight_mask = torch.zeros(0)
-
-        if self.predict_bg and self.target_generator is not None:
-            target = self.target_generator.forward_(emitter_on_tar_frame, bg_sim)
-        elif self.target_generator is not None:
-            target = self.target_generator.forward_(emitter_on_tar_frame)
-        else:
-            target = torch.zeros(0)
-
-        return emitter, frame, target, weight_mask, emitter_on_tar_frame
-
-    def __len__(self):
-        return self.data_set_size
-
     def __getitem__(self, index):
 
-        emitter, frame, target, weight_mask, em_tar = self.pop_new()
+        all_em, tar_em, frame, target, weight = self._pop_sample()
 
-        """Make sure the data types are correct"""
-        self._check_datatypes(frame, target)
+        if self.return_em:
+            return frame, target, weight, tar_em
 
-        if self.return_em_tar:
-            return frame, target, weight_mask, em_tar
-        return frame, target, weight_mask
-
-    @staticmethod
-    def _check_datatypes(*args, none_okay=True):
-
-        for arg in args:
-            if isinstance(arg, torch.FloatTensor):
-                continue
-            if (arg is None or arg == [None]) and none_okay:
-                continue
-            raise ValueError(f"At least one of the tensors in the dataset is of wrong type. The datatype is "
-                             f"{type(arg)}")
-
-    def step(self):
-        pass
+        return frame, target, weight
 
 
 class SMLMDatasetOneTimer(SMLMDatasetOnFly):
-    def __init__(self, extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, return_em_tar=False,
-                 predict_bg=True):
-        super().__init__(extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, return_em_tar, predict_bg)
+    def __init__(self, *, prior, simulator, ds_size, frame_proc, em_proc, tar_gen, weight_gen, return_em=False):
+        super().__init__(prior=prior, simulator=simulator, ds_size=ds_size, frame_proc=frame_proc, em_proc=em_proc,
+                         tar_gen=tar_gen, weight_gen=weight_gen, return_em=return_em)
 
-        self.frame = [None] * self.__len__()
-        self.target = [None] * self.__len__()
-        self.weight_mask = [None] * self.__len__()
-        self.em_tar = [None] * self.__len__()
+        self.frame = [None] * len(self)
+        self.target = [None] * len(self)
+        self.weight_mask = [None] * len(self)
+        self.tar_em = [None] * len(self)
 
-        """Pre-Calculcate the complete dataset and use the same data as one draws samples.
-                This is useful for the testset or the classical deep learning feeling of not limited training data."""
+        """
+        Pre-calculate the complete dataset and use the same data as one draws samples.
+        This is useful for the testset or the classical deep learning feeling of limited training data.
+        """
         for i in tqdm.trange(self.__len__(), desc='Pre-Calculate Dataset'):
-            _, frame, target, weight_mask, em_tar = self.pop_new()
+            _, tar_em, frame, target, weight_mask = self._pop_sample()
+            self.tar_em[i] = tar_em
             self.frame[i] = frame
             self.target[i] = target
             self.weight_mask[i] = weight_mask
-            self.em_tar[i] = em_tar
-
-    def get_gt_emitter(self, output_format='list'):
-        """
-        Get the complete ground truth. Should only be used for static data.
-        :param output_format: either list (list of emittersets) or concatenated Emittersets.
-        :return:
-        """
-
-        if output_format == 'list':
-            return self.em_tar
-        elif output_format == 'cat':
-            return EmitterSet.cat(self.em_tar, step_frame_ix=1)
 
     def __getitem__(self, index):
 
-        self._check_datatypes(self.frame[index], self.target[index])
+        if self.return_em:
+            return self.frame[index], self.target[index], self.weight_mask[index], self.tar_em[index]
 
-        if self.return_em_tar:
-            return self.frame[index], self.target[index], self.weight_mask[index], self.em_tar[index]
         return self.frame[index], self.target[index], self.weight_mask[index]
 
 
 class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
-    def __init__(self, extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, lifetime, return_em_tar=False,
-                 predict_bg=True):
+    def __init__(self, *, prior, simulator, ds_size, lifetime, frame_proc, em_proc, tar_gen, weight_gen,
+                 return_em=False):
 
-        super().__init__(extent, prior, simulator, ds_size, in_prep, tar_gen, w_gen, return_em_tar, predict_bg)
+        super().__init__(prior=prior, simulator=simulator, ds_size=ds_size, frame_proc=frame_proc, em_proc=em_proc,
+                         tar_gen=tar_gen, weight_gen=weight_gen, return_em=return_em)
 
         self.lifetime = lifetime
         self.time_til_death = lifetime
 
-        """Initialise Frame and Target. Call drop method to create list."""
-        _, frame_dummy, target_dummy, weight_dummy, _ = self.pop_new()
+        """Initialise Frame and Target Cache. Call drop method to create list."""
+        _, frame_dummy, target_dummy, weight_dummy, _ = self._pop_sample()
 
         frames_base = mp.Array(ctypes.c_float, self.__len__() * frame_dummy.numel())
         frames = np.ctypeslib.as_array(frames_base.get_obj())
@@ -425,27 +371,17 @@ class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
 
         self.drop_data_set(verbose=False)
 
-    def step(self):
-        """
-        Reduce lifetime of dataset by one unit.
-        :return:
-        """
-        self.time_til_death -= 1
-        if self.time_til_death <= 0:
-            self.drop_data_set()
-        else:
-            self.use_cache = True
-
     def drop_data_set(self, verbose=True):
         """
         Invalidate / clear cache.
-        :param verbose: print when dropped.
-        :return:
+        Args:
+            verbose (bool): print to console when dropped
         """
+
         self.frame *= float('nan')
         self.target *= float('nan')
         self.weight_mask *= float('nan')
-        self.em_tar = [None] * self.__len__()
+        self.em_tar = [None] * len(self)
 
         self.use_cache = False
         self.time_til_death = self.lifetime
@@ -453,10 +389,21 @@ class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
         if verbose:
             print("Dataset dropped. Will calculate a new one in next epoch.")
 
+    def step(self):
+        """
+        Reduces lifetime by one step
+
+        """
+        self.time_til_death -= 1
+        if self.time_til_death <= 0:
+            self.drop_data_set()
+        else:
+            self.use_cache = True
+
     def __getitem__(self, index):
 
         if not self.use_cache:
-            emitter, frame, target, weight_mask, em_tar = self.pop_new()
+            emitter, frame, target, weight_mask, em_tar = self._pop_sample()
             self.frame[index] = frame
             self.target[index] = target
             self.weight_mask[index] = weight_mask
@@ -465,13 +412,7 @@ class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
         frame, target, weight_mask, em_tar = self.frame[index], self.target[index], self.weight_mask[index], \
                                              self.em_tar[index]
 
-        """Make sure the data types are correct"""
-        self._check_datatypes(frame, target)
-
-        if self.return_em_tar:
+        if self.return_em:
             return frame, target, weight_mask, em_tar
-        else:
-            return frame, target, weight_mask
 
-
-
+        return frame, target, weight_mask

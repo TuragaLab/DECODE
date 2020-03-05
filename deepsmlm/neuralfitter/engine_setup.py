@@ -212,18 +212,18 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
 
     train_ds = deepsmlm.neuralfitter.dataset.SMLMTrainingEngineDataset(
         engine=engine_train,
-        em_filter=em_filter,
-        input_prep=in_prep,
-        target_gen=tar_gen,
+        em_proc=em_filter,
+        frame_proc=in_prep,
+        tar_gen=tar_gen,
         weight_gen=weight_gen,
         return_em_tar=False
     )
 
     test_ds = deepsmlm.neuralfitter.dataset.SMLMTrainingEngineDataset(
         engine=engine_test,
-        em_filter=em_filter,
-        input_prep=in_prep,
-        target_gen=tar_gen,
+        em_proc=em_filter,
+        frame_proc=in_prep,
+        tar_gen=tar_gen,
         weight_gen=weight_gen,
         return_em_tar=True
     )

@@ -103,8 +103,8 @@ class TestSpatialEmbedding:
 
     def test_forward_range(self, tar_bin_1px, tar_bin_05px):
         em = CoordinateOnlyEmitter(torch.rand((1000, 3)) * 40)
-        offset_1px = tar_bin_1px.forward(em.xyz)
-        offset_hpx = tar_bin_05px.forward(em.xyz)
+        offset_1px = tar_bin_1px.forward_(em.xyz)
+        offset_hpx = tar_bin_05px.forward_(em.xyz)
 
         assert offset_1px.max().item() <= 0.5
         assert offset_1px.min().item() > -0.5
@@ -118,18 +118,18 @@ class TestSpatialEmbedding:
         xyz = CoordinateOnlyEmitter(torch.tensor([[15.1, 2.9, 0.]]), xy_unit='px').xyz
 
         img_ = delta_1px.forward(xyz)
-        tar_ = tar_bin_1px.forward(xyz)
+        tar_ = tar_bin_1px.forward_(xyz)
         assert torch.equal(img_.nonzero(), tar_[:, 0].nonzero())
         assert torch.equal(img_.nonzero(), tar_[:, 1].nonzero())
 
         img_ = delta_05px.forward(xyz)
-        tar_ = tar_bin_05px.forward(xyz)
+        tar_ = tar_bin_05px.forward_(xyz)
         assert torch.equal(img_.nonzero(), tar_[:, 0].nonzero())
         assert torch.equal(img_.nonzero(), tar_[:, 1].nonzero())
 
         """Test an out of range emitter."""
         xyz = CoordinateOnlyEmitter(torch.tensor([[31.6, 16., 0.]]), xy_unit='px').xyz
-        offset_map = tar_bin_1px.forward(xyz)
+        offset_map = tar_bin_1px.forward_(xyz)
         assert torch.equal(torch.zeros_like(offset_map), offset_map)
 
     def test_forward_offset_1px_units(self, tar_bin_1px, tar_bin_05px):
@@ -145,14 +145,14 @@ class TestSpatialEmbedding:
                                                   [1.5, 1.2, 0.],
                                                   [2.7, 0.5, 0.]])).xyz
 
-        offset_1px = tar_bin_1px.forward(xyz).squeeze(0)
+        offset_1px = tar_bin_1px.forward_(xyz).squeeze(0)
 
         assert torch.allclose(torch.tensor([0., 0.]), offset_1px[:, 0, 0])
         assert torch.allclose(torch.tensor([0.5, 0.2]), offset_1px[:, 1, 1])
         assert torch.allclose(torch.tensor([-0.3, 0.5]), offset_1px[:, 3, 0])
 
 
-class TestOffsetRep:
+class TestSinglePxEmbedding:
 
     @pytest.fixture(scope='class')
     def offset_rep(self):
@@ -169,14 +169,14 @@ class TestOffsetRep:
         """
         Test whether the non-zero entries are the same in all channels. Assumes that nothing is exactly at 0.0...
         """
-        out = offset_rep.forward(em_set.xyz, em_set.phot, em_set.frame_ix)
+        out = offset_rep.forward_(em_set.xyz, em_set.phot, em_set.frame_ix)
         assert equal_nonzero(out[:, 0], out[:, 1], out[:, 2], out[:, 3], out[:, 4])
 
     def test_output_range(self, offset_rep, em_set):
         """
         Test whether delta x/y are between -0.5 and 0.5 (which they need to be for 1 coordinate unit == 1px)
         """
-        out = offset_rep.forward(em_set.xyz, em_set.phot, em_set.frame_ix)
+        out = offset_rep.forward_(em_set.xyz, em_set.phot, em_set.frame_ix)
         p, I, dx, dy, z = out[:, 0], out[:, 1], out[:, 2], out[:, 3], out[:, 4]
 
         assert (dx <= 0.5).all(), "delta x/y must be between -0.5 and 0.5"
@@ -192,11 +192,11 @@ class TestOffsetRep:
 
         """
         em_set = CoordinateOnlyEmitter(torch.tensor([[15.1, 19.6, 250.]]), xy_unit='px')
-        out = offset_rep.forward(em_set.xyz, em_set.phot, em_set.frame_ix)[0]  # single frame
+        out = offset_rep.forward_(em_set.xyz, em_set.phot, em_set.frame_ix)[0]  # single frame
         assert tutil.tens_almeq(out[:, 15, 20], torch.tensor([1., 1., 0.1, -0.4, 250.]), 1e-5)
 
 
-class TestKernelEmbedding(TestOffsetRep):
+class TestKernelEmbedding(TestSinglePxEmbedding):
 
     @pytest.fixture(scope='class')
     def roi_offset(self):
@@ -224,11 +224,11 @@ class TestKernelEmbedding(TestOffsetRep):
         """
         Test whether the non-zero entries are the same in all channels. Assumes that nothing is exactly at 0.0...
         """
-        out = roi_offset.forward(em_set.xyz, em_set.phot, em_set.frame_ix)
+        out = roi_offset.forward_(em_set.xyz, em_set.phot, em_set.frame_ix)
         assert equal_nonzero(out[:, 1], out[:, 2], out[:, 3], out[:, 4])
 
     def test_values(self, roi_offset, em_set_fixed_values, loss):
-        target = roi_offset.forward(em_set_fixed_values.xyz, em_set_fixed_values.phot, None)[0]  # single frame
+        target = roi_offset.forward_(em_set_fixed_values.xyz, em_set_fixed_values.phot, None)[0]  # single frame
 
         assert tutil.tens_almeq(target[:, 15, 17], torch.tensor([1., 1., -0.1, 0.2, 300.]), 1e-5)
         assert tutil.tens_almeq(target[2, 15, 16:19], torch.tensor([-0.1, -0.1, -0.1]), 1e-5)
@@ -271,7 +271,7 @@ class TestGlobalOffsetRep:
         PlotFrameCoord(frame=ix_map, pos_tar=em.xyz).plot()
         plt.show()
 
-        offset_maps = classyclassclass.forward(em)
+        offset_maps = classyclassclass.forward_(em)
         PlotFrameCoord(frame=offset_maps[2], pos_tar=em.xyz).plot()
         plt.show()
 
@@ -288,7 +288,7 @@ class TestGlobalOffsetRep:
 
         em = RandomEmitterSet(10, extent=32)
         em.phot = torch.randn_like(em.phot)
-        offset_maps = classyclassclass.forward(em)
+        offset_maps = classyclassclass.forward_(em)
         PlotFrameCoord(frame=offset_maps[1], pos_tar=em.xyz).plot()
         plt.show()
 

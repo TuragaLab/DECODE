@@ -135,10 +135,10 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
         frame_range=frame_range,
         out_bg=predict_bg)
 
-    ds_train = deepsmlm.neuralfitter.dataset.SMLMSimulationDatasetOnFly(simulator=simulation,
-                                                                        ds_size=param.HyperParameter.pseudo_ds_size)
-    ds_test = deepsmlm.neuralfitter.dataset.SMLMSimulationDatasetOnFly(simulator=simulation,
-                                                                       ds_size=param.HyperParameter.test_size)
+    ds_train = deepsmlm.simulation.engine.SMLMSimulationDatasetOnFly(simulator=simulation,
+                                                                     ds_size=param.HyperParameter.pseudo_ds_size)
+    ds_test = deepsmlm.simulation.engine.SMLMSimulationDatasetOnFly(simulator=simulation,
+                                                                    ds_size=param.HyperParameter.test_size)
 
     simulation_engine = deepsmlm.simulation.engine.SimulationEngine(cache_dir=cache_dir,
                                                                     exp_id=exp_id,

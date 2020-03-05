@@ -57,7 +57,7 @@ class TestEmitterSet:
         assert splits.__len__() == 1
 
         splits = em3d.split_in_frames(None, None)
-        assert em3d.frame_ix.max() - em3d.frame_ix.min() + 1 == splits.__len__()
+        assert em3d.frame_ix.max() - em3d.frame_ix.min() + 1 == len(splits)
 
         """Test negative numbers in Frame ix."""
         neg_frames = EmitterSet(torch.rand((3, 3)),

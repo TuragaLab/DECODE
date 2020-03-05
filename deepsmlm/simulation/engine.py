@@ -5,6 +5,7 @@ import copy
 import math
 import itertools
 import torch
+from torch.utils.data import Dataset
 
 import deepsmlm.neuralfitter.utils.pytorch_customs
 
@@ -237,3 +238,46 @@ class SimulationEngine:
                 self.run_pickle_dl(self._dl_train, self.exp_dir / train_data_name, train_data_name)
 
             n += 1
+
+
+class SMLMSimulationDatasetOnFly(Dataset):
+    """
+    Simple implementation of a dataset which can generate samples from a simulator and returns them along with the
+    emitters that are on the frame.
+    I did this mainly here because I did not want to care about the multiprocessing myself and rather use the pytorch
+    dataset thingy which does that for me.
+    In itself this class will not be used for training a network directly.
+    """
+
+    def __init__(self, simulator, ds_size: int):
+        """
+
+        Args:
+            simulator: (Simulation) (in principle anything with a) forward method
+            ds_size: (int) size of the dataset
+        """
+        super().__init__()
+        self.sim = simulator
+        self.ds_size = ds_size
+
+        # make sure that simulator has a prior to sample from and not a static emitter set
+        assert not isinstance(self.sim.em, deepsmlm.generic.emitter.EmitterSet)
+
+    def __len__(self):
+        return self.ds_size
+
+    def __getitem__(self, item):
+        """
+        Returns the items
+
+        Args:
+            item: (int) index of sample
+
+        Returns:
+            em_tar: emitter target
+            cam_frames: camera frames
+            bg_frames: background frames
+        """
+
+        cam_frames, bg_frames, em_tar = self.sim.forward_()
+        return em_tar, cam_frames, bg_frames

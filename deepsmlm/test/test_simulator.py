@@ -2,34 +2,43 @@ import os, sys
 import torch
 import pytest
 
-import deepsmlm.generic.emitter as em
-import deepsmlm.simulation.simulator as sim
-import deepsmlm.generic.inout.load_calibration as load_calib
-
-deepsmlm_root = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 os.pardir, os.pardir)) + '/'
+import deepsmlm.generic.emitter as emitter
+import deepsmlm.generic.background as background
+import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.simulation.simulator as can  # test candidate
 
 
 class TestSimulator:
 
-    @pytest.fixture(scope='class')
-    def dummy_em(self):
-        return em.EmitterSet(torch.tensor([[0., 0., 0]]),
-                             torch.tensor([1000.]),
-                             torch.tensor([0.]))
+    @pytest.fixture(scope='class', params=[32, 64])
+    def sim(self, request):
+        psf = psf_kernel.GaussianExpect((-0.5, 31.5), (-0.5, 31.5), (-750., 750.), (request.param, request.param),
+                                        sigma_0=1.0)
+        bg = background.UniformBackground(10.)
+        sim = can.Simulation(psf=psf, background=bg, noise=None, frame_range=(-1, 1))
+
+        return sim
 
     @pytest.fixture(scope='class')
-    def dummy_sim(self):
-        psf_extent = ((-0.5, 63.5), (-0.5, 63.5), (-750, 750))
-        img_shape = (64, 64)
-        csp_calib = deepsmlm_root + \
-                    'data/Calibration/2019-06-13_Calibration/sequence-as-stack-Beads-AS-Exp_3dcal.mat'
+    def em(self):
+        return emitter.RandomEmitterSet(10)
 
-        sp = load_calib.SMAPSplineCoefficient(csp_calib)
-        psf = sp.init_spline(psf_extent[0], psf_extent[1], img_shape=img_shape)
-        return sim.Simulation(em=None, extent=None, psf=psf, background=None, frame_range=(-1, 1), poolsize=0)
+    def test_em_eq(self, sim, em):
+        """
+        Tests whether input emitter and output emitter are the same
 
-    def test_forward(self, dummy_em, dummy_sim):
-        x = dummy_sim.forward(dummy_em)
-        print("Done")
+        """
+        _, _, em_ = sim.forward(em)
+
+        """Tests"""
+        assert em_ == em
+
+    def test_framerange(self, sim, em):
+
+        """Run"""
+        frames, bg, _ = sim.forward(em)
+
+        """Tests"""
+        assert frames.size() == torch.Size([3, *sim.psf.img_shape])
+        assert (frames[[0, -1]] == 10.).all(), "Only middle frame is supposed to be active."
+        assert frames[1].max() > 10., "Middle frame should be active"

@@ -23,14 +23,10 @@ class TestDataset:
         em = deepsmlm.generic.emitter.RandomEmitterSet(n * 100)
         em.frame_ix = torch.randint_like(em.frame_ix, n + 1)
 
-        dataset = can.SMLMStaticDataset(frames=torch.rand((n, 1, 32, 32)),
-                                        em=em.split_in_frames(0, n - 1),
+        dataset = can.SMLMStaticDataset(frames=torch.rand((n, 1, 32, 32)), em=em.split_in_frames(0, n - 1),
+                                        frame_proc=DummyFrameProc, em_proc=DummyEmProc,
                                         tar_gen=deepsmlm.neuralfitter.target_generator.SinglePxEmbedding(
-                                            (-0.5, 31.5), (-0.5, 31.5), (32, 32)),
-                                        em_proc=DummyEmProc,
-                                        frame_proc=DummyFrameProc,
-                                        fwindow=request.param,
-                                        return_em=True)
+                                            (-0.5, 31.5), (-0.5, 31.5), (32, 32)), f_win=request.param, return_em=True)
 
         return dataset
 
@@ -82,8 +78,7 @@ class TestInferenceDataset(TestDataset):
 
         n = 100
 
-        dataset = can.InferenceDataset(frames=torch.rand((n, 1, 32, 32)),
-                                        frame_proc=DummyFrameProc,
-                                        fwindow=request.param)
+        dataset = can.InferenceDataset(frames=torch.rand((n, 1, 32, 32)), frame_proc=DummyFrameProc,
+                                       f_win=request.param)
 
         return dataset
