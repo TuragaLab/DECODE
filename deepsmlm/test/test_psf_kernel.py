@@ -29,10 +29,31 @@ class TestPSF:
                     return torch.zeros((32, 32))
 
             def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
-                super().forward(xyz, weight, frame_ix, ix_low, ix_high)
-                return self._forward_single_frame_wrapper(xyz, weight, frame_ix)
+                xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
+                return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
 
         return PseudoAbsPSF(None, None, None, None)
+
+    def test_frame_split(self, abs_psf):
+        """
+        Tests frame splitting when no batch implementation is present
+        Args:
+            abs_psf: fixture
+
+        """
+        """Setup"""
+        xyz = torch.Tensor([[15., 15., 0.], [0.5, 0.3, 0.]])
+        phot = torch.ones_like(xyz[:, 0])
+        frame_ix = torch.Tensor([0, 0]).int()
+
+        """Run"""
+        frames = abs_psf.forward(xyz, phot, frame_ix, -1, 1)
+
+        """Asserts"""
+        assert frames.size() == torch.Size([3, 32, 32]), "Wrong dimensions."
+        assert (frames[[0, -1]] == 0.).all(), "Wrong frames active."
+        assert (frames[1] != 0).any(), "Wrong frames active."
+        assert frames[1].max() > 0, "Wrong frames active."
 
     def test_single_frame_wrapper(self, abs_psf):
         """

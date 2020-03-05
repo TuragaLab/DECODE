@@ -44,7 +44,12 @@ class PSF(ABC):
     def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
         """
         Forward coordinates frame index aware through the psf model.
-        Implementation methods should call this method first in order not to handle the default argument stuff
+        Implementation methods should call this method first in order not to handle the default argument stuff.
+        If implementation do not implement a batched forward method, they may call this method, and then refer to the
+        single-frame wrapper as. Their forward implementation will then look like this:
+
+            xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
+            return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
 
         Args:
             xyz: coordinates of size N x (2 or 3)
@@ -70,6 +75,9 @@ class PSF(ABC):
         xyz_ = xyz[in_frame, :]
         weight_ = weight[in_frame] if weight is not None else None
         frame_ix_ = frame_ix[in_frame] - ix_low
+
+        ix_high -= ix_low
+        ix_low = 0
 
         return xyz_, weight_, frame_ix_, ix_low, ix_high
 
@@ -248,7 +256,7 @@ class GaussianExpect(PSF):
         sigma_0 = self.sigma_0
 
         if num_emitters == 0:
-            return torch.zeros(1, img_shape[0], img_shape[1]).float()
+            return torch.zeros(img_shape[0], img_shape[1]).float()
 
         xpos = xyz[:, 0].repeat(img_shape[0], img_shape[1], 1)
         ypos = xyz[:, 1].repeat(img_shape[0], img_shape[1], 1)
