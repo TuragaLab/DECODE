@@ -11,54 +11,56 @@ from torch.distributions.exponential import Exponential
 from deepsmlm.generic.emitter import EmitterSet, LooseEmitterSet
 
 
-class EmitterGenerator(ABC):
+class EmitterPopperABC(ABC):
 
-    @abstractmethod
     def __init__(self):
-        pass
+        super().__init__()
+
+    def __call__(self) -> EmitterSet:
+        return self.pop()
 
     @abstractmethod
-    def generate_set(self):
-        pass
-
-    @abstractmethod
-    def pop_single_frame(self):
-        pass
+    def pop(self) -> EmitterSet:
+        raise NotImplementedError
 
 
-class EmitterPopper:
+class EmitterPopperSingle(EmitterPopperABC):
+    """
+    Simple Emitter sampler. Samples emitters from a structure
+    """
 
-    def __init__(self, structure, photon_range, density=None, emitter_av=None):
+    def __init__(self, *, structure, photon_range: tuple, density: float = None, emitter_av: float = None):
+        super().__init__()
+
         self.structure = structure
         self.density = density
         self.photon_range = photon_range
 
-        """U shall not pa(rse)! (Emitter Average and Density at the same time!"""
+        """
+        Sanity Checks.
+        U shall not pa(rse)! (Emitter Average and Density at the same time!
+        """
         if (density is None and emitter_av is None) or (density is not None and emitter_av is not None):
             raise ValueError("You must XOR parse either density or emitter average. Not both or none.")
 
         if emitter_av is not None:
-            self.area = self.structure.get_area
+            self.area = self.structure.area
             self.emitter_av = emitter_av
         else:
-            self.area = self.structure.get_area
+            self.area = self.structure.area
             self.emitter_av = self.density * self.area
 
-    def __call__(self):
-        return self.pop()
-
-    def pop(self):
+    def pop(self) -> EmitterSet:
         """
-        Pop a new sample.
-        :return: emitter set
-        """
-        """If emitter average is set to 0, always pop exactly one single emitter."""
-        if self.emitter_av == 0:
-            n = 1
-        else:
-            n = np.random.poisson(lam=self.emitter_av)
+        Pop a new EmitterSet
 
-        xyz = self.structure.draw(n, 3)
+        Returns:
+            EmitterSet:
+
+        """
+        n = np.random.poisson(lam=self.emitter_av)
+
+        xyz = self.structure.pop(n, 3)
         phot = torch.randint(*self.photon_range, (n, ))
         frame_ix = torch.zeros_like(phot)
 
@@ -68,8 +70,8 @@ class EmitterPopper:
                           id=None)
 
 
-class EmitterPopperMultiFrame(EmitterPopper):
-    def __init__(self, structure, intensity_mu_sig, lifetime, num_frames=3, density=None, emitter_av=None,
+class EmitterPopperMultiFrame(EmitterPopperSingle):
+    def __init__(self, *, structure, intensity_mu_sig, lifetime, num_frames=3, density=None, emitter_av=None,
                  intensity_th=None):
         """
 
@@ -124,7 +126,7 @@ class EmitterPopperMultiFrame(EmitterPopper):
             lam_in = self._emitter_av_total
 
         n = np.random.poisson(lam=lam_in)
-        xyz = self.structure.draw(n, 3)
+        xyz = self.structure.pop(n, 3)
 
         """Draw from intensity distribution but clamp the value so as not to fall below 0."""
         intensity = torch.clamp(self.intensity_dist.sample((n,)), self.intensity_th, None)
@@ -165,79 +167,3 @@ class EmitterPopperMultiFrame(EmitterPopper):
         emset =  loose_em.return_emitterset().get_subset_frame(-1, 1)
         emset.xy_unit = 'px'
         return emset
-
-
-def emitters_from_csv(csv_file, img_size, cont_radius=3):
-    emitters_matlab = pd.read_csv(csv_file)
-
-    emitters_matlab = torch.from_numpy(emitters_matlab.iloc[:, :].as_matrix()).type(torch.float32)
-    em_mat = torch.cat((emitters_matlab[:, 2:5] * (img_size[0] + 2 * cont_radius) - cont_radius,  # transform from 0, 1
-                        emitters_matlab[:, 5:6],
-                        emitters_matlab[:, 1:2] - 1,  # index shift from matlab to python
-                        torch.zeros_like(emitters_matlab[:, 0:1])), dim=1)
-
-    warnings.warn('Emitter ID not implemented yet.')
-
-    return split_emitter_cont(em_mat, img_size)
-
-
-def split_emitter_cont(em_mat, img_size):
-    """
-    Split emitter set into a matrix of emitters and "contaminators". The latter are the ones which are outside the FOV.
-
-    :param em_mat: matrix of all emitters
-    :param img_size: img_size in px (not upscaled)
-    :return: emitter_matrix and contaminator matrix. contaminators are emitters which are outside the image
-    """
-
-    if img_size[0] != img_size[1]:
-        raise NotImplementedError("Image must be square at the moment because otherwise the following doesn't work.")
-
-    is_emit = torch.mul((em_mat[:, :2] >= 0).all(1), (em_mat[:, :2] <= img_size[0] - 1).all(1))
-    is_cont = ~is_emit
-
-    emit_mat, cont_mat = em_mat[is_emit, :], em_mat[is_cont, :]
-    return emit_mat, cont_mat
-
-
-# https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065
-def pairwise_distances(x, y=None):  # not numerically stable but fast
-    '''
-    Input: x is a Nxd matrix
-           y is an optional Mxd matirx
-    Output: dist is a NxM matrix where dist[i,j] is the square norm between x[i,:] and y[j,:]
-            if y is not given then use 'y=x'.
-    i.e. dist[i,j] = ||x[i,:]-y[j,:]||^2
-    '''
-    x_norm = (x**2).sum(1).view(-1, 1)
-    if y is not None:
-        y_norm = (y**2).sum(1).view(1, -1)
-    else:
-        y = x
-        y_norm = x_norm.view(1, -1)
-
-    dist = x_norm + y_norm - 2.0 * torch.mm(x, torch.transpose(y, 0, 1))
-    return dist
-
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    from deepsmlm.simulation.structure_prior import RandomStructure
-    extent = ((-0.5, 31.5), (-0.5, 31.5), (-5, 5))
-    structure = RandomStructure(*extent)
-
-    runs = torch.zeros(1000)
-    for i in range(runs.numel()):
-
-        em = EmitterPopperMultiFrame(structure=structure, density=None, intensity_mu_sig=[10000., 500.],
-                                      lifetime=1, num_frames=3, emitter_av=15).pop()
-        em_on_0 = em.split_in_frames(-1, 1)
-        em = em_on_0[1]
-        runs[i] = em.num_emitter
-
-    plt.figure()
-    plt.hist(runs)
-    plt.show()
-    print(runs.mean())
-
-    print("Sucess.")

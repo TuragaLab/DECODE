@@ -12,18 +12,20 @@ class StructurePrior(ABC):
         """
         pass
 
+    @property
     @abstractmethod
-    def get_area(self):
+    def area(self):
         """
         Calculate the area which is occupied by the structure. This is useful to later calculate the density,
-        and the effective number of emitters).
+        and the effective number of emitters). This is the 2D projection. Not the volume.
 
-        :return:
+        Returns:
+            area (float):
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def draw(self, n, dim=3):
+    def pop(self, n, dim=3):
         """
         Draw n sample positions from structure
 
@@ -50,10 +52,11 @@ class RandomStructure(StructurePrior):
                                    self.yextent[0],
                                    self.zextent[0]])
 
-    def get_area(self):
+    @property
+    def area(self):
         return (self.xextent[1] - self.xextent[0]) * (self.yextent[1] - self.yextent[0])
 
-    def draw(self, n, dim=3):
+    def pop(self, n, dim=3):
         xyz = torch.rand((n, 3)) * self.scale + self.shift
         if dim == 2:
             xyz[:, 2] = 0.
@@ -75,25 +78,14 @@ class DiscreteZStructure(StructurePrior):
         self.z_abs_max = z_abs_max
         self.eps = eps
 
-    def get_area(self):
+    @property
+    def area(self):
         return None
 
-    def draw(self, n, dim=3):
+    def pop(self, n, dim=3):
         xyz = torch.ones((n, dim)) * torch.cat((self.xy_pos, torch.tensor([0.])), 0)
         z_ix = torch.randint(-1, 1+1, (n,), dtype=torch.float)
         z_value = z_ix * self.z_abs_max + torch.randn_like(z_ix) * self.eps
         xyz[:, 2] = z_value
 
         return xyz
-
-
-if __name__ == '__main__':
-    xyz_random = RandomStructure((-0.5, 31.5), (-0.5, 31.5), (-500., 500.))
-    xyz = xyz_random.draw(10, 3)
-    print(xyz)
-
-    zs = DiscreteZStructure(torch.tensor([15., 15.]), 500, eps=10)
-    xyz = zs.draw(10, 3)
-    print(xyz)
-
-    print("Pseudotest done.")

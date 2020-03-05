@@ -99,7 +99,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
         yextent=param.Simulation.emitter_extent[1],
         zextent=param.Simulation.emitter_extent[2])
 
-    prior = deepsmlm.simulation.emittergenerator.EmitterPopperMultiFrame(
+    prior = deepsmlm.simulation.emitter_gen.EmitterPopperMultiFrame(
         prior_struct,
         density=param.Simulation.density,
         intensity_mu_sig=param.Simulation.intensity_mu_sig,
