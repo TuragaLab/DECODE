@@ -1,6 +1,8 @@
 import math
 from abc import ABC, abstractmethod  # abstract class
+from collections import namedtuple
 from functools import partial
+
 import deprecated
 import numpy as np
 import torch
@@ -14,6 +16,8 @@ class Background(ABC):
     Abstract background class. All inheritors must implement a forward method that takes a batch of frames and
     adds(!) the background to it.
     """
+
+    bg_return = namedtuple('bg_return', ['xbg', 'bg'])  # return arguments, x plus bg and bg term alone
 
     def __init__(self):
         super().__init__()
@@ -31,7 +35,7 @@ class Background(ABC):
 
         """
         bg = torch.zeros_like(x)
-        return x + bg
+        return self.bg_return(xbg=x + bg, bg=bg)
 
 
 class UniformBackground(Background):
@@ -72,14 +76,16 @@ class UniformBackground(Background):
             xbg (torch.Tensor): x including background
 
         """
-        return x + self._bg_distribution()
+        bg_term = self._bg_distribution()
+        return self.bg_return(xbg=x + bg_term, bg=bg_term)
 
 
-class OutOfFocusEmitters:
+class OutOfFocusEmitters(Background):
     """
     Simulate far out of focus emitters by using huge z values and a gaussian kernel.
 
     """
+
     def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, ampl: tuple, num_oof_rg: tuple):
         """
 
@@ -102,7 +108,7 @@ class OutOfFocusEmitters:
                                                    sigma_0=2.5,
                                                    peak_weight=True)
         self.level_dist = torch.distributions.uniform.Uniform(low=ampl[0], high=ampl[1])
-        self.num_emitter_dist = partial(torch.randint, low=self.num_oof_rg[0], high=self.num_oof_rg[1] + 1, size=(1, ))
+        self.num_emitter_dist = partial(torch.randint, low=self.num_oof_rg[0], high=self.num_oof_rg[1] + 1, size=(1,))
 
     @staticmethod
     def parse(param):
@@ -124,7 +130,8 @@ class OutOfFocusEmitters:
         xyz[:, 2] *= torch.from_numpy(np.random.choice([-1., 1.], xyz.shape[0])).type(torch.FloatTensor)
         levels = self.level_dist.sample((xyz.size(0),))
 
-        return x + self.gauss_psf.forward(xyz, levels)
+        bg_term = self.gauss_psf.forward(xyz, levels)
+        return self.bg_return(xbg=x + bg_term, bg=bg_term)
 
 
 class PerlinBackground(Background):
@@ -228,11 +235,12 @@ class PerlinBackground(Background):
         else:
             amp_factor = 1.
 
-        return x + self.amplitude * amp_factor * (self.calc_perlin(self.img_size, [self.perlin_scale,
-                                                                                   self.perlin_scale]) + 1) / 2.0
+        bg_term = self.amplitude * amp_factor * (self.calc_perlin(self.img_size, [self.perlin_scale,
+                                                                                  self.perlin_scale]) + 1) / 2.0
+        return self.bg_return(xbg=x + bg_term, bg=bg_term)
 
 
-class MultiPerlin:
+class MultiPerlin(Background):
     def __init__(self, img_size, scales, amps, draw_amps: bool, norm_amps: bool, prob_disable=None):
         """
 
@@ -243,6 +251,7 @@ class MultiPerlin:
         :param norm_amps: normalise the amplitudes
         :param prob_disable: disable a frequency probabilistically
         """
+        super().__init__()
 
         self.img_size = img_size
         self.scales = scales if not isinstance(scales, torch.Tensor) else torch.tensor(scales)
@@ -276,18 +285,18 @@ class MultiPerlin:
         :param x:
         :return:
         """
-
+        bg_term = torch.zeros((1, ))
         for i in range(self.num_freq):
             if (self.prob_disable is not None) and (torch.rand(1).item() <= self.prob_disable):
                 continue
-            x = self.perlin_com[i].forward(x)
+            x, bg_term_ = self.perlin_com[i].forward(x)  # temporary bg
+            bg_term = bg_term + bg_term_  # book-keep bg_term
 
-        return x
+        """The behaviour here must be a bit different because the perlin components already add their bg_term to x."""
+        return self.bg_return(xbg=x, bg=bg_term)
 
 
 """Deprecated Stuff."""
-
-
 @deprecated.deprecated("Old implementation. Maybe for future investigation.")
 class NonUniformBackground(Background):
     """

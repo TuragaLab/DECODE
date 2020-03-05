@@ -27,7 +27,8 @@ class TestBackground:
                 self.img_shape = img_shape
 
             def forward(self, x: torch.Tensor):
-                return x + torch.rand_like(x)
+                bg_term = torch.rand_like(x)
+                return self.bg_return(xbg=x + bg_term, bg=bg_term)
 
         xextent = (-0.5, 63.5)
         yextent = (-0.5, 63.5)
@@ -55,7 +56,10 @@ class TestBackground:
             rframe: fixture as above
 
         """
-        assert bgf.forward(rframe).size() == rframe.size(), "Wrong shape after background."
+        rframe_bg, bg_term = bgf.forward(rframe)
+
+        assert rframe_bg.size() == rframe.size(), "Wrong shape after background."
+        assert bg_term.dim() <= rframe_bg.dim(), "Background term must be of less or equal dimension than input frame."
 
     def test_additivity(self, bgf, rframe):
         """
@@ -66,7 +70,10 @@ class TestBackground:
             rframe: fixture as above
 
         """
-        assert (bgf.forward(rframe) >= rframe).all(), "Background is not strictly unsigned additive."
+        rframe_bg, bg_term = bgf.forward(rframe)
+        assert (rframe_bg >= rframe).all(), "Background is not strictly unsigned additive."
+
+        _ = rframe + bg_term  # test whether one can add background to the rframe so that dimension etc. are correct
 
 
 class TestOofEmitterBackground(TestBackground):
@@ -84,7 +91,7 @@ class TestOofEmitterBackground(TestBackground):
     def test_forward(self, bgf):
         """Test peak heights."""
         x = torch.zeros((1, 1, 64, 64))
-        out = bgf.forward(x)
+        out, _ = bgf.forward(x)
         assert pytest.approx(out.max().item(), 0.01) == 1.
 
 
@@ -103,12 +110,12 @@ class TestPerlinBg(TestBackground):
         """
         bgf.amplitude = 0.
         x_in = torch.zeros((2, 3, 64, 64))
-        x_out = bgf.forward(x_in.clone())
+        x_out, _ = bgf.forward(x_in.clone())
         assert tutil.tens_almeq(x_in, x_out)
 
     def test_approximate_range(self, bgf):
         x_in = torch.zeros((2, 3, 64, 64))
-        x_out = bgf.forward(x_in.clone())
+        x_out, _ = bgf.forward(x_in.clone())
         assert x_out.min() >= 0.
         assert x_out.max() <= bgf.amplitude * 1.
 
@@ -123,7 +130,7 @@ class TestMultiPerlin(TestBackground):
 
     @pytest.mark.skip_plot
     def test_multiscale(self, bgf):
-        out = bgf.forward(torch.zeros((2, 3, 64, 64)))
+        out, _ = bgf.forward(torch.zeros((2, 3, 64, 64)))
         PlotFrame(out[0, 0]).plot()
         plt.colorbar()
         plt.show()
