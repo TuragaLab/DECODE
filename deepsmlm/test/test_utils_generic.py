@@ -53,7 +53,7 @@ def test_split_sliceable():
 def test_ix_splitting():
     ix = torch.Tensor([2, -1, 2, 0, 4]).int()
 
-    out, n = gutils.ix_split(ix)
+    out, n = gutils.ix_split(ix, -1, 4)
 
     assert len(out) == 6
     assert len(out) == n
