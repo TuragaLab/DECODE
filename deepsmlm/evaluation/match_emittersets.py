@@ -103,7 +103,8 @@ class GreedyHungarianMatching(MatcherABC):
     @staticmethod
     def _rule_out_kernel(dists):
         """
-        Kernel which goes through the distance matrix, picks shortest distance and assign match
+        Kernel which goes through the distance matrix, picks shortest distance and assign match.
+        Actual 'greedy' kernel
 
         Args:
             dists: distance matrix
@@ -111,6 +112,8 @@ class GreedyHungarianMatching(MatcherABC):
         Returns:
 
         """
+        assert dists.dim() == 2
+
         if dists.numel() == 0:
             return torch.zeros((0, )).int(), torch.zeros((0, )).int()
 
@@ -144,19 +147,66 @@ class GreedyHungarianMatching(MatcherABC):
 
         """
         if self.match_dims == 2:
-            dist_mat = torch.cdist(xyz_out[None, :, :2], xyz_tar[None, :, :2], p=2)
+            dist_mat = torch.cdist(xyz_out[None, :, :2], xyz_tar[None, :, :2], p=2).squeeze(0)
         elif self.match_dims == 3:
-            dist_mat = torch.cdist(xyz_out[None, :, :], xyz_tar[None, :, :], p=2)
+            dist_mat = torch.cdist(xyz_out[None, :, :], xyz_tar[None, :, :], p=2).squeeze(0)
         else:
             raise ValueError
 
-        dist_mat[~filter_mask.unsqueeze(0)] = float('inf')  # rule out matches by filter
+        dist_mat[~filter_mask] = float('inf')  # rule out matches by filter
         tp_ix, tp_match_ix = self._rule_out_kernel(dist_mat)
 
         return tp_ix, tp_match_ix
 
-    def forward(self):
-        raise NotImplementedError
+    def forward(self, output, target):
+        """
+
+        Args:
+            output:
+            target:
+
+        Returns:
+
+        """
+        """Setup split in frames. Determine the frame range automatically so as to cover everything."""
+        if output.frame_ix.min() < target.frame_ix.min():
+            frame_low = output.frame_ix.min().item()
+        else:
+            frame_low = target.frame_ix.min().item()
+
+        if output.frame_ix.max() > target.frame_ix.max():
+            frame_high = output.frame_ix.max().item()
+        else:
+            frame_high = target.frame_ix.max().item()
+
+        out_pframe = output.split_in_frames(frame_low, frame_high)
+        tar_pframe = target.split_in_frames(frame_low, frame_high)
+
+        tpl, fpl, fnl, tpml = [], [], [], []  # true positive list, false positive list, false neg. ...
+
+        """Assign the emitters framewise"""
+        for i in range(out_pframe.__len__()):
+            filter_mask = self._filter(out_pframe[i].xyz.unsqueeze(0), tar_pframe[i].xyz.unsqueeze(0))
+            tp, fp, fn, tp_match = self._match_kernel(out_pframe[i], tar_pframe[i], filter_mask)
+            tpl.append(tp)
+            fpl.append(fp)
+            fnl.append(fn)
+            tpml.append(tp_match)
+
+        """Concat them back"""
+        tp = emitter.EmitterSet.cat(tpl)
+        fp = emitter.EmitterSet.cat(fpl)
+        fn = emitter.EmitterSet.cat(fnl)
+        tp_match = emitter.EmitterSet.cat(tpml)
+
+        """Let tp and tp_match share the same id's. IDs of ground truth are copied to true positives."""
+        if (tp_match.id == -1).all().item():
+            tp_match.id = torch.arange(tp_match.__len__())
+        tp.id = tp_match.id
+
+        return self._return_match(tp=tp, fp=fp, fn=fn, tp_match=tp_match)
+
+
 
 @deprecated
 class GreedyHungarianMatchingDepr(MatcherABC):
@@ -317,7 +367,7 @@ class GreedyHungarianMatchingDepr(MatcherABC):
         else:
             frame_low = target.frame_ix.min().item()
 
-        if output.frame_ix.min() > target.frame_ix.max():
+        if output.frame_ix.max() > target.frame_ix.max():
             frame_high = output.frame_ix.max().item()
         else:
             frame_high = target.frame_ix.max().item()

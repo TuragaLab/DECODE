@@ -5,6 +5,7 @@ import warnings
 import deepsmlm.evaluation
 import deepsmlm.evaluation.match_emittersets as match_em
 import deepsmlm.generic
+import deepsmlm.generic.emitter as emitter
 from deepsmlm.generic.utils import test_utils as tutil
 
 
@@ -123,9 +124,19 @@ class TestGreedyMatching(TestMatcherABC):
             dist_mat = torch.cdist(xyz_out, xyz_tar, p=2).sqrt()
             assert (dist_mat[act] <= dist_vol).all()
 
-    test_coordinates = [  # xyz_out, xyz_tar, expected
-        (torch.tensor([[0., 0., 0.]]), torch.tensor([[0.1, 0.01, 0.]]), (torch.tensor([0]), torch.tensor([0])))
-
+    test_coordinates = [  # xyz_out, xyz_tar, expected outcome
+        # 1 Prediction, 1 References
+        (torch.tensor([[0., 0., 0.]]), torch.tensor([[0.1, 0.01, 0.]]), (torch.tensor([0]), torch.tensor([0]))),
+        # 4 Predictions, 1 References
+        (torch.tensor([[-0.5, -0.5, 0.], [0.6, -0.5, 0.], [-0.4, 0.5, 0.], [0.35, 0.35, 0.]]),
+         torch.tensor([[0., 0., 0.]]),
+         (torch.tensor([3]), torch.tensor([0]))),
+        # 1 Predictions, 4 References
+        (torch.tensor([[0., 0., 0.]]),
+         torch.tensor([[-0.5, -0.5, 0.], [0.6, -0.5, 0.], [-0.4, 0.5, 0.], [0.35, 0.35, 0.]]),
+         (torch.tensor([0]), torch.tensor([3]))),
+        # 0 Predictions, 0 References
+        (torch.zeros((0, 3)), torch.zeros((0, 3)), (torch.tensor([]), torch.tensor([])))
     ]
 
     @pytest.mark.parametrize("match_dims", [2, 3])
@@ -141,8 +152,12 @@ class TestGreedyMatching(TestMatcherABC):
         filter_mask = matcher._filter(xyz_out.unsqueeze(0), xyz_tar.unsqueeze(0))
         assignment = matcher._match_kernel(xyz_out, xyz_tar, filter_mask.squeeze(0))
 
+        tp_ix_out, tp_match_ix_out = assignment
+        tp_ix_exp, tp_match_ix_exp = expected
+
         """Assert"""
-        assert assignment == expected
+        assert (tp_ix_out == tp_ix_exp).all()
+        assert (tp_match_ix_out == tp_match_ix_exp).all()
 
 
     # @pytest.fixture(scope='class')
