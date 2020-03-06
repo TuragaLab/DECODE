@@ -51,6 +51,18 @@ class TestSpatialinterpolation:
         assert (x_out[0, 0, :2, :2] == x[0, 0, 0, 0]).all()
 
 
+class TestAmplitudeRescale:
+
+    @pytest.fixture()
+    def amp_rescale(self):
+        return scf.AmplitudeRescale(norm_value=1000)
+
+    def test_rescale(self, amp_rescale):
+        x = torch.rand((2, 3, 4, 5))
+
+        assert t_util.tens_almeq(amp_rescale.forward(x), x / 1000.)
+
+
 class TestTargetRescale:
 
     @pytest.fixture(scope='class')

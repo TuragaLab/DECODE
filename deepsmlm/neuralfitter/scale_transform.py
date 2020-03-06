@@ -15,7 +15,8 @@ class SpatialInterpolation:
         """
 
         Args:
-            mode (string): mode which is used for interpolation. Those are the modes by the torch interpolation function
+            mode (string, None): mode which is used for interpolation. Those are the modes by the torch interpolation
+            function
             impl (optional): override function for interpolation
         """
         self.dim = dim
@@ -46,24 +47,42 @@ class SpatialInterpolation:
 
 class AmplitudeRescale:
     """
-    Simple Processing that rescales the amplitude, i.e. the pixel values
+    Simple Processing that rescales the amplitude, i.e. the pixel values.
+
+    Attributes:
+        norm-value (float): Value to which to norm the data.
     """
 
-    def __init__(self, max_frame_count: float):
-        self.max_frame_count = max_frame_count
+    def __init__(self, norm_value: float):
+        """
+
+        Args:
+            norm_value (float): reference value
+        """
+        self.norm_value = norm_value
 
     @staticmethod
     def parse(param):
-        return AmplitudeRescale(max_frame_count=param['Scaling']['in_count_max'])
+        return AmplitudeRescale(norm_value=param.Scaling.in_count_max)
 
-    def forward(self, frames):
-        return frames / self.max_frame_count
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward the tensor and rescale it.
+
+        Args:
+            x (torch.Tensor):
+
+        Returns:
+            x_ (torch.Tensor): rescaled tensor
+
+        """
+        return x / self.norm_value
 
 
 class OffsetRescale:
     """
-       The purpose of this class is to rescale the data from the network value world back to useful values.
-       This class is used after the network output.
+       The purpose of this class is to rescale the (target) data from the network value world back to the real values.
+       This class is used if we want to know the actual values and do not want to just use it for the loss.
        """
 
     def __init__(self, *, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, mu_sig_bg=(None, None),
@@ -149,8 +168,7 @@ class OffsetRescale:
 
 class InverseOffsetRescale(OffsetRescale):
     """
-    The purpose of this class is to provide the output to the network, i.e. scaling the data between -1,1 or 0,1.
-    This class is used before the network.
+    The purpose of this class is to scale the target data for the loss to an apropriate range.
     """
 
     def __init__(self, *, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, mu_sig_bg=(None, None),
