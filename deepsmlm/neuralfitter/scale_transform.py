@@ -1,4 +1,5 @@
 import functools
+
 import torch
 
 
@@ -9,6 +10,7 @@ class SpatialInterpolation:
     Attributes:
         dim (int): dimensionality for safety checks
     """
+
     def __init__(self, dim=2, mode='nearest', size=None, scale_factor=None, impl=None):
         """
 
@@ -46,6 +48,7 @@ class AmplitudeRescale:
     """
     Simple Processing that rescales the amplitude, i.e. the pixel values
     """
+
     def __init__(self, max_frame_count: float):
         self.max_frame_count = max_frame_count
 
@@ -62,17 +65,20 @@ class OffsetRescale:
        The purpose of this class is to rescale the data from the network value world back to useful values.
        This class is used after the network output.
        """
-    def __init__(self, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, mu_sig_bg, buffer=1., power=1.):
+
+    def __init__(self, *, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, mu_sig_bg=(None, None),
+                 buffer=1., power=1.):
         """
         Assumes scale_x, scale_y, scale_z to be symmetric ranged, scale_phot, ranged between 0-1
-        :param scale_x:
-        :param scale_y:
-        :param scale_z:
-        :param scale_phot:
-        :param scale_bg:
-        :param buffer: to extend the original range a little bit, to use the more linear parts of a sigmoidal fct.
-        :param px_size: scale to nm.
-        Does not apply to probability channel 0.
+
+        Args:
+            scale_x (float): scale factor in x
+            scale_y: scale factor in y
+            scale_z: scale factor in z
+            scale_phot: scale factor for photon values
+            mu_sig_bg: offset and scaling for background
+            buffer: buffer to extend the scales overall
+            power: power factor
         """
 
         self.sc_x = scale_x
@@ -84,24 +90,40 @@ class OffsetRescale:
         self.power = power
 
     @staticmethod
-    def parse(param: dict):
-        """
+    def parse(param):
+        return OffsetRescale(scale_x=param.Scaling.dx_max,
+                             scale_y=param.Scaling.dy_max,
+                             scale_z=param.Scaling.z_max,
+                             scale_phot=param.Scaling.phot_max,
+                             mu_sig_bg=param.Scaling.mu_sig_bg,
+                             buffer=param.Scaling.linearisation_buffer)
 
-        :param param: param dictionary
-        :return:
+    def return_inverse(self):
         """
-        return OffsetRescale(param['Scaling']['dx_max'],
-                      param['Scaling']['dy_max'],
-                      param['Scaling']['z_max'],
-                      param['Scaling']['phot_max'],
-                      param['Scaling']['mu_sig_bg'],
-                      param['Scaling']['linearisation_buffer'])
+        Returns the inverse counterpart of this class (instance).
 
-    def forward(self, x):
+        Returns:
+            InverseOffSetRescale: Inverse counterpart.
+
         """
-        Scale the NN output to the apropriate scale
-        :param x: (torch.tensor, N x 5 x H x W) or 5 x H x W
-        :return:
+        return InverseOffsetRescale(scale_x=self.sc_x,
+                                    scale_y=self.sc_y,
+                                    scale_z=self.sc_z,
+                                    scale_phot=self.sc_phot,
+                                    mu_sig_bg=self.mu_sig_bg,
+                                    buffer=self.buffer,
+                                    power=self.power)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Scale the input (typically after the network).
+
+        Args:
+            x (torch.Tensor): input tensor N x 5/6 x H x W
+
+        Returns:
+            x_ (torch.Tensor): scaled
+
         """
         if x.dim() == 3:
             x.unsqueeze_(0)
@@ -130,35 +152,43 @@ class InverseOffsetRescale(OffsetRescale):
     The purpose of this class is to provide the output to the network, i.e. scaling the data between -1,1 or 0,1.
     This class is used before the network.
     """
-    def __init__(self, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, mu_sig_bg, buffer=1., power=1.):
+
+    def __init__(self, *, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, mu_sig_bg=(None, None),
+                 buffer=1., power=1.):
         """
         Assumes scale_x, scale_y, scale_z to be symmetric ranged, scale_phot, ranged between 0-1
-        :param scale_x:
-        :param scale_y:
-        :param scale_z:
-        :param scale_phot:
+
+        Args:
+            scale_x (float): scale factor in x
+            scale_y: scale factor in y
+            scale_z: scale factor in z
+            scale_phot: scale factor for photon values
+            mu_sig_bg: offset and scaling for background
+            buffer: buffer to extend the scales overall
+            power: power factor
         """
-        super().__init__(scale_x, scale_y, scale_z, scale_phot, mu_sig_bg, buffer, power)
+        super().__init__(scale_x=scale_x, scale_y=scale_y, scale_z=scale_z, scale_phot=scale_phot,
+                         mu_sig_bg=mu_sig_bg, buffer=buffer, power=power)
 
     @staticmethod
     def parse(param):
-        """
+        return InverseOffsetRescale(scale_x=param.Scaling.dx_max,
+                                    scale_y=param.Scaling.dy_max,
+                                    scale_z=param.Scaling.z_max,
+                                    scale_phot=param.Scaling.phot_max,
+                                    mu_sig_bg=param.Scaling.mu_sig_bg,
+                                    buffer=param.Scaling.linearisation_buffer)
 
-        :param param: parameter dictionary
-        :return: instance
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        return InverseOffsetRescale(param['Scaling']['dx_max'],
-                                    param['Scaling']['dy_max'],
-                                    param['Scaling']['z_max'],
-                                    param['Scaling']['phot_max'],
-                                    param['Scaling']['mu_sig_bg'],
-                                    param['Scaling']['linearisation_buffer'])
+        Inverse scale transformation (typically before the network).
 
-    def forward(self, x):
-        """
-        Scale the original output to the NN range
-        :param x:
-        :return:
+        Args:
+            x (torch.Tensor): input tensor N x 5/6 x H x W
+
+        Returns:
+            x_ (torch.Tensor): (inverse) scaled
+
         """
         if x.dim() == 3:
             x.unsqueeze_(0)

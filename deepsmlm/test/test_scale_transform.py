@@ -1,9 +1,10 @@
 import functools
+
 import pytest
 import torch
 
-import deepsmlm.neuralfitter.scale_transform as scf
 import deepsmlm.generic.utils.test_utils as t_util
+import deepsmlm.neuralfitter.scale_transform as scf
 
 
 class TestSpatialinterpolation:
@@ -54,17 +55,24 @@ class TestTargetRescale:
 
     @pytest.fixture(scope='class')
     def offset_rescale(self):
-        return scf.OffsetRescale(0.5, 0.5, 750., 10000., 1.2)
+        return scf.OffsetRescale(scale_x=0.5, scale_y=0.5, scale_z=750., scale_phot=10000., buffer=1.2)
 
     @pytest.fixture(scope='class')
     def inv_offset_rescale(self, offset_rescale):
-        return scf.InverseOffsetRescale(offset_rescale.sc_x,
-                                        offset_rescale.sc_y,
-                                        offset_rescale.sc_z,
-                                        offset_rescale.sc_phot,
-                                        offset_rescale.buffer)
+        return scf.InverseOffsetRescale(scale_x=offset_rescale.sc_x,
+                                        scale_y=offset_rescale.sc_y,
+                                        scale_z=offset_rescale.sc_z,
+                                        scale_phot=offset_rescale.sc_phot,
+                                        buffer=offset_rescale.buffer)
 
     def test_inverse_rescale(self, inv_offset_rescale):
+        """
+        Some hard coded testing.
+
+        Args:
+            inv_offset_rescale:
+
+        """
         x = torch.zeros(2, 5, 8, 8)
         x[0, 1, 0, 0] = 5000.
         x[0, 2, 0, 0] = 0.5
@@ -79,6 +87,23 @@ class TestTargetRescale:
         assert out[0, 4, 0, 0].item() == pytest.approx(500 / (750 * 1.2), 1e-4)
 
     def test_round(self, inv_offset_rescale, offset_rescale):
+        """
+        Calculate forth and back to check the values.
+
+        Args:
+            inv_offset_rescale:
+            offset_rescale:
+
+        """
+        """Setup"""
         x = torch.rand(2, 5, 64, 64)
+        inv_derived = offset_rescale.return_inverse()  # derived inverse from offset
+
+        """Run"""
         x_hat = offset_rescale.forward(inv_offset_rescale.forward(x))
         assert t_util.tens_almeq(x, x_hat, 1e-6)
+        x_hat = offset_rescale.forward(inv_derived.forward(x))
+        assert t_util.tens_almeq(x, x_hat, 1e-6)
+
+
+
