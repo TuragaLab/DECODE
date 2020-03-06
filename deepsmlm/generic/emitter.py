@@ -440,7 +440,7 @@ class EmitterSet:
                           px_size=self.px_size)
 
     @staticmethod
-    def cat(emittersets, remap_frame_ix=None, step_frame_ix=None):
+    def cat(emittersets, remap_frame_ix=None, step_frame_ix: int = None):
         """
         Concatenate multiple emittersets into one emitterset which is returned. Optionally modify the frame indices by
         the arguments.
@@ -463,7 +463,7 @@ class EmitterSet:
         elif step_frame_ix is not None:
             shift = torch.arange(0, num_emittersets) * step_frame_ix
         else:
-            shift = torch.zeros(num_emittersets)
+            shift = torch.zeros(num_emittersets).int()
 
         total_num_emitter = 0
         for i in range(num_emittersets):
