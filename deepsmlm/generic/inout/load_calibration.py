@@ -24,6 +24,7 @@ class SMAPSplineCoefficient:
     def init_spline(self, xextent, yextent, img_shape, roi_size=None, cuda=torch.cuda.is_available()):
         """
         Initializes the CubicSpline function
+
         Args:
             xextent:
             yextent:
@@ -32,24 +33,7 @@ class SMAPSplineCoefficient:
         Returns:
 
         """
-        psf = psf_kernel.CubicSplinePSF(xextent=xextent,
-                                        yextent=yextent,
-                                        img_shape=img_shape,
-                                        roi_size=roi_size,
-                                        coeff=self.coeff,
-                                        vx_size=None,
-                                        ref0=self.ref0,
-                                        )
+        psf = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=self.ref0,
+                                        coeff=self.coeff, vx_size=(1., 1., self.dz), roi_size=roi_size, cuda=cuda)
 
-        # ToDo: Update to new spline function
-        raise NotImplementedError
-        # psf = self.spline_obj(xextent=xextent,
-        #                       yextent=yextent,
-        #                       zextent=None,
-        #                       img_shape=img_shape,
-        #                       coeff=self.coeff,
-        #                       ref0=self.ref0,
-        #                       dz=self.dz)
-        #
-        # psf.print_basic_properties()
-        # return psf
+        return psf

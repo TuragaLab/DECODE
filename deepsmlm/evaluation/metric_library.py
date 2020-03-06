@@ -150,10 +150,10 @@ def interpoint_loss(output, target, reduction='mean'):
 
     if reduction is None:
         return interpoint_dist.min(1)[0]
-    elif reduction is 'mean':
+    elif reduction == 'mean':
         # return distance to closest target point
         return interpoint_dist.min(1)[0].sum() / output.__len__()
-    elif reduction is 'sum':
+    elif reduction == 'sum':
         return interpoint_dist.min(1)[0].sum()
     else:
         raise ValueError('Reduction type unsupported.')
