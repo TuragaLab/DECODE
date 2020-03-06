@@ -319,35 +319,37 @@ class CubicSplinePSF(PSF):
     n_par = 5  # x, y, z, phot, bg
     inv_default = torch.inverse
 
-    def __init__(self, xextent, yextent, img_shape, roi_size, coeff, vx_size, ref0, frame_mode='abs',
-                 frame_ref=0, cuda=True):
+    def __init__(self, xextent, yextent, img_shape, ref0, coeff, vx_size, roi_size=None, cuda=True):
         """
         Initialise Spline PSF
 
         Args:
-            roi_size:
-            coeff:
-            vx_size: pixel / voxel size
-            ref0: zero reference point (in px / vx units)
-            cuda:
+            xextent (tuple): extent in x
+            yextent (tuple): extent in y
+            img_shape (tuple): img_shape
+            coeff: spline coefficients
+            ref0 (tuple): zero reference point in implementation units
+            vx_size (tuple): pixel / voxel size
+            roi_size (tuple, None, optional): roi_size. optional. can be determined from dimension of coefficients.
+            cuda: use cuda implementation
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=None, img_shape=img_shape)
 
-        self.roi_size_px = roi_size
         self._coeff = coeff
         self._roi_native = self._coeff.size()[:2]  # native roi based on the coeff's size
+        self.roi_size_px = roi_size if roi_size is not None else self._roi_native
+        if vx_size is None:
+            vx_size = torch.Tensor([1., 1., 1.])
         self.vx_size = vx_size if isinstance(vx_size, torch.Tensor) else torch.Tensor(vx_size)
         self.ref0 = ref0 if isinstance(ref0, torch.Tensor) else torch.Tensor(ref0)
         self._cuda = cuda
-        self.frame_mode = frame_mode
-        self.frame_ref = frame_ref
 
         if self._cuda:
             self._spline_impl = spline_psf_cuda.PSFWrapperCUDA(coeff.shape[0], coeff.shape[1], coeff.shape[2],
-                                                               roi_size[0], roi_size[1], coeff.numpy())
+                                                               self.roi_size_px[0], self.roi_size_px[1], coeff.numpy())
         else:
             self._spline_impl = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2],
-                                                              roi_size[0], roi_size[1], coeff.numpy())
+                                                              self.roi_size_px[0], self.roi_size_px[1], coeff.numpy())
 
         self._safety_check()
 
@@ -393,16 +395,8 @@ class CubicSplinePSF(PSF):
         if self._cuda:
             return self
 
-        return CubicSplinePSF(xextent=self.xextent,
-                              yextent=self.yextent,
-                              img_shape=self.img_shape,
-                              roi_size=self.roi_size_px,
-                              coeff=self._coeff,
-                              vx_size=self.vx_size,
-                              ref0=self.ref0,
-                              frame_mode=self.frame_mode,
-                              frame_ref=self.frame_ref,
-                              cuda=True)
+        return CubicSplinePSF(xextent=self.xextent, yextent=self.yextent, img_shape=self.img_shape, ref0=self.ref0,
+                              coeff=self._coeff, vx_size=self.vx_size, roi_size=self.roi_size_px, cuda=True)
 
     def cpu(self):
         """
@@ -415,16 +409,8 @@ class CubicSplinePSF(PSF):
         if not self._cuda:
             return self
 
-        return CubicSplinePSF(xextent=self.xextent,
-                              yextent=self.yextent,
-                              img_shape=self.img_shape,
-                              roi_size=self.roi_size_px,
-                              coeff=self._coeff,
-                              vx_size=self.vx_size,
-                              ref0=self.ref0,
-                              frame_mode=self.frame_mode,
-                              frame_ref=self.frame_ref,
-                              cuda=False)
+        return CubicSplinePSF(xextent=self.xextent, yextent=self.yextent, img_shape=self.img_shape, ref0=self.ref0,
+                              coeff=self._coeff, vx_size=self.vx_size, roi_size=self.roi_size_px, cuda=False)
 
     def coord2impl(self, xyz):
         """

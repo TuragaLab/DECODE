@@ -161,14 +161,8 @@ class TestCubicSplinePSF:
         img_shape = (64, 64)
 
         smap_psf = load_cal.SMAPSplineCoefficient(calib_file=self.bead_cal)
-        psf = psf_kernel.CubicSplinePSF(xextent=xextent,
-                                        yextent=yextent,
-                                        img_shape=img_shape,
-                                        roi_size=(32, 32),
-                                        coeff=smap_psf.coeff,
-                                        vx_size=(1., 1., 10),
-                                        ref0=smap_psf.ref0,
-                                        cuda=False)
+        psf = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=smap_psf.ref0,
+                                        coeff=smap_psf.coeff, vx_size=(1., 1., 10), roi_size=(32, 32), cuda=False)
 
         return psf
 
