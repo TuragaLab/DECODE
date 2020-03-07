@@ -23,6 +23,13 @@ def split_sliceable(x, x_ix: torch.Tensor, ix_low: int, ix_high: int):
 
     """
 
+    """Safety checks"""
+    if x_ix.numel() >= 1 and not isinstance(x_ix, (torch.IntTensor, torch.ShortTensor, torch.LongTensor)):
+        raise TypeError("Index must be subtype of integer.")
+
+    if len(x_ix) != len(x):
+        raise ValueError("Index and sliceable are not of same length (along first index).")
+
     """Sort iterable by x_ix"""
     x_ix, re = torch.sort(x_ix)
     x = x[re]
