@@ -115,7 +115,7 @@ class GreedyHungarianMatching(MatcherABC):
         assert dists.dim() == 2
 
         if dists.numel() == 0:
-            return torch.zeros((0, )).int(), torch.zeros((0, )).int()
+            return torch.zeros((0, )).long(), torch.zeros((0, )).long()
 
         dists_ = dists.clone()
 
@@ -128,9 +128,9 @@ class GreedyHungarianMatching(MatcherABC):
             match_list.append(ix)
 
         if match_list.__len__() >= 1:
-            assignment = torch.tensor(match_list)
+            assignment = torch.tensor(match_list).long()
         else:
-            assignment = torch.zeros((0, 2)).int()
+            assignment = torch.zeros((0, 2)).long()
 
         return assignment[:, 0], assignment[:, 1]
 
@@ -143,9 +143,13 @@ class GreedyHungarianMatching(MatcherABC):
             filter_mask: N x M - not batched
 
         Returns:
-            out_ind: index for xyz_out
+            tp_ix_: (boolean) index for xyz_out
+            tp_match_ix_: (boolean) index for matching xyz_tar
 
         """
+        assert filter_mask.dim() == 2
+        assert filter_mask.size() == torch.Size([xyz_out.size(0), xyz_tar.size(0)])
+
         if self.match_dims == 2:
             dist_mat = torch.cdist(xyz_out[None, :, :2], xyz_tar[None, :, :2], p=2).squeeze(0)
         elif self.match_dims == 3:
@@ -156,7 +160,12 @@ class GreedyHungarianMatching(MatcherABC):
         dist_mat[~filter_mask] = float('inf')  # rule out matches by filter
         tp_ix, tp_match_ix = self._rule_out_kernel(dist_mat)
 
-        return tp_ix, tp_match_ix
+        tp_ix_ = torch.zeros(xyz_out.size(0)).bool()
+        tp_ix_[tp_ix] = 1
+        tp_match_ix_ = torch.zeros(xyz_tar.size(0)).bool()
+        tp_match_ix_[tp_match_ix] = 1
+
+        return tp_ix_, tp_match_ix_
 
     def forward(self, output, target):
         """
@@ -169,15 +178,8 @@ class GreedyHungarianMatching(MatcherABC):
 
         """
         """Setup split in frames. Determine the frame range automatically so as to cover everything."""
-        if output.frame_ix.min() < target.frame_ix.min():
-            frame_low = output.frame_ix.min().item()
-        else:
-            frame_low = target.frame_ix.min().item()
-
-        if output.frame_ix.max() > target.frame_ix.max():
-            frame_high = output.frame_ix.max().item()
-        else:
-            frame_high = target.frame_ix.max().item()
+        frame_low = output.frame_ix.min() if output.frame_ix.min() < target.frame_ix.min() else target.frame_ix.min()
+        frame_high = output.frame_ix.max() if output.frame_ix.max() > target.frame_ix.max() else target.frame_ix.max().item()
 
         out_pframe = output.split_in_frames(frame_low, frame_high)
         tar_pframe = target.split_in_frames(frame_low, frame_high)
@@ -185,13 +187,14 @@ class GreedyHungarianMatching(MatcherABC):
         tpl, fpl, fnl, tpml = [], [], [], []  # true positive list, false positive list, false neg. ...
 
         """Assign the emitters framewise"""
-        for i in range(out_pframe.__len__()):
-            filter_mask = self._filter(out_pframe[i].xyz.unsqueeze(0), tar_pframe[i].xyz.unsqueeze(0))
-            tp, fp, fn, tp_match = self._match_kernel(out_pframe[i], tar_pframe[i], filter_mask)
-            tpl.append(tp)
-            fpl.append(fp)
-            fnl.append(fn)
-            tpml.append(tp_match)
+        for out_f, tar_f in zip(out_pframe, tar_pframe):
+            filter_mask = self._filter(out_f.xyz.unsqueeze(0), tar_f.xyz.unsqueeze(0))  # batch implemented
+            tp_ix, tp_match_ix = self._match_kernel(out_f.xyz, tar_f.xyz, filter_mask.squeeze(0))  # non batch impl.
+
+            tpl.append(out_f[tp_ix])
+            tpml.append(tar_f[tp_match_ix])
+            fpl.append(out_f[~tp_ix])
+            fnl.append(tar_f[~tp_match_ix])
 
         """Concat them back"""
         tp = emitter.EmitterSet.cat(tpl)
@@ -205,7 +208,6 @@ class GreedyHungarianMatching(MatcherABC):
         tp.id = tp_match.id
 
         return self._return_match(tp=tp, fp=fp, fn=fn, tp_match=tp_match)
-
 
 
 @deprecated
@@ -244,8 +246,6 @@ class GreedyHungarianMatchingDepr(MatcherABC):
 
         if (dist_ax is not None) and (dist_vol is not None):
             raise ValueError("You can not specify dist_ax and dist_vol.")
-
-
 
         """Set the threshold and apropriate match_dim logic."""
         if dist_lat is not None and dist_ax is None:

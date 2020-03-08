@@ -156,8 +156,8 @@ class TestGreedyMatching(TestMatcherABC):
         tp_ix_exp, tp_match_ix_exp = expected
 
         """Assert"""
-        assert (tp_ix_out == tp_ix_exp).all()
-        assert (tp_match_ix_out == tp_match_ix_exp).all()
+        assert (tp_ix_out.nonzero() == tp_ix_exp).all()  # boolean index in output
+        assert (tp_match_ix_out.nonzero() == tp_match_ix_exp).all()
 
 
     # @pytest.fixture(scope='class')
