@@ -74,17 +74,25 @@ class GreedyHungarianMatching(MatcherABC):
 
     def _filter(self, xyz_out, xyz_tar) -> torch.Tensor:
         """
-        Filter kernel to rule out unwanted matches. Batch implemented.
+        Filter kernel to rule out unwanted matches. Batch implemented, i.e. input can be 2 or 3 dimensional, where the
+        latter dimensions are the dimensions of interest.
 
         Args:
-            xyz_out: output coordinates B x N x 3
-            xyz_tar: target coordinates B x M x 3
+            xyz_out: output coordinates (B x) N x 3
+            xyz_tar: target coordinates (B x) M x 3
 
         Returns:
-            filter_mask (torch.Tensor): boolean of size B x N x M
+            filter_mask (torch.Tensor): boolean of size (B x) N x M
         """
-        assert xyz_out.size(0) == xyz_tar.size(0)
-        filter_mask = torch.ones((xyz_out.size(0), xyz_out.size(1), xyz_tar.size(1))).bool()
+        if xyz_out.dim() == 3:
+            assert xyz_out.size(0) == xyz_tar.size(0)
+            sque_ret = False  # no squeeze before return
+        else:
+            xyz_out = xyz_out.unsqueeze(0)
+            xyz_tar = xyz_tar.unsqueeze(0)
+            sque_ret = True  # squeeze before return
+
+        filter_mask = torch.ones((xyz_out.size(0), xyz_out.size(1), xyz_tar.size(1))).bool()  # dim: B x N x M
 
         if self.dist_lat is not None:
             dist_mat = torch.cdist(xyz_out[:, :, :2], xyz_tar[:, :, :2], p=2)
@@ -97,6 +105,9 @@ class GreedyHungarianMatching(MatcherABC):
         if self.dist_vol is not None:
             dist_mat = torch.cdist(xyz_out, xyz_tar, p=2)
             filter_mask[dist_mat > self.dist_vol ** 2] = 0
+
+        if sque_ret:
+            filter_mask = filter_mask.squeeze(0)
 
         return filter_mask
 
@@ -188,8 +199,8 @@ class GreedyHungarianMatching(MatcherABC):
 
         """Assign the emitters framewise"""
         for out_f, tar_f in zip(out_pframe, tar_pframe):
-            filter_mask = self._filter(out_f.xyz.unsqueeze(0), tar_f.xyz.unsqueeze(0))  # batch implemented
-            tp_ix, tp_match_ix = self._match_kernel(out_f.xyz, tar_f.xyz, filter_mask.squeeze(0))  # non batch impl.
+            filter_mask = self._filter(out_f.xyz, tar_f.xyz)  # batch implemented
+            tp_ix, tp_match_ix = self._match_kernel(out_f.xyz, tar_f.xyz, filter_mask)  # non batch impl.
 
             tpl.append(out_f[tp_ix])
             tpml.append(tar_f[tp_match_ix])

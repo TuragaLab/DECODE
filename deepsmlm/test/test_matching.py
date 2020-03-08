@@ -1,12 +1,11 @@
+import warnings
+
 import pytest
 import torch
-import warnings
 
 import deepsmlm.evaluation
 import deepsmlm.evaluation.match_emittersets as match_em
 import deepsmlm.generic
-import deepsmlm.generic.emitter as emitter
-from deepsmlm.generic.utils import test_utils as tutil
 
 
 class TestMatcherABC:
@@ -19,9 +18,8 @@ class TestMatcherABC:
     def matcher(self):
         class MockMatch(deepsmlm.evaluation.match_emittersets.MatcherABC):
             def forward(self, output, target):
-
                 """Randomly assign tp and tp_match"""
-                ix_tp = torch.randint(2, size=(len(output), )).bool()  # assign output randomly as tp / fp
+                ix_tp = torch.randint(2, size=(len(output),)).bool()  # assign output randomly as tp / fp
                 ix_tp_match = torch.zeros(len(target)).bool()  # init ix for gt
 
                 n_tp = (ix_tp == 1).nonzero().numel()
@@ -88,7 +86,7 @@ class TestGreedyMatching(TestMatcherABC):
 
         with pytest.warns(UserWarning):
             match_em.GreedyHungarianMatching(match_dims=dim)  # unlikely comb.
-            
+
         with pytest.raises(ValueError):
             match_em.GreedyHungarianMatching(match_dims=1)
 
@@ -158,7 +156,6 @@ class TestGreedyMatching(TestMatcherABC):
         """Assert"""
         assert (tp_ix_out.nonzero() == tp_ix_exp).all()  # boolean index in output
         assert (tp_match_ix_out.nonzero() == tp_match_ix_exp).all()
-
 
     # @pytest.fixture(scope='class')
     # def matcher(self):
