@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from scipy import interpolate
 
-import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.simulation.psf_kernel as psf_kernel
 
 
 class Background(ABC):

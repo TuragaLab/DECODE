@@ -7,7 +7,7 @@ from torch.nn import functional
 
 from deepsmlm.generic import EmitterSet
 from deepsmlm.generic.coordinate_trafo import A2BTransform
-from deepsmlm.generic.psf_kernel import PSF, DeltaPSF
+from deepsmlm.simulation.psf_kernel import PSF, DeltaPSF
 
 
 class TargetGenerator(ABC):

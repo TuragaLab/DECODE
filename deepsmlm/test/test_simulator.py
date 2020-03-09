@@ -1,10 +1,9 @@
-import os, sys
 import torch
 import pytest
 
 import deepsmlm.generic.emitter as emitter
 import deepsmlm.generic.background as background
-import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.simulation.psf_kernel as psf_kernel
 import deepsmlm.simulation.simulator as can  # test candidate
 
 

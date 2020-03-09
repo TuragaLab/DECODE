@@ -77,7 +77,7 @@ class Photon2Camera:
                 camera = ((camera - self.baseline) * self.e_per_adu - self.spur) / self.qe
         return camera
 
-    def reverse(self, x):
+    def backward(self, x):
         """
         Calculate (expected) number of photons
         :param x:

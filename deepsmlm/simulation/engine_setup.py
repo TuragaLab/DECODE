@@ -6,11 +6,11 @@ import torch
 torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.utils
 
-import deepsmlm.generic.psf_kernel
+import deepsmlm.simulation.psf_kernel
 import deepsmlm.generic.utils
 
 import deepsmlm.generic.background
-import deepsmlm.generic.phot_camera
+import deepsmlm.simulation.phot_camera
 import deepsmlm.generic.inout.write_load_param as dsmlm_par
 import deepsmlm.generic.inout.util
 import deepsmlm.simulation.engine
@@ -116,7 +116,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
             [deepsmlm.generic.background.UniformBackground,
              deepsmlm.generic.background.PerlinBackground], param)
 
-    noise = deepsmlm.generic.phot_camera.Photon2Camera.parse(param)
+    noise = deepsmlm.simulation.phot_camera.Photon2Camera.parse(param)
 
     """
     Here we define some constants to give all possibilities during training. 

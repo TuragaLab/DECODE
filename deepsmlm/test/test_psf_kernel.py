@@ -6,14 +6,14 @@ import torch
 
 import deepsmlm.generic.inout.load_calibration as load_cal
 import deepsmlm.generic.plotting.frame_coord as plf
-import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.simulation.psf_kernel as psf_kernel
 import deepsmlm.generic.utils.test_utils as tutil
 
 
 class TestPSF:
 
     @pytest.fixture(scope='class')
-    def abs_psf(self):
+    def psf_candidate(self):
         """
         Abstract PSF class fixture
 
@@ -24,9 +24,9 @@ class TestPSF:
         class PseudoAbsPSF(psf_kernel.PSF):
             def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
                 if xyz.numel() >= 1:
-                    return torch.ones((32, 32)) * xyz[0, 0]
+                    return torch.ones((64, 64)) * xyz[0, 0]
                 else:
-                    return torch.zeros((32, 32))
+                    return torch.zeros((64, 64))
 
             def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
                 xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
@@ -34,7 +34,7 @@ class TestPSF:
 
         return PseudoAbsPSF(None, None, None, None)
 
-    def test_frame_split(self, abs_psf):
+    def test_frame_split(self, psf_candidate):
         """
         Tests frame splitting when no batch implementation is present
         Args:
@@ -47,15 +47,15 @@ class TestPSF:
         frame_ix = torch.Tensor([0, 0]).int()
 
         """Run"""
-        frames = abs_psf.forward(xyz, phot, frame_ix, -1, 1)
+        frames = psf_candidate.forward(xyz, phot, frame_ix, -1, 1)
 
         """Asserts"""
-        assert frames.size() == torch.Size([3, 32, 32]), "Wrong dimensions."
+        assert frames.size() == torch.Size([3, 64, 64]), "Wrong dimensions."
         assert (frames[[0, -1]] == 0.).all(), "Wrong frames active."
         assert (frames[1] != 0).any(), "Wrong frames active."
         assert frames[1].max() > 0, "Wrong frames active."
 
-    def test_single_frame_wrapper(self, abs_psf):
+    def test_single_frame_wrapper(self, psf_candidate):
         """
         Tests whether the general impl
         Args:
@@ -69,7 +69,7 @@ class TestPSF:
         phot = torch.ones_like(xyz[:, 0])
         frame_ix = torch.Tensor([1, -2]).int()
 
-        frames = abs_psf._forward_single_frame_wrapper(xyz, phot, frame_ix, -2, 1)
+        frames = psf_candidate._forward_single_frame_wrapper(xyz, phot, frame_ix, -2, 1)
 
         assert frames.dim() == 3
         assert (frames[0] == 0.5).all()
@@ -124,30 +124,44 @@ class TestDeltaPSF:
         assert (out_05px.unique() == torch.Tensor([0., 1.])).all()
 
 
-class TestGaussianExpect:
+class TestGaussianExpect(TestPSF):
 
-    @pytest.fixture(scope='class')
-    def normgauss2d(self):
-        return psf_kernel.GaussianExpect((-0.5, 63.5), (-0.5, 63.5), None, img_shape=(64, 64), sigma_0=1.5)
+    @pytest.fixture(scope='class', params=[None, (-5000., 5000.)])
+    def psf_candidate(self, request):
+        return psf_kernel.GaussianExpect((-0.5, 63.5), (-0.5, 63.5), request.param, img_shape=(64, 64), sigma_0=1.5)
 
-    @pytest.fixture(scope='class')
-    def normgauss3d(self):
-        return psf_kernel.GaussianExpect((-0.5, 63.5), (-0.5, 63.5), (-5000., 5000.), img_shape=(64, 64), sigma_0=1.5)
-
-    def test_norm(self, normgauss2d, normgauss3d):
+    def test_norm(self, psf_candidate):
         xyz = torch.tensor([[32., 32., 0.]])
         phot = torch.tensor([1.])
-        assert pytest.approx(normgauss2d.forward(xyz, phot).sum().item(), 0.05) == 1
-        assert pytest.approx(normgauss3d.forward(xyz, phot).sum().item(), 0.05) == 1
+        assert pytest.approx(psf_candidate.forward(xyz, phot).sum().item(), 0.05) == 1
 
-    def test_peak_weight(self, normgauss2d, normgauss3d):
-        normgauss2d.peak_weight = True
-        normgauss3d.peak_weight = True
+    def test_peak_weight(self, psf_candidate):
+        psf_candidate.peak_weight = True
 
         xyz = torch.tensor([[32., 32., 0.]])
         phot = torch.tensor([1.])
-        assert pytest.approx(normgauss2d.forward(xyz, phot).max().item(), 0.05) == 1
-        assert pytest.approx(normgauss2d.forward(xyz, phot).max().item(), 0.05) == 1
+        assert pytest.approx(psf_candidate.forward(xyz, phot).max().item(), 0.05) == 1
+
+    def test_single_frame_wrapper(self, psf_candidate):
+        """
+        Tests whether the general impl
+        Args:
+            abs_psf:
+
+        Returns:
+
+        """
+
+        xyz = torch.Tensor([[15., 15., 0.], [0.5, 0.3, 0.]])
+        phot = torch.ones_like(xyz[:, 0])
+        frame_ix = torch.Tensor([1, -2]).int()
+
+        frames = psf_candidate._forward_single_frame_wrapper(xyz, phot, frame_ix, -2, 1)
+
+        assert frames.dim() == 3
+        assert (frames[0] != 0).any()
+        assert (frames[1:3] == 0).all()
+        assert (frames[-1] != 0).any()
 
 
 class TestCubicSplinePSF:
@@ -240,7 +254,7 @@ class TestCubicSplinePSF:
 
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-7)
 
-    @pytest.mark.skip_plot
+    @pytest.mark.plot
     def test_roi_visual(self, psf_cpu, onek_rois):
         xyz, phot, bg, n = onek_rois
         phot = torch.ones_like(phot)
@@ -273,8 +287,8 @@ class TestCubicSplinePSF:
         assert tutil.tens_almeq(drv_roi_cpu, drv_roi_cuda, 1e-7)
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-5)  # side output, seems to be a bit more numerially off
 
-    @pytest.mark.skip_plot
-    def test_roi_visual(self, psf_cpu, onek_rois):
+    @pytest.mark.plot
+    def test_roi_drv_visual(self, psf_cpu, onek_rois):
         xyz, phot, bg, n = onek_rois
         phot = torch.ones_like(phot)
 
@@ -339,7 +353,7 @@ class TestCubicSplinePSF:
 
         assert tutil.tens_almeq(frames_cpu, frames_cuda, 1e-7)
 
-    @pytest.mark.skip_plot
+    @pytest.mark.plot
     def test_frame_visual(self, psf_cpu):
         n = 10
         xyz = torch.rand((n, 3)) * 64

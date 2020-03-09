@@ -2,7 +2,7 @@ import pytest
 import torch
 from matplotlib import pyplot as plt
 
-import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.simulation.psf_kernel as psf_kernel
 from deepsmlm.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
 from deepsmlm.generic.plotting.frame_coord import PlotFrame, PlotFrameCoord
 from deepsmlm.generic.utils import test_utils as tutil

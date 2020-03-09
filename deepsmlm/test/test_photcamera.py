@@ -1,7 +1,7 @@
 import torch
 import pytest
 
-import deepsmlm.generic.phot_camera as pc
+import deepsmlm.simulation.phot_camera as pc
 import deepsmlm.generic.utils.test_utils as tutil
 
 
@@ -28,7 +28,7 @@ class TestPhotons2Camera:
     def test_warning(self, m2_spec):
         m2_spec.photon_units = True
         x = torch.rand((32, 3, 64, 64))
-        out = m2_spec.reverse(x)
+        out = m2_spec.backward(x)
 
 
 

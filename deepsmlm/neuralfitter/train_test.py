@@ -6,6 +6,9 @@ import tqdm
 import numpy as np
 from copy import deepcopy
 import torch
+
+import deepsmlm.evaluation.utils
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 from matplotlib import pyplot as plt
 
@@ -150,10 +153,10 @@ def plot_io_coord_model(frame, output, target, em_tar, indices, fig_str, comet_l
 def train(train_loader, model, optimizer, criterion, epoch, conf_param, logger, experiment):
     step_batch = epoch * train_loader.__len__()
 
-    batch_time = eval.MetricMeter()
-    data_time = eval.MetricMeter()
-    losses = eval.MetricMeter()
-    loss_batch10 = eval.MetricMeter()
+    batch_time = deepsmlm.evaluation.utils.MetricMeter()
+    data_time = deepsmlm.evaluation.utils.MetricMeter()
+    losses = deepsmlm.evaluation.utils.MetricMeter()
+    loss_batch10 = deepsmlm.evaluation.utils.MetricMeter()
 
     model.train()
     end = time.time()
@@ -226,8 +229,8 @@ def test(val_loader, model, criterion, epoch, conf_param, logger, experiment, po
     """
     experiment.set_step(epoch)
 
-    batch_time = eval.MetricMeter()
-    losses = eval.MetricMeter()
+    batch_time = deepsmlm.evaluation.utils.MetricMeter()
+    losses = deepsmlm.evaluation.utils.MetricMeter()
 
     inputs = []
     outputs = []
