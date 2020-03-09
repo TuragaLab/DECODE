@@ -410,6 +410,7 @@ class GreedyHungarianMatchingDepr(MatcherABC):
         return self._return_match(tp=tp, fp=fp, fn=fn, tp_match=tp_match)
 
 
+@deprecated
 class NNMatching(MatcherABC):
     """
     A class to match outputs and targets based on 1neighbor nearest neighbor classifier.

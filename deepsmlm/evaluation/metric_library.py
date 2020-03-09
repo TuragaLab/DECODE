@@ -115,31 +115,54 @@ def pos_neg_emitters(output, target, distance_threshold=1.):
     return tp, fp, fn, ix_pred2gt, ix_gt, ix_gt2pred, ix_pred
 
 
-class PrecisionRecallJaccard:
-    def __init__(self):
-        pass
+def precision_recall_jaccard(tp, fp, fn):
+    """
+    Calculates precision and recall.
+    :param tp: (int, float) number of true positives
+    :param fp: (int, float) number of false positives
+    :param fn: (int, float) number of false negatives
+    :return: precision (float), recall (float)
+    """
 
-    @staticmethod
-    def forward(tp, fp, fn):
-        """
-        Calculates precision and recall.
-        :param tp: (int, float) number of true positives
-        :param fp: (int, float) number of false positives
-        :param fn: (int, float) number of false negatives
-        :return: precision (float), recall (float)
-        """
+    # convert to float, because otherwise torch division is integer based ...
+    tp = float(tp)
+    fp = float(fp)
+    fn = float(fn)
 
-        # convert to float, because otherwise torch division is integer based ...
-        tp = float(tp)
-        fp = float(fp)
-        fn = float(fn)
+    precision = math.nan if (tp + fp) == 0 else tp / (tp + fp)
+    recall = math.nan if (tp + fn) == 0 else tp / (tp + fn)
+    jaccard = math.nan if (tp + fp + fn) == 0 else tp / (tp + fp + fn)
+    f1score = math.nan if (precision + recall) == 0 else (2 * precision * recall)/(precision + recall)
 
-        precision = math.nan if (tp + fp) == 0 else tp / (tp + fp)
-        recall = math.nan if (tp + fn) == 0 else tp / (tp + fn)
-        jaccard = math.nan if (tp + fp + fn) == 0 else tp / (tp + fp + fn)
-        f1score = math.nan if (precision + recall) == 0 else (2 * precision * recall)/(precision + recall)
+    return precision, recall, jaccard, f1score
 
-        return precision, recall, jaccard, f1score
+
+def rootmean_mean_absolute_dist(xyz_0, xyz_1):
+
+    num_tp = xyz_0.size(0)
+    num_gt = xyz_1.size(0)
+
+    if num_tp != num_gt:
+        raise ValueError("The number of points must match.")
+
+    if num_tp == 0:
+        return (float('nan'),) * 6
+
+    mse_loss = nn.MSELoss(reduction='sum')
+
+    rmse_vol = (mse_loss(xyz_0, xyz_1) / num_tp).sqrt()
+    rmse_lat = ((mse_loss(xyz_0[:, 0], xyz_1[:, 0]) +
+                 mse_loss(xyz_0[:, 1], xyz_1[:, 1])) / num_tp).sqrt()
+
+    rmse_axial = (mse_loss(xyz_0[:, 2], xyz_1[:, 2]) / num_tp).sqrt()
+
+    mad_loss = nn.L1Loss(reduction='sum')
+
+    mad_vol = mad_loss(xyz_0, xyz_1) / num_tp
+    mad_lat = (mad_loss(xyz_0[:, 0], xyz_1[:, 0]) + mad_loss(xyz_0[:, 1], xyz_1[:, 1])) / num_tp
+    mad_axial = mad_loss(xyz_0[:, 2], xyz_1[:, 2]) / num_tp
+
+    return rmse_vol.item(), rmse_lat.item(), rmse_axial.item(), mad_vol.item(), mad_lat.item(), mad_axial.item()
 
 
 def interpoint_loss(output, target, reduction='mean'):
@@ -186,39 +209,7 @@ class Deltas:
         return dxyz[:, 0], dxyz[:, 1], dxyz[:, 2], dxyz_weighted[:, 0], dxyz_weighted[:, 1], dxyz_weighted[:, 2]
 
 
-class RMSEMAD:
-    def __init__(self):
-        pass
 
-    @staticmethod
-    def forward(tp, ref):
-        """
-        Calculate RMSE values and mad.
-
-        :param tp: (emitterset) true positives
-        :param ref:  (emitterset) reference
-        :return: various rmse values
-        """
-        num_tp = tp.__len__()
-        # convenience to get the coordinates
-        tp_ = tp.xyz
-        r_ = ref.xyz
-
-        mse_loss = nn.MSELoss(reduction='sum')
-
-        rmse_vol = (mse_loss(tp_, r_) / num_tp).sqrt()
-        rmse_lat = ((mse_loss(tp_[:, 0], r_[:, 0]) +
-                     mse_loss(tp_[:, 1], r_[:, 1])) / num_tp).sqrt()
-
-        rmse_axial = (mse_loss(tp_[:, 2], r_[:, 2]) / num_tp).sqrt()
-
-        mad_loss = nn.L1Loss(reduction='sum')
-
-        mad_vol = mad_loss(tp_, r_) / num_tp
-        mad_lat = (mad_loss(tp_[:, 0], r_[:, 0]) + mad_loss(tp_[:, 1], r_[:, 1])) / num_tp
-        mad_axial = mad_loss(tp_[:, 2], r_[:, 2]) / num_tp
-
-        return rmse_vol.item(), rmse_lat.item(), rmse_axial.item(), mad_vol.item(), mad_lat.item(), mad_axial.item()
 
 
 def efficiency(jac, rmse, alpha):

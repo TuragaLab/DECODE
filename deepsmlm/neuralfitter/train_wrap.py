@@ -14,6 +14,7 @@ import socket
 from datetime import datetime
 
 import deepsmlm.evaluation.match_emittersets
+import deepsmlm.evaluation.utils
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 from tensorboardX import SummaryWriter
@@ -350,9 +351,9 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
     segmentation_eval = evaluation.SegmentationEvaluation(False)
     distance_eval = evaluation.DistanceEvaluation(print_mode=False)
 
-    batch_ev = evaluation.BatchEvaluation(matcher, segmentation_eval, distance_eval,
-                                          batch_size=param['HyperParameter']['batch_size'],
-                                          px_size=torch.tensor(param['Camera']['px_size']), weight='photons')
+    batch_ev = deepsmlm.evaluation.utils.BatchEvaluation(matcher, segmentation_eval, distance_eval,
+                                                         batch_size=param['HyperParameter']['batch_size'],
+                                                         px_size=torch.tensor(param['Camera']['px_size']), weight='photons')
     epoch_logger = log_utils.LogTestEpoch(logger, experiment)
 
     """Ask if everything is correct before we start."""

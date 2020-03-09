@@ -1,73 +1,39 @@
-import unittest
-from unittest import TestCase
+import pytest
 
-from deepsmlm.evaluation.match_emittersets import NNMatching
-from deepsmlm.generic.emitter import EmitterSet
-from deepsmlm.evaluation.metric_library import *
+import deepsmlm.evaluation.metric_library as test_cand
+import deepsmlm.generic.emitter as em
 
 
-class TestExpandedPairwiseDistances(TestCase):
+class TestSegmentation:
 
-    def setUp(self):
-        pass
+    @pytest.fixture()
+    def evaluator(self):
+        return test_cand.PrecisionRecallJaccard()
 
-    def test_expanded_pairwise_distances(self):
-        x = torch.tensor([[0., 0., 0.]])
-        y = torch.tensor([[0., 0., 0.], [1., 1., 1.]])
+    test_data = [
+        (em.EmptyEmitterSet(), em.EmptyEmitterSet(), em.EmptyEmitterSet(), (float('nan'), float('nan'), float('nan'),
+                                                                            float('nan'))),
+        (em.EmptyEmitterSet(), em.RandomEmitterSet(1), em.EmptyEmitterSet())
+    ]
 
-        dist_mat = expanded_pairwise_distances(x, y)
-        self.assertTrue((dist_mat == torch.tensor([[0., sqrt(3)]])).all())
+    @pytest.mark.parametrize("tp,fp,fn,expect", test_data)
+    def test_segmentation(self, evaluator, tp, fp, fn, expect):
+        """
+        Some handcrafted values
 
+        Args:
+            tp: true positives
+            fp: false positives
+            fn: false negatives
+            exp(tuple): expected outcome
 
-class TestNNMatching(TestCase):
+        """
+        out = evaluator.forward(tp, fp, fn)
 
-    def setUp(self):
-        self.dist_lat = 2.5
-        self.dist_ax = 500.
-        self.test_object = NNMatching(self.dist_lat, self.dist_ax)
+        for o, e in zip(out, expect):  # check all the outcomes
+            if math.isnan(o) or math.isnan(e):
+                assert math.isnan(o)
+                assert math.isnan(e)
 
-    def test_simple_pair_0(self):
-        out = EmitterSet(torch.tensor([[0., 0., 0.]]),
-                         phot=torch.tensor([1.]),
-                         frame_ix=torch.tensor([0]))
-
-        target = EmitterSet(torch.tensor([[2.4, 0., 500.]]),
-                            phot=torch.tensor([1.]),
-                            frame_ix=torch.tensor([0]))
-
-        tp, fp, fn, _ = self.test_object.forward(out, target)
-        self.assertEqual(tp.num_emitter, 1)
-        self.assertEqual(fp.num_emitter, 0)
-        self.assertEqual(fn.num_emitter, 0)
-
-    def test_simple_pair_1(self):
-        out = EmitterSet(torch.tensor([[0., 0., 0.]]),
-                         phot=torch.tensor([1.]),
-                         frame_ix=torch.tensor([0]))
-
-        target = EmitterSet(torch.tensor([[2.4, 2.4, 0.]]),
-                            phot=torch.tensor([1.]),
-                            frame_ix=torch.tensor([0]))
-
-        tp, fp, fn, _ = self.test_object.forward(out, target)
-        self.assertEqual(tp.num_emitter, 0)
-        self.assertEqual(fp.num_emitter, 1)
-        self.assertEqual(fn.num_emitter, 1)
-
-    def test_simple_pair_2(self):
-        out = EmitterSet(torch.tensor([[0., 0., 0.]]),
-                         phot=torch.tensor([1.]),
-                         frame_ix=torch.tensor([0]))
-
-        target = EmitterSet(torch.tensor([[0, 2.4, 501.]]),
-                            phot=torch.tensor([1.]),
-                            frame_ix=torch.tensor([0]))
-
-        tp, fp, fn, _ = self.test_object.forward(out, target)
-        self.assertEqual(tp.num_emitter, 0)
-        self.assertEqual(fp.num_emitter, 1)
-        self.assertEqual(fn.num_emitter, 1)
-
-
-if __name__ == '__main__':
-    unittest.main()
+            else:
+                assert o == e

@@ -7,7 +7,7 @@ import deepsmlm.generic.utils.test_utils as tutil
 
 
 def test_rmse_mad():
-    rmse_eval = metr.RMSEMAD()
+    rmse_eval = metr.RootMeanMeanAbsoluteDist()
 
     out = emitter.EmptyEmitterSet()
     tar = out.clone()

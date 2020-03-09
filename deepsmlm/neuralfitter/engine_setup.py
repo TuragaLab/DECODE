@@ -6,6 +6,7 @@ import os
 import tensorboardX
 import torch
 
+import deepsmlm.evaluation.utils
 import deepsmlm.neuralfitter.filter
 import deepsmlm.neuralfitter.target_generator
 import deepsmlm.neuralfitter.utils.pytorch_customs
@@ -264,10 +265,10 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     segmentation_eval = deepsmlm.evaluation.SegmentationEvaluation(False)
     distance_eval = deepsmlm.evaluation.DistanceEvaluation(print_mode=False)
 
-    batch_ev = deepsmlm.evaluation.evaluation.BatchEvaluation(matcher, segmentation_eval, distance_eval,
-                                                              batch_size=param.HyperParameter.batch_size,
-                                                              px_size=torch.tensor(param.Camera.px_size),
-                                                              weight='photons')
+    batch_ev = deepsmlm.evaluation.utils.BatchEvaluation(matcher, segmentation_eval, distance_eval,
+                                                         batch_size=param.HyperParameter.batch_size,
+                                                         px_size=torch.tensor(param.Camera.px_size),
+                                                         weight='photons')
 
     epoch_logger = deepsmlm.generic.utils.logging.LogTestEpoch(logger, experiment)
 

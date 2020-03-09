@@ -128,7 +128,7 @@ class TestMultiPerlin(TestBackground):
                                       norm_amps=False,
                                       draw_amps=True)
 
-    @pytest.mark.skip_plot
+    @pytest.mark.plot
     def test_multiscale(self, bgf):
         out, _ = bgf.forward(torch.zeros((2, 3, 64, 64)))
         PlotFrame(out[0, 0]).plot()

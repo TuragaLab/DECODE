@@ -240,7 +240,7 @@ class TestCubicSplinePSF:
 
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-7)
 
-    @pytest.mark.skip_plot
+    @pytest.mark.plot
     def test_roi_visual(self, psf_cpu, onek_rois):
         xyz, phot, bg, n = onek_rois
         phot = torch.ones_like(phot)
@@ -273,7 +273,7 @@ class TestCubicSplinePSF:
         assert tutil.tens_almeq(drv_roi_cpu, drv_roi_cuda, 1e-7)
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-5)  # side output, seems to be a bit more numerially off
 
-    @pytest.mark.skip_plot
+    @pytest.mark.plot
     def test_roi_visual(self, psf_cpu, onek_rois):
         xyz, phot, bg, n = onek_rois
         phot = torch.ones_like(phot)
@@ -339,7 +339,7 @@ class TestCubicSplinePSF:
 
         assert tutil.tens_almeq(frames_cpu, frames_cuda, 1e-7)
 
-    @pytest.mark.skip_plot
+    @pytest.mark.plot
     def test_frame_visual(self, psf_cpu):
         n = 10
         xyz = torch.rand((n, 3)) * 64
