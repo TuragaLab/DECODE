@@ -1,8 +1,7 @@
-import numpy as np
 import scipy.io as sio
 import torch
 
-import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.simulation.psf_kernel as psf_kernel
 
 
 class SMAPSplineCoefficient:

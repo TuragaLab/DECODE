@@ -22,7 +22,7 @@ else()
 endif()
 
 
-add_library(spline_psf_cpu_impl STATIC src/spline_psf.c)
+add_library(spline_psf_cpu_impl SHARED src/spline_psf.c)
 target_include_directories(spline_psf_cpu_impl PUBLIC include)
 target_compile_features(spline_psf_cpu_impl PUBLIC c_std_99)
 set_property(TARGET spline_psf_cpu_impl PROPERTY POSITION_INDEPENDENT_CODE ON)

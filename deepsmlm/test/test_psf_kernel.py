@@ -6,7 +6,7 @@ import torch
 
 import deepsmlm.generic.inout.load_calibration as load_cal
 import deepsmlm.generic.plotting.frame_coord as plf
-import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.simulation.psf_kernel as psf_kernel
 import deepsmlm.generic.utils.test_utils as tutil
 
 
@@ -274,7 +274,7 @@ class TestCubicSplinePSF:
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-5)  # side output, seems to be a bit more numerially off
 
     @pytest.mark.plot
-    def test_roi_visual(self, psf_cpu, onek_rois):
+    def test_roi_drv_visual(self, psf_cpu, onek_rois):
         xyz, phot, bg, n = onek_rois
         phot = torch.ones_like(phot)
 

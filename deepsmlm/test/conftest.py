@@ -15,7 +15,7 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--plot") and config.getoption("--slow"):
+    if config.getoption("--plot") or config.getoption("--slow"):
         # --plot and or --slow given in cli: do not skip slow or plotting tests
         return
     skip = pytest.mark.skip(reason="need --plot / --slow option to run")

@@ -1,15 +1,12 @@
-import math
 from abc import ABC, abstractmethod
 import torch
 import torch.nn
 import numpy as np
-from torch.nn import functional
-from sklearn import neighbors, datasets
 import warnings
 
 import deepsmlm.generic.emitter as emc
 from .utils import padding_calc as padcalc
-import deepsmlm.generic.psf_kernel as psf_kernel
+import deepsmlm.simulation.psf_kernel as psf_kernel
 
 
 class Delta2ROI:
