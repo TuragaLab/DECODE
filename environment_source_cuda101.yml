@@ -28,7 +28,7 @@ dependencies:
   - opencv
   - pillow
   - pyyaml
-  - python=3.6
+  - python=3.8
   # - pytorch=1.2.*
   - ninja
   - pyyaml

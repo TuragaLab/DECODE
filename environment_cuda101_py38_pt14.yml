@@ -1,4 +1,4 @@
-name: deepsmlm_py38_pt14
+name: deepsmlm_cuda
 channels:
   - pytorch
   - conda-forge
