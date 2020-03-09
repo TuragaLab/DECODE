@@ -9,7 +9,7 @@ from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterS
 
 class TestEmitterSet:
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def em2d(self):
         """
         Fixture 2D EmitterSet.
@@ -22,7 +22,7 @@ class TestEmitterSet:
                           phot=torch.rand(25),
                           frame_ix=torch.zeros(25).int())
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def em3d(self):
         """
         3D EmitterSet.

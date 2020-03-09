@@ -371,7 +371,13 @@ class EmitterSet:
         Returns:
             (bool)
         """
-        if not self.px_size == other.px_size:
+        if self.px_size is None:
+            if other.px_size is None:
+                return True
+            else:
+                return False
+
+        if not (self.px_size == other.px_size).all():
             return False
 
         if not self.xy_unit == other.xy_unit:

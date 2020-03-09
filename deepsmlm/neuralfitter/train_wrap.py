@@ -1,23 +1,20 @@
 import comet_ml
-from comet_ml import Experiment, OfflineExperiment
+from comet_ml import Experiment
 
 import click
 import datetime
-import time
 import os
 import getopt
-import sys
 import torch
-import tqdm
 import pathlib
 import socket
 from datetime import datetime
 
 import deepsmlm.evaluation.match_emittersets
+import deepsmlm.evaluation.utils
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 from tensorboardX import SummaryWriter
-from torch.optim import Adam, AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
@@ -29,25 +26,18 @@ from deepsmlm.generic.inout.load_save_model import LoadSaveModel
 import deepsmlm.generic.background as background
 import deepsmlm.neuralfitter.weight_generator as wgen
 import deepsmlm.generic.noise as noise_bg
-import deepsmlm.generic.psf_kernel as psf_kernel
 import deepsmlm.neuralfitter.pre_processing as prepro
 import deepsmlm.evaluation.evaluation as evaluation
-from deepsmlm.generic.phot_camera import Photon2Camera
+from deepsmlm.simulation.phot_camera import Photon2Camera
 from deepsmlm.neuralfitter.pre_processing import CombineTargetBackground, \
     DiscardBackground
-from deepsmlm.neuralfitter.target_generator import SinglePxEmbedding, KernelEmbedding, GlobalOffsetRep
+from deepsmlm.neuralfitter.target_generator import SinglePxEmbedding, KernelEmbedding
 import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
 import deepsmlm.generic.utils.processing as processing
 from deepsmlm.generic.utils.scheduler import ScheduleSimulation
-from deepsmlm.neuralfitter.arguments import InOutParameter, HyperParameter, SimulationParam, LoggerParameter, \
-    SchedulerParameter, ScalingParam, EvaluationParam, PostProcessingParam, CameraParam
 from deepsmlm.neuralfitter.dataset import SMLMStaticDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer, SMLMDatasetOnFlyCached
-from deepsmlm.neuralfitter.losscollection import MultiScaleLaplaceLoss, BumpMSELoss, SpeiserLoss, OffsetROILoss
 import deepsmlm.neuralfitter.losscollection as ls
-from deepsmlm.neuralfitter.models.model import DenseLoco, USMLM, USMLMLoco, UNet
-from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, DoubleOffsetUNet, DoubleOffsetUNetDivided, \
-    OffSetUNetBGBranch
 import deepsmlm.neuralfitter.models.model_param as model_zoo
 from deepsmlm.neuralfitter.pre_processing import N2C
 from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, OffsetRescale, AmplitudeRescale
@@ -350,9 +340,9 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
     segmentation_eval = evaluation.SegmentationEvaluation(False)
     distance_eval = evaluation.DistanceEvaluation(print_mode=False)
 
-    batch_ev = evaluation.BatchEvaluation(matcher, segmentation_eval, distance_eval,
-                                          batch_size=param['HyperParameter']['batch_size'],
-                                          px_size=torch.tensor(param['Camera']['px_size']), weight='photons')
+    batch_ev = deepsmlm.evaluation.utils.BatchEvaluation(matcher, segmentation_eval, distance_eval,
+                                                         batch_size=param['HyperParameter']['batch_size'],
+                                                         px_size=torch.tensor(param['Camera']['px_size']), weight='photons')
     epoch_logger = log_utils.LogTestEpoch(logger, experiment)
 
     """Ask if everything is correct before we start."""

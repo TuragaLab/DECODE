@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod  # abstract class
 import torch
 from scipy.stats import binned_statistic_2d
 
-from .utils import generic as gutil
+from deepsmlm.generic.utils import generic as gutil
 import spline_psf_cuda  # CPP / CUDA implementation
 
 
@@ -442,19 +442,20 @@ class CubicSplinePSF(PSF):
         """Get subpixel shift"""
         xyz_r[:, 0] = (xyz_r[:, 0] / self.vx_size[0]) % 1
         xyz_r[:, 1] = (xyz_r[:, 1] / self.vx_size[1]) % 1
-        """Place emitters in ROI centre (nm)"""
-        xyz_r[:, :2] = (xyz_r[:, :2] + self.ref0[:2]) * self.vx_size[:2]
 
+        """Place emitters according to the Reference (reference is in px)"""
+        xyz_r[:, :2] = (xyz_r[:, :2] + self.ref0[:2]) * self.vx_size[:2]
         xyz_px = (xyz_nm[:, :2] / self.vx_size[:2] - self.ref0[:2]).floor().int()
 
         return xyz_r, xyz_px
 
     def forward_rois(self, xyz, phot):
         """
-        Computes a ROI per coordinate
+        Computes a ROI per position. The emitter is always centred as by the reference of the PSF; i.e. when working
+        in px units, adding 1 in x or y direction does not change anything.
 
         Args:
-            xyz: xyz coordinate within in the ROI
+            xyz: coordinates relative to the ROI centre.
             phot: photon count
 
         Returns:
@@ -466,7 +467,10 @@ class CubicSplinePSF(PSF):
             warnings.warn("You are trying to compute a ROI that is bigger than the "
                           "size supported by the spline coefficients.")
 
-        return self._forward_rois_impl(self.coord2impl(xyz), phot)
+        xyz_, _ = self.frame2roi_coord(xyz)
+        xyz_ = self.coord2impl(xyz)
+
+        return self._forward_rois_impl(xyz_, phot)
 
     def _forward_rois_impl(self, xyz, phot):
         """
@@ -491,6 +495,8 @@ class CubicSplinePSF(PSF):
     def derivative(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, add_bg: bool = True):
         """
         Computes the px wise derivative per ROI. Outputs ROIs additionally (since its computationally free of charge).
+        The coordinates are (as the forward_rois method) relative to the reference of the PSF; i.e. when working
+        in px units, adding 1 in x or y direction does not change anything.
 
         Args:
             xyz:
@@ -502,8 +508,8 @@ class CubicSplinePSF(PSF):
             derivatives (torch.Tensor): derivatives in correct units. Dimension N x N_par x H x W
             rois (torch.Tensor): ROIs. Dimension N x H x W
         """
-
-        xyz_ = self.coord2impl(xyz)
+        xyz_, _ = self.frame2roi_coord(xyz)
+        xyz_ = self.coord2impl(xyz_)
         n_rois = xyz.size(0)
 
         drv_rois, rois = self._spline_impl.forward_drv_rois(xyz_[:, 0], xyz_[:, 1], xyz_[:, 2], phot, bg, add_bg)

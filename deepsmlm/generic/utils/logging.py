@@ -3,7 +3,7 @@ import torch
 import random
 
 import deepsmlm.generic.plotting.frame_coord as emplot
-from deepsmlm.evaluation.evaluation import MetricMeter
+from deepsmlm.evaluation.utils import MetricMeter
 
 
 class LogTestEpoch:

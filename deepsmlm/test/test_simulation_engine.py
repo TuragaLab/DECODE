@@ -26,7 +26,7 @@ class DummyDataset(Dataset):
         return self.n
 
     def __getitem__(self, item):
-        time.sleep(1)
+        time.sleep(.3)
         return self.frames[item], self.gt[item]
 
 
@@ -56,5 +56,6 @@ class TestSimulationEngine:
         request.addfinalizer(fin)  # teardown
         return can
 
+    @pytest.mark.slow
     def test_run(self, dummy_sim_engine):
         dummy_sim_engine.run(n_max=10)

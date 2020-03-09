@@ -1,5 +1,4 @@
 from deepsmlm.evaluation.evaluation import DistanceEvaluation, SegmentationEvaluation
 import deepsmlm.evaluation.evaluation
-import deepsmlm.evaluation.eval_batch
 import deepsmlm.evaluation.match_emittersets
 import deepsmlm.evaluation.metric_library

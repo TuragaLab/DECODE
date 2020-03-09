@@ -114,11 +114,13 @@ class TestSpeiser:
 class TestConsistentPostProcessing:
     @pytest.fixture(scope='class')
     def post(self):
-        return post.ConsistencyPostprocessing(0.1, final_th=0.5, lat_threshold=30, ax_threshold=200., match_dims=2.1,
-                                              out_format='emitters_framewise', bg=5, img_shape=(32, 32))
+        return post.ConsistencyPostprocessing(svalue_th=0.1, final_th=0.5, lat_threshold=30, ax_threshold=200.,
+                                              match_dims=2.1, img_shape=(32, 32), bg=5,
+                                              return_format='frame-set')
 
     def test_init_sanity_check(self):
-        post.ConsistencyPostprocessing(0.1, 0.6, lat_threshold=30, ax_threshold=200., vol_threshold=None, match_dims=2.1)
+        post.ConsistencyPostprocessing(svalue_th=0.1, final_th=0.6, lat_threshold=30, ax_threshold=200.,
+                                       vol_threshold=None, match_dims=2.1)
 
     def test_easy(self, post):
         p = torch.zeros((2, 1, 32, 32)).cuda()

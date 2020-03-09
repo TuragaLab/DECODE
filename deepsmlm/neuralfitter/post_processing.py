@@ -1,51 +1,38 @@
 # from skimage.feature import peak_local_max
-import itertools as iter
 import math
 import warnings
-
-import numpy as np
-import joblib
-import torch.multiprocessing as mp
-from joblib import Parallel, delayed
-import scipy
-from sklearn.cluster import AgglomerativeClustering, DBSCAN
-import torch
 from abc import ABC, abstractmethod  # abstract class
 
+import numpy as np
+import scipy
+import torch
+from joblib import Parallel, delayed
+from sklearn.cluster import AgglomerativeClustering, DBSCAN
+
+import deepsmlm.generic.utils.statistics as fan_stat
 from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
 from deepsmlm.neuralfitter.target_generator import SpatialEmbedding
-from deepsmlm.generic.utils.warning_util import deprecated
-import deepsmlm.generic.utils.statistics as fan_stat
-
-
-def crlb_squared_distance(X, Y, XCrlb, YCrlb):
-    """
-    Computes the CRLB (Cramer Rao Lower Bound) weighted distances between the vectors X and Y
-    :param X:
-    :param Y:
-    :param XCrlb:
-    :param YCrlb:
-    :return: squarred distance in units of CRLB
-    """
-    dist = (X - Y) ** 2 / (XCrlb ** 2 + YCrlb ** 2)
-    dist = dist.sum(1)
-    return dist
 
 
 class PostProcessing(ABC):
+    return_types = ('batch-set', 'frame-set')
 
-    @abstractmethod
-    def __init__(self, final_th=None):
+    def __init__(self, return_format: str):
+        """
+
+        Args:
+            return_format (str): return format of forward function. Must be 'batch-set', 'frame-set'. If 'batch-set'
+            one instance of EmitterSet will be returned per forward call, if 'frame-set' a tuple of EmitterSet one
+            per frame will be returned
+        """
+
         super().__init__()
-        self.final_th = final_th
 
-    @abstractmethod
-    def forward(self, x):
-        """
+        self.return_format = return_format
 
-        :param x: output from the network or previous post processing stages (such as rescaling etc.)
-        :return: emitterset
-        """
+        """Sanity checks"""
+        if self._return_format not in self.return_types:
+            raise ValueError("Not supported return type.")
 
     def frame2emitter(self, p: torch.Tensor, features: torch.Tensor):
         """
@@ -64,6 +51,375 @@ class PostProcessing(ABC):
         p_out = p[p >= self.final_th]
         batch_ix = batch_ix[is_pos[:, 0], :, is_pos[:, 2], is_pos[:, 3]]
         return feat_out, p_out, batch_ix
+
+    def _return_as_type(self, em, ix_low, ix_high):
+        """
+        Returns in the type specified initially
+
+        Args:
+            em (EmitterSet): emitters
+            ix_low (int): lower frame_ix
+            ix_high (int): upper frame_ix
+
+        Returns:
+            em (EmitterSet or tuple):
+
+        """
+
+        if self.return_format == 'batch-set':
+            return em
+        elif self.return_format == 'frame-set':
+            return em.split_in_frames(ix_low=ix_low, ix_high=ix_high)
+        else:
+            raise ValueError
+
+    @abstractmethod
+    def forward(self, x):
+        """
+        Forward anything through the post-processing and return an EmitterSet
+
+        Args:
+            x:
+
+        Returns:
+
+        """
+        raise NotImplementedError
+
+
+class ConsistencyPostprocessing(PostProcessing):
+    """
+    PostProcessing which divides output in easy and hard examples.
+    Hard examples are non-zero px where adjacent px are also non-zero.
+    """
+    p_aggregations = ('max', 'sum')
+
+    def __init__(self, *, svalue_th=0.1, final_th=0.6, lat_threshold=30, ax_threshold=200., vol_threshold=None,
+                 match_dims=2, img_shape=None, num_workers=0, p_aggregation='pbinom_cdf', diag=0, px_size=None, bg=None,
+                 return_format='batch-set'):
+        """
+        Constructor. If volumetric matching is used, it is assumed that coordinate maps are already in nm!
+        Do not change attributes after construction!
+        :param svalue_th: single value threshold
+        :param sep_th: threshold when to assume that we have 2 emitters
+        :param return_format: either 'emitters' or 'image'. If 'emitter' we output instance of EmitterSet, if 'frames' we output post_processed frames.
+        :param out_th: final threshold
+        """
+        super().__init__(return_format=return_format)
+        import deepsmlm.neuralfitter.weight_generator
+
+        self.svalue_th = svalue_th
+        self.final_th = final_th
+        self.out_format = return_format
+        self.p_aggregation = p_aggregation
+
+        self._match_dims = match_dims
+        self._lat_th = lat_threshold
+        self._ax_th = ax_threshold
+        self._vol_th = vol_threshold
+        self._th = None
+
+        self.bg = bg  # ix of bg in feature map
+        self._bg_ix = None
+        if self.bg is not None:
+            self._bg_ix = 5 - 1
+            self._bg_calculator = deepsmlm.neuralfitter.weight_generator.DerivePseudobgFromBg(xextent=(0., 1.),
+                                                                                              yextent=(0., 1.),
+                                                                                              img_shape=img_shape,
+                                                                                              bg_roi_size=(13, 13))
+
+        self._px_size = px_size
+        self._convert_nm = True if self._px_size is not None else False
+
+        # Check arguments
+        if self._match_dims == 2:
+            if not (self._lat_th is not None and
+                    self._ax_th is None and
+                    self._vol_th is None):
+                raise ValueError("Invalid arguments for 2D / lateral matching.")
+        elif self._match_dims == 2.1:
+            if not (self._lat_th is not None and
+                    self._ax_th is not None and
+                    self._vol_th is None):
+                raise ValueError("Invalid arguments for lateral plus kickout axial matching in 2D.")
+        elif self._match_dims == 3:
+            if not (self._lat_th is None and
+                    self._ax_th is None and
+                    self._vol_th is not None):
+                raise ValueError("Invalid arguments for volumetric matching.")
+
+        if p_aggregation not in ('sum', 'max', 'pbinom_cdf', 'pbinom_pdf'):
+            raise ValueError("Unsupported probability aggregation type.")
+
+        if self._match_dims in (2, 2.1):
+            self._th = self._lat_th
+        elif self._match_dims == 3:
+            self._th = self._vol_th
+
+        # diag = 0
+        self.neighbor_kernel = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).float().view(1, 1, 3, 3)
+        self.clusterer = AgglomerativeClustering(n_clusters=None,
+                                                 distance_threshold=self._th,
+                                                 affinity='precomputed',
+                                                 linkage='single')
+
+        self.num_workers = num_workers
+
+    @staticmethod
+    def parse(param, out_format='emitters_batch'):
+        return ConsistencyPostprocessing(svalue_th=param.PostProcessing.single_val_th,
+                                         final_th=param.PostProcessing.total_th,
+                                         lat_threshold=param.PostProcessing.lat_th,
+                                         ax_threshold=param.PostProcessing.ax_th,
+                                         vol_threshold=param.PostProcessing.vol_th,
+                                         match_dims=param.PostProcessing.match_dims,
+                                         img_shape=param.Simulation.img_size, px_size=param.Camera.px_size,
+                                         bg=param.HyperParameter.predict_bg, return_format=out_format)
+
+    @staticmethod
+    def _cluster_batch_functional(p, features, clusterer, p_aggregation, match_dims, ax_th):
+        if p.size(1) > 1:
+            raise ValueError("Not Supported shape for propbabilty.")
+        p_out = torch.zeros_like(p).view(p.size(0), p.size(1), -1)
+        feat_out = features.clone().view(features.size(0), features.size(1), -1)
+
+        """Frame wise clustering."""
+        for i in range(features.size(0)):
+            ix = p[i, 0] > 0
+            if (ix == 0.).all().item():
+                continue
+            alg_ix = (p[i].view(-1) > 0).nonzero().squeeze(1)
+
+            p_frame = p[i, 0, ix].view(-1)
+            f_frame = features[i, :, ix]
+            # flatten samples and put them in the first dim
+            f_frame = f_frame.reshape(f_frame.size(0), -1).permute(1, 0)
+            if match_dims == 2:  # only lateral matching
+                coord = f_frame[:, 1:3]
+                dist_mat = scipy.spatial.distance.pdist(coord.cpu().numpy())
+                dist_mat = scipy.spatial.distance.squareform(dist_mat)
+            elif match_dims == 2.1:  # lateral match, kick out not matching z
+                coord_lat = f_frame[:, 1:3]
+                dist_mat = scipy.spatial.distance.pdist(coord_lat.cpu().numpy())
+                dist_mat = scipy.spatial.distance.squareform(dist_mat)
+
+                coord_ax = f_frame[:, [3]]
+                dist_mat_ax = scipy.spatial.distance.pdist(coord_ax.cpu().numpy())
+                dist_mat_ax = scipy.spatial.distance.squareform(dist_mat_ax)
+
+                # where the z values are too different, don't merge
+                dist_mat[dist_mat_ax > ax_th] = 999999999999.
+
+            elif match_dims == 3:  # volumetric match
+                coord_vol = f_frame[:, 1:4]
+                dist_mat = scipy.spatial.distance.pdist(coord_vol.cpu().numpy())
+                dist_mat = scipy.spatial.distance.squareform(dist_mat)
+            else:
+                raise ValueError(f"Match dims must be 2 or 3 and not {match_dims}")
+
+            if dist_mat.shape[0] == 1:
+                warnings.warn("I don't know how this can happen but there seems to be a"
+                              " single an isolated difficult case ...", stacklevel=3)
+                n_clusters = 1
+                labels = torch.tensor([0])
+            else:
+                clusterer.fit(dist_mat)
+                n_clusters = clusterer.n_clusters_
+                labels = torch.from_numpy(clusterer.labels_)
+
+            for c in range(n_clusters):
+                in_cluster = labels == c
+                feat_ix = alg_ix[in_cluster]
+                if p_aggregation == 'sum':
+                    p_agg = p_frame[in_cluster].sum()
+                elif p_aggregation == 'max':
+                    p_agg = p_frame[in_cluster].max()
+                elif p_aggregation == 'pbinom_cdf':
+                    z = fan_stat.binom_pdiverse(p_frame[in_cluster].view(-1))
+                    p_agg = z[1:].sum()
+                elif p_aggregation == 'pbinom_pdf':
+                    z = fan_stat.binom_pdiverse(p_frame[in_cluster].view(-1))
+                    p_agg = z[1]
+                else:
+                    raise ValueError
+
+                p_out[i, 0, feat_ix[0]] = p_agg  # only set first element to some probability
+                """Average the features."""
+                feat_av = (feat_out[i, :, feat_ix] * p_frame[in_cluster]).sum(1) / p_frame[in_cluster].sum()
+                feat_out[i, :, feat_ix] = feat_av.unsqueeze(1).repeat(1, in_cluster.sum())
+
+        return p_out.reshape(p.size()), feat_out.reshape(features.size())
+
+    def _cluster_batch(self, p, features):
+        return self._cluster_batch_functional(p, features,
+                                              self.clusterer,
+                                              self.p_aggregation,
+                                              self._match_dims,
+                                              self._ax_th)
+
+    def _cluster_mp(self, p, features):
+        """
+        Cluster in Multi processing.
+        :param p:
+        :param features:
+        :return:
+        """
+
+        p = p.cpu()
+        features = features.cpu()
+        batch_size = p.size(0)
+
+        # split the tensors into smaller batches and multi-process them
+        p_split = torch.split(p, math.ceil(batch_size / self.num_workers))
+        feat_split = torch.split(features, math.ceil(batch_size / self.num_workers))
+
+        args = zip(p_split, feat_split)
+
+        results = Parallel(n_jobs=self.num_workers) \
+            (delayed(ConsistencyPostprocessing._cluster_batch_functional)
+             (p_, f_, self.clusterer, self.p_aggregation, self._match_dims, self._ax_th)
+             for p_, f_ in args)
+
+        p_out_ = []
+        feat_out_ = []
+        for i in range(len(results)):
+            p_out_.append(results[i][0])
+            feat_out_.append(results[i][1])
+
+        p_out = torch.cat(p_out_, dim=0)
+        feat_out = torch.cat(feat_out_, dim=0)
+
+        return p_out, feat_out
+
+    def forward_(self, p, features):
+        """
+        :param p: N x H x W probability map
+        :param features: N x C x H x W features.
+        :return: feature averages N x (1 + C) x H x W final probabilities plus features
+        """
+        with torch.no_grad():
+            """First init by an first threshold to get rid of all the nonsense"""
+            p_clip = torch.zeros_like(p)
+            is_above_svalue = p > self.svalue_th
+            p_clip[is_above_svalue] = p[is_above_svalue]
+            # p_clip_rep = p_clip.repeat(1, features.size(1), 1, 1)  # repeated to access the features
+
+            """Compute Local Mean Background"""
+            if self.bg:
+                if not self._bg_ix <= features.size(1) - 1:
+                    raise ValueError("Features are not corresponding to your background index.")
+
+                bg_out = features[:, [self._bg_ix]]
+                bg_out = self._bg_calculator.forward_impl(bg_out).cpu()
+            else:
+                bg_out = None
+
+            """Divide the set in easy (no neighbors) and set of predictions with adjacents"""
+            binary_mask = torch.zeros_like(p_clip)
+            binary_mask[p_clip > 0] = 1.
+
+            # count neighbors
+            self.neighbor_kernel = self.neighbor_kernel.type(binary_mask.dtype).to(binary_mask.device)
+            count = torch.nn.functional.conv2d(binary_mask, self.neighbor_kernel, padding=1) * binary_mask
+
+            # divide in easy and difficult set
+            is_easy = count == 1
+            is_easy_rep = is_easy.repeat(1, features.size(1), 1, 1)
+            is_diff = count > 1
+            is_diff_rep = is_diff.repeat(1, features.size(1), 1, 1)
+
+            p_easy = torch.zeros_like(p_clip)
+            p_diff = p_easy.clone()
+            feat_easy = torch.zeros_like(features)
+            feat_diff = feat_easy.clone()
+
+            p_easy[is_easy] = p_clip[is_easy]
+            feat_easy[is_easy_rep] = features[is_easy_rep]
+
+            p_diff[is_diff] = p_clip[is_diff]
+            feat_diff[is_diff_rep] = features[is_diff_rep]
+
+            p_out = torch.zeros_like(p_clip).cpu()
+            feat_out = torch.zeros_like(feat_diff).cpu()
+
+            """Cluster the hard cases if they are consistent given euclidean affinity."""
+            if self.num_workers == 0:
+                p_out_diff, feat_out_diff = self._cluster_batch(p_diff.cpu(), feat_diff.cpu())
+            else:
+                # raise NotImplementedError("Multi Processing not working at the moment.")
+                p_out_diff, feat_out_diff = self._cluster_mp(p_diff, feat_diff)
+
+            """Add the easy ones."""
+            p_out[is_easy] = p_easy[is_easy].cpu()
+            p_out[is_diff] = p_out_diff[is_diff].cpu()
+
+            feat_out[is_easy_rep] = feat_easy[is_easy_rep].cpu()
+            feat_out[is_diff_rep] = feat_out_diff[is_diff_rep].cpu()
+
+            """Write the bg frame"""
+            if self.bg:
+                feat_out[:, [self._bg_ix]] = bg_out
+
+            return p_out, feat_out
+
+    def forward(self, features):
+        """
+        Wrapper to output either the actual frames or emittersets.
+        For volumetric matching make sure that the coordinates are in nm.
+        :param features:
+        :return:
+        """
+        p = features[:, [0], :, :]
+        features = features[:, 1:, :, :]  # phot, x, y, z, bg
+
+        """Convert px to nm if px_size specified."""
+        if self._convert_nm:
+            features[:, 1] *= self._px_size[0]
+            features[:, 2] *= self._px_size[1]
+
+            xy_unit = 'nm'
+        else:
+            xy_unit = 'px'
+
+        p_out, feat_out = self.forward_(p, features)
+
+        if self.out_format == 'frames':
+            is_above_final_th = p_out >= self.final_th
+            post_frames = torch.cat((p_out, feat_out), 1) * is_above_final_th.type(features.dtype)
+            return post_frames
+
+        elif self.out_format[:8] == 'emitters':
+            feature_list, prob_final, frame_ix = super().frame2emitter(p_out, feat_out)
+            if self.bg is not None:
+                em = EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix.squeeze(),
+                                prob=prob_final, bg=feature_list[:, self._bg_ix],
+                                xy_unit=xy_unit, px_size=self._px_size)
+            else:
+                em = EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix.squeeze(),
+                                prob=prob_final,
+                                xy_unit=xy_unit, px_size=self._px_size)
+            if self.out_format[8:] == '_batch':
+                return em
+            elif self.out_format[8:] == '_framewise':
+                return em.split_in_frames(0, p.size(0) - 1)
+
+        raise ValueError("Output format not supported.")
+
+
+class NoPostProcessing(PostProcessing):
+    def __init__(self, out_format='emitters_framewise'):
+        super().__init__()
+        self.out_format = out_format
+
+    def forward(self, x):
+        em = EmptyEmitterSet()
+
+        if self.out_format == 'emitters_batch':
+            return em
+        elif self.out_format == 'emitters_framewise':
+            return em.split_in_frames(0, x.size(0) - 1)
+        else:
+            raise ValueError("Output format not supported.")
 
 
 class PeakFinder:
@@ -112,8 +468,8 @@ class PeakFinder:
             # Transform cord based on image to cord based on extent
             cord = self.transformation.up2coord(cord)
             coord_batch.append(EmitterSet(cord,
-                                        (torch.ones(cord.shape[0]) * (-1)),
-                                        frame_ix=torch.zeros(cord.shape[0])))
+                                          (torch.ones(cord.shape[0]) * (-1)),
+                                          frame_ix=torch.zeros(cord.shape[0])))
 
         return coord_batch
 
@@ -267,8 +623,8 @@ class SpeiserPost:
             max_mask1 = torch.eq(p[:, None], pool).float()
 
             # Add probability values from the 4 adjacent pixels
-            filt = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).view(1, 1, 3, 3).\
-                type(features.dtype).\
+            filt = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).view(1, 1, 3, 3). \
+                type(features.dtype). \
                 to(features.device)
             conv = torch.nn.functional.conv2d(p[:, None], filt, padding=1)
             p_ps1 = max_mask1 * conv
@@ -361,343 +717,9 @@ class SpeiserPost:
                 return em.split_in_frames(0, batch_size - 1)
 
 
-class ConsistencyPostprocessing(PostProcessing):
-    """
-    PostProcessing which divides output in easy and hard examples.
-    Hard examples are non-zero px where adjacent px are also non-zero.
-    """
-    p_aggregations = ('max', 'sum')
-
-    def __init__(self, svalue_th=0.1, final_th=0.6, lat_threshold=30, ax_threshold=200., vol_threshold=None,
-                 match_dims=2, out_format='emitters', num_workers=0, p_aggregation='pbinom_cdf', diag=0,
-                 px_size=None, bg=None, img_shape=None):
-        """
-        Constructor. If volumetric matching is used, it is assumed that coordinate maps are already in nm!
-        Do not change attributes after construction!
-        :param svalue_th: single value threshold
-        :param sep_th: threshold when to assume that we have 2 emitters
-        :param out_format: either 'emitters' or 'image'. If 'emitter' we output instance of EmitterSet, if 'frames' we output post_processed frames.
-        :param out_th: final threshold
-        """
-        super().__init__(final_th)
-        import deepsmlm.neuralfitter.weight_generator
-
-        self.svalue_th = svalue_th
-        self.final_th = final_th
-        self.out_format = out_format
-        self.p_aggregation = p_aggregation
-
-        self._match_dims = match_dims
-        self._lat_th = lat_threshold
-        self._ax_th = ax_threshold
-        self._vol_th = vol_threshold
-        self._th = None
-
-        self.bg = bg  # ix of bg in feature map
-        self._bg_ix = None
-        if self.bg is not None:
-            self._bg_ix = 5 - 1
-            self._bg_calculator = deepsmlm.neuralfitter.weight_generator.DerivePseudobgFromBg(xextent=(0., 1.), yextent=(0., 1.), img_shape=img_shape,
-                                                       bg_roi_size=(13, 13))
-
-        self._px_size = px_size
-        self._convert_nm = True if self._px_size is not None else False
-
-        # Check arguments
-        if self._match_dims == 2:
-            if not (self._lat_th is not None and
-                    self._ax_th is None and
-                    self._vol_th is None):
-                raise ValueError("Invalid arguments for 2D / lateral matching.")
-        elif self._match_dims == 2.1:
-            if not (self._lat_th is not None and
-                    self._ax_th is not None and
-                    self._vol_th is None):
-                raise ValueError("Invalid arguments for lateral plus kickout axial matching in 2D.")
-        elif self._match_dims == 3:
-            if not (self._lat_th is None and
-                    self._ax_th is None and
-                    self._vol_th is not None):
-                raise ValueError("Invalid arguments for volumetric matching.")
-
-        if p_aggregation not in ('sum', 'max', 'pbinom_cdf', 'pbinom_pdf'):
-            raise ValueError("Unsupported probability aggregation type.")
-
-        if self._match_dims in (2, 2.1):
-            self._th = self._lat_th
-        elif self._match_dims == 3:
-            self._th = self._vol_th
-
-        # diag = 0
-        self.neighbor_kernel = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).float().view(1, 1, 3, 3)
-        self.clusterer = AgglomerativeClustering(n_clusters=None,
-                                                 distance_threshold=self._th,
-                                                 affinity='precomputed',
-                                                 linkage='single')
-
-        self.num_workers = num_workers
-
-    @staticmethod
-    def parse(param, out_format='emitters_batch'):
-        return ConsistencyPostprocessing(svalue_th=param.PostProcessing.single_val_th,
-                                         final_th=param.PostProcessing.total_th,
-                                         lat_threshold=param.PostProcessing.lat_th,
-                                         ax_threshold=param.PostProcessing.ax_th,
-                                         vol_threshold=param.PostProcessing.vol_th,
-                                         match_dims=param.PostProcessing.match_dims,
-                                         out_format=out_format,
-                                         px_size=param.Camera.px_size,
-                                         bg=param.HyperParameter.predict_bg,
-                                         img_shape=param.Simulation.img_size)
-
-    @staticmethod
-    def _cluster_batch_functional(p, features, clusterer, p_aggregation, match_dims, ax_th):
-        if p.size(1) > 1:
-            raise ValueError("Not Supported shape for propbabilty.")
-        p_out = torch.zeros_like(p).view(p.size(0), p.size(1), -1)
-        feat_out = features.clone().view(features.size(0), features.size(1), -1)
-
-        """Frame wise clustering."""
-        for i in range(features.size(0)):
-            ix = p[i, 0] > 0
-            if (ix == 0.).all().item():
-                continue
-            alg_ix = (p[i].view(-1) > 0).nonzero().squeeze(1)
-
-            p_frame = p[i, 0, ix].view(-1)
-            f_frame = features[i, :, ix]
-            # flatten samples and put them in the first dim
-            f_frame = f_frame.reshape(f_frame.size(0), -1).permute(1, 0)
-            if match_dims == 2:  # only lateral matching
-                coord = f_frame[:, 1:3]
-                dist_mat = scipy.spatial.distance.pdist(coord.cpu().numpy())
-                dist_mat = scipy.spatial.distance.squareform(dist_mat)
-            elif match_dims == 2.1:  # lateral match, kick out not matching z
-                coord_lat = f_frame[:, 1:3]
-                dist_mat = scipy.spatial.distance.pdist(coord_lat.cpu().numpy())
-                dist_mat = scipy.spatial.distance.squareform(dist_mat)
-
-                coord_ax = f_frame[:, [3]]
-                dist_mat_ax = scipy.spatial.distance.pdist(coord_ax.cpu().numpy())
-                dist_mat_ax = scipy.spatial.distance.squareform(dist_mat_ax)
-
-                # where the z values are too different, don't merge
-                dist_mat[dist_mat_ax > ax_th] = 999999999999.
-
-            elif match_dims == 3:  # volumetric match
-                coord_vol = f_frame[:, 1:4]
-                dist_mat = scipy.spatial.distance.pdist(coord_vol.cpu().numpy())
-                dist_mat = scipy.spatial.distance.squareform(dist_mat)
-            else:
-                raise ValueError(f"Match dims must be 2 or 3 and not {match_dims}")
-
-            if dist_mat.shape[0] == 1:
-                warnings.warn("I don't know how this can happen but there seems to be a"
-                              " single an isolated difficult case ...", stacklevel=3)
-                n_clusters = 1
-                labels = torch.tensor([0])
-            else:
-                clusterer.fit(dist_mat)
-                n_clusters = clusterer.n_clusters_
-                labels = torch.from_numpy(clusterer.labels_)
-
-            for c in range(n_clusters):
-                in_cluster = labels == c
-                feat_ix = alg_ix[in_cluster]
-                if p_aggregation == 'sum':
-                    p_agg = p_frame[in_cluster].sum()
-                elif p_aggregation == 'max':
-                    p_agg = p_frame[in_cluster].max()
-                elif p_aggregation == 'pbinom_cdf':
-                    z = fan_stat.binom_pdiverse(p_frame[in_cluster].view(-1))
-                    p_agg = z[1:].sum()
-                elif p_aggregation == 'pbinom_pdf':
-                    z = fan_stat.binom_pdiverse(p_frame[in_cluster].view(-1))
-                    p_agg = z[1]
-                else:
-                    raise ValueError
-
-                p_out[i, 0, feat_ix[0]] = p_agg  # only set first element to some probability
-                """Average the features."""
-                feat_av = (feat_out[i, :, feat_ix] * p_frame[in_cluster]).sum(1) / p_frame[in_cluster].sum()
-                feat_out[i, :, feat_ix] = feat_av.unsqueeze(1).repeat(1, in_cluster.sum())
-
-        return p_out.reshape(p.size()), feat_out.reshape(features.size())
-
-    def _cluster_batch(self, p, features):
-        return self._cluster_batch_functional(p, features,
-                                              self.clusterer,
-                                              self.p_aggregation,
-                                              self._match_dims,
-                                              self._ax_th)
-
-    def _cluster_mp(self, p, features):
-        """
-        Cluster in Multi processing.
-        :param p:
-        :param features:
-        :return:
-        """
-
-        p = p.cpu()
-        features = features.cpu()
-        batch_size = p.size(0)
-
-        # split the tensors into smaller batches and multi-process them
-        p_split = torch.split(p, math.ceil(batch_size / self.num_workers))
-        feat_split = torch.split(features, math.ceil(batch_size / self.num_workers))
-
-        args = zip(p_split, feat_split)
-
-        results = Parallel(n_jobs=self.num_workers)\
-            (delayed(ConsistencyPostprocessing._cluster_batch_functional)
-             (p_, f_, self.clusterer, self.p_aggregation, self._match_dims, self._ax_th)
-             for p_, f_ in args)
-
-        p_out_ = []
-        feat_out_ = []
-        for i in range(len(results)):
-            p_out_.append(results[i][0])
-            feat_out_.append(results[i][1])
-
-        p_out = torch.cat(p_out_, dim=0)
-        feat_out = torch.cat(feat_out_, dim=0)
-
-        return p_out, feat_out
-
-    def forward_(self, p, features):
-        """
-        :param p: N x H x W probability map
-        :param features: N x C x H x W features.
-        :return: feature averages N x (1 + C) x H x W final probabilities plus features
-        """
-        with torch.no_grad():
-            """First init by an first threshold to get rid of all the nonsense"""
-            p_clip = torch.zeros_like(p)
-            is_above_svalue = p > self.svalue_th
-            p_clip[is_above_svalue] = p[is_above_svalue]
-            # p_clip_rep = p_clip.repeat(1, features.size(1), 1, 1)  # repeated to access the features
-
-            """Compute Local Mean Background"""
-            if self.bg:
-                if not self._bg_ix <= features.size(1) - 1:
-                    raise ValueError("Features are not corresponding to your background index.")
-
-                bg_out = features[:, [self._bg_ix]]
-                bg_out = self._bg_calculator.forward_impl(bg_out).cpu()
-            else:
-                bg_out = None
-
-            """Divide the set in easy (no neighbors) and set of predictions with adjacents"""
-            binary_mask = torch.zeros_like(p_clip)
-            binary_mask[p_clip > 0] = 1.
-
-            # count neighbors
-            self.neighbor_kernel = self.neighbor_kernel.type(binary_mask.dtype).to(binary_mask.device)
-            count = torch.nn.functional.conv2d(binary_mask, self.neighbor_kernel, padding=1) * binary_mask
-
-            # divide in easy and difficult set
-            is_easy = count == 1
-            is_easy_rep = is_easy.repeat(1, features.size(1), 1, 1)
-            is_diff = count > 1
-            is_diff_rep = is_diff.repeat(1, features.size(1), 1, 1)
-
-            p_easy = torch.zeros_like(p_clip)
-            p_diff = p_easy.clone()
-            feat_easy = torch.zeros_like(features)
-            feat_diff = feat_easy.clone()
-
-            p_easy[is_easy] = p_clip[is_easy]
-            feat_easy[is_easy_rep] = features[is_easy_rep]
-
-            p_diff[is_diff] = p_clip[is_diff]
-            feat_diff[is_diff_rep] = features[is_diff_rep]
-
-            p_out = torch.zeros_like(p_clip).cpu()
-            feat_out = torch.zeros_like(feat_diff).cpu()
-
-            """Cluster the hard cases if they are consistent given euclidean affinity."""
-            if self.num_workers == 0:
-                p_out_diff, feat_out_diff = self._cluster_batch(p_diff.cpu(), feat_diff.cpu())
-            else:
-                # raise NotImplementedError("Multi Processing not working at the moment.")
-                p_out_diff, feat_out_diff = self._cluster_mp(p_diff, feat_diff)
-
-            """Add the easy ones."""
-            p_out[is_easy] = p_easy[is_easy].cpu()
-            p_out[is_diff] = p_out_diff[is_diff].cpu()
-
-            feat_out[is_easy_rep] = feat_easy[is_easy_rep].cpu()
-            feat_out[is_diff_rep] = feat_out_diff[is_diff_rep].cpu()
-
-            """Write the bg frame"""
-            if self.bg:
-                feat_out[:, [self._bg_ix]] = bg_out
-
-            return p_out, feat_out
-
-    def forward(self, features):
-        """
-        Wrapper to output either the actual frames or emittersets.
-        For volumetric matching make sure that the coordinates are in nm.
-        :param features:
-        :return:
-        """
-        p = features[:, [0], :, :]
-        features = features[:, 1:, :, :]  # phot, x, y, z, bg
-
-        """Convert px to nm if px_size specified."""
-        if self._convert_nm:
-            features[:, 1] *= self._px_size[0]
-            features[:, 2] *= self._px_size[1]
-
-            xy_unit = 'nm'
-        else:
-            xy_unit = 'px'
-
-        p_out, feat_out = self.forward_(p, features)
-
-        if self.out_format == 'frames':
-            is_above_final_th = p_out >= self.final_th
-            post_frames = torch.cat((p_out, feat_out), 1) * is_above_final_th.type(features.dtype)
-            return post_frames
-
-        elif self.out_format[:8] == 'emitters':
-            feature_list, prob_final, frame_ix = super().frame2emitter(p_out, feat_out)
-            if self.bg is not None:
-                em = EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix.squeeze(),
-                                prob=prob_final, bg=feature_list[:, self._bg_ix],
-                                xy_unit=xy_unit, px_size=self._px_size)
-            else:
-                em = EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix.squeeze(),
-                                prob=prob_final,
-                                xy_unit=xy_unit, px_size=self._px_size)
-            if self.out_format[8:] == '_batch':
-                return em
-            elif self.out_format[8:] == '_framewise':
-                return em.split_in_frames(0, p.size(0) - 1)
-
-        raise ValueError("Output format not supported.")
-
-
-class NoPostProcessing(PostProcessing):
-    def __init__(self, out_format='emitters_framewise'):
-        super().__init__()
-        self.out_format = out_format
-
-    def forward(self, x):
-        em = EmptyEmitterSet()
-
-        if self.out_format == 'emitters_batch':
-            return em
-        elif self.out_format == 'emitters_framewise':
-            return em.split_in_frames(0, x.size(0) - 1)
-        else:
-            raise ValueError("Output format not supported.")
-
-
 class CC5ChModel(ConnectedComponents):
     """Connected components on 5 channel model."""
+
     def __init__(self, prob_th, svalue_th=0, connectivity=2):
         super().__init__(svalue_th, connectivity)
         self.prob_th = prob_th
@@ -841,7 +863,7 @@ class CCDirectPMap(CC5ChModel):
         """
 
         # loop over all batch elements
-        if not(x.dim() == 3 or x.dim() == 4):
+        if not (x.dim() == 3 or x.dim() == 4):
             raise ValueError("Input must be C x H x W or N x C x H x W.")
         elif x.dim() == 3:
             x = x.unsquueze(0)
@@ -861,6 +883,7 @@ class Offset2Coordinate:
     """
     Postprocesses the offset model to return a list of emitters.
     """
+
     def __init__(self, xextent, yextent, img_shape):
 
         off_psf = SpatialEmbedding(xextent=xextent,
@@ -915,23 +938,15 @@ class Offset2Coordinate:
         return output_converted
 
 
-if __name__ == '__main__':
-    post = ConsistencyPostprocessing(0.1, final_th=0.5, out_format='emitters_batch', num_workers=0)
-
-    # p = torch.zeros((32, 1, 250, 250)).cuda()
-    # out = torch.zeros((32, 4, 250, 250)).cuda()
-    # p[1, 0, 2, 4] = 0.6
-    # p[1, 0, 2, 6] = 0.6
-    # p[0, 0, 0, 0] = 0.3
-    # p[0, 0, 0, 1] = 0.4
-    #
-    # out[0, 2, 0, 0] = 0.3
-    # out[0, 2, 0, 1] = 0.5
-    # out[1, 2, 2, 4] = 1.
-    # out[1, 2, 2, 6] = 1.2
-
-    p = torch.randint(0, 2, (32, 1, 64, 64)).float()
-    out = torch.rand((32, 4, 64, 64))
-
-    em = post.forward(torch.cat((p, out), 1))
-    print('Done')
+def crlb_squared_distance(X, Y, XCrlb, YCrlb):
+    """
+    Computes the CRLB (Cramer Rao Lower Bound) weighted distances between the vectors X and Y
+    :param X:
+    :param Y:
+    :param XCrlb:
+    :param YCrlb:
+    :return: squarred distance in units of CRLB
+    """
+    dist = (X - Y) ** 2 / (XCrlb ** 2 + YCrlb ** 2)
+    dist = dist.sum(1)
+    return dist

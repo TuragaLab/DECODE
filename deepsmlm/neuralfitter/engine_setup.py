@@ -1,11 +1,11 @@
 import comet_ml
 
 import click
-import datetime
 import os
 import tensorboardX
 import torch
 
+import deepsmlm.evaluation.utils
 import deepsmlm.neuralfitter.filter
 import deepsmlm.neuralfitter.target_generator
 import deepsmlm.neuralfitter.utils.pytorch_customs
@@ -15,11 +15,11 @@ import torch.utils
 
 import deepsmlm
 import deepsmlm.generic.utils.logging
-import deepsmlm.generic.psf_kernel
+import deepsmlm.simulation.psf_kernel
 import deepsmlm.generic.utils
 import deepsmlm.evaluation
 import deepsmlm.generic.background
-import deepsmlm.generic.phot_camera
+import deepsmlm.simulation.phot_camera
 import deepsmlm.generic.inout.write_load_param as dsmlm_par
 import deepsmlm.generic.inout.load_save_model
 import deepsmlm.generic.inout.util
@@ -264,10 +264,10 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     segmentation_eval = deepsmlm.evaluation.SegmentationEvaluation(False)
     distance_eval = deepsmlm.evaluation.DistanceEvaluation(print_mode=False)
 
-    batch_ev = deepsmlm.evaluation.evaluation.BatchEvaluation(matcher, segmentation_eval, distance_eval,
-                                                              batch_size=param.HyperParameter.batch_size,
-                                                              px_size=torch.tensor(param.Camera.px_size),
-                                                              weight='photons')
+    batch_ev = deepsmlm.evaluation.utils.BatchEvaluation(matcher, segmentation_eval, distance_eval,
+                                                         batch_size=param.HyperParameter.batch_size,
+                                                         px_size=torch.tensor(param.Camera.px_size),
+                                                         weight='photons')
 
     epoch_logger = deepsmlm.generic.utils.logging.LogTestEpoch(logger, experiment)
 

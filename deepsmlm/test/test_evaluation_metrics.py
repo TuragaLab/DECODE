@@ -1,73 +1,64 @@
-import unittest
-from unittest import TestCase
+import pytest
+import math
+import torch
 
-from deepsmlm.evaluation.match_emittersets import NNMatching
-from deepsmlm.generic.emitter import EmitterSet
-from deepsmlm.evaluation.metric_library import *
-
-
-class TestExpandedPairwiseDistances(TestCase):
-
-    def setUp(self):
-        pass
-
-    def test_expanded_pairwise_distances(self):
-        x = torch.tensor([[0., 0., 0.]])
-        y = torch.tensor([[0., 0., 0.], [1., 1., 1.]])
-
-        dist_mat = expanded_pairwise_distances(x, y)
-        self.assertTrue((dist_mat == torch.tensor([[0., sqrt(3)]])).all())
+import deepsmlm.evaluation.metric_library as test_cand
 
 
-class TestNNMatching(TestCase):
+class TestRootMeanAbsoluteDist:
 
-    def setUp(self):
-        self.dist_lat = 2.5
-        self.dist_ax = 500.
-        self.test_object = NNMatching(self.dist_lat, self.dist_ax)
+    rmse_mad_testdata = [
+        (torch.zeros((0, 3)), torch.zeros((0, 3)), (float('nan'), ) * 6),  # nothing
+        (torch.tensor([[2., 0., 0]]), torch.tensor([[0., 0., 0.]]), (2., 0., 2., 2., 0., 2.)),
+        (torch.tensor([[5., 6., 0.]]), torch.tensor([[2., 2., 0.]]), (5., 0., 5., 7., 0., 7.))
+    ]
 
-    def test_simple_pair_0(self):
-        out = EmitterSet(torch.tensor([[0., 0., 0.]]),
-                         phot=torch.tensor([1.]),
-                         frame_ix=torch.tensor([0]))
+    @pytest.mark.parametrize("xyz_tp,xyz_gt,expect", rmse_mad_testdata)
+    def test_rmse_mad(self, xyz_tp, xyz_gt, expect):
 
-        target = EmitterSet(torch.tensor([[2.4, 0., 500.]]),
-                            phot=torch.tensor([1.]),
-                            frame_ix=torch.tensor([0]))
+        out = test_cand.rmse_mad_dist(xyz_tp, xyz_gt)
 
-        tp, fp, fn, _ = self.test_object.forward(out, target)
-        self.assertEqual(tp.num_emitter, 1)
-        self.assertEqual(fp.num_emitter, 0)
-        self.assertEqual(fn.num_emitter, 0)
+        for o, e in zip(out, expect):  # check all the outcomes
+            if math.isnan(o) or math.isnan(e):  # if at least either outcome or expect is nan check if the other is as well
+                assert math.isnan(o)
+                assert math.isnan(e)
 
-    def test_simple_pair_1(self):
-        out = EmitterSet(torch.tensor([[0., 0., 0.]]),
-                         phot=torch.tensor([1.]),
-                         frame_ix=torch.tensor([0]))
+            else:
+                assert o == e
 
-        target = EmitterSet(torch.tensor([[2.4, 2.4, 0.]]),
-                            phot=torch.tensor([1.]),
-                            frame_ix=torch.tensor([0]))
+    def test_excpt(self):
+        """Exceptions"""
 
-        tp, fp, fn, _ = self.test_object.forward(out, target)
-        self.assertEqual(tp.num_emitter, 0)
-        self.assertEqual(fp.num_emitter, 1)
-        self.assertEqual(fn.num_emitter, 1)
+        with pytest.raises(ValueError):
+            test_cand.rmse_mad_dist(torch.zeros((0, 3)), torch.zeros((2, 3)))
 
-    def test_simple_pair_2(self):
-        out = EmitterSet(torch.tensor([[0., 0., 0.]]),
-                         phot=torch.tensor([1.]),
-                         frame_ix=torch.tensor([0]))
-
-        target = EmitterSet(torch.tensor([[0, 2.4, 501.]]),
-                            phot=torch.tensor([1.]),
-                            frame_ix=torch.tensor([0]))
-
-        tp, fp, fn, _ = self.test_object.forward(out, target)
-        self.assertEqual(tp.num_emitter, 0)
-        self.assertEqual(fp.num_emitter, 1)
-        self.assertEqual(fn.num_emitter, 1)
+        with pytest.raises(ValueError):
+            test_cand.rmse_mad_dist(torch.zeros((2, 4)), torch.zeros((2, 4)))
 
 
-if __name__ == '__main__':
-    unittest.main()
+class TestPrecisionRecallJaccard:
+
+    test_data = [
+        (0, 0, 0, (float('nan'), ) * 4),
+        (1, 0, 0, (1., 1., 1., 1.)),
+        (0, 1, 0, (0, float('nan'), 0, float('nan')))
+    ]
+
+    @pytest.mark.parametrize("tp,fp,fn,expect", test_data)
+    def test_prec_rec(self, tp, fp, fn, expect):
+
+        out = test_cand.precision_recall_jaccard(tp, fp, fn)
+
+        for o, e in zip(out, expect):  # check all the outcomes
+            if math.isnan(o) or math.isnan(e):  # if at least either outcome or expect is nan check if the other is as well
+                assert math.isnan(o)
+                assert math.isnan(e)
+
+            else:
+                assert o == e
+
+
+def test_efficiency():
+    out = test_cand.efficiency(0.91204, 32.077, 1.0)
+    assert out == pytest.approx(0.66739, rel=1e-3)
+
