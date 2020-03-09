@@ -1,6 +1,7 @@
 from collections import namedtuple
 
-from deepsmlm.evaluation.metric_library import precision_recall_jaccard, rootmean_mean_absolute_dist
+from deepsmlm.evaluation.metric_library import precision_recall_jaccard, rmse_mad_dist
+from ..generic import emitter as emitter
 from ..generic.emitter import EmitterSet
 
 
@@ -105,7 +106,7 @@ class DistanceEvaluation:
             mad_vol: MAD volumetric
         """
 
-        rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial = rootmean_mean_absolute_dist(tp.xyz, tp_match.xyz)
+        rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial = rmse_mad_dist(tp.xyz, tp_match.xyz)
 
         """Store in cache"""
         self._rmse_lat, self._rmse_ax, self._rmse_vol = rmse_lat, rmse_axial, rmse_vol
@@ -113,3 +114,30 @@ class DistanceEvaluation:
 
         return self._dist_eval_return(rmse_lat=rmse_lat, rmse_ax=rmse_axial, rmse_vol=rmse_vol,
                                       mad_lat=mad_lat, mad_ax=mad_axial, mad_vol=mad_vol)  # namedtuple
+
+
+class Deltas:
+    def __init__(self, weight='photons'):
+        self.weight = weight
+
+        assert self.weight in ('crlb_sqr', 'photons')
+
+    def forward(self, tp: emitter.EmitterSet, ref: emitter.EmitterSet):
+        """
+        Calculate the dx / dy / dz values and their weighted values (weighted by the photons).
+        :param tp: true positives (instance of emitterset)
+        :param ref: reference (instance of emitterset)
+        :return: dx, dy, dz, dx_weighted, dy_weighted, dz_weighted
+        """
+        dxyz = tp.xyz - ref.xyz
+        if self.weight == 'photons':
+            dxyz_weighted = dxyz / (ref.phot.unsqueeze(1)).sqrt()
+        elif self.weight == 'crlb_sqr':
+            if ref.xy_unit == 'nm':
+                dxyz_weighted = dxyz / ref.xyz_nm_scr
+            elif ref.xy_unit == 'px':
+                dxyz_weighted = dxyz / ref.xyz_scr
+        else:
+            raise ValueError("Not supported mode.")
+
+        return dxyz[:, 0], dxyz[:, 1], dxyz[:, 2], dxyz_weighted[:, 0], dxyz_weighted[:, 1], dxyz_weighted[:, 2]

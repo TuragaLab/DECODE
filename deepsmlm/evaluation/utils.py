@@ -9,6 +9,7 @@ from matplotlib.ticker import AutoMinorLocator
 from scipy import stats
 from scipy.stats import gaussian_kde
 
+import deepsmlm.evaluation.evaluation
 from deepsmlm.evaluation.metric_library import efficiency
 
 
@@ -245,7 +246,7 @@ class BatchEvaluation:
         self._segmentation_eval = segmentation_eval
         self._distance_eval = distance_eval
         self._batch_size = batch_size
-        self._distance_delta = metric_lib.Deltas(weight=weight)
+        self._distance_delta = deepsmlm.evaluation.evaluation.Deltas(weight=weight)
 
         self.values = None
         self.px_size = px_size

@@ -27,8 +27,7 @@ class TestSegmentationEval(TestEval):
         return test_cand.SegmentationEvaluation()
 
     test_data = [
-        (em.EmptyEmitterSet(), em.EmptyEmitterSet(), em.EmptyEmitterSet(), (float('nan'), float('nan'), float('nan'),
-                                                                            float('nan'))),
+        (em.EmptyEmitterSet(), em.EmptyEmitterSet(), em.EmptyEmitterSet(), (float('nan'), ) * 4),
         (em.EmptyEmitterSet(), em.RandomEmitterSet(1), em.EmptyEmitterSet(), (0., float('nan'), 0., float('nan')))
     ]
 
