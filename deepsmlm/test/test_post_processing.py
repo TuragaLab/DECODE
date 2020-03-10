@@ -70,8 +70,8 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
     def test_multi_worker(self, post):
 
         """Setup"""
-        p = torch.zeros((2, 1, 32, 32)).cuda()
-        out = torch.zeros((2, 5, 32, 32)).cuda()
+        p = torch.zeros((2, 1, 32, 32))
+        out = torch.zeros((2, 5, 32, 32))
         p[1, 0, 2, 4] = 0.6
         p[1, 0, 2, 6] = 0.6
         p[0, 0, 0, 0] = 0.3
