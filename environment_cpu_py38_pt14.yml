@@ -16,6 +16,7 @@ dependencies:
   - deprecated
   - dotmap
   - holoviews
+  - h5py
   - intel-openmp
   - jupyter_contrib_nbextensions
   - jupyterlab
