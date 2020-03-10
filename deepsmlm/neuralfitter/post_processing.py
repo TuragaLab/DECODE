@@ -221,7 +221,7 @@ class ConsistencyPostprocessing(PostProcessing):
             else:
                 raise ValueError
 
-            dist_mat[filter_mask] = 9999999999999.
+            dist_mat[~filter_mask] = 9999999999999.
 
             if dist_mat.shape[0] == 1:
                 warnings.warn("I don't know how this can happen but there seems to be a"
