@@ -110,7 +110,7 @@ class TestGreedyMatching(TestMatcherABC):
         xyz_tar = torch.rand((1, n_tar, 3))  # batch implementation
 
         """Run"""
-        act = matcher._filter(xyz_out, xyz_tar)  # active pairs
+        act = matcher.filter(xyz_out, xyz_tar)  # active pairs
 
         """Asserts"""
         if dist_lat is not None:
@@ -150,7 +150,7 @@ class TestGreedyMatching(TestMatcherABC):
                                                    dist_vol=None)
 
         """Run"""
-        filter_mask = matcher._filter(xyz_out.unsqueeze(0), xyz_tar.unsqueeze(0))
+        filter_mask = matcher.filter(xyz_out.unsqueeze(0), xyz_tar.unsqueeze(0))
         assignment = matcher._match_kernel(xyz_out, xyz_tar, filter_mask.squeeze(0))
 
         tp_ix_out, tp_match_ix_out = assignment

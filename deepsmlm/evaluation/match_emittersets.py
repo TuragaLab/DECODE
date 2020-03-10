@@ -72,14 +72,14 @@ class GreedyHungarianMatching(MatcherABC):
         if self.dist_lat is None and self.dist_ax is None and self.dist_vol is None:
             warnings.warn("You specified neither a lateral, axial nor volumetric threshold. Are you sure about this?")
 
-    def _filter(self, xyz_out, xyz_tar) -> torch.Tensor:
+    def filter(self, xyz_out, xyz_tar) -> torch.Tensor:
         """
         Filter kernel to rule out unwanted matches. Batch implemented, i.e. input can be 2 or 3 dimensional, where the
         latter dimensions are the dimensions of interest.
 
         Args:
-            xyz_out: output coordinates (B x) N x 3
-            xyz_tar: target coordinates (B x) M x 3
+            xyz_out: output coordinates, shape :math: `(B x) N x 3`
+            xyz_tar: target coordinates, shape :math: `(B x) M x 3`
 
         Returns:
             filter_mask (torch.Tensor): boolean of size (B x) N x M
@@ -199,7 +199,7 @@ class GreedyHungarianMatching(MatcherABC):
 
         """Assign the emitters framewise"""
         for out_f, tar_f in zip(out_pframe, tar_pframe):
-            filter_mask = self._filter(out_f.xyz, tar_f.xyz)  # batch implemented
+            filter_mask = self.filter(out_f.xyz, tar_f.xyz)  # batch implemented
             tp_ix, tp_match_ix = self._match_kernel(out_f.xyz, tar_f.xyz, filter_mask)  # non batch impl.
 
             tpl.append(out_f[tp_ix])

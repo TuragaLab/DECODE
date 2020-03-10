@@ -45,11 +45,13 @@ class PSF(ABC):
         """
         Forward coordinates frame index aware through the psf model.
         Implementation methods should call this method first in order not to handle the default argument stuff.
-        If implementation do not implement a batched forward method, they may call this method, and then refer to the
-        single-frame wrapper as. Their forward implementation will then look like this:
 
-            xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
-            return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
+        Example::
+            If implementation do not implement a batched forward method, they may call this method, and then refer to the
+            single-frame wrapper as. Their forward implementation will then look like this:
+
+            >>> xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
+            >>> return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
 
         Args:
             xyz: coordinates of size N x (2 or 3)
@@ -540,7 +542,7 @@ class CubicSplinePSF(PSF):
         drv, rois = self.derivative(xyz, phot, bg, True)
 
         """
-        Construct fisher by batched matrix multiplication. For this we have to play around with the axis of the 
+        Construct fisher by batched matrix multiplication. For this we have to play around with the axis of the
         derivatives.
         """
         drv_ = drv.permute(0, 2, 3, 1)
