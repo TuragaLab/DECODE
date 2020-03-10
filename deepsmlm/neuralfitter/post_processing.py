@@ -3,14 +3,15 @@ import warnings
 from abc import ABC, abstractmethod  # abstract class
 
 import numpy as np
-import scipy
 import torch
+from deprecated import deprecated
 from joblib import Parallel, delayed
 from sklearn.cluster import AgglomerativeClustering, DBSCAN
-from deprecated import deprecated
 
 import deepsmlm.generic.utils.statistics as fan_stat
+from deepsmlm.evaluation import match_emittersets
 from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
+from deepsmlm.neuralfitter import weight_generator
 from deepsmlm.neuralfitter.target_generator import SpatialEmbedding
 
 
@@ -77,6 +78,7 @@ class NoPostProcessing(PostProcessing):
     """
     The 'No' Post-Processing. Just a helper.
     """
+
     def __init__(self, return_format='batch-set'):
         super().__init__(return_format=return_format)
 
@@ -87,7 +89,7 @@ class NoPostProcessing(PostProcessing):
             x: Anything.
 
         Returns:
-            EmptyEmitterset: An empty EmitterSet
+            EmptyEmitterSet: An empty EmitterSet
 
         """
 
@@ -104,74 +106,76 @@ class ConsistencyPostprocessing(PostProcessing):
     _p_aggregations = ('sum', 'max', 'pbinom_cdf', 'pbinom_pdf')
     _xy_unit = 'nm'
 
-    def __init__(self, *, px_size, svalue_th=0.1, final_th=0.6, lat_th=None, ax_th=None, vol_th=None, match_dims=2,
-                 img_shape=None, num_workers=0, p_aggregation='pbinom_cdf', diag=0, bg=None, sanity_check=True,
-                 return_format='batch-set'):
+    def __init__(self, *, raw_th, em_th, xy_unit: str, img_shape, ax_th=None, vol_th=None, lat_th=None,
+                 p_aggregation='pbinom_cdf', px_size=None, match_dims=2, diag=0, num_workers=0,
+                 return_format='batch-set', sanity_check=True):
         """
 
         Args:
-            px_size:
-            svalue_th:
-            final_th:
-            lat_th:
+            raw_th:
+            em_th:
+            xy_unit:
+            img_shape:
             ax_th:
             vol_th:
-            match_dims:
-            img_shape:
-            num_workers:
+            lat_th:
             p_aggregation:
+            px_size:
+            match_dims:
             diag:
-            bg:
-            sanity_check:
+            num_workers:
             return_format:
+            sanity_check:
         """
         super().__init__(return_format=return_format)
-        import deepsmlm.neuralfitter.weight_generator
-        from deepsmlm.evaluation import match_emittersets
 
-        self.svalue_th = svalue_th
+        self.raw_th = raw_th
+        self.em_th = em_th
+        self.xy_unit = xy_unit
         self.px_size = px_size
-        self.final_th = final_th
-        self.out_format = return_format
         self.p_aggregation = p_aggregation
         self.match_dims = match_dims
-
-        self.filter = match_emittersets.GreedyHungarianMatching(match_dims=match_dims, dist_lat=lat_th,
-                                                                dist_ax=ax_th, dist_vol=vol_th).filter
-
-        self.bg = bg  # ix of bg in feature map
-        self._bg_ix = None
-        if self.bg is not None:
-            self._bg_ix = 5 - 1
-            self._bg_calculator = deepsmlm.neuralfitter.weight_generator.DerivePseudobgFromBg(xextent=(0., 1.),
-                                                                                              yextent=(0., 1.),
-                                                                                              img_shape=img_shape,
-                                                                                              bg_roi_size=(13, 13))
-
-        self.neighbor_kernel = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).float().view(1, 1, 3, 3)
-        # ToDo: Change clustering
-        self.clusterer = AgglomerativeClustering(n_clusters=None,
-                                                 distance_threshold=lat_th if self.match_dims == 2 else vol_th,
-                                                 affinity='precomputed',
-                                                 linkage='single')
-
         self.num_workers = num_workers
+
+        self._filter = match_emittersets.GreedyHungarianMatching(match_dims=match_dims, dist_lat=lat_th,
+                                                                 dist_ax=ax_th, dist_vol=vol_th).filter
+
+        self._bg_calculator = weight_generator.DerivePseudobgFromBg(xextent=(0., 1.),
+                                                                    yextent=(0., 1.),
+                                                                    img_shape=img_shape,
+                                                                    bg_roi_size=(13, 13))
+
+        self._neighbor_kernel = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).float().view(1, 1, 3, 3)
+
+        self._clusterer = AgglomerativeClustering(n_clusters=None,
+                                                  distance_threshold=lat_th if self.match_dims == 2 else vol_th,
+                                                  affinity='precomputed',
+                                                  linkage='single')
 
         if sanity_check:
             self.sanity_check()
 
     @staticmethod
-    def parse(param, out_format='emitters_batch'):
-        return ConsistencyPostprocessing(px_size=param.Camera.px_size, svalue_th=param.PostProcessing.single_val_th,
-                                         final_th=param.PostProcessing.total_th, lat_th=param.PostProcessing.lat_th,
+    def parse(param):
+        """
+        Return an instance of this post-processing as specified by the parameters
+
+        Args:
+            param:
+
+        Returns:
+            ConsistencyPostProcessing
+
+        """
+        return ConsistencyPostprocessing(raw_th=param.PostProcessing.single_val_th, em_th=param.PostProcessing.total_th,
+                                         xy_unit='nm', img_shape=param.Simulation.img_size,
                                          ax_th=param.PostProcessing.ax_th, vol_th=param.PostProcessing.vol_th,
-                                         match_dims=param.PostProcessing.match_dims,
-                                         img_shape=param.Simulation.img_size, bg=param.HyperParameter.predict_bg,
-                                         return_format=out_format)
+                                         lat_th=param.PostProcessing.lat_th, match_dims=param.PostProcessing.match_dims,
+                                         return_format='batch-set')
 
     def sanity_check(self):
         """
-        Performs some sanity checks. Part of the constructor, useful if you modify attributes later on and want to
+        Performs some sanity checks. Part of the constructor; useful if you modify attributes later on and want to
         double check.
 
         """
@@ -193,7 +197,7 @@ class ConsistencyPostprocessing(PostProcessing):
 
         """
 
-        clusterer = self.clusterer
+        clusterer = self._clusterer
         p_aggregation = self.p_aggregation
 
         if p.size(1) > 1:
@@ -213,7 +217,7 @@ class ConsistencyPostprocessing(PostProcessing):
             # flatten samples and put them in the first dim
             f_frame = f_frame.reshape(f_frame.size(0), -1).permute(1, 0)
 
-            filter_mask = self.filter(f_frame[:, 1:4], f_frame[:, 1:4])
+            filter_mask = self._filter(f_frame[:, 1:4], f_frame[:, 1:4])
             if self.match_dims == 2:
                 dist_mat = torch.cdist(f_frame[:, 1:3], f_frame[:, 1:3])
             elif self.match_dims == 3:
@@ -221,7 +225,7 @@ class ConsistencyPostprocessing(PostProcessing):
             else:
                 raise ValueError
 
-            dist_mat[~filter_mask] = 9999999999999.
+            dist_mat[~filter_mask] = 999999999999.  # those who shall not match shall be separated, only finite vals ...
 
             if dist_mat.shape[0] == 1:
                 warnings.warn("I don't know how this can happen but there seems to be a"
@@ -280,8 +284,7 @@ class ConsistencyPostprocessing(PostProcessing):
         args = zip(p_split, feat_split)
 
         results = Parallel(n_jobs=self.num_workers)(
-            delayed(self._cluster_batch)(p_, f_) for p_, f_ in args
-        )
+            delayed(self._cluster_batch)(p_, f_) for p_, f_ in args)
 
         p_out_ = []
         feat_out_ = []
@@ -308,17 +311,16 @@ class ConsistencyPostprocessing(PostProcessing):
         with torch.no_grad():
             """First init by an first threshold to get rid of all the nonsense"""
             p_clip = torch.zeros_like(p)
-            is_above_svalue = p > self.svalue_th
+            is_above_svalue = p > self.raw_th
             p_clip[is_above_svalue] = p[is_above_svalue]
             # p_clip_rep = p_clip.repeat(1, features.size(1), 1, 1)  # repeated to access the features
 
             """Compute Local Mean Background"""
-            if self.bg:
-                if not self._bg_ix <= features.size(1) - 1:
-                    raise ValueError("Features are not corresponding to your background index.")
+            if features.size(1) == 5:
 
-                bg_out = features[:, [self._bg_ix]]
+                bg_out = features[:, [4]]
                 bg_out = self._bg_calculator.forward_impl(bg_out).cpu()
+
             else:
                 bg_out = None
 
@@ -327,8 +329,8 @@ class ConsistencyPostprocessing(PostProcessing):
             binary_mask[p_clip > 0] = 1.
 
             # count neighbors
-            self.neighbor_kernel = self.neighbor_kernel.type(binary_mask.dtype).to(binary_mask.device)
-            count = torch.nn.functional.conv2d(binary_mask, self.neighbor_kernel, padding=1) * binary_mask
+            self._neighbor_kernel = self._neighbor_kernel.type(binary_mask.dtype).to(binary_mask.device)
+            count = torch.nn.functional.conv2d(binary_mask, self._neighbor_kernel, padding=1) * binary_mask
 
             # divide in easy and difficult set
             is_easy = count == 1
@@ -364,8 +366,8 @@ class ConsistencyPostprocessing(PostProcessing):
             feat_out[is_diff_rep] = feat_out_diff[is_diff_rep].cpu()
 
             """Write the bg frame"""
-            if self.bg:
-                feat_out[:, [self._bg_ix]] = bg_out
+            if features.size(1) == 5:
+                feat_out[:, [4]] = bg_out
 
             return p_out, feat_out
 
@@ -385,8 +387,8 @@ class ConsistencyPostprocessing(PostProcessing):
             batch_ix: batch index
 
         """
-        is_pos = (p >= self.final_th).nonzero()  # is above threshold
-        p_out = p[p >= self.final_th]
+        is_pos = (p >= self.em_th).nonzero()  # is above threshold
+        p_out = p[p >= self.em_th]
 
         # look up features
         feat_out = features[is_pos[:, 0], :, is_pos[:, 2], is_pos[:, 3]]
@@ -414,16 +416,21 @@ class ConsistencyPostprocessing(PostProcessing):
 
             5 - Background channel
 
+        Expecting x and y channels in nano-metres.
+
         Args:
             features (torch.Tensor): Features of size :math:`(N, C, H, W)`
 
         Returns:
-            EmitterSet or list of EmitterSets: Specified by return_format argument.
+            EmitterSet or list of EmitterSets: Specified by return_format argument, EmitterSet in nano metres.
 
         """
 
         if features.dim() != 4:
             raise ValueError("Wrong dimensionality. Needs to be N x C x H x W.")
+
+        if features.size(1) not in (5, 6):
+            raise ValueError("Unsupported channel dimension.")
 
         p = features[:, [0], :, :]
         features = features[:, 1:, :, :]  # phot, x, y, z, bg
@@ -434,8 +441,8 @@ class ConsistencyPostprocessing(PostProcessing):
         frame_ix = frame_ix.squeeze()
 
         em = EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix,
-                        prob=prob_final, bg=feature_list[:, self._bg_ix],
-                        xy_unit=self._xy_unit, px_size=self.px_size)
+                        prob=prob_final, bg=feature_list[:, 4],
+                        xy_unit=self.xy_unit, px_size=None)
 
         return self._return_as_type(em, ix_low=frame_ix.min().item(), ix_high=frame_ix.max().item())
 

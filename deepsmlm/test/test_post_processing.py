@@ -3,6 +3,7 @@ import torch
 
 from deepsmlm.generic import emitter
 from deepsmlm.neuralfitter import post_processing
+from deepsmlm.generic.utils import test_utils
 
 
 class TestPostProcessingAbstract:
@@ -30,20 +31,28 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
     @pytest.fixture()
     def post(self):
-        return post_processing.ConsistencyPostprocessing(px_size=(1., 1.), svalue_th=0.1, final_th=0.5, lat_th=30,
-                                                         ax_th=200., match_dims=2, img_shape=(32, 32), bg=5,
-                                                         return_format='frame-set')
+        return post_processing.ConsistencyPostprocessing(raw_th=0.1, em_th=0.5, xy_unit='px', img_shape=(32, 32),
+                                                         ax_th=None, lat_th=0.5, match_dims=2,
+                                                         return_format='batch-set')
 
     @pytest.mark.parametrize("return_format", [None, 'batch_set', 'frame_set', 'emitters'])
-    def test_sanity(self, post, return_format):
+    def test_excpt(self, post, return_format):
         """
-        Tests the sanity checks
+        Tests the sanity checks and forward expected exceptions
 
         """
         with pytest.raises(ValueError):
-            post.__init__(px_size=None, return_format=return_format)
+            post.__init__(raw_th=0.1, em_th=0.6, xy_unit='px', img_shape=(32, 32), lat_th=0.,
+                          return_format=return_format)
 
-    def test_easy(self, post):
+        with pytest.raises(ValueError):
+            post.forward(torch.rand((1, 2, 32, 32)))
+
+        with pytest.raises(ValueError):
+            post.forward(torch.rand((1, 7, 32, 32)))
+
+    @pytest.mark.xfail(condition=not torch.cuda.is_available(), reason="CUDA not available on this machine.")
+    def test_forward_cuda(self, post):
         p = torch.zeros((2, 1, 32, 32)).cuda()
         out = torch.zeros((2, 5, 32, 32)).cuda()
         p[1, 0, 2, 4] = 0.6
@@ -56,9 +65,11 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
         out[1, 2, 2, 4] = 1.
         out[1, 2, 2, 6] = 1.2
 
-        em = post._forward_raw_impl(p, out)
+        _ = post.forward(torch.cat((p, out), 1))
 
-    def test_multiprocessing(self, post):
+    def test_multi_worker(self, post):
+
+        """Setup"""
         p = torch.zeros((2, 1, 32, 32)).cuda()
         out = torch.zeros((2, 5, 32, 32)).cuda()
         p[1, 0, 2, 4] = 0.6
@@ -73,14 +84,84 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
         out[:, 4] = torch.rand_like(out[:, 4])
 
+        """Run"""
         post.num_workers = 0
         em0 = post.forward(torch.cat((p, out), 1))
 
         post.num_workers = 4
         em1 = post.forward(torch.cat((p, out), 1))
 
+        """Assert (equal outcome)"""
         for i in range(len(em0)):
             assert em0[i] == em1[i]
+
+    def test_easy_case(self, post):
+        """
+        Easy case, i.e. isolated active pixels.
+
+        Args:
+            post: fixture
+
+        """
+
+        """Setup"""
+        p = torch.zeros((2, 1, 32, 32))
+        out = torch.zeros((2, 5, 32, 32))
+        p[0, 0, 0, 0] = 0.3
+        p[0, 0, 0, 2] = 0.4
+        p[1, 0, 2, 4] = 0.6
+        p[1, 0, 2, 6] = 0.6
+
+        out[0, 2, 0, 0] = 0.3
+        out[0, 2, 0, 2] = 0.5
+        out[1, 2, 2, 4] = 1.
+        out[1, 2, 2, 6] = 1.2
+
+        """Run"""
+        p_out, feat_out = post._forward_raw_impl(p, out)
+        em_out = post.forward(torch.cat((p, out), 1))
+
+        """Assertions"""
+        assert test_utils.tens_almeq(p, p_out)
+        assert test_utils.tens_almeq(out, feat_out)
+
+        assert isinstance(em_out, emitter.EmitterSet)
+        assert len(em_out) == 2
+        assert (em_out.prob >= post.em_th).all()
+
+    def test_hard_cases(self, post):
+        """Non-isolated emitters."""
+
+        """Setup"""
+        p = torch.zeros((3, 1, 32, 32))
+        out = torch.zeros((3, 5, 32, 32))
+        p[0, 0, 0, 0] = 0.7  # isolated 0
+        p[0, 0, 0, 2] = 0.7  # isolated 0
+        p[1, 0, 2, 4] = 0.6  # 2merge 0
+        p[1, 0, 2, 5] = 0.6  # 2merge 0
+        p[2, 0, 4, 4] = 0.7  # nmerge 0
+        p[2, 0, 4, 5] = 0.7  # nmerge 0
+
+        out[1, 1, 2, 4] = 20.  # 2merge 0
+        out[1, 1, 2, 5] = 20.2
+        out[2, 2, 4, 4] = 49.  # nmerge 0
+        out[2, 2, 4, 5] = 49.51
+
+        """Run"""
+        em_out = post.forward(torch.cat((p, out), 1))
+
+        """Assertions"""
+        # First frame
+        assert len(em_out.get_subset_frame(0, 0)) == 2
+        assert (em_out.get_subset_frame(0, 0).prob == 0.7).all()
+
+        # Second frame
+        assert len(em_out.get_subset_frame(1, 1)) == 1
+        assert (em_out.get_subset_frame(1, 1).prob.item() > 0.6)
+
+        # Third frame
+        assert len(em_out.get_subset_frame(2, 2)) == 2
+        assert (em_out.get_subset_frame(2, 2).prob == 0.7).all()
 
 
 @pytest.mark.skip("Deprecated function.")
