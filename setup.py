@@ -48,6 +48,7 @@ class CMakeBuild(build_ext):
             build_args += ['--', '/m']
         else:
             cmake_args += ['-DCMAKE_BUILD_TYPE=' + cfg]
+            cmake_args += ['-GNinja']  # change build system to ninja cause it is faster
             build_args += ['--', '-j2']
 
         env = os.environ.copy()
@@ -61,7 +62,7 @@ class CMakeBuild(build_ext):
 
 setup(
     name='deepsmlm',
-    version='0.1dev0',
+    version='0.1.dev0',
     packages=setuptools.find_packages(),
     ext_modules=[CMakeExtension('spline_psf_cuda', 'deepsmlm/cpp_src')],
     cmdclass=dict(build_ext=CMakeBuild),

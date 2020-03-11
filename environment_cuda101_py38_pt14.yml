@@ -23,6 +23,7 @@ dependencies:
   - jupyterlab
   - nb_conda
   - matplotlib
+  - ninja
   - nodejs
   - numpy
   - opencv
