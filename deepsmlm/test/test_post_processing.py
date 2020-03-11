@@ -135,17 +135,17 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
         """Setup"""
         p = torch.zeros((3, 1, 32, 32))
         out = torch.zeros((3, 5, 32, 32))
-        p[0, 0, 0, 0] = 0.7  # isolated 0
-        p[0, 0, 0, 2] = 0.7  # isolated 0
-        p[1, 0, 2, 4] = 0.6  # 2merge 0
-        p[1, 0, 2, 5] = 0.6  # 2merge 0
-        p[2, 0, 4, 4] = 0.7  # nmerge 0
-        p[2, 0, 4, 5] = 0.7  # nmerge 0
+        p[0, 0, 0, 0] = 0.7  # isolated
+        p[0, 0, 0, 2] = 0.7  # isolated
+        p[1, 0, 2, 4] = 0.6  # should be merged
+        p[1, 0, 2, 5] = 0.6  # should be merged
+        p[2, 0, 4, 4] = 0.7  # should not be merged
+        p[2, 0, 4, 5] = 0.7  # should not be merged
 
-        out[1, 1, 2, 4] = 20.  # 2merge 0
-        out[1, 1, 2, 5] = 20.2
-        out[2, 2, 4, 4] = 49.  # nmerge 0
-        out[2, 2, 4, 5] = 49.51
+        out[1, 1, 2, 4] = 20.  # should be merged
+        out[1, 1, 2, 5] = 20.2  # %
+        out[2, 2, 4, 4] = 49.  # should not be merged
+        out[2, 2, 4, 5] = 49.51  # %
 
         """Run"""
         em_out = post.forward(torch.cat((p, out), 1))
