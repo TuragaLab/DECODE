@@ -9,15 +9,15 @@ find_package(PythonInterp 3.6 REQUIRED)
 find_package(PythonLibs 3.6 REQUIRED)
 find_package(CUDA)
 
-if(CUDA_FOUND)
+if(CMAKE_CUDA_COMPILER AND NOT CUDA_DISABLED)  # the latter is a user definable variable
    enable_language(CUDA)
-   # find_package(CUDA REQUIRED)
 
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --gpu-architecture=sm_75")
    add_compile_definitions(CUDA_ENABLED)
 
 else()
-   message(WARNING "No CUDA compiler found. \nYou may need to specify its path like 'export CUDACXX=/usr/local/cuda/bin/nvcc'")
+   message(WARNING "No CUDA compiler found or disabled by user defined command line variable '-DCUDA_DISABLED=True'.
+   You may need to specify its path like \t'export CUDACXX=/usr/local/cuda/bin/nvcc'")
 
 endif()
 
@@ -29,7 +29,7 @@ set_property(TARGET spline_psf_cpu_impl PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 add_subdirectory(lib/pybind11)
 
-if(CMAKE_CUDA_COMPILER)
+if(CMAKE_CUDA_COMPILER AND NOT CUDA_DISABLED)
    add_library(spline_psf_cu_impl SHARED src/spline_psf_gpu.cu)
    target_include_directories(spline_psf_cu_impl PUBLIC include)
    target_compile_features(spline_psf_cu_impl PUBLIC cxx_std_11)
