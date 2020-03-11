@@ -9,43 +9,81 @@ from .utils import padding_calc as padcalc
 import deepsmlm.simulation.psf_kernel as psf_kernel
 
 
-class Delta2ROI:
-    def __init__(self, roi_size, channels, overlap_mode='zero'):
+class OneHotInflator:
+    """
+    Converts single hot px to ROI, i.e. inflates :math:`[0\ 0\ 1\ 0\ 0]` to :math:`[0\ 1\ 1\ 1\ 0]`
+    The central pixel (the one hot) will always be preserved.
+
+    Attributes:
+        roi_size (int): size of inflation
+        channels (int, tuple): channels to which the inflation should apply
+        overlap_mode (str): overlap mode
+    """
+
+    _overlap_modes_all = ('zero', 'mean')
+
+    def __init__(self, roi_size: int, channels, overlap_mode: str = 'zero'):
+        """
+
+        Args:
+            roi_size (int): size of inflation
+            channels (int, tuple): channels to which the inflation should apply
+            overlap_mode (str, optional): overlap mode
+        """
         self.roi_size = roi_size
+        self.channels = channels
         self.overlap_mode = overlap_mode
 
+        self._pad = torch.nn.ConstantPad2d(1, 0.)
+        self._rep_kernel = torch.ones((channels, 1, self.roi_size, self.roi_size))
+
+        """Sanity checks"""
         if self.roi_size != 3:
             raise NotImplementedError("Currently only ROI size 3 is implemented and tested.")
 
-        if self.overlap_mode not in ('zero', 'mean'):
-            raise NotImplementedError("Only mean and zero are supported.")
+        if self.overlap_mode not in self._overlap_modes_all:
+            raise NotImplementedError(f"Non supported overlap mode{self.overlap_mode}. Choose among: "
+                                      f"{self._overlap_modes_all}")
 
-        self.channels = channels
-        self.pad = torch.nn.ConstantPad2d(1, 0.)
-        self.rep_kernel = torch.ones((channels, 1, self.roi_size, self.roi_size))
+    def _is_overlap(self, x):
+        """
+        Checks for every px whether it is going to be overlapped after inflation and returns the count
 
-    def is_overlap(self, x):
+        Args:
+            x:
+
+        Returns:
+            (torch.Tensor, torch.Tensor)
+            is_overlap: boolean tensor
+            xn_count: overlap count
+
+        """
         # x non zero
         xn = torch.zeros_like(x)
         xn[x != 0] = 1.
 
-        xn_count = torch.nn.functional.conv2d(self.pad(xn), self.rep_kernel, groups=self.channels)
+        xn_count = torch.nn.functional.conv2d(self._pad(xn), self._rep_kernel, groups=self.channels).long()
         # xn_count *= xn
         is_overlap = xn_count >= 2.
 
         return is_overlap, xn_count
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
+        Forwards tensor through inflator and returns inflated result.
 
-        :param x:
-        :return:
+        Args:
+            x (torch.Tensor): input
+
+        Returns:
+            torch.Tensor:   inflated result
+
         """
 
         xctr = x.clone()
-        input = self.pad(x).clone()
-        xrep = torch.nn.functional.conv2d(input, self.rep_kernel, groups=self.channels)
-        overlap_mask, overlap_count = self.is_overlap(x)
+        input = self._pad(x).clone()
+        xrep = torch.nn.functional.conv2d(input, self._rep_kernel, groups=self.channels)
+        overlap_mask, overlap_count = self._is_overlap(x)
 
         if self.overlap_mode == 'zero':
             xrep[overlap_mask] = 0.
@@ -84,9 +122,9 @@ class SimpleWeight(WeightGenerator):
         self.target_roi_size = target_roi_size
         self.channels = channels
         self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape, None)
-        self.delta2roi = Delta2ROI(roi_size=self.target_roi_size,
-                                   channels=4,
-                                   overlap_mode='zero')
+        self.delta2roi = OneHotInflator(roi_size=self.target_roi_size,
+                                        channels=4,
+                                        overlap_mode='zero')
         if weight_base not in ('constant', 'phot'):
             raise ValueError("Weight base can only be constant or sqrt photons.")
         self.weight_base = weight_base
@@ -254,7 +292,7 @@ class GenerateWeightMaskFromCRLB(WeightGenerator):
         self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape, None)
         self.rep_kernel = torch.ones((1, 1, roi_size, roi_size))
 
-        self.roi_increaser = Delta2ROI(roi_size, channels=6, overlap_mode='zero')
+        self.roi_increaser = OneHotInflator(roi_size, channels=6, overlap_mode='zero')
         self.chwise_rescale = chwise_rescale
 
     def forward(self, frames, tar_em, tar_bg):
