@@ -85,6 +85,79 @@ class TestOneHot2ROI:
             raise ValueError
 
 
+class TestWeightGenerator:
+
+    @pytest.fixture()
+    def waiter(self):  # a pun
+        class WeightGeneratorMock(weight_generator.WeightGenerator):
+            def forward(self, x, y, z):
+                x = super().forward(x, y, z)
+                return self._forward_return_original(torch.ones_like(x))
+
+        return WeightGeneratorMock()
+
+    def test_shape(self, waiter):
+        """
+
+        Args:
+            waiter: fixture
+
+        """
+
+        """Setup"""
+        x = torch.rand((3, 6, 32, 32))
+
+        """Run"""
+        out = waiter.forward(x, None, None)
+
+        """Assertions"""
+        # Check shape. Note that the channel dimensions might different.
+        assert x.size(0) == out.size(0)
+        assert x.size(-1) == out.size(-1)
+        assert x.size(-2) == out.size(-2)
+
+    def test_dim_handling(self, waiter):
+        """
+
+        Args:
+            waiter: fixture
+
+        """
+        """Setup"""
+        x = torch.rand((6, 32, 32))
+
+        """Run"""
+        out = waiter.forward(x, None, None)
+
+        """Assertions"""
+        assert out.dim() == x.dim()
+
+        with pytest.raises(ValueError):
+            _ = waiter.forward(torch.rand((32, 32)), None, None)
+
+        with pytest.raises(ValueError):
+            _ = waiter.forward(torch.rand((2, 3, 2, 32, 32)), None, None)
+
+
+class TestSimpleWeight(TestWeightGenerator):
+
+    @pytest.fixture(scope='class')
+    def waiter(self):
+        return weight_generator.SimpleWeight((-0.5, 4.5), (-0.5, 4.5), (5, 5), 3, 6, 'constant')
+
+    def test_const_weight(self, weighter):
+        em = emitter.CoordinateOnlyEmitter(torch.tensor([[1., 1., 0], [3., 3., 0.]]))
+        mask = weighter.forward(torch.zeros((1, 5, 5)), em, None)
+        assert test_utils.tens_almeq(mask[[0, 5]], torch.ones_like(mask[[0, 5]]))  # p channel and bg are all weight 1
+        mask_tar = torch.ones((5, 5))
+        mask_tar[2, 2] = 0.
+        mask_tar[3:, :2] = 0.
+        mask_tar[:2, 3:] = 0.
+        for i in [1, 2, 3, 4]:
+            assert test_utils.tens_almeq(mask[i], mask_tar)
+
+
+
 class TestDerivePseudobgFromBg:
 
     @pytest.fixture(scope='class')
@@ -131,20 +204,4 @@ class TestCRLBWeight:
         print("Done.")
 
 
-class TestSimpleWeight:
-
-    @pytest.fixture(scope='class')
-    def weighter(self):
-        return weight_generator.SimpleWeight((-0.5, 4.5), (-0.5, 4.5), (5, 5), 3, 6, 'constant')
-
-    def test_const_weight(self, weighter):
-        em = emitter.CoordinateOnlyEmitter(torch.tensor([[1., 1., 0], [3., 3., 0.]]))
-        mask = weighter.forward(torch.zeros((1, 5, 5)), em, None)
-        assert test_utils.tens_almeq(mask[[0, 5]], torch.ones_like(mask[[0, 5]]))  # p channel and bg are all weight 1
-        mask_tar = torch.ones((5, 5))
-        mask_tar[2, 2] = 0.
-        mask_tar[3:, :2] = 0.
-        mask_tar[:2, 3:] = 0.
-        for i in [1, 2, 3, 4]:
-            assert test_utils.tens_almeq(mask[i], mask_tar)
 

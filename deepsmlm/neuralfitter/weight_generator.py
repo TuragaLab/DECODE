@@ -99,36 +99,112 @@ class WeightGenerator(ABC):
         super().__init__()
         self.squeeze_return = None
 
-    @abstractmethod
-    def forward(self, frames: torch.Tensor, target_em: emc.EmitterSet, target_opt):
+    @staticmethod
+    def parse(param):
         """
+        Constructs WeightGenerator by parameter variable which will be likely be a namedtuple, dotmap or similiar.
+        
+        Args:
+            param:
 
-        :param frames:
-        :param targets_em: main target, emitterset
-        :param target_opt: optional targets (e.g. background)
-        :return:
+        Returns:
+            WeightGenerator: Instance of WeightGenerator child classes.
+
         """
-        if frames.dim() == 3:
-            frames = frames.unsqueeze(0)
+        raise NotImplementedError
+
+    def _forward_batched(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Returns x  in batched version if not already has batch dimension
+
+        Args:
+            x (torch.Tensor):
+
+        Returns:
+            torch.Tensor
+
+        """
+        if x.dim() == 3:
+            x = x.unsqueeze(0)
             self.squeeze_return = True
-        else:
+        elif x.dim() == 4:
             self.squeeze_return = False
-        return frames
+        else:
+            raise ValueError("Unsupported shape.")
+        return x
+
+    def _forward_return_original(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Returns x in shape of what has been input to forward method
+
+        Args:
+            x (torch.Tensor):
+
+        Returns:
+            torch.Tensor
+
+        """
+        if self.squeeze_return:
+            if x.size(0) != 1:
+                raise ValueError("First, batch dimension, not singular.")
+            return x.squeeze(0)
+        else:
+            return x
+
+    @abstractmethod
+    def forward(self, frames: torch.Tensor, target_em: emc.EmitterSet, target_opt) -> torch.Tensor:
+        """
+        Forward frames, emitters and optional arguments through the weight generator.
+
+        Args:
+            frames (torch.Tensor): frames of size :math:`((N,),C,H,W)`
+            target_em (EmitterSet): target EmitterSet
+            target_opt (optional): optional other arguments
+
+        Returns:
+            torch.Tensor: Weight mask of size :math:`((N,),D,H,W)` where likely :math:`C=D` but not necessarily.
+
+        """
+        if frames.dim() not in (3, 4):
+            raise ValueError("Unsupported shape of input.")
+        return self._forward_batched(frames)
 
 
 class SimpleWeight(WeightGenerator):
-    def __init__(self, xextent, yextent, img_shape, target_roi_size, channels, weight_base='constant', weight_power=None):
+    """
+    Weight mask that is 1 in the detection and background channel everywhere and in the ROIs of the other detection
+    channels. Assumes the following channel order prob (0), phot (1), x (2), y (3), z (4), bg (5).
+
+    """
+
+    _weight_bases_all = ('constant', 'phot')
+
+    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, target_roi_size: int,
+                 weight_base='constant', weight_power: float = None):
+        """
+
+        Args:
+            xextent (tuple): extent in x
+            yextent (tuple): extent in y
+            img_shape: image shape
+            target_roi_size (int): roi size of the target
+            weight_base (str): constant or phot
+            weight_power (float): power factor of the weight
+        """
         super().__init__()
+
         self.target_roi_size = target_roi_size
-        self.channels = channels
         self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape, None)
         self.delta2roi = OneHotInflator(roi_size=self.target_roi_size,
                                         channels=4,
                                         overlap_mode='zero')
-        if weight_base not in ('constant', 'phot'):
-            raise ValueError("Weight base can only be constant or sqrt photons.")
+
         self.weight_base = weight_base
         self.weight_power = weight_power if weight_power is not None else 1.0
+
+        """Sanity checks"""
+        if self.weight_base not in self._weight_bases_all:
+            raise ValueError("Weight base can only be constant or sqrt photons.")
 
     @staticmethod
     def parse(param):
@@ -136,39 +212,36 @@ class SimpleWeight(WeightGenerator):
                             yextent=param.Simulation.psf_extent[1],
                             img_shape=param.Simulation.img_size,
                             target_roi_size=param.HyperParameter.target_roi_size,
-                            channels=param.HyperParameter.channels_out,
                             weight_base=param.HyperParameter.weight_base,
                             weight_power=param.HyperParameter.weight_power)
 
-    def forward(self, frames, tar_em, tar_bg):
-
+    def forward(self, frames, tar_em, tar_bg) -> torch.Tensor:
         frames = super().forward(frames, None, None)
 
-        # The weights
-        weight = torch.zeros((frames.size(0), self.channels, frames.size(2), frames.size(3)))
+        weight = torch.zeros_like(frames)
+        """Detection and Background channel"""
         weight[:, 0] = 1.
+        if weight.size(1) == 6:
+            weight[:, 5] = 1.
 
         if self.weight_base == 'constant':
             weight_pxyz = self.weight_psf.forward(tar_em.xyz, torch.ones_like(tar_em.xyz[:, 0]))
             weight[:, 1:5] = weight_pxyz.unsqueeze(1).repeat(1, 4, 1, 1)
 
-        elif self.weight_base =='phot':
-            weight_p = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.phot ** self.weight_power)
+        elif self.weight_base == 'phot':
+            """Simple approximation to the CRLB. """
+            weight_phot = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.phot ** self.weight_power)
             weight_xyz = self.weight_psf.forward(tar_em.xyz, tar_em.phot ** self.weight_power)
-            weight_pxyz = torch.cat((weight_p, weight_xyz.repeat(3, 1, 1)), 0).unsqueeze(0)
+            weight_pxyz = torch.cat((weight_phot, weight_xyz.repeat(3, 1, 1)), 0).unsqueeze(0)
             weight[:, 1:5] = weight_pxyz
+            if weight.size(1) == 6:  # weight of background
+                weight[:, 5] *= 1 / frames[:, 5] ** self.weight_power
 
-        # weight[:, 1:5] = weight_pxyz.unsqueeze(1).repeat(1, 4, 1, 1)
-
-        if weight.size(1) >= 6:
-            weight[:, 5] = 1.
+        else:
+            raise ValueError
 
         weight[:, 1:5] = self.delta2roi.forward(weight[:, 1:5])
-
-        if self.squeeze_return:
-            return weight.squeeze(0)
-        else:
-            return weight
+        return self._forward_return_original(weight)  # return in dimensions of input frame
 
 
 class DerivePseudobgFromBg(WeightGenerator):
