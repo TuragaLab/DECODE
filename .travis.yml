@@ -1,8 +1,6 @@
 dist: xenial
 
-language: python
-python:
-  - "3.6"
+language: generic
 
 install:
   - sudo apt-get update
