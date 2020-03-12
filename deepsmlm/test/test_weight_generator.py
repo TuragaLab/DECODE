@@ -1,11 +1,9 @@
-import torch
 import pytest
-import numpy as np
+import torch
 
-import deepsmlm.generic.background
+from deepsmlm.generic import emitter
 from deepsmlm.generic.utils import test_utils
 from deepsmlm.neuralfitter import weight_generator
-from deepsmlm.generic import emitter
 
 
 class TestOneHot2ROI:
@@ -146,7 +144,7 @@ class TestSimpleWeight(TestWeightGenerator):
 
     @pytest.fixture(scope='class')
     def waiter(self):
-        return weight_generator.SimpleWeight((-0.5, 4.5), (-0.5, 4.5), (5, 5), 3, 6, 'constant')
+        return weight_generator.SimpleWeight((-0.5, 4.5), (-0.5, 4.5), (5, 5), 3, 'constant')
 
     def test_const_weight(self, weighter):
         em = emitter.CoordinateOnlyEmitter(torch.tensor([[1., 1., 0], [3., 3., 0.]]))
@@ -158,27 +156,3 @@ class TestSimpleWeight(TestWeightGenerator):
         mask_tar[:2, 3:] = 0.
         for i in [1, 2, 3, 4]:
             assert test_utils.tens_almeq(mask[i], mask_tar)
-
-
-class TestCRLBWeight:
-
-    @pytest.fixture(scope='class')
-    def pseudo_em(self):
-        em = emitter.RandomEmitterSet(20, 64)
-        em.bg = torch.rand_like(em.bg)
-        em.xyz_cr = torch.rand_like(em.xyz_cr)
-        em.phot_cr = torch.rand_like(em.phot_cr)
-        em.bg_cr = torch.rand_like(em.bg_cr)
-
-        return em
-
-    @pytest.fixture(scope='class')
-    def generator(self):
-        return weight_generator.GenerateWeightMaskFromCRLB((-0.5, 63.5), (-0.5, 63.5), (64, 64), 3)
-
-    def test_candidate(self, generator, pseudo_em):
-        generator.forward(torch.rand((3, 3, 64, 64)), pseudo_em, None)
-        print("Done.")
-
-
-

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from deprecated import deprecated
 import torch
 import torch.nn
 
@@ -243,6 +244,7 @@ class SimpleWeight(WeightGenerator):
         return self._forward_return_original(weight)  # return in dimensions of input frame
 
 
+@deprecated(version="0.1.dev", reason="Not used. Write a test before reactivating.")
 class CalcCRLB(WeightGenerator):
     def __init__(self, psf, crlb_mode):
         """
@@ -271,6 +273,7 @@ class CalcCRLB(WeightGenerator):
         return frames, tar_em, tar_bg
 
 
+@deprecated(version="0.1.dev", reason="Not used. Write a test before reactivating.")
 class GenerateWeightMaskFromCRLB(WeightGenerator):
     def __init__(self, xextent, yextent, img_shape, roi_size, chwise_rescale=True):
         super().__init__()
