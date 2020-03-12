@@ -9,6 +9,8 @@ import torch
 from scipy import interpolate
 
 import deepsmlm.simulation.psf_kernel as psf_kernel
+from deepsmlm.neuralfitter.utils import padding_calc as padcalc
+from deepsmlm.simulation import psf_kernel as psf_kernel
 
 
 class Background(ABC):
@@ -294,6 +296,83 @@ class MultiPerlin(Background):
 
         """The behaviour here must be a bit different because the perlin components already add their bg_term to x."""
         return self.bg_return(xbg=x, bg=bg_term)
+
+
+class BgPerEmitterFromBgFrame:
+    """
+    Extract a background value per localisation from a background frame. This is done by mean filtering.
+    """
+    def __init__(self, filter_size: int, yextent: tuple, img_shape: tuple, xextent: tuple):
+        """
+
+        Args:
+            filter_size (int): size of the mean filter
+            xextent (tuple): extent in x
+            yextent (tuple): extent in y
+            img_shape (tuple): image shape
+        """
+        super().__init__()
+        """Sanity checks"""
+        if filter_size %  2 == 0:
+            raise ValueError("ROI size must be odd.")
+
+        self.filter_size = [filter_size, filter_size]
+        self.img_shape = img_shape
+
+        pad_x = padcalc.pad_same_calc(self.img_shape[0], self.filter_size[0], 1, 1)
+        pad_y = padcalc.pad_same_calc(self.img_shape[1], self.filter_size[1], 1, 1)
+
+        self.padding = torch.nn.ReplicationPad2d((pad_x, pad_x, pad_y, pad_y))  # to get the same output dim
+
+        self.kernel = torch.ones((1, 1, filter_size, filter_size)) / (filter_size * filter_size)
+        self.delta_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape)
+        self.bin_x = self.delta_psf._bin_x
+        self.bin_y = self.delta_psf._bin_y
+
+    def _mean_filter(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Actual magic
+
+        Args:
+            x: torch.Tensor of size N x C=1 x H x W
+
+        Returns:
+            (torch.Tensor) mean filter on frames
+        """
+
+        # put the kernel to the right device
+        if x.size()[-2:] != self.img_shape:
+            raise ValueError("Background does not match specified image size.")
+
+        self.kernel = self.kernel.to(x.device)
+        x_mean = torch.nn.functional.conv2d(self.padding(x), self.kernel, stride=1, padding=0)  # since already padded
+        return x_mean
+
+    def forward(self, tar_em, tar_bg):
+
+        if tar_bg.dim() == 3:
+            tar_bg = tar_bg.unsqueeze()
+
+        if len(tar_em) == 0:
+            return tar_em
+
+        local_mean = self._mean_filter(tar_bg)
+
+        """Extract background values at the position where the emitter is and write it"""
+        pos_x = tar_em.xyz[:, 0]
+        pos_y = tar_em.xyz[:, 1]
+        bg_frame_ix = (-int(tar_em.frame_ix.min()) + tar_em.frame_ix).long()
+
+        ix_x = torch.from_numpy(np.digitize(pos_x.numpy(), self.bin_x, right=False) - 1)
+        ix_y = torch.from_numpy(np.digitize(pos_y.numpy(), self.bin_y, right=False) - 1)
+
+        """Kill everything that is outside"""
+        in_frame = torch.ones_like(ix_x).bool()
+        in_frame *= (ix_x >= 0) * (ix_x <= self.img_shape[0] - 1) * (ix_y >= 0) * (ix_y <= self.img_shape[1] - 1)
+
+        tar_em.bg[in_frame] = local_mean[bg_frame_ix[in_frame], 0, ix_x[in_frame], ix_y[in_frame]]
+
+        return tar_em
 
 
 """Deprecated Stuff."""

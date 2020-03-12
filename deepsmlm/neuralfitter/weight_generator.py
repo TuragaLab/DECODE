@@ -1,11 +1,8 @@
 from abc import ABC, abstractmethod
 import torch
 import torch.nn
-import numpy as np
-import warnings
 
 import deepsmlm.generic.emitter as emc
-from .utils import padding_calc as padcalc
 import deepsmlm.simulation.psf_kernel as psf_kernel
 
 
@@ -124,6 +121,7 @@ class WeightGenerator(ABC):
             torch.Tensor
 
         """
+
         if x.dim() == 3:
             x = x.unsqueeze(0)
             self.squeeze_return = True
@@ -167,6 +165,7 @@ class WeightGenerator(ABC):
         """
         if frames.dim() not in (3, 4):
             raise ValueError("Unsupported shape of input.")
+
         return self._forward_batched(frames)
 
 
@@ -242,92 +241,6 @@ class SimpleWeight(WeightGenerator):
 
         weight[:, 1:5] = self.delta2roi.forward(weight[:, 1:5])
         return self._forward_return_original(weight)  # return in dimensions of input frame
-
-
-class DerivePseudobgFromBg(WeightGenerator):
-    def __init__(self, xextent, yextent, img_shape, bg_roi_size):
-        """
-
-        :param bg_roi_size:
-        """
-        super().__init__()
-        self.roi_size = [bg_roi_size[0], bg_roi_size[1]]
-        self.img_shape = img_shape
-
-        if (self.roi_size[0] % 2 == 0) or (self.roi_size[1] % 2 == 0):
-            warnings.warn('ROI Size should be odd.')
-            self.roi_size[0] = self.roi_size[0] - 1 if self.roi_size[0] % 2 == 0 else self.roi_size[0]
-            self.roi_size[1] = self.roi_size[1] - 1 if self.roi_size[1] % 2 == 0 else self.roi_size[1]
-
-        pad_x = padcalc.pad_same_calc(self.img_shape[0], self.roi_size[0], 1, 1)
-        pad_y = padcalc.pad_same_calc(self.img_shape[1], self.roi_size[1], 1, 1)
-
-        self.padding = torch.nn.ReplicationPad2d((pad_x, pad_x, pad_y, pad_y))  # to get the same output dim
-
-        self.kernel = torch.ones((bg_roi_size[0], bg_roi_size[1])).unsqueeze(0).unsqueeze(0) / (bg_roi_size[0] * bg_roi_size[1])
-        self.kernel = self.kernel.float()
-        self.delta_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape)
-        self.bin_x = self.delta_psf._bin_x
-        self.bin_y = self.delta_psf._bin_y
-
-    def forward_impl(self, x):
-        """
-        Actual magic
-
-        Args:
-            frames: torch.Tensor of size N x C=1 x H x W
-
-        Returns:
-            mean filter on frames
-        """
-
-        # put the kernel to the right place
-        self.kernel = self.kernel.to(x.device)
-
-        x_mean = torch.nn.functional.conv2d(self.padding(x), self.kernel, stride=1, padding=0)
-        return x_mean
-
-    def forward(self, frames, tar_em, tar_bg):
-        """
-
-        :param bg_frames: bg_frames of size N x C=1 x H x W
-        :param tar_em: emtiters with frame_indices matching the bg_frames, so frame_ix.min() corresponds to bg_frames[0]
-        :return: void
-        """
-        if tar_em.num_emitter == 0:
-            return frames, tar_em, tar_bg
-
-        if tar_bg.dim() == 3:
-            tar_bg = tar_bg.unsqueeze(0)
-            squeeze_return = True
-        else:
-            squeeze_return = False
-
-        # bg_framesp = self.padding(tar_bg)
-        # local_mean = torch.nn.functional.conv2d(bg_framesp, self.kernel, stride=1, padding=0)
-
-        local_mean = self.forward_impl(tar_bg)
-
-        bg_start_ix = int(tar_em.frame_ix.min())
-
-        pos_x = tar_em.xyz[:, 0]
-        pos_y = tar_em.xyz[:, 1]
-
-        ix_x = np.digitize(pos_x.numpy(), self.bin_x)
-        ix_y = np.digitize(pos_y.numpy(), self.bin_y)
-
-        for i in range(tar_em.num_emitter):
-            rg_ix = slice(max(0, ix_x[i] - (self.roi_size[0] - 1) // 2),
-                          min(self.img_shape[0] - 1, ix_x[i] + (self.roi_size[0] - 1) // 2))
-            rg_iy = slice(max(0, ix_y[i] - (self.roi_size[1] - 1) // 2),
-                          min(self.img_shape[1] - 1, ix_y[i] + (self.roi_size[1] - 1) // 2))
-            bg_v = local_mean[bg_start_ix + int(tar_em.frame_ix[i]), 0, rg_ix, rg_iy].mean()
-            tar_em.bg[i] = bg_v
-
-        if squeeze_return:
-            tar_bg = tar_bg.squeeze(0)
-
-        return frames, tar_em, tar_bg
 
 
 class CalcCRLB(WeightGenerator):

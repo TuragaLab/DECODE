@@ -2,6 +2,7 @@ import torch
 import pytest
 import numpy as np
 
+import deepsmlm.generic.background
 from deepsmlm.generic.utils import test_utils
 from deepsmlm.neuralfitter import weight_generator
 from deepsmlm.generic import emitter
@@ -106,9 +107,11 @@ class TestWeightGenerator:
 
         """Setup"""
         x = torch.rand((3, 6, 32, 32))
+        em = emitter.EmptyEmitterSet()
+        opt = torch.rand_like(x[:, [0]])
 
         """Run"""
-        out = waiter.forward(x, None, None)
+        out = waiter.forward(x, em, opt)
 
         """Assertions"""
         # Check shape. Note that the channel dimensions might different.
@@ -155,32 +158,6 @@ class TestSimpleWeight(TestWeightGenerator):
         mask_tar[:2, 3:] = 0.
         for i in [1, 2, 3, 4]:
             assert test_utils.tens_almeq(mask[i], mask_tar)
-
-
-
-class TestDerivePseudobgFromBg:
-
-    @pytest.fixture(scope='class')
-    def pseudobg(self):
-        return weight_generator.DerivePseudobgFromBg((-0.5, 63.5), (-0.5, 63.5), (64, 64), [17, 17], 8)
-
-    # @pytest.fixture(scope='class')
-    def bg_sampler(self):
-        em = emitter.RandomEmitterSet(20, 64)
-        fix = np.linspace(0, 3, 20).round()
-        np.random.shuffle(fix)
-        em.frame_ix = torch.from_numpy(fix)
-        bg = torch.rand((5, 1, 64, 64))
-
-        return em, bg
-
-    def test_candidate(self, pseudobg):
-        em, bg = self.bg_sampler()
-        bg[2] *= 100  # test whether this comes out
-
-        pseudobg.forward(None, em, bg)
-        em_c = em.get_subset_frame(2, 2)
-        assert test_utils.tens_almeq(em_c.bg, torch.ones_like(em_c.bg) * bg[2].mean(), 5.)
 
 
 class TestCRLBWeight:

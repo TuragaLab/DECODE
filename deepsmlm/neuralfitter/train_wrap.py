@@ -12,6 +12,7 @@ from datetime import datetime
 
 import deepsmlm.evaluation.match_emittersets
 import deepsmlm.evaluation.utils
+import deepsmlm.generic.background
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 from tensorboardX import SummaryWriter
@@ -240,9 +241,8 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
         if param.HyperParameter.weight_base in ('crlb', 'crlb_single', 'crlb_multi'):
             weight_mask_generator = processing.TransformSequence([
                 prepro.ThresholdPhotons.parse(param, mode='weight'),
-                wgen.DerivePseudobgFromBg(param['Simulation']['psf_extent'][0],
-                                          param['Simulation']['psf_extent'][1],
-                                          param['Simulation']['img_size'], psf.roi_size),
+                deepsmlm.generic.background.BgPerEmitterFromBgFrame(psf.roi_size, param['Simulation']['psf_extent'][1],
+                                                                    param['Simulation']['img_size'], param['Simulation']['psf_extent'][0]),
                 wgen.CalcCRLB(psf, crlb_mode=param.HyperParameter.weight_base[5:]),
                 wgen.GenerateWeightMaskFromCRLB(param['Simulation']['psf_extent'][0],
                                           param['Simulation']['psf_extent'][1],
