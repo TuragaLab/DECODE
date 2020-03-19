@@ -8,7 +8,7 @@ import deepsmlm.simulation.psf_kernel as psf_kernel
 
 
 class OneHotInflator:
-    """
+    r"""
     Converts single hot px to ROI, i.e. inflates :math:`[0\ 0\ 1\ 0\ 0]` to :math:`[0\ 1\ 1\ 1\ 0]`
     The central pixel (the one hot) will always be preserved.
 

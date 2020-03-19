@@ -141,7 +141,7 @@ class ConsistencyPostprocessing(PostProcessing):
         self._filter = match_emittersets.GreedyHungarianMatching(match_dims=match_dims, dist_lat=lat_th,
                                                                  dist_ax=ax_th, dist_vol=vol_th).filter
 
-        self._bg_calculator = deepsmlm.generic.background.BgPerEmitterFromBgFrame(filter_size=(13, 13), yextent=(0., 1.),
+        self._bg_calculator = deepsmlm.generic.background.BgPerEmitterFromBgFrame(filter_size=13, yextent=(0., 1.),
                                                                                   img_shape=img_shape, xextent=(0., 1.))
 
         self._neighbor_kernel = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).float().view(1, 1, 3, 3)
