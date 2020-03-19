@@ -8,7 +8,6 @@ import numpy as np
 import torch
 from scipy import interpolate
 
-import deepsmlm.simulation.psf_kernel as psf_kernel
 from deepsmlm.neuralfitter.utils import padding_calc as padcalc
 from deepsmlm.simulation import psf_kernel as psf_kernel
 
@@ -287,7 +286,7 @@ class MultiPerlin(Background):
         :param x:
         :return:
         """
-        bg_term = torch.zeros((1, ))
+        bg_term = torch.zeros((1,))
         for i in range(self.num_freq):
             if (self.prob_disable is not None) and (torch.rand(1).item() <= self.prob_disable):
                 continue
@@ -302,6 +301,7 @@ class BgPerEmitterFromBgFrame:
     """
     Extract a background value per localisation from a background frame. This is done by mean filtering.
     """
+
     def __init__(self, filter_size: int, yextent: tuple, img_shape: tuple, xextent: tuple):
         """
 
@@ -313,7 +313,7 @@ class BgPerEmitterFromBgFrame:
         """
         super().__init__()
         """Sanity checks"""
-        if filter_size %  2 == 0:
+        if filter_size % 2 == 0:
             raise ValueError("ROI size must be odd.")
 
         self.filter_size = [filter_size, filter_size]
@@ -376,6 +376,8 @@ class BgPerEmitterFromBgFrame:
 
 
 """Deprecated Stuff."""
+
+
 @deprecated.deprecated("Old implementation. Maybe for future investigation.")
 class NonUniformBackground(Background):
     """

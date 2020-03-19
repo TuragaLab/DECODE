@@ -93,9 +93,14 @@ class OneHotInflator:
 
 
 class WeightGenerator(ABC):
+    """
+    Abstract weight generator. A weight is something that is to be multiplied by the (non-reduced) loss, i.e. as
+
+    """
+
     def __init__(self):
         super().__init__()
-        self.squeeze_return = None
+        self._squeeze_return = None
 
     @staticmethod
     def parse(param):
@@ -125,9 +130,9 @@ class WeightGenerator(ABC):
 
         if x.dim() == 3:
             x = x.unsqueeze(0)
-            self.squeeze_return = True
+            self._squeeze_return = True
         elif x.dim() == 4:
-            self.squeeze_return = False
+            self._squeeze_return = False
         else:
             raise ValueError("Unsupported shape.")
         return x
@@ -143,7 +148,7 @@ class WeightGenerator(ABC):
             torch.Tensor
 
         """
-        if self.squeeze_return:
+        if self._squeeze_return:
             if x.size(0) != 1:
                 raise ValueError("First, batch dimension, not singular.")
             return x.squeeze(0)
@@ -151,23 +156,23 @@ class WeightGenerator(ABC):
             return x
 
     @abstractmethod
-    def forward(self, frames: torch.Tensor, target_em: emc.EmitterSet, target_opt) -> torch.Tensor:
+    def forward(self, tar_frames: torch.Tensor, tar_em: emc.EmitterSet, tar_opt) -> torch.Tensor:
         """
         Forward frames, emitters and optional arguments through the weight generator.
 
         Args:
-            frames (torch.Tensor): frames of size :math:`((N,),C,H,W)`
-            target_em (EmitterSet): target EmitterSet
-            target_opt (optional): optional other arguments
+            tar_frames (torch.Tensor): frames of size :math:`((N,),C,H,W)`
+            tar_em (EmitterSet): target EmitterSet
+            tar_opt (optional): optional other arguments
 
         Returns:
             torch.Tensor: Weight mask of size :math:`((N,),D,H,W)` where likely :math:`C=D` but not necessarily.
 
         """
-        if frames.dim() not in (3, 4):
+        if tar_frames.dim() not in (3, 4):
             raise ValueError("Unsupported shape of input.")
 
-        return self._forward_batched(frames)
+        return self._forward_batched(tar_frames)
 
 
 class SimpleWeight(WeightGenerator):
@@ -177,10 +182,10 @@ class SimpleWeight(WeightGenerator):
 
     """
 
-    _weight_bases_all = ('constant', 'phot')
+    _weight_bases_all = ('const', 'phot')
 
-    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, target_roi_size: int,
-                 weight_base='constant', weight_power: float = None):
+    def __init__(self, *, xextent: tuple, yextent: tuple, img_shape: tuple, target_roi_size: int,
+                 weight_mode='const', weight_power: float = None):
         """
 
         Args:
@@ -188,7 +193,7 @@ class SimpleWeight(WeightGenerator):
             yextent (tuple): extent in y
             img_shape: image shape
             target_roi_size (int): roi size of the target
-            weight_base (str): constant or phot
+            weight_mode (str): constant or phot
             weight_power (float): power factor of the weight
         """
         super().__init__()
@@ -199,46 +204,65 @@ class SimpleWeight(WeightGenerator):
                                         channels=4,
                                         overlap_mode='zero')
 
-        self.weight_base = weight_base
+        self.weight_mode = weight_mode
         self.weight_power = weight_power if weight_power is not None else 1.0
+        self._forward_safety = True  # safety checks in every forward pass
 
         """Sanity checks"""
-        if self.weight_base not in self._weight_bases_all:
-            raise ValueError("Weight base can only be constant or sqrt photons.")
+        if self.weight_mode not in self._weight_bases_all:
+            raise ValueError(f"Weight base must be in {self._weight_bases_all}.")
+
+        if self.weight_mode == 'const' and self.weight_power != 1.:
+            raise ValueError(f"Weight power of {self.weight_power} != 1."
+                             f" which does not have an effect for constant weight mode")
 
     @staticmethod
     def parse(param):
-        return SimpleWeight(xextent=param.Simulation.psf_extent[0],
-                            yextent=param.Simulation.psf_extent[1],
-                            img_shape=param.Simulation.img_size,
-                            target_roi_size=param.HyperParameter.target_roi_size,
-                            weight_base=param.HyperParameter.weight_base,
+        return SimpleWeight(xextent=param.Simulation.psf_extent[0], yextent=param.Simulation.psf_extent[1],
+                            img_shape=param.Simulation.img_size, target_roi_size=param.HyperParameter.target_roi_size,
+                            weight_mode=param.HyperParameter.weight_base,
                             weight_power=param.HyperParameter.weight_power)
 
-    def forward(self, frames, tar_em, tar_bg) -> torch.Tensor:
-        frames = super().forward(frames, None, None)
+    def forward(self, tar_frames: torch.Tensor, tar_em: emc.EmitterSet, tar_opt) -> torch.Tensor:
+        tar_frames = super().forward(tar_frames, None, None)
 
-        weight = torch.zeros_like(frames)
+        """Safety"""
+        if self._forward_safety:
+            if tar_frames.size(1) not in (5, 6):
+                raise ValueError(f"Unsupported frame dimension {tar_frames.size()}. "
+                                 f"Expected channel dimension to be 5 or 6.")
+
+            if not tar_frames.size()[-2:] == torch.Size(self.weight_psf.img_shape):
+                raise ValueError("Frame shape not according to init")
+
+            if not (tar_em.phot > 0.).all():
+                raise ValueError("Photon count must be greater than zero")
+
+            if self.weight_mode == 'phot':
+                if (tar_frames[:, [-1]] == 0).any():
+                    raise ValueError("bg must all non 0.")
+
         """Detection and Background channel"""
+        weight = torch.zeros_like(tar_frames)
         weight[:, 0] = 1.
         if weight.size(1) == 6:
             weight[:, 5] = 1.
 
-        if self.weight_base == 'constant':
+        if len(tar_em) == 0:  # no target emitter can be returned here after basic init of the weight mask
+            return self._forward_return_original(weight)
+
+        if self.weight_mode == 'const':
             weight_pxyz = self.weight_psf.forward(tar_em.xyz, torch.ones_like(tar_em.xyz[:, 0]))
             weight[:, 1:5] = weight_pxyz.unsqueeze(1).repeat(1, 4, 1, 1)
 
-        elif self.weight_base == 'phot':
+        elif self.weight_mode == 'phot':
             """Simple approximation to the CRLB. """
             weight_phot = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.phot ** self.weight_power)
             weight_xyz = self.weight_psf.forward(tar_em.xyz, tar_em.phot ** self.weight_power)
             weight_pxyz = torch.cat((weight_phot, weight_xyz.repeat(3, 1, 1)), 0).unsqueeze(0)
             weight[:, 1:5] = weight_pxyz
-            if weight.size(1) == 6:  # weight of background
-                weight[:, 5] *= 1 / frames[:, 5] ** self.weight_power
-
-        else:
-            raise ValueError
+            if weight.size(1) == 6:  # weight of background, CRLB approximation similiar to photon
+                weight[:, 5] *= 1 / tar_frames[:, 5] ** self.weight_power
 
         weight[:, 1:5] = self.delta2roi.forward(weight[:, 1:5])
         return self._forward_return_original(weight)  # return in dimensions of input frame
@@ -257,12 +281,12 @@ class CalcCRLB(WeightGenerator):
         self.crlb_mode = crlb_mode
         self.psf = psf
 
-    def forward(self, frames, tar_em, tar_bg):
+    def forward(self, tar_frames, tar_em, tar_bg):
         """
         Wrapper that writes crlb values to target emitter set. Not of use outside training
 
         Args:
-            frames:
+            tar_frames:
             tar_em:
             tar_bg:
 
@@ -270,7 +294,7 @@ class CalcCRLB(WeightGenerator):
 
         """
         tar_em.populate_crlb(self.psf, mode=self.crlb_mode)
-        return frames, tar_em, tar_bg
+        return tar_frames, tar_em, tar_bg
 
 
 @deprecated(version="0.1.dev", reason="Not used. Write a test before reactivating.")
@@ -284,16 +308,16 @@ class GenerateWeightMaskFromCRLB(WeightGenerator):
         self.roi_increaser = OneHotInflator(roi_size, channels=6, overlap_mode='zero')
         self.chwise_rescale = chwise_rescale
 
-    def forward(self, frames, tar_em, tar_bg):
+    def forward(self, tar_frames, tar_em, tar_bg):
 
-        if frames.dim() == 3:
-            frames = frames.unsqueeze(0)
+        if tar_frames.dim() == 3:
+            tar_frames = tar_frames.unsqueeze(0)
             squeeze_return = True
         else:
             squeeze_return = False
 
         # The weights
-        weight = torch.zeros((frames.size(0), 6, frames.size(2), frames.size(3)))
+        weight = torch.zeros((tar_frames.size(0), 6, tar_frames.size(2), tar_frames.size(3)))
         weight[:, 1] = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.phot_cr)
         weight[:, 2] = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.xyz_cr[:, 0])
         weight[:, 3] = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.xyz_cr[:, 1])

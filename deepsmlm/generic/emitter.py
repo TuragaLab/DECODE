@@ -425,6 +425,9 @@ class EmitterSet:
 
         return self.get_subset(item)
 
+    def __setitem__(self, key, value):
+        raise NotImplementedError
+
     def clone(self):
         """
         Returns a deep copy of this EmitterSet.
