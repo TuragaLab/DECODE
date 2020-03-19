@@ -22,7 +22,7 @@ else()
 endif()
 
 
-add_library(spline_psf_cpu_impl SHARED src/spline_psf.c)
+add_library(spline_psf_cpu_impl STATIC src/spline_psf.c)
 target_include_directories(spline_psf_cpu_impl PUBLIC include)
 target_compile_features(spline_psf_cpu_impl PUBLIC c_std_99)
 set_property(TARGET spline_psf_cpu_impl PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -30,15 +30,16 @@ set_property(TARGET spline_psf_cpu_impl PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(lib/pybind11)
 
 if(CMAKE_CUDA_COMPILER AND NOT CUDA_DISABLED)
-   add_library(spline_psf_cu_impl SHARED src/spline_psf_gpu.cu)
+   add_library(spline_psf_cu_impl STATIC src/spline_psf_gpu.cu)
    target_include_directories(spline_psf_cu_impl PUBLIC include)
    target_compile_features(spline_psf_cu_impl PUBLIC cxx_std_11)
-   set_target_properties(spline_psf_cu_impl PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-   target_compile_options(spline_psf_cu_impl PUBLIC $<$<COMPILE_LANGUAGE:CUDA>:
-                        -rdc=true
-                     #    --gpu-architecture=sm_50
-                        --expt-relaxed-constexpr
-                        >)
+   set_target_properties(spline_psf_cu_impl PROPERTIES CUDA_SEPARABLE_COMPILATION ON POSITION_INDEPENDENT_CODE ON)
+   # set_property(TARGET spline_psf_cu_impl PROPERTY POSITION_INDEPENDENT_CODE ON)
+   # target_compile_options(spline_psf_cu_impl PUBLIC $<$<COMPILE_LANGUAGE:CUDA>:  # seems to be unnecssary but keep the code block for the moment
+                        # -rdc=true
+                        # --gpu-architecture=sm_50
+                        # --expt-relaxed-constexpr
+                        # >)
 
    link_directories(/usr/local/cuda/lib64)
    include_directories("${CUDA_INCLUDE_DIRS}")
