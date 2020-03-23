@@ -5,6 +5,7 @@ import torch
 
 import deepsmlm.generic.emitter as emitter
 from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
+from deepsmlm.generic.utils import test_utils
 
 
 class TestEmitterSet:
@@ -35,7 +36,7 @@ class TestEmitterSet:
                           phot=torch.rand(25),
                           frame_ix=frames)
 
-    def test_shape_dtype(self, em2d, em3d):
+    def test_xyz_shape(self, em2d, em3d):
         """
         Tests shape and correct data type
         Args:
@@ -51,6 +52,60 @@ class TestEmitterSet:
         assert em3d.xyz.shape[1] == 3
 
         assert em3d.frame_ix.dtype in (torch.int, torch.long, torch.short)
+
+    xyz_conversion_data = [  # xyz_input, # xy_unit, #px-size # expect px, # expect nm
+        (torch.empty((0, 3)), None, None, "err", "err"),
+        (torch.empty((0, 3)), 'px', None, torch.empty((0, 3)), "err"),
+        (torch.empty((0, 3)), 'nm', None, "err", torch.empty((0, 3))),
+        (torch.tensor([[25., 25., 5.]]), None, None, "err", "err"),
+        (torch.tensor([[25., 25., 5.]]), 'px', None, torch.tensor([[25., 25., 5.]]), "err"),
+        (torch.tensor([[25., 25., 5.]]), 'nm', None, "err", torch.tensor([[25., 25., 5.]])),
+        (torch.tensor([[.25, .25, 5.]]), 'px', (50., 100.), torch.tensor([[.25, .25, 5.]]), torch.tensor([[12.5, 25., 5.]])),
+        (torch.tensor([[25., 25., 5.]]), 'nm', (50., 100.), torch.tensor([[.5, .25, 5.]]), torch.tensor([[25., 25., 5.]]))
+    ]
+
+    @pytest.mark.parametrize("xyz_input,xy_unit,px_size,expct_px,expct_nm", xyz_conversion_data)
+    @pytest.mark.filterwarnings("ignore:UserWarning")
+    def test_xyz_conversion(self, xyz_input, xy_unit, px_size, expct_px, expct_nm):
+
+        """Init and expect warning if specified"""
+        em = emitter.CoordinateOnlyEmitter(xyz_input, xy_unit=xy_unit, px_size=px_size)
+
+        """Test the respective units"""
+        if isinstance(expct_px, str) and expct_px == "err":
+            with pytest.raises(ValueError):
+                _ = em.xyz_px
+        else:
+            assert test_utils.tens_almeq(em.xyz_px, expct_px)
+
+        if isinstance(expct_nm, str) and expct_nm == "err":
+            with pytest.raises(ValueError):
+                _ = em.xyz_nm
+
+        else:
+            assert test_utils.tens_almeq(em.xyz_nm, expct_nm)
+
+    @pytest.mark.parametrize("xyz_cr_input,xy_unit,px_size,expct_px,expct_nm", xyz_conversion_data)
+    @pytest.mark.filterwarnings("ignore:UserWarning")
+    def test_xyz_cr_conversion(self, xyz_cr_input, xy_unit, px_size, expct_px, expct_nm):
+
+        """Init and expect warning if specified"""
+        em = emitter.CoordinateOnlyEmitter(torch.rand_like(xyz_cr_input), xy_unit=xy_unit, px_size=px_size)
+        em.xyz_cr = xyz_cr_input
+
+        """Test the respective units"""
+        if isinstance(expct_px, str) and expct_px == "err":
+            with pytest.raises(ValueError):
+                _ = em.xyz_cr_px
+        else:
+            assert test_utils.tens_almeq(em.xyz_cr_px, expct_px)
+
+        if isinstance(expct_nm, str) and expct_nm == "err":
+            with pytest.raises(ValueError):
+                _ = em.xyz_cr_nm
+
+        else:
+            assert test_utils.tens_almeq(em.xyz_cr_nm, expct_nm)
 
     def test_split_in_frames(self, em2d, em3d):
         splits = em2d.split_in_frames(None, None)

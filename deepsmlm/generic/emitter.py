@@ -170,15 +170,7 @@ class EmitterSet:
         """
         Returns xyz in pixel coordinates and performs respective transformations if needed.
         """
-        if self.xy_unit is None:
-            warnings.warn("If unit is unspecified, can not convert to px coordinates.")
-            return
-        elif self.xy_unit == 'nm':
-            if self.px_size is None:
-                raise ValueError("Cannot convert between px and nm without px-size specified.")
-            return self._convert_coordinates(factor=1 / self.px_size)
-        elif self.xy_unit == 'px':
-            return self.xyz
+        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='px')
 
     @xyz_px.setter
     def xyz_px(self, xyz):
@@ -190,15 +182,7 @@ class EmitterSet:
         """
         Returns xyz in nanometres and performs respective transformations if needed.
         """
-        if self.xy_unit is None:
-            warnings.warn("If unit is unspecified, can not convert to px coordinates.")
-            return
-        elif self.xy_unit == 'px':
-            if self.px_size is None:
-                raise ValueError("Cannot convert between px and nm without px-size specified.")
-            return self._convert_coordinates(factor=self.px_size)
-        elif self.xy_unit == 'nm':
-            return self.xyz
+        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='nm')
 
     @xyz_nm.setter
     def xyz_nm(self, xyz):  # xyz in nanometres
@@ -206,14 +190,24 @@ class EmitterSet:
         self.xy_unit = 'nm'
 
     @property
-    def xyz_scr(self):  # sqrt cramer-rao of xyz in px
+    def xyz_scr(self):  # sqrt cramer-rao of xyz
         return self.xyz_cr.sqrt()
 
     @property
-    def xyz_nm_scr(self):  # sqrt cramer-rao of xyz in nm
-        if self.px_size is None:
-            raise ValueError("Cannot convert between px and nm without px-size specified.")
-        return self._convert_coordinates(factor=self.px_size, xyz=self.xyz_scr)
+    def xyz_cr_px(self):
+        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='px')
+
+    @property
+    def xyz_scr_px(self):
+        return self.xyz_cr_px.sqrt()
+
+    @property
+    def xyz_cr_nm(self):
+        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='nm')
+
+    @property
+    def xyz_scr_nm(self):
+        self.xyz_cr_nm.sqrt()
 
     @property
     def phot_scr(self):  # sqrt cramer-rao of photon count
@@ -607,7 +601,30 @@ class EmitterSet:
 
         return gutil.split_sliceable(x=self, x_ix=self.frame_ix, ix_low=ix_low, ix_high=ix_up)
 
-    def _convert_coordinates(self, factor=None, shift=None, axis=None):
+    def _pxnm_conversion(self, xyz, in_unit, tar_unit):
+        if in_unit is None:
+            raise ValueError("Conversion not possible if unit not specified.")
+
+        if in_unit == tar_unit:
+            return xyz
+
+        elif in_unit == 'nm' and tar_unit == 'px':
+            """px check needs to happen here, because in _convert_coordinates, factor is an optional argument."""
+            if self.px_size is None:
+                raise ValueError("Conversion not possible if px size is not specified.")
+
+            return self._convert_coordinates(factor=1/self.px_size, xyz=xyz)
+
+        elif in_unit == 'px' and tar_unit == 'nm':
+            if self.px_size is None:
+                raise ValueError("Conversion not possible if px size is not specified.")
+
+            return self._convert_coordinates(factor=self.px_size, xyz=xyz)
+
+        else:
+            raise ValueError("Unsupported conversion.")
+
+    def _convert_coordinates(self, factor=None, shift=None, axis=None, xyz=None):
         """
         Convert coordinates. Order: factor -> shift -> axis
 
@@ -615,21 +632,24 @@ class EmitterSet:
             factor: (torch.Tensor, None)
             shift: (torch.Tensor, None)
             axis: (list)
+            xyz (torch.Tensor, None): use different coordinates (not self.xyz)
 
         Returns:
             xyz (torch.Tensor) modified coordinates.
 
         """
-
-        xyz = self.xyz.clone()
+        if xyz is None:
+            xyz = self.xyz.clone()
 
         if factor is not None:
             if factor.size(0) == 2:
                 factor = torch.cat((factor, torch.tensor([1.])), 0)
 
             xyz = xyz * factor.float().unsqueeze(0)
+
         if shift is not None:
             xyz += shift.float().unsqueeze(0)
+
         if axis is not None:
             xyz = xyz[:, axis]
 
@@ -820,12 +840,13 @@ class CoordinateOnlyEmitter(EmitterSet):
     Useful for testing. Photons will be tensor of 1, frame_ix tensor of 0.
     """
 
-    def __init__(self, xyz, xy_unit=None):
+    def __init__(self, xyz, xy_unit=None, px_size=None):
         """
 
         :param xyz: (torch.tensor) N x 2, N x 3
         """
-        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).int(), xy_unit=xy_unit)
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).int(),
+                         xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
         super().__init__(xyz=em.xyz,

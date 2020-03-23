@@ -13,6 +13,7 @@ class TestMetricMeter:
         x = torch.ones(32)
         m = deepsmlm.evaluation.utils.MetricMeter()
         m.vals = x
+
         return m
 
     @pytest.fixture(scope='class')

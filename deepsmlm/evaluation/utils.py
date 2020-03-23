@@ -4,6 +4,8 @@ import random
 import numpy as np
 import seaborn as sns
 import torch
+
+from deprecated import deprecated
 from matplotlib import pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 from scipy import stats
@@ -44,12 +46,6 @@ class MetricMeter:
         return self.mean
 
     def hist(self, bins=50, range_hist=None, fit=stats.norm):
-        """
-
-        :param bins: number of bins
-        :param range_hist: specify range
-        :return: plt.figure
-        """
         # If no vals, return empty figure
         if self.vals.numel() <= 10:
             f = plt.figure()
@@ -166,6 +162,7 @@ class MetricMeter:
         return m
 
 
+@deprecated("I don't remember what this thing does.")
 class CumulantMeter(MetricMeter):
     def __init__(self):
         super().__init__()

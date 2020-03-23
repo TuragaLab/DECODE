@@ -1,4 +1,6 @@
+# from abc import ABC
 from collections import namedtuple
+from deprecated import deprecated
 
 from deepsmlm.evaluation.metric_library import precision_recall_jaccard, rmse_mad_dist
 from ..generic import emitter as emitter
@@ -116,6 +118,49 @@ class DistanceEvaluation:
                                       mad_lat=mad_lat, mad_ax=mad_axial, mad_vol=mad_vol)  # namedtuple
 
 
+class WeightedErrors:
+    """
+    Weighted deviations.
+    """
+    _modes_all = ('phot', 'crlb')
+    _return = namedtuple("weighted_err", ["dxyz_w", "dphot_w", "dbg_w"])
+    def __init__(self, mode):
+
+        self.mode = mode
+
+        """Sanity check"""
+        if self.mode not in self._modes_all:
+            raise ValueError(f"Mode {self.mode} not implemented. Available modes are {self._modes_all}")
+
+    def forward(self, tp: emitter.EmitterSet, ref: emitter.EmitterSet) -> namedtuple:
+        """
+
+        Args:
+            tp (EmitterSet): true positives
+            tp_match (EmitterSet): matching ground truth
+
+        Returns:
+
+        """
+
+        if self.mode == 'phot':
+            dxyz = (tp.xyz - ref.xyz) * (ref.phot.unsqueeze(1)).sqrt()
+            dphot = (tp.phot - ref.phot) / ref.phot.sqrt()
+            dbg = (tp.bg - ref.bg) / ref.bg.sqrt()
+
+        elif self.mode == 'crlb':
+            dxyz = (tp.xyz_nm - ref.xyz_nm) / ref.xyz_scr_nm
+            dphot = (tp.phot - ref.phot) / ref.phot_scr
+            dbg = (tp.bg - ref.bg) / ref.bg_scr
+
+        else:
+            raise ValueError
+
+        return self._return(dxyz_w=dxyz, dphot_w=dphot, dbg_w=dbg)
+
+
+
+@deprecated(version="0.1.dev0", reason="Replaced by CRLB")
 class Deltas:
     def __init__(self, weight='photons'):
         self.weight = weight
@@ -134,7 +179,7 @@ class Deltas:
             dxyz_weighted = dxyz / (ref.phot.unsqueeze(1)).sqrt()
         elif self.weight == 'crlb_sqr':
             if ref.xy_unit == 'nm':
-                dxyz_weighted = dxyz / ref.xyz_nm_scr
+                dxyz_weighted = dxyz / ref.xyz_scr_nm
             elif ref.xy_unit == 'px':
                 dxyz_weighted = dxyz / ref.xyz_scr
         else:
