@@ -5,6 +5,7 @@ import torch
 
 from deepsmlm.evaluation import evaluation
 from deepsmlm.generic import emitter as em
+from deepsmlm.generic.utils import test_utils
 
 
 class TestEval:
@@ -113,7 +114,7 @@ class TestWeightedErrors(TestEval):
         with pytest.raises(ValueError):
             evaluator.__init__(mode=None)
 
-    def test_monotony(self, evaluator):
+    def test_forward_handcrafted(self, evaluator):
         # if evaluator.mode != 'phot':
         #     return
 
@@ -142,21 +143,33 @@ class TestWeightedErrors(TestEval):
         assert (dbg.abs().argsort(descending=True) == torch.arange(4)).all(), "Weighted error for background should be " \
                                                                                 "monot. decreasing"
 
-    def test_forward(self, evaluator):
+    data_forward_sanity = [
+        (em.EmptyEmitterSet(), em.EmptyEmitterSet(), False, (torch.empty((0, 3)), torch.empty((0, )), torch.empty((0, )))),
+        (em.RandomEmitterSet(5), em.EmptyEmitterSet(), True, None)
+    ]
+
+    @pytest.mark.parametrize("tp,ref,expt_err,expt_out", data_forward_sanity)
+    def test_forward_sanity(self, evaluator, tp, ref, expt_err, expt_out):
         """
-        General forward assumptions
-
-        Args:
-            evaluator:
+        General forward sanity checks.
+            1. Both empty sets of emitters
+            2. Unequal size
 
         """
 
-        """Setup"""
-        tp = em.EmptyEmitterSet()
-        tp_match = em.EmptyEmitterSet()
+        if expt_err and expt_out is not None:
+            raise RuntimeError("Wrong test setup.")
 
         """Run"""
-        out = evaluator.forward(tp, tp_match)
+        if expt_err:
+            with pytest.raises(ValueError):
+                _ = evaluator.forward(tp, ref)
+            return
+
+        else:
+            out = evaluator.forward(tp, ref)
 
         """Assertions"""
         assert isinstance(out, evaluator._return), "Wrong output type"
+        for out_i, expt_i in zip(out, expt_out):
+            assert test_utils.tens_almeq(out_i, expt_i, 1e-4)

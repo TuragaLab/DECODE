@@ -88,6 +88,11 @@ class TestEmitterSet:
     @pytest.mark.parametrize("xyz_cr_input,xy_unit,px_size,expct_px,expct_nm", xyz_conversion_data)
     @pytest.mark.filterwarnings("ignore:UserWarning")
     def test_xyz_cr_conversion(self, xyz_cr_input, xy_unit, px_size, expct_px, expct_nm):
+        """
+        Here we test the cramer rao unit conversion. We can reuse the testdata as for the xyz conversion because it does
+        not make a difference for the test candidate.
+
+        """
 
         """Init and expect warning if specified"""
         em = emitter.CoordinateOnlyEmitter(torch.rand_like(xyz_cr_input), xy_unit=xy_unit, px_size=px_size)

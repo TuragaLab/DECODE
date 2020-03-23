@@ -1,4 +1,6 @@
 # from abc import ABC
+import torch
+
 from collections import namedtuple
 from deprecated import deprecated
 
@@ -143,10 +145,23 @@ class WeightedErrors:
 
         """
 
+        if len(tp) != len(ref):
+            raise ValueError(f"Size of true positives ({len(tp)}) does not match size of reference ({len(ref)}).")
+
+        if len(ref) == 0:  # if empty EmitterSets, return empty tensor
+            return self._return(dxyz_w=torch.empty_like(ref.xyz),
+                                dphot_w=torch.empty_like(ref.phot),
+                                dbg_w=torch.empty_like(ref.bg))
+
         if self.mode == 'phot':
-            dxyz = (tp.xyz - ref.xyz) * (ref.phot.unsqueeze(1)).sqrt()
-            dphot = (tp.phot - ref.phot) / ref.phot.sqrt()
-            dbg = (tp.bg - ref.bg) / ref.bg.sqrt()
+            """Definition of the 0st / 1st order approximations for the sqrt cramer rao"""
+            xyz_scr_est = 1 / ref.phot.unsqueeze(1).sqrt()
+            phot_scr_est = ref.phot.sqrt()
+            bg_scr_est = ref.bg.sqrt()
+
+            dxyz = (tp.xyz_nm - ref.xyz_nm) / xyz_scr_est
+            dphot = (tp.phot - ref.phot) / phot_scr_est
+            dbg = (tp.bg - ref.bg) / bg_scr_est
 
         elif self.mode == 'crlb':
             dxyz = (tp.xyz_nm - ref.xyz_nm) / ref.xyz_scr_nm

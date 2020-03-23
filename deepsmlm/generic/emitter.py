@@ -207,7 +207,7 @@ class EmitterSet:
 
     @property
     def xyz_scr_nm(self):
-        self.xyz_cr_nm.sqrt()
+        return self.xyz_cr_nm.sqrt()
 
     @property
     def phot_scr(self):  # sqrt cramer-rao of photon count
@@ -602,6 +602,7 @@ class EmitterSet:
         return gutil.split_sliceable(x=self, x_ix=self.frame_ix, ix_low=ix_low, ix_high=ix_up)
 
     def _pxnm_conversion(self, xyz, in_unit, tar_unit):
+
         if in_unit is None:
             raise ValueError("Conversion not possible if unit not specified.")
 
