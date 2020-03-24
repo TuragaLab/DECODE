@@ -1,0 +1,51 @@
+package:
+  name: deepsmlm
+  version: 0.0
+
+source:
+        #git_url: https://github.com/Haydnspass/DeepSMLM
+        #git_rev: dev_training_engine
+    - path: ~/Projects/DeepSMLM
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - python {{ python }}
+    - cmake >=3.2
+    - ninja
+  host:
+    - python {{ python }}
+    - pybind11 >=2.4
+    - numpy >=1.14
+    - h5py >=2.9
+    - scipy >=1.2
+    - matplotlib >=3.0
+    - tqdm >=4.30
+  run:
+    - {{ pin_compatible('python', max_pin='x.x') }}
+    - {{ pin_compatible('numpy', max_pin='x.x') }}
+
+      # test:
+      #   imports:
+      #     - numpy
+      #   requires:
+      #     - pytest
+      #   commands:
+      #     - export PYLIB_EXT=`$PYTHON -c 'import sysconfig as s; print(s.get_config_var("EXT_SUFFIX"))'`
+
+
+files:
+    - $PREFIX/lib/python{{ PY_VER }}/site-packages/adcc*
+    - $PREFIX/lib/python{{ PY_VER }}/site-packages/libadcc*
+
+
+about:
+    # home: homepage url
+    # dev_url: github url 
+    # doc_url: doc url
+    # license: GPL-3.0
+    # license_family: GPL
+    # license_file: {{ SRC_DIR }}/LICENSE
+    summary: "bla"
+    description: "bla"

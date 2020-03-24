@@ -1,0 +1,21 @@
+# <<<  Compiler Stuff  >>>
+c_compiler:
+    - clang                            # [osx]
+    - gcc                              # [linux]
+cxx_compiler:
+    - clangxx                          # [osx]
+    - gxx                              # [linux]
+target_platform:
+    - osx-64                           # [osx]
+    - linux-64                         # [linux]
+CONDA_BUILD_SYSROOT:
+    - /Users/travis/MacOSX10.9.sdk     # [osx]
+c_compiler_version:
+    - 7.3.0                            # [linux]
+    - 4                                # [osx]
+cxx_compiler_version:
+    - 7.3.0                            # [linux]
+    - 4                                # [osx]
+
+python:
+    - 3.8
