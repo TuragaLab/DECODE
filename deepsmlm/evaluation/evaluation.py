@@ -1,5 +1,8 @@
 # from abc import ABC
 import torch
+import scipy.stats
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 from collections import namedtuple
 from deprecated import deprecated
@@ -125,21 +128,102 @@ class WeightedErrors:
     Weighted deviations.
     """
     _modes_all = ('phot', 'crlb')
+    _reduction_all = (None, 'mstd', 'gaussian')
     _return = namedtuple("weighted_err", ["dxyz_w", "dphot_w", "dbg_w"])
-    def __init__(self, mode):
+    def __init__(self, mode, reduction):
 
         self.mode = mode
+        self.reduction = reduction
 
         """Sanity check"""
         if self.mode not in self._modes_all:
             raise ValueError(f"Mode {self.mode} not implemented. Available modes are {self._modes_all}")
 
-    def forward(self, tp: emitter.EmitterSet, ref: emitter.EmitterSet) -> namedtuple:
+        if self.reduction not in self._reduction_all:
+            raise ValueError(f"Reduction type {self.reduction} not implemented. Available reduction types"
+                             f"are {self._reduction_all}.")
+
+    @staticmethod
+    def _reduce(dxyz: torch.Tensor, dphot: torch.Tensor, dbg: torch.Tensor, reduction):
+        """
+        Reduce the weighted errors as by the specified method.
+
+        Args:
+            dxyz (torch.Tensor): weighted err in xyz, N x 3
+            dphot (torch.Tensor): weighted err in phot, N
+            dbg (torch.Tensor): weighted err in bg, N
+            reduction (string,None): reduction type
+
+        Returns:
+            (torch.Tensor or tuple of tensors)
+
+        """
+
+        if reduction is None:
+            return dxyz, dphot, dbg
+
+        elif reduction == 'mstd':
+            return (dxyz.mean(0), dxyz.std(0)), (dphot.mean(), dphot.std()), (dbg.mean(), dbg.std())
+
+        elif reduction == 'gaussian':
+            dxyz_mu_sig = torch.tensor([scipy.stats.norm.fit(dxyz[:, i]) for i in range(3)])
+            dphot_mu_sig = torch.tensor(scipy.stats.norm.fit(dphot))
+            dbg_mu_sig = torch.tensor(scipy.stats.norm.fit(dbg))
+
+            return (dxyz_mu_sig[:, 0], dxyz_mu_sig[:, 1]), \
+                   (dphot_mu_sig[0], dphot_mu_sig[1]), \
+                   (dbg_mu_sig[0], dbg_mu_sig[1])
+
+        else:
+            raise ValueError
+
+    @staticmethod
+    def plot_error(dxyz, dphot, dbg, axes=None):
+        """
+        Plot the histograms
+
+        Args:
+            dxyz (torch.Tensor): weighted err in xyz, N x 3
+            dphot (torch.Tensor): weighted err in phot, N
+            dbg (torch.Tensor): weighted err in bg, N
+            axes (tuple of axes,None): axes to which to plot to, tuple of size 6 or None
+
+        Returns:
+            axes
+
+        """
+
+        if axes is None:
+            _, axes = plt.subplots(5)
+            # axes = [axes[0, 0], axes[0, 1], axes[0, 2], axes[1, 0], axes[1, 1], axes[1, 2]]
+
+        else:
+            if len(axes) != 5:
+                raise ValueError("You must parse exactly 6 axes objects or None.")
+
+        if len(dxyz) == 0:
+            return axes
+
+        if len(dxyz[:, 0]) != len(dphot) or len(dphot) != len(dbg):
+            raise ValueError("Inconsistent number of elements.")
+
+        sns.distplot(dxyz[:, 0].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[0])
+        sns.distplot(dxyz[:, 1].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[1])
+        sns.distplot(dxyz[:, 2].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[2])
+
+        sns.distplot(dphot.numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[3])
+        sns.distplot(dbg, norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[4])
+
+        return axes
+
+    def forward(self, tp: emitter.EmitterSet, ref: emitter.EmitterSet, plot: bool = False, axes=None) -> namedtuple:
         """
 
         Args:
             tp (EmitterSet): true positives
-            tp_match (EmitterSet): matching ground truth
+            ref (EmitterSet): matching ground truth
+            plot (bool): plot histograms
+            axes (list,tuple): axis to which to plot the histograms
 
         Returns:
 
@@ -171,8 +255,11 @@ class WeightedErrors:
         else:
             raise ValueError
 
-        return self._return(dxyz_w=dxyz, dphot_w=dphot, dbg_w=dbg)
+        if plot:
+            _ = self.plot_error(dxyz, dphot, dbg, axes=axes)
 
+        dxyz, dphot, dbg = self._reduce(dxyz, dphot, dbg, reduction=self.reduction)
+        return self._return(dxyz_w=dxyz, dphot_w=dphot, dbg_w=dbg)
 
 
 @deprecated(version="0.1.dev0", reason="Replaced by CRLB")

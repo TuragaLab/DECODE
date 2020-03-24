@@ -1,4 +1,5 @@
 from collections import namedtuple
+import matplotlib.pyplot as plt
 import pytest
 import math
 import torch
@@ -103,16 +104,16 @@ class TestWeightedErrors(TestEval):
 
     @pytest.fixture(params=['phot', 'crlb'])
     def evaluator(self, request):
-        return evaluation.WeightedErrors(mode=request.param)
+        return evaluation.WeightedErrors(mode=request.param, reduction=None)
 
-    def test_sanity(self, evaluator):
+    # one mode of paremtr. should not lead to an error because than the reduction type is also checked
+    @pytest.mark.parametrize("mode", [None, 'abc', 'phot'])
+    @pytest.mark.parametrize("reduction", ['None', 'abc'])
+    def test_sanity(self, evaluator, mode, reduction):
 
         """Assertions"""
         with pytest.raises(ValueError):
-            evaluator.__init__(mode='abc')
-
-        with pytest.raises(ValueError):
-            evaluator.__init__(mode=None)
+            evaluator.__init__(mode=mode, reduction=reduction)
 
     def test_forward_handcrafted(self, evaluator):
         # if evaluator.mode != 'phot':
@@ -173,3 +174,68 @@ class TestWeightedErrors(TestEval):
         assert isinstance(out, evaluator._return), "Wrong output type"
         for out_i, expt_i in zip(out, expt_out):
             assert test_utils.tens_almeq(out_i, expt_i, 1e-4)
+
+    def test_reduction(self, evaluator):
+        """
+
+        Args:
+            evaluator:
+
+        """
+
+        """Setup, Run and Test"""
+        # no reduction
+        dxyz, dphot, dbg = torch.rand((0, 3)), torch.rand(0), torch.rand(0)
+        dxyz_, dphot_, dbg_ = evaluator._reduce(dxyz, dphot, dbg, None)
+
+        assert (dxyz_ == dxyz).all()
+        assert (dphot_ == dphot).all()
+        assert (dbg_ == dbg).all()
+
+        # mean and std
+        dxyz, dphot, dbg = torch.randn((250000, 3)), torch.randn(250000) + 20, torch.rand(250000)
+        dxyz_, dphot_, dbg_ = evaluator._reduce(dxyz, dphot, dbg, 'mstd')
+
+        assert test_utils.tens_almeq(dxyz_[0], torch.zeros((3, )), 1e-2)
+        assert test_utils.tens_almeq(dxyz_[1], torch.ones((3, )), 1e-2)
+
+        assert test_utils.tens_almeq(dphot_[0], torch.zeros((1,)) + 20, 1e-2)
+        assert test_utils.tens_almeq(dphot_[1], torch.ones((1,)), 1e-2)
+
+        assert test_utils.tens_almeq(dbg_[0], torch.zeros((1,)) + 0.5, 1e-2)
+        assert test_utils.tens_almeq(dbg_[1], torch.ones((1,)) * 0.2889, 1e-2)
+
+        # gaussian fit
+        dxyz, dphot, dbg = torch.randn((250000, 3)), torch.randn(250000) + 20, torch.randn(250000)
+        dxyz_, dphot_, dbg_ = evaluator._reduce(dxyz, dphot, dbg, 'gaussian')
+
+        assert test_utils.tens_almeq(dxyz_[0], torch.zeros((3,)), 1e-2)
+        assert test_utils.tens_almeq(dxyz_[1], torch.ones((3,)), 1e-2)
+
+        assert test_utils.tens_almeq(dphot_[0], torch.zeros((1,)) + 20, 1e-2)
+        assert test_utils.tens_almeq(dphot_[1], torch.ones((1,)), 1e-2)
+
+        assert test_utils.tens_almeq(dbg_[0], torch.zeros((1,)), 1e-2)
+        assert test_utils.tens_almeq(dbg_[1], torch.ones((1,)), 1e-2)
+
+    plot_test_data = [
+        (torch.empty((0, 3)), torch.empty((0, 3)), torch.empty((0, 3))),
+        (torch.randn((25000, 3)), torch.randn(25000), torch.randn(25000))
+    ]
+
+    plot_test_axes = [
+        None,
+        plt.subplots(5)[1]
+    ]
+
+    @pytest.mark.plot
+    @pytest.mark.parametrize("dxyz,dphot,dbg", plot_test_data)
+    @pytest.mark.parametrize("axes", plot_test_axes)
+    def test_plot_hist(self, evaluator, dxyz, dphot, dbg, axes):
+
+        """Run"""
+        axes = evaluator.plot_error(dxyz, dphot, dbg, axes=axes)
+
+        """Assert"""
+        plt.show()
+
