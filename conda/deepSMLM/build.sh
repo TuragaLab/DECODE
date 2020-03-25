@@ -1,1 +1,1 @@
-${PYTHON} setup.py install --prefix=${PREFIX}
+${PYTHON} setup.py clean --all install --prefix=${PREFIX}
