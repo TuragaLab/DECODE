@@ -167,7 +167,7 @@ class TestBgPerEmitterFromBgFrame:
             out.append(extractor._mean_filter(x))
 
         """Assertions"""
-        assert test_utils.tens_almeq(out[0], expect[0], 0.5)  # 5 sigma
+        assert test_utils.tens_almeq(out[0], expect[0], 1)  # 10 sigma
         assert test_utils.tens_almeq(out[1], expect[1])
         assert test_utils.tens_almeq(out[2][0, 0, 8, :], 8 * torch.ones_like(out[2][0, 0, 0, :]), 1e-4)
 
