@@ -55,8 +55,12 @@ In python you can now import this package as simple as ```import deepsmlm```
             
 4. Test whether everything works as expected
 
-            # assuming you are in the repository
+            # assuming you are in the repo folder
             pytest deepsmlm/test
+            
+            # or if you fancy some nice figures, depending on your IDE 
+            # you might need to close popping up matplot figures
+            pytest deepsmlm/test --plot  
     
 5. The package can be used in python as
 
