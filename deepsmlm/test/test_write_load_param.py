@@ -15,7 +15,7 @@ test_dir = str(Path(__file__).resolve().parent)
 def test_load_params():
 
     filename = test_dir / Path('assets/test_param_for_load.json')
-    asset_handler.check_load(filename, 'https://oc.embl.de/index.php/s/xmQP9D8MZ1ohPSA')
+    asset_handler.check_load(filename, 'https://oc.embl.de/index.php/s/xmQP9D8MZ1ohPSA/download')
     _ = wlp.ParamHandling().load_params(filename)
 
     with pytest.raises(FileNotFoundError):
@@ -26,7 +26,7 @@ def test_load_params():
 def test_write_param():
 
     filename = test_dir / Path('assets/test_param_for_load.json')
-    asset_handler.check_load(filename, 'https://oc.embl.de/index.php/s/xmQP9D8MZ1ohPSA')
+    asset_handler.check_load(filename, 'https://oc.embl.de/index.php/s/xmQP9D8MZ1ohPSA/download')
     param = wlp.ParamHandling().load_params(filename)
 
     filename_out = test_dir / Path('assets/dummy.yml')
