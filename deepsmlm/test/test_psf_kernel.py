@@ -273,7 +273,8 @@ class TestCubicSplinePSF:
         rix = random.randint(0, n - 1)
         plt.figure()
         plf.PlotFrameCoord(roi_cpu[rix], pos_tar=xyz[[rix]]).plot()
-        plt.title("Random ROI sample.\nShould show a single emitter in the centre of a ROI.")
+        plt.title(f"Random ROI sample.\nShould show a single emitter it the reference point of the psf.\n"
+                  f"Reference: {psf_cpu.ref0}")
         plt.show()
 
     @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
@@ -313,7 +314,8 @@ class TestCubicSplinePSF:
 
         plt.subplot(231)
         plf.PlotFrameCoord(r, pos_tar=xyzr).plot()
-        plt.title("Random ROI sample.\nShould show a single emitter in the centre of a ROI.")
+        plt.title(f"Random ROI sample.\nShould show a single emitter it the reference point of the psf.\n"
+                  f"Reference: {psf_cpu.ref0}")
 
         plt.subplot(232)
         plf.PlotFrame(dr[0], plot_colorbar=True).plot()
@@ -336,7 +338,6 @@ class TestCubicSplinePSF:
         plt.title('d/dbg')
 
         plt.show()
-
 
     @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
@@ -375,7 +376,7 @@ class TestCubicSplinePSF:
         """Additional Plotting if manual testing (comment out return statement)."""
         plt.figure()
         plf.PlotFrameCoord(frames_cpu[0], pos_tar=xyz).plot()
-        plt.title("Random Frame sample.\nShould show a single emitter distributed over a frame.")
+        plt.title("Random Frame sample.\nShould show a couple of emitters at\nrandom positions distributed over a frame.")
         plt.show()
 
     def test_derivatives(self, psf_cpu, onek_rois):
