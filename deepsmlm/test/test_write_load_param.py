@@ -2,32 +2,34 @@ import os
 import pytest
 import dotmap
 
+from pathlib import Path
+
 import deepsmlm.generic.inout.write_load_param as wlp
 
+from . import asset_handler
+
 """Root folder"""
-deepsmlm_root = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 os.pardir, os.pardir)) + '/'
+test_dir = str(Path(__file__).resolve().parent)
 
 
 def test_load_params():
-    filename = deepsmlm_root + 'deepsmlm/test/assets/test_param_for_load.json'
-    param = wlp.ParamHandling().load_params(filename)
-    assert True
 
-    with pytest.raises(ValueError):
-        filename = deepsmlm_root + 'deepsmlm/test/assets/test_param_for_load.jsaon'
-        _ = wlp.ParamHandling().load_params(filename)
+    filename = test_dir / Path('assets/test_param_for_load.json')
+    asset_handler.check_load(filename, 'https://oc.embl.de/index.php/s/xmQP9D8MZ1ohPSA')
+    _ = wlp.ParamHandling().load_params(filename)
 
     with pytest.raises(FileNotFoundError):
-        filename = deepsmlm_root + 'deepsmlm/test/assets/test_param_for_load2.json'
+        filename = test_dir / Path('assets/test_param_for_load2.json')
         _ = wlp.ParamHandling().load_params(filename)
 
 
 def test_write_param():
-    filename = deepsmlm_root + 'deepsmlm/test/assets/test_param_for_load.json'
+
+    filename = test_dir / Path('assets/test_param_for_load.json')
+    asset_handler.check_load(filename, 'https://oc.embl.de/index.php/s/xmQP9D8MZ1ohPSA')
     param = wlp.ParamHandling().load_params(filename)
 
-    filename_out = deepsmlm_root + 'deepsmlm/test/assets/dummy.yml'
-    wlp.ParamHandling().write_params(filename_out, param)
-    assert isinstance(param, dotmap.DotMap)
+    filename_out = test_dir / Path('assets/dummy.yml')
+    with asset_handler.RMAfterTest(filename):
+        wlp.ParamHandling().write_params(filename_out, param)
+        assert isinstance(param, dotmap.DotMap)

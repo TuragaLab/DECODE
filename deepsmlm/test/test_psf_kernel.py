@@ -10,6 +10,8 @@ import deepsmlm.generic.plotting.frame_coord as plf
 import deepsmlm.simulation.psf_kernel as psf_kernel
 import deepsmlm.generic.utils.test_utils as tutil
 
+from . import asset_handler
+
 
 class TestPSF:
 
@@ -176,12 +178,7 @@ class TestCubicSplinePSF:
         img_shape = (64, 64)
 
         """Have a look whether the bead calibration is there"""
-        if not self.bead_cal_file.exists():
-            print("Bead calibration file not present. Attempt to download ...")
-            file_www = requests.get('https://oc.embl.de/index.php/s/YXUydyaXLlKc3UY/download')
-            file_www.raise_for_status()  # raises an error if the file is not available
-            with self.bead_cal_file.open('wb') as f:
-                f.write(file_www.content)
+        asset_handler.check_load(self.bead_cal_file, 'https://oc.embl.de/index.php/s/YXUydyaXLlKc3UY/download')
 
         smap_psf = load_cal.SMAPSplineCoefficient(calib_file=str(self.bead_cal_file))
         psf = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=smap_psf.ref0,
