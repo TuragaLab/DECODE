@@ -64,9 +64,46 @@ class Loss(ABC):
 
 
 class PPXYZBLoss(Loss):
-    def __init__(self):
+    def __init__(self, device, chweight_stat: (tuple, list, torch.Tensor) = None, p_fg_weight: float = 1.):
         super().__init__()
 
+        if chweight_stat is not None:
+            self._ch_weight = chweight_stat if isinstance(chweight_stat, torch.Tensor) else torch.Tensor(chweight_stat)
+        else:
+            self._ch_weight = torch.tensor([1., 1., 1., 1., 1., 1.])
+        self._ch_weight = self._ch_weight.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).to(device)
+
+        self._p_loss = torch.nn.BCEWithLogitsLoss(reduction='none', pos_weight=torch.tensor(p_fg_weight).to(device))
+        self._phot_xyzbg_loss = torch.nn.MSELoss(reduction='none')
+
+    def log(self, loss_val) -> dict:
+        loss_vec = loss_val.mean(-1).mean(-1).mean(0)
+        return {
+            'p': loss_vec[0].item(),
+            'phot': loss_vec[1].item(),
+            'x': loss_vec[2].item(),
+            'y': loss_vec[3].item(),
+            'z': loss_vec[4].item(),
+            'bg': loss_vec[5].item()
+        }
+
+    def _forward_checks(self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor):
+        super()._forward_checks(output, target, weight)
+
+        if output.size(1) != 6:
+            raise ValueError("Not supported number of channels for this loss function.")
+
+    def forward(self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+
+        self._forward_checks(output, target, weight)
+
+        ploss = self._p_loss(output[:, [0]], target[:, [0]])
+        chloss = self._phot_xyzbg_loss(output[:, 1:], target[:, 1:])
+        tot_loss = torch.cat((ploss, chloss), 1)
+
+        tot_loss = tot_loss * weight * self._ch_weight
+
+        return tot_loss
 
 
 """Deprecations"""

@@ -9,6 +9,7 @@ class TestLossAbstract:
 
     @pytest.fixture()
     def loss_impl(self):
+
         class MockLoss(loss.Loss):
             """Mock loss. Assumes 2 channels."""
 
@@ -50,10 +51,9 @@ class TestLossAbstract:
             random_input: fixture as above
         """
 
-        return (random_loss_input[0].cuda(), random_loss_input[1].cuda(), random_loss_input[2].cuda())
+        return random_loss_input[0].cuda(), random_loss_input[1].cuda(), random_loss_input[2].cuda()
 
     def test_call(self, loss_impl, random_loss_input):
-
         assert (loss_impl(*random_loss_input) == loss_impl.forward(*random_loss_input)).all(), "Call does not yield " \
                                                                                                "same results"
 
@@ -80,15 +80,14 @@ class TestLossAbstract:
 
         _ = loss_impl(*random_cuda)
 
-    def test_log(self, loss_impl):
+    def test_log(self, loss_impl, random_loss_input):
         """
         Tests the return of the log implementation of the loss implementation
         """
 
-        out = loss_impl.log(torch.rand((2, 2, 64, 64)))
+        out = loss_impl.log(random_loss_input[0])
         assert isinstance(out, dict)
 
-        # ToDo: Check that the output is a scalar
         for log_el in out.values():
             assert isinstance(log_el, float)
 
@@ -97,7 +96,7 @@ class TestPPXYZBLoss(TestLossAbstract):
 
     @pytest.fixture()
     def loss_impl(self):
-        return loss.PPXYZBLoss()
+        return loss.PPXYZBLoss(device=torch.device('cpu'))
 
     @pytest.fixture(params=[1, 2, 64])
     def random_loss_input(self, request):
@@ -105,8 +104,28 @@ class TestPPXYZBLoss(TestLossAbstract):
                 torch.rand((request.param, 6, 64, 64)),
                 torch.rand((request.param, 6, 64, 64)))
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available on test machine.")
+    def test_forward_cuda(self, loss_impl, random_cuda):
+        loss_impl.__init__(device=torch.device('cuda'))  # re-init with cuda
+        super().test_forward_cuda(loss_impl, random_cuda)
+
+    def test_forward_quant(self, loss_impl):
+
+        """Run and Assert"""
+        # all zero
+        assert (torch.zeros((2, 6, 32, 32)) == loss_impl.forward(*([torch.zeros((2, 6, 32, 32))] * 3))).all()
+
+        # check ch weight
+        loss_ch = loss.PPXYZBLoss(device=torch.device('cpu'), chweight_stat=(1., 2., 1., 1., 1., 1.))
+        out = loss_ch.forward(torch.zeros((2, 6, 32, 32)), torch.ones((2, 6, 32, 32)), torch.ones((2, 6, 32, 32)))
+
+        assert test_utils.tens_almeq(out[:, 2:], torch.ones_like(out[:, 2:]))
+        assert test_utils.tens_almeq(out[:, 1], torch.ones_like(out[:, 1]) * 2)
+
 
 """Deprecated stuff"""
+
+
 # from tensorboardX import SummaryWriter
 
 
