@@ -15,7 +15,7 @@ In the following we will make a conda environment and install deepsmlm. If you a
 This will create a new environment and install this framework. 
 If everything worked until here you are good and can skip the next step.
 
-- ***(optional) You can also create a new environment in the anaconda
+- **(optional)** You can also create a new environment in the anaconda
 navigator and install the package there. Installing the package without creating a new environment 
 (or in a fresh environment) is possible as
 
