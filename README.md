@@ -10,8 +10,12 @@ In the following we will make a conda environment and install deepsmlm. If you a
 ```conda``` in your terminal of choice that's great! Just type:
 
         conda create -n deepsmlm_env -c haydnspass -c conda-forge deepsmlm
+        conda activate deepsmlm_env
         
-This will create a new environment and install this framework. You can also create a new environment in the anaconda
+This will create a new environment and install this framework. 
+If everything worked until here you are good and can skip the next step.
+
+- ***(optional) You can also create a new environment in the anaconda
 navigator and install the package there. Installing the package without creating a new environment 
 (or in a fresh environment) is possible as
 
