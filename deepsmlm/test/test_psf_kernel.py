@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pathlib
 import pytest
 import torch
+import requests
 
 import deepsmlm.generic.inout.load_calibration as load_cal
 import deepsmlm.generic.plotting.frame_coord as plf
@@ -166,7 +167,7 @@ class TestGaussianExpect(TestPSF):
 
 class TestCubicSplinePSF:
     cdir = pathlib.Path(__file__).resolve().parent
-    bead_cal = str((cdir / pathlib.Path('assets/bead_cal_for_testing.mat')))
+    bead_cal_file = (cdir / pathlib.Path('assets/bead_cal_for_testing.mat'))  # expected path, might not exist
 
     @pytest.fixture(scope='class')
     def psf_cpu(self):
@@ -174,7 +175,15 @@ class TestCubicSplinePSF:
         yextent = (-0.5, 63.5)
         img_shape = (64, 64)
 
-        smap_psf = load_cal.SMAPSplineCoefficient(calib_file=self.bead_cal)
+        """Have a look whether the bead calibration is there"""
+        if not self.bead_cal_file.exists():
+            print("Bead calibration file not present. Attempt to download ...")
+            file_www = requests.get('https://oc.embl.de/index.php/s/YXUydyaXLlKc3UY/download')
+            file_www.raise_for_status()  # raises an error if the file is not available
+            with self.bead_cal_file.open('wb') as f:
+                f.write(file_www.content)
+
+        smap_psf = load_cal.SMAPSplineCoefficient(calib_file=str(self.bead_cal_file))
         psf = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=smap_psf.ref0,
                                         coeff=smap_psf.coeff, vx_size=(1., 1., 10), roi_size=(32, 32), cuda=False)
 

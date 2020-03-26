@@ -38,6 +38,7 @@ requirements:
     - matplotlib
     - pytest
     - pyyaml
+    - requests
     - scipy
     - seaborn
     - scikit-learn

@@ -26,6 +26,7 @@ dependencies:
   - pyyaml
   - pytest
   - pytest-repeat
+  - requests
   - scikit-image
   - scipy
   - seaborn
