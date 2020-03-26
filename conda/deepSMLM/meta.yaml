@@ -48,9 +48,7 @@ requirements:
   test:
     requires:
       - pytest
-      - wget
     commands:
-      - wget -O {{ SRC_DIR }}/deepsmlm/test/assets/bead_cal_for_testing.mat https://oc.embl.de/index.php/s/YXUydyaXLlKc3UY/download
       - pytest --pyargs deepsmlm
 
 about:
