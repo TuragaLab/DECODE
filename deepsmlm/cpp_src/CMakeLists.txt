@@ -7,6 +7,8 @@ check_language(CUDA)
 
 find_package(PythonInterp 3.6 REQUIRED)
 find_package(PythonLibs 3.6 REQUIRED)
+# add_subdirectory(lib/pybind11)
+find_package(pybind11 REQUIRED)
 find_package(CUDA)
 
 if(CMAKE_CUDA_COMPILER AND NOT CUDA_DISABLED)  # the latter is a user definable variable
@@ -26,8 +28,6 @@ add_library(spline_psf_cpu_impl STATIC src/spline_psf.c)
 target_include_directories(spline_psf_cpu_impl PUBLIC include)
 target_compile_features(spline_psf_cpu_impl PUBLIC c_std_99)
 set_property(TARGET spline_psf_cpu_impl PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-add_subdirectory(lib/pybind11)
 
 if(CMAKE_CUDA_COMPILER AND NOT CUDA_DISABLED)
    add_library(spline_psf_cu_impl STATIC src/spline_psf_gpu.cu)
