@@ -7,7 +7,6 @@ from deepsmlm.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
 from deepsmlm.generic.plotting.frame_coord import PlotFrame, PlotFrameCoord
 from deepsmlm.generic.utils import test_utils as tutil
 from deepsmlm.generic.utils.test_utils import equal_nonzero
-from deepsmlm.neuralfitter.losscollection import OffsetROILoss
 from deepsmlm.neuralfitter.target_generator import SinglePxEmbedding, KernelEmbedding, GlobalOffsetRep, SpatialEmbedding
 
 
@@ -19,6 +18,7 @@ class TestTargetGenerator:
         Setup dummy target generator for inheritors.
 
         """
+
         class DummyTarget:
             def __init__(self, xextent, yextent, img_shape):
                 self.xextent = xextent
@@ -216,10 +216,6 @@ class TestKernelEmbedding(TestSinglePxEmbedding):
                                                    [10., 10., 200.],
                                                    [11., 11., 500.]]), xy_unit='px')
 
-    @pytest.fixture(scope='class')
-    def loss(self):
-        return OffsetROILoss(roi_size=3)
-
     def test_forward_equal_nonzeroness(self, roi_offset, em_set):
         """
         Test whether the non-zero entries are the same in all channels. Assumes that nothing is exactly at 0.0...
@@ -227,7 +223,7 @@ class TestKernelEmbedding(TestSinglePxEmbedding):
         out = roi_offset.forward_(em_set.xyz, em_set.phot, em_set.frame_ix)
         assert equal_nonzero(out[:, 1], out[:, 2], out[:, 3], out[:, 4])
 
-    def test_values(self, roi_offset, em_set_fixed_values, loss):
+    def test_values(self, roi_offset, em_set_fixed_values):
         target = roi_offset.forward_(em_set_fixed_values.xyz, em_set_fixed_values.phot, None)[0]  # single frame
 
         assert tutil.tens_almeq(target[:, 15, 17], torch.tensor([1., 1., -0.1, 0.2, 300.]), 1e-5)
