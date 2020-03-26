@@ -17,7 +17,7 @@ install:
   # - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION pytest
   - conda env create -q -f environment_cpu_py38_pt14.yml
   - source activate deepsmlm_cpu
-  - pip install tensorboardX
+#  - pip install tensorboardX
 
   # build the C and C++ libraries
   - cd $TRAVIS_BUILD_DIR

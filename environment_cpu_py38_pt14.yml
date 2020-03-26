@@ -2,10 +2,7 @@ name: deepsmlm_cpu
 channels:
   - pytorch
   - conda-forge
-#  - anaconda
-#  - anaconda-fusion
   - comet_ml
-#  - pyviz
   - defaults
 
 dependencies:
@@ -23,6 +20,7 @@ dependencies:
   - ninja
   - numpy
   - opencv
+  - pybind11>=2.4
   - python=3.8
   - pytorch=1.4.*
   - pyyaml
