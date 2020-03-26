@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod  # abstract class
+from deprecated import deprecated
 import math
 import torch
 import torch.nn as nn
@@ -7,76 +8,68 @@ import torch.nn.functional as F
 from deepsmlm.generic.noise import GaussianSmoothing
 
 
-class FocalLoss(nn.Module):
-    """
-    Taken from: https://github.com/c0nn3r/RetinaNet/blob/master/focal_loss.py
-    """
-
-    def __init__(self, focusing_param=2, balance_param=0.25):
-        super().__init__()
-
-        self.focusing_param = focusing_param
-        self.balance_param = balance_param
-
-    def forward(self, output, target):
-        """
-
-        :param output: N C d1 d2 d3 ...
-        :param target: N d1 d2 d3 ...
-        where C are the classes!
-
-        :return:
-        """
-
-        cross_entropy = F.cross_entropy(output, target)
-        cross_entropy_log = torch.log(cross_entropy)
-        logpt = - F.cross_entropy(output, target)
-        pt = torch.exp(logpt)
-
-        focal_loss = -((1 - pt) ** self.focusing_param) * logpt
-
-        balanced_focal_loss = self.balance_param * focal_loss
-
-        return balanced_focal_loss
-
-
 class Loss(ABC):
     """Abstract class for my loss functions."""
 
     def __init__(self):
         super().__init__()
 
-    @staticmethod
-    @abstractmethod
-    def functional():
-        """
-        static / functional of the loss
-        :return:
-        """
-        pass
-
-    @abstractmethod
-    def __call__(self, output, target, epoch=None, batch=None):
+    def __call__(self, output, target, weight):
         """
         calls functional
         """
-
-        return
-
-
-class LossLog(Loss):
-    """
-    "Pseudo" Abstract loss class which should be used to log individual loss components.
-    """
-    def __init__(self, cmp_desc=None, logger=None):
-        super().__init__()
-
-        self.cmp_desc = cmp_desc
-        self.logger = logger
+        return self.forward(output, target, weight)
 
     @abstractmethod
-    def log_components(self, loss_vec):
-        pass
+    def log(self, loss_val) -> dict:
+        """
+
+        Args:
+            loss_val:
+
+        Returns:
+            dict:  dictionary of floats with loss values used for a logger
+        """
+        raise NotImplementedError
+
+    def _forward_checks(self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor):
+        """
+        Some sanity checks for forward data
+
+        Args:
+            output:
+            target:
+            weight:
+
+        """
+        if not (output.size() == target.size() and target.size() == weight.size()):
+            raise ValueError(f"Dimensions of output, target and weight do not match "
+                             f"({output.size(), target.size(), weight.size()}.")
+
+    @abstractmethod
+    def forward(self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+        """
+        Computes the loss term
+
+        Args:
+            output (torch.Tensor): output of the network
+            target (torch.Tensor): target data
+            weight (torch.Tensor): px-wise weight map
+
+        Returns:
+            torch.Tensor
+
+        """
+        raise NotImplementedError
+
+
+class PPXYZBLoss(Loss):
+    def __init__(self):
+        super().__init__()
+
+
+
+"""Deprecations"""
 
 
 class SpeiserLoss(Loss):
@@ -149,6 +142,58 @@ class SpeiserLoss(Loss):
         self._reset_batch_log()
 
 
+
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
+class FocalLoss(nn.Module):
+    """
+    Taken from: https://github.com/c0nn3r/RetinaNet/blob/master/focal_loss.py
+    """
+
+    def __init__(self, focusing_param=2, balance_param=0.25):
+        super().__init__()
+
+        self.focusing_param = focusing_param
+        self.balance_param = balance_param
+
+    def forward(self, output, target):
+        """
+
+        :param output: N C d1 d2 d3 ...
+        :param target: N d1 d2 d3 ...
+        where C are the classes!
+
+        :return:
+        """
+
+        cross_entropy = F.cross_entropy(output, target)
+        cross_entropy_log = torch.log(cross_entropy)
+        logpt = - F.cross_entropy(output, target)
+        pt = torch.exp(logpt)
+
+        focal_loss = -((1 - pt) ** self.focusing_param) * logpt
+
+        balanced_focal_loss = self.balance_param * focal_loss
+
+        return balanced_focal_loss
+
+
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
+class LossLog(Loss):
+    """
+    "Pseudo" Abstract loss class which should be used to log individual loss components.
+    """
+    def __init__(self, cmp_desc=None, logger=None):
+        super().__init__()
+
+        self.cmp_desc = cmp_desc
+        self.logger = logger
+
+    @abstractmethod
+    def log_components(self, loss_vec):
+        pass
+
+
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
 class OffsetROILoss(SpeiserLoss):
     def __init__(self, roi_size=3, model_out_ch=5, weight_sqrt_phot=False, fgbg_factor=None, ch_weight=None,
                  bg_signal_penalty=None, alter_bg=False, cmp_prefix='loss', logger=None):
@@ -287,62 +332,7 @@ class OffsetROILoss(SpeiserLoss):
         return out
 
 
-class MaskedPxyzLoss(SpeiserLoss):
-    def __init__(self, model_out_ch, device, pos_weight=1., ch_static_scale=None, ch_rescale=True,
-                 cmp_prefix='loss',
-                 logger=None):
-        super().__init__(None, model_out_ch, None, None, cmp_prefix, logger)
-        self._pos_weight = torch.tensor([pos_weight]).to(device) if pos_weight is not None else None
-        self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none', pos_weight=self._pos_weight)
-        self.phot_xyzbg_loss = torch.nn.MSELoss(reduction='none')
-        self.ch_rescale = ch_rescale
-        self.ch_static_scale = ch_static_scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).to(device)
-
-    @staticmethod
-    def parse(param: dict, logger):
-        """
-
-        :param param: parameter dictionary
-        :param logger: for logging individual components
-        :return:
-        """
-        return MaskedPxyzLoss(model_out_ch=param.HyperParameter.channels_out,
-                              device=torch.device(param.Hardware.device),
-                              pos_weight=param.HyperParameter.fgbg_factor,
-                              ch_static_scale=torch.tensor(param.HyperParameter.ch_static_scale).float(),
-                              ch_rescale=param.HyperParameter.dynamic_weight, logger=logger)
-
-    def _rescale_weights(self, weight):
-        """
-        Rescale the weights channelwise per batch to max. 1, this is inplace (I guess?)
-        :param weight:
-        :return:
-        """
-        if weight.dim() != 4:
-            raise ValueError("Expected N x C x H x W")
-        for i in range(weight.size(1)):
-            rel = weight[:, i][weight[:, i] != 0.]  # non zero elements in the ith channel
-            weight[:, i] = weight[:, i] / rel.median()  # scale by median of non zero elements
-        return weight
-
-    @staticmethod
-    def functional(output, target, weight, p_loss, ch_loss, static_scale=None):
-        ploss = p_loss(output[:, [0]], target[:, [0]])
-        chloss = ch_loss(output[:, 1:], target[:, 1:])
-        tot_loss = torch.cat((ploss, chloss), 1)
-
-        tot_loss = tot_loss * weight
-        if static_scale is not None:
-            tot_loss = tot_loss * static_scale
-
-        return tot_loss
-
-    def __call__(self, output, target, weight):
-        if self.ch_rescale:
-            weight = self._rescale_weights(weight)
-        return self.functional(output, target, weight, self.p_loss, self.phot_xyzbg_loss, self.ch_static_scale)
-
-
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
 class FocalOffsetLoss(SpeiserLoss):
     def __init__(self, alpha, gamma):
         """
@@ -370,6 +360,7 @@ class FocalOffsetLoss(SpeiserLoss):
         return p_loss + phot_loss + xy_loss + z_loss
 
 
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
 class MaskedOnlyZLoss:
     def __init__(self):
         self.l1 = torch.nn.L1Loss()
@@ -394,6 +385,7 @@ class MaskedOnlyZLoss:
         return loss_return
 
 
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
 class MultiScaleLaplaceLoss:
     """From Boyd."""
     def __init__(self, kernel_sigmas, pos_mul_f=torch.Tensor([1.0, 1.0, 0.2])):
@@ -455,6 +447,7 @@ class MultiScaleLaplaceLoss:
         return loss_return
 
 
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
 class RepulsiveLoss:
 
     def __init__(self, scale_factor):
@@ -475,6 +468,7 @@ class RepulsiveLoss:
         return loss_return
 
 
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
 class MultiSLLRedClus(MultiScaleLaplaceLoss):
     """From Boyd."""
     def __init__(self, kernel_sigmas, pos_mul_f=torch.Tensor([1.0, 1.0, 0.2]), phot_loss_sc=1, loc=0.2, scale=0.05):
@@ -496,6 +490,7 @@ class MultiSLLRedClus(MultiScaleLaplaceLoss):
         return loss_comp
 
 
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
 class BumpMSELoss(Loss):
     """
     Loss which comprises a L2 loss of heatmap (single one hot output convolved by gaussian)
@@ -564,6 +559,7 @@ class BumpMSELoss(Loss):
         return loss_return
 
 
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
 class BumpMSELoss3DzLocal(Loss):
     """
     Class to output a composite loss, comprised of a N photons loss and a z value loss.
@@ -614,6 +610,7 @@ class BumpMSELoss3DzLocal(Loss):
         return loss_compositum
 
 
+@deprecated(version="0.1", reason="Unused? If not true, write and check tests.")
 class BumpMSELoss3DzLocal(Loss):
     """
     Class to output a composite loss, comprised of a N photons loss and a z value loss.
@@ -662,25 +659,59 @@ class BumpMSELoss3DzLocal(Loss):
 
         return loss_compositum
 
-def combine_msc_repulsive(kernel, repulsive_loc, repulsive_sc):
-    pass
 
-if __name__ == '__main__':
-    xyz = torch.tensor([[0., 0., 0], [0., 0., 0.], [0., 0., 0.]])
-    phot = torch.tensor([1., 0., 0.])
 
-    xyz_out = torch.tensor([[0., 0., 0], [0., 0., 0.], [0., 0., 0.]])
-    phot_out = torch.tensor([0.3, 0.3, 0.3])
+class MaskedPxyzLoss(SpeiserLoss):
+    def __init__(self, model_out_ch, device, pos_weight=1., ch_static_scale=None, ch_rescale=True,
+                 cmp_prefix='loss',
+                 logger=None):
+        super().__init__(None, model_out_ch, None, None, cmp_prefix, logger)
+        self._pos_weight = torch.tensor([pos_weight]).to(device) if pos_weight is not None else None
+        self.p_loss = torch.nn.BCEWithLogitsLoss(reduction='none', pos_weight=self._pos_weight)
+        self.phot_xyzbg_loss = torch.nn.MSELoss(reduction='none')
+        self.ch_rescale = ch_rescale
+        self.ch_static_scale = ch_static_scale.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).to(device)
 
-    xyz_out = torch.cat((xyz_out.unsqueeze(0), xyz.unsqueeze(0)), 0)
-    phot_out = torch.cat((phot_out.unsqueeze(0), phot.unsqueeze(0)), 0)
+    @staticmethod
+    def parse(param: dict, logger):
+        """
 
-    xyz = torch.cat((xyz.unsqueeze(0), xyz.unsqueeze(0)), 0)
-    phot = torch.cat((phot.unsqueeze(0), phot.unsqueeze(0)), 0)
+        :param param: parameter dictionary
+        :param logger: for logging individual components
+        :return:
+        """
+        return MaskedPxyzLoss(model_out_ch=param.HyperParameter.channels_out,
+                              device=torch.device(param.Hardware.device),
+                              pos_weight=param.HyperParameter.fgbg_factor,
+                              ch_static_scale=torch.tensor(param.HyperParameter.ch_static_scale).float(),
+                              ch_rescale=param.HyperParameter.dynamic_weight, logger=logger)
 
-    target = (xyz, phot)
-    output = (xyz_out, phot_out)
-    loss = MultiSLLRedClus((0.64, 3.20, 6.4, 19.2), loc=0.15, scale=0.03, phot_loss_sc=1).return_criterion()
-    l = loss(output, target)
-    print(l)
-    print("Success.")
+    def _rescale_weights(self, weight):
+        """
+        Rescale the weights channelwise per batch to max. 1, this is inplace (I guess?)
+        :param weight:
+        :return:
+        """
+        if weight.dim() != 4:
+            raise ValueError("Expected N x C x H x W")
+        for i in range(weight.size(1)):
+            rel = weight[:, i][weight[:, i] != 0.]  # non zero elements in the ith channel
+            weight[:, i] = weight[:, i] / rel.median()  # scale by median of non zero elements
+        return weight
+
+    @staticmethod
+    def functional(output, target, weight, p_loss, ch_loss, static_scale=None):
+        ploss = p_loss(output[:, [0]], target[:, [0]])
+        chloss = ch_loss(output[:, 1:], target[:, 1:])
+        tot_loss = torch.cat((ploss, chloss), 1)
+
+        tot_loss = tot_loss * weight
+        if static_scale is not None:
+            tot_loss = tot_loss * static_scale
+
+        return tot_loss
+
+    def __call__(self, output, target, weight):
+        if self.ch_rescale:
+            weight = self._rescale_weights(weight)
+        return self.functional(output, target, weight, self.p_loss, self.phot_xyzbg_loss, self.ch_static_scale)

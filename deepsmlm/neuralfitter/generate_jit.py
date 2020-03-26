@@ -1,5 +1,4 @@
 import torch
-import torchvision
 
 from deepsmlm.neuralfitter.models import model_offset as models
 

@@ -120,14 +120,14 @@ class SMLMTrainingEngine:
         return data
 
 
-if __name__ == '__main__':
-    import os
-    deepsmlm_root = os.path.abspath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     os.pardir, os.pardir)) + '/'
-
-    engine = SMLMTrainingEngine(cache_dir=deepsmlm_root + 'deepsmlm/test/assets/sim_engine',
-                                sim_id='dummy_data')
-
-    while True:
-        dat = engine.load_and_touch()
+# if __name__ == '__main__':
+#     import os
+#     deepsmlm_root = os.path.abspath(
+#         os.path.join(os.path.dirname(os.path.abspath(__file__)),
+#                      os.pardir, os.pardir)) + '/'
+#
+#     engine = SMLMTrainingEngine(cache_dir=deepsmlm_root + 'deepsmlm/test/assets/sim_engine',
+#                                 sim_id='dummy_data')
+#
+#     while True:
+#         dat = engine.load_and_touch()

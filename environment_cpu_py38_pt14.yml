@@ -2,20 +2,18 @@ name: deepsmlm_cpu
 channels:
   - pytorch
   - conda-forge
-  - anaconda
-  - anaconda-fusion
+#  - anaconda
+#  - anaconda-fusion
   - comet_ml
-  - pyviz
+#  - pyviz
   - defaults
 
 dependencies:
-  - bokeh
   - click
   - cmake=3.15
   - comet_ml
   - deprecated
   - dotmap
-  - holoviews
   - h5py
   - intel-openmp
   - jupyter_contrib_nbextensions
@@ -23,24 +21,19 @@ dependencies:
   - nb_conda
   - matplotlib
   - ninja
-  - nodejs
   - numpy
   - opencv
-  - pillow
   - python=3.8
   - pytorch=1.4.*
   - pyyaml
   - pytest
   - pytest-repeat
-  - pywavelets
   - scikit-image
   - scipy
   - seaborn
   - setuptools
   - scikit-learn
-  - snakeviz
   - sqlite
-  - tikzplotlib
   - tifffile
   - torchvision
   - tqdm
