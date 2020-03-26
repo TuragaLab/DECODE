@@ -15,7 +15,7 @@ def test_identity():
 
 def test_remove_out_of_field():
     # Setup
-    em = RandomEmitterSet(100, extent=100)
+    em = RandomEmitterSet(100000, extent=100)
     em.xyz[:, 2] = torch.rand_like(em.xyz[:, 2]) * 1500 - 750
 
     # Candidate

@@ -89,7 +89,7 @@ class RemoveOutOfFOV(PreProcessing):
                   (xyz[:, 1] >= self.yextent[0]) * (xyz[:, 1] < self.yextent[1])
 
         if self.zextent is not None:
-            is_emit *= (xyz[:, 2] >= self.zextent[0]) * (xyz[:, 2] >= self.zextent[1])
+            is_emit *= (xyz[:, 2] >= self.zextent[0]) * (xyz[:, 2] < self.zextent[1])
 
         return is_emit
 
