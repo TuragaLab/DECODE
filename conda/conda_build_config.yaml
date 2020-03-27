@@ -2,12 +2,15 @@
 c_compiler:
     - clang                            # [osx]
     - gcc                              # [linux]
+    - vs2017                           # [win]
 cxx_compiler:
     - clangxx                          # [osx]
     - gxx                              # [linux]
+    - vs2017                           # [win]
 target_platform:
     - osx-64                           # [osx]
     - linux-64                         # [linux]
+    - win-64                           # [win]
 # CONDA_BUILD_SYSROOT:
 #     - /Users/travis/MacOSX10.9.sdk     # [osx]
 c_compiler_version:
