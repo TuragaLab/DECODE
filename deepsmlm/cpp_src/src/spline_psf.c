@@ -220,7 +220,7 @@ void kernel_drv_roi(spline *sp, float *rois, float *drv_rois, const int roi_ix, 
 
     int x0, y0, z0; // px indices
     float model;  // model value
-    float theta[sp->n_par];
+    float theta[5];  // float theta[sp->n_par]; // does not work on windows otherwise
 
     /* Compute delta. Will be the same for all following px */
     x0 = (int) floor(xc);
