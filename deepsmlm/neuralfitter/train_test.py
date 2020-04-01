@@ -16,12 +16,6 @@ from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
 from deepsmlm.generic.plotting.frame_coord import PlotFrameCoord, PlotCoordinates3D, PlotFrame
 import deepsmlm.evaluation.evaluation as eval
 
-
-"""Several pseudo-global variables useful for data processing and debugging."""
-deepsmlm_root = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 os.pardir, os.pardir)) + '/'
-
 DEBUG = True
 LOG = True
 TENSORBOARD = True

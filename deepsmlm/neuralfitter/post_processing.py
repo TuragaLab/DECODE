@@ -39,6 +39,19 @@ class PostProcessing(ABC):
         if self.return_format not in self._return_types:
             raise ValueError("Not supported return type.")
 
+    def skip_if(self, x):
+        """
+        Skip post-processing when a certain condition is met and implementation would fail, i.e. to many
+        bright pixels in the detection channel. Default implementation returns False always.
+
+        Args:
+            x: network output
+
+        Returns:
+            bool: returns true when post-processing should be skipped
+        """
+        return False
+
     def _return_as_type(self, em, ix_low, ix_high):
         """
         Returns in the type specified in constructor
@@ -183,6 +196,15 @@ class ConsistencyPostprocessing(PostProcessing):
 
         if self.p_aggregation not in self._p_aggregations:
             raise ValueError("Unsupported probability aggregation type.")
+
+    def skip_if(self, x):
+        if x.dim() != 4:
+            raise ValueError("Unsupported dim.")
+
+        if (x[:, 0] >= self.raw_th).sum() > 0.2 * x[:, 0].numel():
+            return True
+        else:
+            return False
 
     def _cluster_batch(self, p, features):
         """

@@ -2,6 +2,8 @@ import comet_ml
 
 import click
 import os
+import sys
+import pathlib
 import tensorboardX
 import torch
 
@@ -32,9 +34,7 @@ import deepsmlm.neuralfitter.engine
 
 
 """Root folder"""
-deepsmlm_root = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 os.pardir, os.pardir)) + '/'
+deepsmlm_root = pathlib.Path(deepsmlm.__file__).parent.parent  # 'repo' directory
 
 WRITE_TO_LOG = True
 
@@ -272,7 +272,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     epoch_logger = deepsmlm.generic.utils.logging.LogTestEpoch(logger, experiment)
 
     # this is useful if we restart a training
-    first_epoch = param['HyperParameter']['epoch_0'] if param['HyperParameter']['epoch_0'] is not None else 0
+    first_epoch = param.HyperParameter.epoch_0 if param.HyperParameter.epoch_0 is not None else 0
     for i in range(first_epoch, param.HyperParameter.epochs):
         logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
         experiment.log_metric('learning/learning_rate', optimizer.param_groups[0]['lr'], i)

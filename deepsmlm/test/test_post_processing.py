@@ -26,6 +26,10 @@ class TestPostProcessingAbstract:
             post.return_format = return_format
             post.sanity_check()
 
+    def test_filter(self, post):
+
+        assert not post.skip_if(torch.rand((1, 3, 32, 32)))
+
 
 class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
@@ -162,6 +166,14 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
         # Third frame
         assert len(em_out.get_subset_frame(2, 2)) == 2
         assert (em_out.get_subset_frame(2, 2).prob == 0.7).all()
+
+    @pytest.mark.parametrize("x,expct", [(torch.ones((2, 6, 32, 32)), True),
+                                         (torch.zeros((2, 6, 32, 32)), False),
+                                         (torch.tensor([[0.5, 0., 0.], [0., 0., 0.]]).unsqueeze(0).unsqueeze(0), False)])
+    def test_filter(self, post, x, expct):
+
+        assert post.skip_if(x) is expct
+
 
 
 @pytest.mark.skip("Deprecated function.")

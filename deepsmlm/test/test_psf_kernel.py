@@ -178,7 +178,7 @@ class TestCubicSplinePSF:
         img_shape = (64, 64)
 
         """Have a look whether the bead calibration is there"""
-        asset_handler.check_load(self.bead_cal_file, 'https://oc.embl.de/index.php/s/YXUydyaXLlKc3UY/download')
+        asset_handler.AssetHandler().auto_load(self.bead_cal_file)
 
         smap_psf = load_cal.SMAPSplineCoefficient(calib_file=str(self.bead_cal_file))
         psf = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=smap_psf.ref0,

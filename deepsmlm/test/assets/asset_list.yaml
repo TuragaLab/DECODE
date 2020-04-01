@@ -1,0 +1,18 @@
+# List of Assets. Required fields are name,  url and hash.
+-
+  name: bead_cal_for_testing.mat
+  version: 0.1
+  url: https://oc.embl.de/index.php/s/YXUydyaXLlKc3UY/download
+  hash: e58613a8794d2ee8414c97dd3fc4485fdd0fa255b9510dbd0aceb9417211701b
+
+-
+  name: downloadable_file.txt
+  version: 0.1
+  url: https://oc.embl.de/index.php/s/kK5Cx7qYlnRFnQQ/download
+  hash: ffd418a1d5bdb03a23a76421adc11543185fec1f0944b39c862a7db8e902710a
+
+-
+  name: test_param_for_load.json
+  version: 0.1
+  url: https://oc.embl.de/index.php/s/xmQP9D8MZ1ohPSA/download
+  hash: 230449beb4ec70e42abd54dac86d474f16fceaac2fe46300ab053f9bf40360ce

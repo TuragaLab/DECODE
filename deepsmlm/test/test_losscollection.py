@@ -17,9 +17,9 @@ class TestLossAbstract:
                 super().__init__()
                 self._loss_impl = torch.nn.MSELoss(reduction='none')
 
-            def log(self, loss_val) -> dict:
+            def log(self, loss_val):
                 loss_vec = loss_val.mean(-1).mean(-1).mean(0)
-                return {
+                return loss_vec.mean().item(), {
                     'p': loss_vec[0].item(),
                     'x': loss_vec[1].item()
                 }
@@ -85,10 +85,11 @@ class TestLossAbstract:
         Tests the return of the log implementation of the loss implementation
         """
 
-        out = loss_impl.log(random_loss_input[0])
-        assert isinstance(out, dict)
+        mean, components = loss_impl.log(random_loss_input[0])
+        assert isinstance(mean, float)
+        assert isinstance(components, dict)
 
-        for log_el in out.values():
+        for log_el in components.values():
             assert isinstance(log_el, float)
 
 

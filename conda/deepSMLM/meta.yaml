@@ -8,6 +8,9 @@ source:
     # - path: ~/RemoteDeploy/DeepSMLM
     # - path: ~/Repositories/deepsmlm
 
+build:
+  number: 15
+
 requirements:
   build:
     - {{ compiler('c') }}

@@ -21,14 +21,15 @@ class Loss(ABC):
         return self.forward(output, target, weight)
 
     @abstractmethod
-    def log(self, loss_val) -> dict:
+    def log(self, loss_val):
         """
 
         Args:
             loss_val:
 
         Returns:
-            dict:  dictionary of floats with loss values used for a logger
+            float: single scalar that is subject to the backprop algorithm
+            dict:  dictionary with values being floats, describing additional information (e.g. loss components)
         """
         raise NotImplementedError
 
@@ -76,9 +77,9 @@ class PPXYZBLoss(Loss):
         self._p_loss = torch.nn.BCEWithLogitsLoss(reduction='none', pos_weight=torch.tensor(p_fg_weight).to(device))
         self._phot_xyzbg_loss = torch.nn.MSELoss(reduction='none')
 
-    def log(self, loss_val) -> dict:
+    def log(self, loss_val):
         loss_vec = loss_val.mean(-1).mean(-1).mean(0)
-        return {
+        return loss_vec.mean().item(), {
             'p': loss_vec[0].item(),
             'phot': loss_vec[1].item(),
             'x': loss_vec[2].item(),
@@ -108,7 +109,7 @@ class PPXYZBLoss(Loss):
 
 """Deprecations"""
 
-
+@deprecated(version="0.1.def", reason="Old.")
 class SpeiserLoss(Loss):
     cmp_suffix = ('p', 'phot', 'dx', 'dy', 'dz', 'bg')
 
