@@ -54,7 +54,7 @@ class TestTrain:
         param_after = model.encoder[0][0].weight.data.clone()
 
         """Assert"""
-        assert (param_before != param_after).any(), "No weights changed."
+        assert (param_before != param_after).any(), "No weights changed although they should have."
 
 
 class TestVal(TestTrain):
@@ -94,5 +94,5 @@ class TestVal(TestTrain):
         param_after = model.encoder[0][0].weight.data.clone()
 
         """Assert"""
-        assert (param_before == param_after).all(), "Weights changed."
+        assert (param_before == param_after).all(), "Weights must not change."
 

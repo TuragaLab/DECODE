@@ -2,8 +2,8 @@ import torch
 
 
 def log_train(*args):
-    pass
+    return
 
 
 def log_val(*args):
-    pass
+    return

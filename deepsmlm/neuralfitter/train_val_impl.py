@@ -91,7 +91,8 @@ def test(model, optimizer, loss, dataloader, grad_rescale, post_processor, epoch
             # because the training samples are all on frame 0
             em_tar_ep.append(emitter.EmitterSet.cat(em_tar, step_frame_ix=1))
 
-    """Post-Processing"""
+    """Epoch-Wise Merging and Post-Processing"""
+    print(f"(Test) E: {epoch} - Post-Processing and Evaluation.", flush=True)
     loss_cmp_ep = torch.cat(loss_cmp_ep, 0)
     x_ep = torch.cat(x_ep, 0)
     y_out_ep = torch.cat(y_out_ep, 0)
