@@ -31,6 +31,18 @@ class TestPostProcessingAbstract:
         assert not post.skip_if(torch.rand((1, 3, 32, 32)))
 
 
+class TestNoPostProcessing(TestPostProcessingAbstract):
+
+    @pytest.fixture()
+    def post(self):
+        return post_processing.NoPostProcessing()
+
+    def test_forward(self, post):
+
+        out = post.forward(torch.rand((256, 2, 64, 64)))
+        assert isinstance(out, emitter.EmptyEmitterSet)
+
+
 class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
     @pytest.fixture()

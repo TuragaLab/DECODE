@@ -96,11 +96,11 @@ class NoPostProcessing(PostProcessing):
     def __init__(self, return_format='batch-set'):
         super().__init__(return_format=return_format)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         """
 
         Args:
-            x: Anything.
+            x (torch.Tensor): any input tensor where the first dim is the batch-dim.
 
         Returns:
             EmptyEmitterSet: An empty EmitterSet
@@ -108,7 +108,7 @@ class NoPostProcessing(PostProcessing):
         """
 
         em = EmptyEmitterSet()
-        return self._return_as_type(em, ix_low=em.frame_ix.min().item(), ix_high=em.frame_ix.max().item())
+        return self._return_as_type(em, ix_low=0, ix_high=x.size(0))
 
 
 class ConsistencyPostprocessing(PostProcessing):
@@ -197,7 +197,7 @@ class ConsistencyPostprocessing(PostProcessing):
         if self.p_aggregation not in self._p_aggregations:
             raise ValueError("Unsupported probability aggregation type.")
 
-    def skip_if(self, x):
+    def skip_if(self, x):  # ToDo: Implement this in forward
         if x.dim() != 4:
             raise ValueError("Unsupported dim.")
 
@@ -465,7 +465,7 @@ class ConsistencyPostprocessing(PostProcessing):
                         prob=prob_final, bg=feature_list[:, 4],
                         xy_unit=self.xy_unit, px_size=None)
 
-        return self._return_as_type(em, ix_low=frame_ix.min().item(), ix_high=frame_ix.max().item())
+        return self._return_as_type(em, ix_low=0, ix_high=features.size(0))
 
 
 class Offset2Coordinate:
