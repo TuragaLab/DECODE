@@ -470,7 +470,7 @@ class CubicSplinePSF(PSF):
                           "size supported by the spline coefficients.")
 
         xyz_, _ = self.frame2roi_coord(xyz)
-        xyz_ = self.coord2impl(xyz)
+        xyz_ = self.coord2impl(xyz_)
 
         return self._forward_rois_impl(xyz_, phot)
 
