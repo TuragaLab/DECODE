@@ -260,6 +260,34 @@ class TestCubicSplinePSF:
 
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-7)
 
+    def test_roi_invariance(self, psf_cpu):
+        """
+        Tests whether shifts in x and y with multiples of px size lead to the same ROI
+
+        Args:
+            psf_cpu: fixture
+
+        """
+        """Setup"""
+        xyz_0 = torch.zeros((1, 3))
+
+        steps = torch.arange(-5 * psf_cpu.vx_size[0], 5 * psf_cpu.vx_size[0], step=psf_cpu.vx_size[0]).unsqueeze(1)
+
+        # step coordinates in x and y direction
+        xyz_x = torch.cat((steps, torch.zeros((steps.size(0), 2))), 1)
+        xyz_y = torch.cat((torch.zeros((steps.size(0), 1)), steps, torch.zeros((steps.size(0), 1))), 1)
+
+        """Run"""
+        roi_ref = psf_cpu.forward_rois(xyz_0, torch.ones(1))
+        roi_x = psf_cpu.forward_rois(xyz_x, torch.ones_like(xyz_x[:, 0]))
+        roi_y = psf_cpu.forward_rois(xyz_y, torch.ones_like(xyz_y[:, 1]))
+
+        """Assertions"""
+        # make sure that within a 5 x 5 window the values are the same
+
+        assert tutil.tens_almeq(roi_ref[0, 10:15, 10:15], roi_x[:, 10:15, 10:15])
+        assert tutil.tens_almeq(roi_ref[0, 10:15, 10:15], roi_y[:, 10:15, 10:15])
+
     @pytest.mark.plot
     def test_roi_visual(self, psf_cpu, onek_rois):
         xyz, phot, bg, n = onek_rois
