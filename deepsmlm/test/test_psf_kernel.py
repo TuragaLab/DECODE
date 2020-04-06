@@ -171,7 +171,7 @@ class TestCubicSplinePSF:
     cdir = pathlib.Path(__file__).resolve().parent
     bead_cal_file = (cdir / pathlib.Path('assets/bead_cal_for_testing.mat'))  # expected path, might not exist
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def psf_cpu(self):
         xextent = (-0.5, 63.5)
         yextent = (-0.5, 63.5)
@@ -186,7 +186,7 @@ class TestCubicSplinePSF:
 
         return psf
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def psf_cuda(self, psf_cpu):
         """
         Returns CUDA version of CPU implementation. Will make tests fail if not compiled with CUDA support enabled.
@@ -198,7 +198,7 @@ class TestCubicSplinePSF:
         """
         return psf_cpu.cuda()
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def onek_rois(self, psf_cpu):
         """
         Thousand random emitters in ROI
@@ -363,6 +363,28 @@ class TestCubicSplinePSF:
         plt.title('d/dbg')
 
         plt.show()
+
+    def test_redefine_reference(self, psf_cpu):
+        """
+        Tests redefinition of reference
+
+        Args:
+            psf_cpu: fixture
+
+        """
+
+        """Assert and test"""
+        xyz = torch.tensor([[15., 15., 0.]])
+        roi_0 = psf_cpu.forward_rois(xyz, torch.ones(1,))
+
+        # modify reference
+        psf_cpu.__init__(xextent=psf_cpu.xextent, yextent=psf_cpu.yextent, img_shape=psf_cpu.img_shape,
+                         ref0=psf_cpu.ref0, coeff=psf_cpu._coeff, vx_size=psf_cpu.vx_size,
+                         roi_size=psf_cpu.roi_size_px, ref_re=psf_cpu.ref0 - torch.Tensor([1., 2., 0.]),  cuda=psf_cpu.cuda)
+
+        roi_shift = psf_cpu.forward_rois(xyz, torch.ones(1, ))
+
+        assert tutil.tens_almeq(roi_0[:, 5:10, 5:10], roi_shift[:, 4:9, 3:8])
 
     @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")

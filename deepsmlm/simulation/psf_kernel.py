@@ -321,11 +321,12 @@ class CubicSplinePSF(PSF):
     n_par = 5  # x, y, z, phot, bg
     inv_default = torch.inverse
 
-    def __init__(self, xextent, yextent, img_shape, ref0, coeff, vx_size, roi_size=None, cuda=True):
+    def __init__(self, xextent, yextent, img_shape, ref0, coeff, vx_size, *, roi_size=None, ref_re=None, cuda=True):
         """
         Initialise Spline PSF
 
         Args:
+            ref_re:
             xextent (tuple): extent in x
             yextent (tuple): extent in y
             img_shape (tuple): img_shape
@@ -344,6 +345,12 @@ class CubicSplinePSF(PSF):
             vx_size = torch.Tensor([1., 1., 1.])
         self.vx_size = vx_size if isinstance(vx_size, torch.Tensor) else torch.Tensor(vx_size)
         self.ref0 = ref0 if isinstance(ref0, torch.Tensor) else torch.Tensor(ref0)
+
+        if ref_re is not None:
+            self.ref_re = ref_re if isinstance(ref_re, torch.Tensor) else torch.Tensor(ref_re)
+        else:
+            self.ref_re = None
+
         self._cuda = cuda
 
         if self._cuda:
@@ -358,6 +365,13 @@ class CubicSplinePSF(PSF):
     @property
     def cuda_is_available(self):
         return self._spline_impl.cuda_is_available
+
+    @property
+    def _ref_diff(self):
+        if self.ref_re is None:
+            return torch.zeros((1, 3))
+        else:
+            return self.ref_re - self.ref0
 
     @staticmethod
     def _cuda_compiled():
@@ -425,7 +439,7 @@ class CubicSplinePSF(PSF):
 
         """
         offset = torch.Tensor([self.xextent[0] + 0.5, self.yextent[0] + 0.5, 0.]).float()
-        return -(xyz - offset) / self.vx_size + self.ref0
+        return -xyz / self.vx_size + offset + self.ref0 - self._ref_diff
 
     def frame2roi_coord(self, xyz_nm: torch.Tensor):
         """
