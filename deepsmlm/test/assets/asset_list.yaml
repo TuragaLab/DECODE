@@ -1,6 +1,6 @@
 # List of Assets. Required fields are name,  url and hash.
 -
-  name: bead_cal_for_testing.mat
+  name: bead_cal_for_testing_3dcal.mat
   version: 0.1
   url: https://oc.embl.de/index.php/s/YXUydyaXLlKc3UY/download
   hash: e58613a8794d2ee8414c97dd3fc4485fdd0fa255b9510dbd0aceb9417211701b

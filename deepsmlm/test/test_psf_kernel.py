@@ -169,7 +169,7 @@ class TestGaussianExpect(TestPSF):
 
 class TestCubicSplinePSF:
     cdir = pathlib.Path(__file__).resolve().parent
-    bead_cal_file = (cdir / pathlib.Path('assets/bead_cal_for_testing.mat'))  # expected path, might not exist
+    bead_cal_file = (cdir / pathlib.Path('assets/bead_cal_for_testing_3dcal.mat'))  # expected path, might not exist
 
     @pytest.fixture()
     def psf_cpu(self):
