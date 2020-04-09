@@ -3,10 +3,7 @@ package:
   version: "0.1.dev"
 
 source:
-    git_url: https://github.com/Haydnspass/DeepSMLM
-    git_rev: dev_training_engine
-    # - path: ~/RemoteDeploy/DeepSMLM
-    # - path: ~/Repositories/deepsmlm
+     - path: ../..
 
 build:
   number: 15
