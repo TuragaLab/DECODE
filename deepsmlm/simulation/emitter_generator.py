@@ -29,12 +29,13 @@ class EmitterPopperSingle(EmitterPopperABC):
     Simple Emitter sampler. Samples emitters from a structure
     """
 
-    def __init__(self, *, structure, photon_range: tuple, density: float = None, emitter_av: float = None):
+    def __init__(self, *, structure, photon_range: tuple, xy_unit, density: float = None, emitter_av: float = None):
         super().__init__()
 
         self.structure = structure
         self.density = density
         self.photon_range = photon_range
+        self.xy_unit = xy_unit
 
         """
         Sanity Checks.
@@ -67,11 +68,12 @@ class EmitterPopperSingle(EmitterPopperABC):
         return EmitterSet(xyz=xyz,
                           phot=phot,
                           frame_ix=frame_ix,
-                          id=None)
+                          id=None,
+                          xy_unit=self.xy_unit)
 
 
 class EmitterPopperMultiFrame(EmitterPopperSingle):
-    def __init__(self, *, structure, intensity_mu_sig, lifetime, num_frames=3, density=None, emitter_av=None,
+    def __init__(self, *, structure, intensity_mu_sig, lifetime, xy_unit, num_frames=3, density=None, emitter_av=None,
                  intensity_th=None):
         """
 
@@ -85,6 +87,7 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         """
         super().__init__(structure=structure,
                          photon_range=None,
+                         xy_unit=xy_unit,
                          density=density,
                          emitter_av=emitter_av)
 
@@ -135,7 +138,7 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         t0 = self.t0_dist.sample((n, ))
         ontime = self.lifetime_dist.rsample((n,))
 
-        return LooseEmitterSet(xyz, intensity, ontime, t0, None)
+        return LooseEmitterSet(xyz, intensity, ontime, t0, None, xy_unit=self.xy_unit)
 
     def _test_actual_number(self):
         """
@@ -161,9 +164,9 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         statistical reasons. Shift index to -1, 0, 1 ...
         :return EmitterSet
         """
-        frame_range = (math.ceil(2 * self.lifetime_avg), math.ceil(2 * self.lifetime_avg) + self.num_frames - 1)
+
         loose_em = self.gen_loose_emitter()
 
-        emset =  loose_em.return_emitterset().get_subset_frame(-1, 1)
+        emset = loose_em.return_emitterset().get_subset_frame(-1, 1)
         emset.xy_unit = 'px'
         return emset

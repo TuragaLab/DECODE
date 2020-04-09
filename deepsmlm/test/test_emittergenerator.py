@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-import deepsmlm.simulation.emitter_gen as emgen
+import deepsmlm.simulation.emitter_generator as emgen
 import deepsmlm.generic.emitter as em
 
 
@@ -43,6 +43,7 @@ class TestEmitterPopper(TestEmitterPopperABC):
 
         cand = emgen.EmitterPopperSingle(structure=structure,
                                          photon_range=(100, 2000),
+                                         xy_unit='px',
                                          density=dens,
                                          emitter_av=em_av)
 

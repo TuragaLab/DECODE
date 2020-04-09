@@ -67,10 +67,10 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     import torch
     # torch.multiprocessing.set_sharing_strategy('file_system')  # does not seem to work with spawn method together
 
-    """Set multiprocessing strategy to spawn when using cuda, otherwise you get CUDA init. errors"""
-    if param.Hardware.device_sim[:4] == 'cuda':
-        import multiprocessing as mp
-        mp.set_start_method('spawn')
+    """Set multiprocessing strategy to spawn, otherwise you get errors"""
+    # if param.Hardware.device_sim[:4] == 'cuda':
+    import multiprocessing as mp
+    mp.set_start_method('spawn')
 
     assert torch.cuda.device_count() <= param.Hardware.max_cuda_devices
     torch.set_num_threads(param.Hardware.torch_threads)
@@ -97,8 +97,9 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
         yextent=param.Simulation.emitter_extent[1],
         zextent=param.Simulation.emitter_extent[2])
 
-    prior = deepsmlm.simulation.emitter_gen.EmitterPopperMultiFrame(
+    prior = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame(
         structure=prior_struct,
+        xy_unit=param.Simulation.xy_unit,
         density=param.Simulation.density,
         intensity_mu_sig=param.Simulation.intensity_mu_sig,
         lifetime=param.Simulation.lifetime_avg,
