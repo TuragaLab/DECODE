@@ -253,8 +253,9 @@ class TestCubicSplinePSF:
         psf_cpu_str = pickle.dumps(psf_cpu)
         _ = pickle.loads(psf_cpu_str)
 
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+                       reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_pickleability_cuda(self, psf_cuda):
-
         self.test_pickleability_cpu(psf_cuda)
 
     @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
@@ -396,7 +397,8 @@ class TestCubicSplinePSF:
         # modify reference
         psf_cpu.__init__(xextent=psf_cpu.xextent, yextent=psf_cpu.yextent, img_shape=psf_cpu.img_shape,
                          ref0=psf_cpu.ref0, coeff=psf_cpu._coeff, vx_size=psf_cpu.vx_size,
-                         roi_size=psf_cpu.roi_size_px, ref_re=psf_cpu.ref0 - torch.Tensor([1., 2., 0.]),  cuda=psf_cpu.cuda)
+                         roi_size=psf_cpu.roi_size_px, ref_re=psf_cpu.ref0 - torch.Tensor([1., 2., 0.]),
+                         cuda=psf_cpu._cuda)
 
         roi_shift = psf_cpu.forward_rois(xyz, torch.ones(1, ))
 
