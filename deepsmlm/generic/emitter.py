@@ -950,6 +950,8 @@ class LooseEmitterSet:
         frame_ix_ = torch.zeros_like(phot_)
         id_ = torch.zeros_like(frame_ix_)
 
+        # ToDo: This is a bottleneck
+
         c = 0
         for i in range(self.xyz.shape[0]):  # loop over emitters
             for j in range(frame_dur[i]):  # loop over its frames

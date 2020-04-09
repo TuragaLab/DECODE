@@ -219,8 +219,6 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
                                                          px_size=torch.tensor(param.Camera.px_size),
                                                          weight='photons')
 
-    # epoch_logger = deepsmlm.generic.utils.logging.LogTestEpoch(logger, experiment)
-
     # useful if we restart a training
     first_epoch = param.HyperParameter.epoch_0 if param.HyperParameter.epoch_0 is not None else 0
     for i in range(first_epoch, param.HyperParameter.epochs):
