@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import pytest
 import torch
 
-import deepsmlm.generic.background as background
+import deepsmlm.simulation.background as background
 from deepsmlm.generic import emitter
 from deepsmlm.generic.plotting.frame_coord import PlotFrame
 from deepsmlm.generic.utils import test_utils

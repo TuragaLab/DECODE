@@ -286,7 +286,7 @@ class MultiPerlin(Background):
         :param x:
         :return:
         """
-        bg_term = torch.zeros((1,))
+        bg_term = torch.zeros((1, *self.img_size))
         for i in range(self.num_freq):
             if (self.prob_disable is not None) and (torch.rand(1).item() <= self.prob_disable):
                 continue

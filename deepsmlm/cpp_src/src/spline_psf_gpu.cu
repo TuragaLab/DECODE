@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdexcept>
+#include <sstream>
+#include <string>
 #include <vector>
 
 #include <cuda.h>
@@ -68,11 +70,6 @@ namespace spline_psf_gpu {
         sp->xsize = xsize;
         sp->ysize = ysize;
         sp->zsize = zsize;
-
-        if ((sp->xsize > 32) || (sp->ysize > 32)) {
-            // this is because we start threads per pixel and the limit is 1024 threads per block
-            throw std::invalid_argument("Invalid ROI size. ROI size must not exceed 32 px in either dimension.");  
-        }
 
         sp->roi_out_eps = 1e-10;
         sp->roi_out_deriv_eps = 0.0;
@@ -250,7 +247,9 @@ namespace spline_psf_gpu {
 
         err = cudaGetLastError();
         if (err != cudaSuccess) {
-            std::cout << "Error during frame computation.\nCode: " << err << "Information: \n" << cudaGetErrorString(err) << std::endl;
+            std::stringstream rt_err;
+            rt_err << "Error during frame computation computation.\nCode: "<< err << "\nInformation: \n" << cudaGetErrorString(err);
+            throw std::runtime_error(rt_err.str());
         }
 
         cudaFree(d_xix);
@@ -280,7 +279,9 @@ auto forward_rois(spline *d_sp, float *d_rois, const int n, const int roi_size_x
 
     err = cudaGetLastError();
     if (err != cudaSuccess) {
-        std::cout << "Error during ROI computation.\nCode: " << err << "Information: \n" << cudaGetErrorString(err) << std::endl;
+        std::stringstream rt_err;
+        rt_err << "Error during ROI computation computation.\nCode: "<< err << "\nInformation: \n" << cudaGetErrorString(err);
+        throw std::runtime_error(rt_err.str());
     }
 
     return;
@@ -303,7 +304,9 @@ auto forward_drv_rois(spline *d_sp, float *d_rois, float *d_drv_rois, const int 
 
     err = cudaGetLastError();
     if (err != cudaSuccess) {
-        std::cout << "Error during ROI derivative computation.\nCode: " << err << "Information: \n" << cudaGetErrorString(err) << std::endl;
+        std::stringstream rt_err;
+        rt_err << "Error during ROI derivative computation computation.\nCode: "<< err << "\nInformation: \n" << cudaGetErrorString(err);
+        throw std::runtime_error(rt_err.str());
     }
 
     return;

@@ -223,7 +223,7 @@ PYBIND11_MODULE(spline_psf_cuda, m) {
         .def("forward_drv_rois", &PSFWrapperCUDA::forward_drv_rois)
         .def("forward_frames", &PSFWrapperCUDA::forward_frames);
 
-#else
+#else  // make PSFWrapperCUDA dummy class that throws an error
     py::class_<PSFWrapperCUDA>(m, "PSFWrapperCUDA")
             .def(py::init<int, int, int, int, int, py::array_t<float>>());
 

@@ -1,10 +1,8 @@
-import comet_ml
 from comet_ml import Experiment
 
 import click
 import datetime
 import os
-import getopt
 import torch
 import pathlib
 import socket
@@ -12,7 +10,7 @@ from datetime import datetime
 
 import deepsmlm.evaluation.match_emittersets
 import deepsmlm.evaluation.utils
-import deepsmlm.generic.background
+import deepsmlm.simulation.background
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 from tensorboardX import SummaryWriter
@@ -24,15 +22,14 @@ import deepsmlm.generic.inout.write_load_param as wlp
 from deepsmlm.generic.inout.load_calibration import SMAPSplineCoefficient
 from deepsmlm.generic.inout.load_save_emitter import NumpyInterface
 from deepsmlm.generic.inout.load_save_model import LoadSaveModel
-import deepsmlm.generic.background as background
+import deepsmlm.simulation.background as background
 import deepsmlm.neuralfitter.weight_generator as wgen
-import deepsmlm.generic.noise as noise_bg
 import deepsmlm.neuralfitter.pre_processing as prepro
 import deepsmlm.evaluation.evaluation as evaluation
-from deepsmlm.simulation.phot_camera import Photon2Camera
+from deepsmlm.simulation.camera import Photon2Camera
 from deepsmlm.neuralfitter.pre_processing import CombineTargetBackground, \
     DiscardBackground
-from deepsmlm.neuralfitter.target_generator import SinglePxEmbedding, KernelEmbedding
+from deepsmlm.neuralfitter.target_generator import KernelEmbedding
 import deepsmlm.generic.utils.logging as log_utils
 from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
 import deepsmlm.generic.utils.processing as processing
@@ -241,8 +238,8 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
         if param.HyperParameter.weight_base in ('crlb', 'crlb_single', 'crlb_multi'):
             weight_mask_generator = processing.TransformSequence([
                 prepro.ThresholdPhotons.parse(param, mode='weight'),
-                deepsmlm.generic.background.BgPerEmitterFromBgFrame(psf.roi_size, param['Simulation']['psf_extent'][1],
-                                                                    param['Simulation']['img_size'], param['Simulation']['psf_extent'][0]),
+                deepsmlm.simulation.background.BgPerEmitterFromBgFrame(psf.roi_size, param['Simulation']['psf_extent'][1],
+                                                                       param['Simulation']['img_size'], param['Simulation']['psf_extent'][0]),
                 wgen.CalcCRLB(psf, crlb_mode=param.HyperParameter.weight_base[5:]),
                 wgen.GenerateWeightMaskFromCRLB(param['Simulation']['psf_extent'][0],
                                           param['Simulation']['psf_extent'][1],

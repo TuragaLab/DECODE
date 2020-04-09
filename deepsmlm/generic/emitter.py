@@ -967,7 +967,8 @@ class LooseEmitterSet:
 
     def return_emitterset(self):
         """
-        Returns EmitterSet with distributed emitters.
+        Returns EmitterSet with distributed emitters. The ID is preserved such that localisations coming from the same
+        fluorophore will have the same ID.
 
         Returns:
             EmitterSet

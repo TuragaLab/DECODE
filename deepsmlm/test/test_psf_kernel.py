@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pathlib
 import pytest
 import torch
-import requests
+import pickle
 
 import deepsmlm.generic.inout.load_calibration as load_cal
 import deepsmlm.generic.plotting.frame_coord as plf
@@ -240,6 +240,22 @@ class TestCubicSplinePSF:
         """Test implementation state after"""
         assert isinstance(psf_cpu.cuda()._spline_impl, spline_psf_cuda.PSFWrapperCUDA)
         assert isinstance(psf_cuda.cpu()._spline_impl, spline_psf_cuda.PSFWrapperCPU)
+
+    def test_pickleability_cpu(self, psf_cpu):
+        """
+        Tests the pickability of CPU implementation
+
+        Args:
+            psf_cpu: fixture
+
+        """
+
+        psf_cpu_str = pickle.dumps(psf_cpu)
+        _ = pickle.loads(psf_cpu_str)
+
+    def test_pickleability_cuda(self, psf_cuda):
+
+        self.test_pickleability_cpu(psf_cuda)
 
     @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")

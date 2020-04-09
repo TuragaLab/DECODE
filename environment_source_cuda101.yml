@@ -29,6 +29,7 @@ dependencies:
   - opencv
   - pillow
   - pyyaml
+  - pybind11>=2.4
   - python=3.8
   # - pytorch=1.2.*
   - ninja

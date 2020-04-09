@@ -47,7 +47,7 @@ class ParamHandling:
 
         return params_dot
 
-    def write_params(self, filename, param):
+    def write_params(self, filename: pathlib.Path, param):
         extension = self._check_return_extension(filename)
         param = param.toDict()
 
@@ -60,10 +60,10 @@ class ParamHandling:
                                     "But the path you specified lacks more folders or is completely wrong.")
 
         if extension == '.json':
-            with open(filename, "w") as write_file:
+            with filename.open('w') as write_file:
                 json.dump(param, write_file, indent=4)
         elif extension in ('.yml', '.yaml'):
-            with open(filename, "w") as yaml_file:
+            with filename.open('w') as yaml_file:
                 yaml.dump(param, yaml_file)
 
     def convert_param_file(self, file_in, file_out):

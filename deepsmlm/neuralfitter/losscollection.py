@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from deepsmlm.generic.noise import GaussianSmoothing
+from deepsmlm.simulation.noise import GaussianSmoothing
 
 
 class Loss(ABC):

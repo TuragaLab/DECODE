@@ -196,9 +196,16 @@ class SimulationEngine:
         assert not out_folder.exists()
         out_folder.mkdir()
 
+        # monitor time to disk
+        t0 = time.time()
         file = folder / filename
         with open(str(file), 'wb+') as f:
             pickle.dump(dl_out, f, protocol=-1)
+
+        t1 = time.time()
+        print(f"Wrote {len(dl)} batches with batch-size {dl.batch_size} in {t1-t0:.2f}s to disk. "
+              f"Filesize: {file.stat().st_size / 10**6:.1f} MB "
+              f"(i.e. {(file.stat().st_size / 10**6) / (t1-t0):.1f} MB/s)")
 
     def run(self, n_max=None):
         """
@@ -276,5 +283,5 @@ class SMLMSimulationDatasetOnFly(Dataset):
             bg_frames: background frames
         """
 
-        cam_frames, bg_frames, em_tar = self.sim.forward_()
+        cam_frames, bg_frames, em_tar = self.sim.forward()
         return em_tar, cam_frames, bg_frames

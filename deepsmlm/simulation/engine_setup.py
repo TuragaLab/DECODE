@@ -1,32 +1,26 @@
 import click
 import datetime
 import socket
+from pathlib import Path
 import os
-import torch
-torch.multiprocessing.set_sharing_strategy('file_system')
-import torch.utils
 
 import deepsmlm.simulation.psf_kernel
 import deepsmlm.generic.utils
-
-import deepsmlm.generic.background
-import deepsmlm.simulation.phot_camera
+import deepsmlm.simulation.background
+import deepsmlm.simulation.camera
 import deepsmlm.generic.inout.write_load_param as dsmlm_par
 import deepsmlm.generic.inout.util
 import deepsmlm.simulation.engine
 import deepsmlm.generic.inout.load_calibration
 import deepsmlm.neuralfitter.dataset
 
-"""Root folder"""
-deepsmlm_root = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 os.pardir, os.pardir)) + '/'
+deepsmlm_root = Path(__file__).parent.parent.parent
 
 
 @click.command()
 @click.option('--param_file', '-p', required=True,
               help='Specify your parameter file (.yml or .json).')
-@click.option('--cache_dir', '-c', default=deepsmlm_root + 'cachedir/simulation_engine',
+@click.option('--cache_dir', '-c', default=deepsmlm_root / Path('cachedir/simulation_engine'),
               help='Overwrite the cache folder in which the simulation engine stores the results')
 @click.option('--exp_id', '-e', required=True,
               help='Specify the experiments id under which the engine stores the results.')
@@ -55,10 +49,6 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     """
 
     """Load Parameters"""
-    param_file = deepsmlm.generic.inout.util.add_root_relative(param_file, deepsmlm_root)
-    if param_file is None:
-        raise ValueError("Parameters not specified. "
-                         "Parse the parameter file via -p [Your parameeter.json]")
     param = dsmlm_par.ParamHandling().load_params(param_file)
 
     if exp_id is None:
@@ -70,12 +60,19 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     if num_worker_override is not None:
         param.Hardware.num_worker_sim = num_worker_override
 
-    # modify some parameters here
-    # ToDo: Remove this!
-    param.InOut.calibration_file = deepsmlm_root + param.InOut.calibration_file
+    """Hardware / Server stuff."""
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(param.Hardware.device_sim_ix)
 
-    """Server stuff."""
-    assert torch.cuda.device_count() <= 1
+    import torch
+    # torch.multiprocessing.set_sharing_strategy('file_system')  # does not seem to work with spawn method together
+
+    """Set multiprocessing strategy to spawn when using cuda, otherwise you get CUDA init. errors"""
+    if param.Hardware.device_sim[:4] == 'cuda':
+        import multiprocessing as mp
+        mp.set_start_method('spawn')
+
+    assert torch.cuda.device_count() <= param.Hardware.max_cuda_devices
     torch.set_num_threads(param.Hardware.torch_threads)
 
     """
@@ -87,10 +84,11 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     3. Setup simulation and datasets
     """
     psf = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(
-        file=param.InOut.calibration_file).init_spline(
+        calib_file=param.InOut.calibration_file).init_spline(
             xextent=param.Simulation.psf_extent[0],
             yextent=param.Simulation.psf_extent[1],
-            img_shape=param.Simulation.img_size
+            img_shape=param.Simulation.img_size,
+        cuda=True if param.Hardware.device_sim[:4] == 'cuda' else False
     )
 
     """Structure Prior"""
@@ -100,7 +98,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
         zextent=param.Simulation.emitter_extent[2])
 
     prior = deepsmlm.simulation.emitter_gen.EmitterPopperMultiFrame(
-        prior_struct,
+        structure=prior_struct,
         density=param.Simulation.density,
         intensity_mu_sig=param.Simulation.intensity_mu_sig,
         lifetime=param.Simulation.lifetime_avg,
@@ -110,13 +108,13 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
 
     """Define our background and noise model."""
     if param.Simulation.bg_perlin_amplitude is None:
-        bg = deepsmlm.generic.background.UniformBackground.parse(param)
+        bg = deepsmlm.simulation.background.UniformBackground.parse(param)
     else:
         bg = deepsmlm.generic.utils.processing.TransformSequence.parse(
-            [deepsmlm.generic.background.UniformBackground,
-             deepsmlm.generic.background.PerlinBackground], param)
+            [deepsmlm.simulation.background.UniformBackground,
+             deepsmlm.simulation.background.PerlinBackground], param, input_slice=[[0]])
 
-    noise = deepsmlm.simulation.phot_camera.Photon2Camera.parse(param)
+    noise = deepsmlm.simulation.camera.Photon2Camera.parse(param)
 
     """
     Here we define some constants to give all possibilities during training. 
@@ -124,16 +122,13 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     """
     # use frame range of 3 all the time, maybe kick out unnecessary frames later
     frame_range = (-1, 1)
-    predict_bg = True
 
     simulation = deepsmlm.simulation.simulator.Simulation(
-        em=prior,
-        extent=param.Simulation.emitter_extent,
+        em_sampler=prior,
         psf=psf,
         background=bg,
         noise=noise,
-        frame_range=frame_range,
-        out_bg=predict_bg)
+        frame_range=frame_range)
 
     ds_train = deepsmlm.simulation.engine.SMLMSimulationDatasetOnFly(simulator=simulation,
                                                                      ds_size=param.HyperParameter.pseudo_ds_size)
@@ -142,7 +137,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
 
     simulation_engine = deepsmlm.simulation.engine.SimulationEngine(cache_dir=cache_dir,
                                                                     exp_id=exp_id,
-                                                                    cpu_worker=10,
+                                                                    cpu_worker=param.Hardware.num_worker_sim,
                                                                     buffer_size=param.HyperParameter.ds_buffer,
                                                                     ds_train=ds_train,
                                                                     ds_test=ds_test)

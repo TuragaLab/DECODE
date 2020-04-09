@@ -1,9 +1,9 @@
 import torch
 import warnings
 
-import deepsmlm.generic.background
-import deepsmlm.generic.noise
-import deepsmlm.generic.noise as noise
+import deepsmlm.simulation.background
+import deepsmlm.simulation.noise
+import deepsmlm.simulation.noise as noise
 
 
 class Photon2Camera:
@@ -24,7 +24,7 @@ class Photon2Camera:
         self.baseline = baseline
         self.read_sigma = read_sigma
 
-        self.poisson = deepsmlm.generic.noise.Poisson()
+        self.poisson = deepsmlm.simulation.noise.Poisson()
         self.gain = noise.Gamma(scale=self.em_gain)
         self.read = noise.Gaussian(sigma_gaussian=self.read_sigma,
                                    bg_uniform=0)

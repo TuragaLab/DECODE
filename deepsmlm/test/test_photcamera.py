@@ -1,7 +1,7 @@
 import torch
 import pytest
 
-import deepsmlm.simulation.phot_camera as pc
+import deepsmlm.simulation.camera as pc
 import deepsmlm.generic.utils.test_utils as tutil
 
 

@@ -353,14 +353,31 @@ class CubicSplinePSF(PSF):
 
         self._cuda = cuda
 
-        if self._cuda:
-            self._spline_impl = spline_psf_cuda.PSFWrapperCUDA(coeff.shape[0], coeff.shape[1], coeff.shape[2],
-                                                               self.roi_size_px[0], self.roi_size_px[1], coeff.numpy())
-        else:
-            self._spline_impl = spline_psf_cuda.PSFWrapperCPU(coeff.shape[0], coeff.shape[1], coeff.shape[2],
-                                                              self.roi_size_px[0], self.roi_size_px[1], coeff.numpy())
-
+        self._init_spline_impl()
         self._safety_check()
+
+    def _init_spline_impl(self):
+        """
+        Init the spline implementation. Done seperately because otherwise it's harder to pickle
+
+        """
+        if self._cuda:
+            self._spline_impl = spline_psf_cuda.PSFWrapperCUDA(self._coeff.shape[0], self._coeff.shape[1], self._coeff.shape[2],
+                                                               self.roi_size_px[0], self.roi_size_px[1], self._coeff.numpy())
+        else:
+            self._spline_impl = spline_psf_cuda.PSFWrapperCPU(self._coeff.shape[0], self._coeff.shape[1], self._coeff.shape[2],
+                                                              self.roi_size_px[0], self.roi_size_px[1], self._coeff.numpy())
+
+    def _safety_check(self):
+        """
+        Perform some class specific safety checks
+        Returns:
+
+        """
+        """Test whether extent corresponds to img shape"""
+        if (self.img_shape[0] != (self.xextent[1] - self.xextent[0])) or \
+                (self.img_shape[1] != (self.yextent[1] - self.yextent[0])):
+            raise ValueError("Unequal size of extent and image shape not supported.")
 
     @property
     def cuda_is_available(self):
@@ -389,16 +406,29 @@ class CubicSplinePSF(PSF):
 
         return roi_size_nm
 
-    def _safety_check(self):
+    # # define pickles
+    def __getstate__(self):
         """
-        Perform some class specific safety checks
+        Returns dict without spline implementation attribute because C++ / CUDA implementation is not yet implemented
+        to be pickleable itself. However, since the implementation is only accessed by this wrapper, this is not needed.
+
+        """
+
+        self_no_impl = dict(self.__dict__)
+        del self_no_impl['_spline_impl']
+        return self_no_impl
+
+    def __setstate__(self, state):
+        """
+        Write dict and call init spline
+        Args:
+            state:
+
         Returns:
 
         """
-        """Test whether extent corresponds to img shape"""
-        if (self.img_shape[0] != (self.xextent[1] - self.xextent[0])) or \
-                (self.img_shape[1] != (self.yextent[1] - self.yextent[0])):
-            raise ValueError("Unequal size of extent and image shape not supported.")
+        self.__dict__ = state
+        self._init_spline_impl()
 
     def cuda(self):
         """
