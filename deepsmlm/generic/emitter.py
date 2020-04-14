@@ -900,7 +900,7 @@ class LooseEmitterSet:
     """
 
     def __init__(self, xyz: torch.Tensor, intensity: torch.Tensor, ontime: torch.Tensor, t0: torch.Tensor,
-                 id: torch.Tensor = None, xy_unit=None):
+                 xy_unit: str, id: torch.Tensor = None, sanity_check=True):
         """
 
         Args:
@@ -924,6 +924,27 @@ class LooseEmitterSet:
         self.t0 = t0
         self.ontime = ontime
 
+        if sanity_check:
+            self.sanity_check()
+
+    def sanity_check(self):
+
+        """Check IDs"""
+        if self.id.unique().numel() != self.id.numel():
+            raise ValueError("IDs are not unique.")
+
+        """Check xyz"""
+        if self.xyz.dim() != 2 or self.xyz.size(1) != 3:
+            raise ValueError("Wrong xyz dimension.")
+
+        """Check intensity"""
+        if (self.intensity < 0).any():
+            raise ValueError("Negative intensity values encountered.")
+
+        """Check timings"""
+        if (self.ontime < 0).any():
+            raise ValueError("Negative ontime encountered.")
+
     @property
     def te(self):  # end time
         return self.t0 + self.ontime
@@ -939,31 +960,67 @@ class LooseEmitterSet:
             id_ (torch.Tensor): identities
 
         """
-        frame_start = torch.floor(self.t0)
-        frame_last = torch.ceil(self.te)
-        frame_dur = (frame_last - frame_start).type(torch.LongTensor)
 
-        num_emitter_brut = frame_dur.sum()
+        def cum_count_per_group(arr):
+            """
+            Helper function that returns the cumulative sum per group.
 
-        xyz_ = torch.zeros(num_emitter_brut, self.xyz.shape[1])
-        phot_ = torch.zeros_like(xyz_[:, 0])
-        frame_ix_ = torch.zeros_like(phot_)
-        id_ = torch.zeros_like(frame_ix_)
+            Example:
+                [0, 0, 0, 1, 2, 2, 0] --> [0, 1, 2, 0, 0, 1, 3]
+            """
 
-        # ToDo: This is a bottleneck
+            def grp_range(counts: torch.Tensor):
+                assert counts.dim() == 1
 
-        c = 0
-        for i in range(self.xyz.shape[0]):  # loop over emitters
-            for j in range(frame_dur[i]):  # loop over its frames
-                xyz_[c, :] = self.xyz[i]
-                frame_ix_[c] = frame_start[i] + j
-                id_[c] = self.id[i]
+                idx = counts.cumsum(0)
+                id_arr = torch.ones(idx[-1], dtype=int)
+                id_arr[0] = 0
+                id_arr[idx[:-1]] = -counts[:-1] + 1
+                return id_arr.cumsum(0)
 
-                """Calculate time on frame and multiply that by the intensity."""
-                ontime_on_frame = torch.min(self.te[i], frame_ix_[c] + 1) - torch.max(self.t0[i], frame_ix_[c])
-                phot_[c] = ontime_on_frame * self.intensity[i]  # photon flux times on-time = photons
+            if arr.numel() == 0:
+                return arr
 
-                c += 1
+            _, cnt = torch.unique(arr, return_counts=True)
+            return grp_range(cnt)[torch.argsort(arr).argsort()]
+
+        frame_start = torch.floor(self.t0).long()
+        frame_last = torch.floor(self.te).long()
+        frame_count = (frame_last - frame_start).long()
+
+        frame_count_full = frame_count - 2
+        ontime_first = torch.min(self.te - self.t0, frame_start + 1 - self.t0)
+        ontime_last = torch.min(self.te - self.t0, self.te - frame_last)
+
+        """Repeat by full-frame duration"""
+
+        # kick out everything that has no full frame_duration
+        ix_full = frame_count_full >= 0
+        xyz_ = self.xyz[ix_full, :]
+        flux_ = self.intensity[ix_full]
+        id_ = self.id[ix_full]
+        frame_start_full = frame_start[ix_full]
+        frame_dur_full_clean = frame_count_full[ix_full]
+
+        xyz_ = xyz_.repeat_interleave(frame_dur_full_clean + 1, dim=0)
+        phot_ = flux_.repeat_interleave(frame_dur_full_clean + 1, dim=0)  # because intensity * 1 = phot
+        id_ = id_.repeat_interleave(frame_dur_full_clean + 1, dim=0)
+        # because 0 is first occurence
+        frame_ix_ = frame_start_full.repeat_interleave(frame_dur_full_clean + 1, dim=0) + cum_count_per_group(id_) + 1
+
+        """First frame"""
+        # first
+        xyz_ = torch.cat((xyz_, self.xyz), 0)
+        phot_ = torch.cat((phot_, self.intensity * ontime_first), 0)
+        id_ = torch.cat((id_, self.id), 0)
+        frame_ix_ = torch.cat((frame_ix_, frame_start), 0)
+
+        # last (only if frame_last != frame_first
+        ix_with_last = frame_last >= frame_start + 1
+        xyz_ = torch.cat((xyz_, self.xyz[ix_with_last]))
+        phot_ = torch.cat((phot_, self.intensity[ix_with_last] * ontime_last[ix_with_last]), 0)
+        id_ = torch.cat((id_, self.id[ix_with_last]), 0)
+        frame_ix_ = torch.cat((frame_ix_, frame_last[ix_with_last]))
 
         return xyz_, phot_, frame_ix_, id_
 

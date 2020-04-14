@@ -138,7 +138,7 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         t0 = self.t0_dist.sample((n, ))
         ontime = self.lifetime_dist.rsample((n,))
 
-        return LooseEmitterSet(xyz, intensity, ontime, t0, None, xy_unit=self.xy_unit)
+        return LooseEmitterSet(xyz, intensity, ontime, t0, xy_unit=self.xy_unit, id=None)
 
     def _test_actual_number(self):
         """

@@ -1,6 +1,7 @@
 import os
 
 import pytest
+import numpy as np
 import torch
 
 import deepsmlm.generic.emitter as emitter
@@ -226,6 +227,54 @@ def test_empty_emitterset():
 
 
 class TestLooseEmitterSet:
+
+    def test_sanity(self):
+
+        with pytest.raises(ValueError) as err:  # wrong xyz dimension
+            _ = emitter.LooseEmitterSet(xyz=torch.rand((20, 1)), intensity=torch.ones(20),
+                                         ontime=torch.ones(20), t0=torch.rand(20), id=None, xy_unit='px')
+        assert str(err.value) == "Wrong xyz dimension."
+
+        with pytest.raises(ValueError) as err:  # non unique IDs
+            _ = emitter.LooseEmitterSet(xyz=torch.rand((20, 3)), intensity=torch.ones(20),
+                                        ontime=torch.ones(20), t0=torch.rand(20), id=torch.ones(20), xy_unit='px')
+        assert str(err.value) == "IDs are not unique."
+
+        with pytest.raises(ValueError) as err:  # negative intensity
+            _ = emitter.LooseEmitterSet(xyz=torch.rand((20, 3)), intensity=-torch.ones(20),
+                                        ontime=torch.ones(20), t0=torch.rand(20), id=None, xy_unit='px')
+        assert str(err.value) == "Negative intensity values encountered."
+
+        with pytest.raises(ValueError) as err:  # negative intensity
+            _ = emitter.LooseEmitterSet(xyz=torch.rand((20, 3)), intensity=torch.ones(20),
+                                        ontime=-torch.ones(20), t0=torch.rand(20), id=None, xy_unit='px')
+        assert str(err.value) == "Negative ontime encountered."
+
+    def test_frame_distribution(self):
+
+        em = emitter.LooseEmitterSet(xyz=torch.Tensor([[1., 2., 3.], [7., 8., 9.]]), intensity=torch.Tensor([1., 2.]),
+                                     t0=torch.Tensor([-0.5, 3.2]), ontime=torch.Tensor([0.4, 2.]), id=torch.tensor([0, 1]),
+                                     sanity_check=True, xy_unit='px')
+
+        """Distribute"""
+        xyz, phot, frame_ix, id = em._distribute_framewise()
+        # sort by id then by frame_ix
+        ix = np.lexsort((id, frame_ix))
+        id = id[ix]
+        xyz = xyz[ix, :]
+        phot = phot[ix]
+        frame_ix = frame_ix[ix]
+
+        """Assert"""
+        assert (xyz[0] == torch.Tensor([1., 2., 3.])).all()
+        assert id[0] == 0
+        assert frame_ix[0] == -1
+        assert phot[0] == 0.4 * 1
+
+        assert (xyz[1:4] == torch.Tensor([7., 8., 9.])).all()
+        assert (id[1:4] == 1).all()
+        assert (frame_ix[1:4] == torch.Tensor([3, 4, 5])).all()
+        assert test_utils.tens_almeq(phot[1:4], torch.tensor([0.8 * 2, 2, 0.2 * 2]), 1e-6)
 
     @pytest.fixture(scope='class')
     def dummy_set(self):
