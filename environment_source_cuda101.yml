@@ -51,6 +51,6 @@ dependencies:
   - snakeviz
   - sqlite
   - tensorflow
-  - tensorboard
+  - tensorboard>=1.14
   - tifffile
   - tqdm

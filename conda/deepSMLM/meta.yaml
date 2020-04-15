@@ -42,6 +42,7 @@ requirements:
     - scipy
     - seaborn
     - scikit-learn
+    - tensorboard
     - tifffile
     - tqdm
 
