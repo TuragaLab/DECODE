@@ -2,52 +2,94 @@ from operator import itemgetter
 
 
 class TransformSequence:
-    """Simple class which calls forward method of all it's components."""
+    """
+    Simple class which calls forward method of all it's components sequentially.
+    """
     def __init__(self, components, input_slice=None):
         """
 
         Args:
             components: components with forward method
-            input_slice: select which output elements of component i-1 are input to component i. Specification starts
-            with index of output of the 0th element that will be input to the 1st com.
+            input_slice: list of lists which indicate what is the output to the i-th component; e.g. [[0, 1], [0]]
+            means that the first component get's the 0th and 1st element which are input to this instances forward
+            method, the 1st component will get the 0th output of the 0th component.
         """
         self.com = components
         self._input_slice = input_slice
 
         """Sanity"""
         if self._input_slice is not None:
-            assert len(self._input_slice) == len(self) - 1, "Input slices must be one less than number of components"
+            assert len(self._input_slice) == len(self), "Input slices must be the same number as components"
 
     @staticmethod
     def parse(components, param: dict, **kwargs):
         """
         If all components implemented a parse method, you can do it globally only once for the whole sequence.
-        :param components: as in init.
-        :param param:
-        :return:
+
+        Args:
+            components: component reference (unintialised) with forward method
+            param (dict): parameters which are forwarded to the constructor of the components
+            kwargs: arbitrary keyword arguments subject to this class constructor
+
+        returns:
+            TransformSequence
         """
         return TransformSequence([cpt.parse(param) for cpt in components], **kwargs)
 
     def __len__(self):
         """
         Returns the number of components
-        :return:
         """
         return self.com.__len__()
 
     def forward(self, *x):
         """
+        Forwards the input data sequentially through all components
 
-        :param x: input
-        :return: output
+        Args:
+            *x: arbitrary input data
+
+        Returns:
+            Any: Output of the last component
         """
+
         for i, com in enumerate(self.com):
-            if isinstance(x, tuple):
-                if self._input_slice is not None and i >= 1:
-                    com_in = itemgetter(*self._input_slice[i-1])(x)  # get specific outputs as input for next com
-                    x = com.forward(com_in)
+            if self._input_slice is not None:
+                com_in = itemgetter(*self._input_slice[i])(x)  # get specific outputs as input for next com
+                if len(self._input_slice[i]) >= 2:
+                    x = com.forward(*com_in)
                 else:
-                    x = com.forward(*x)
+                    x = com.forward(com_in)
             else:
-                x = com.forward(x)
+                x = com.forward(*x)
+
         return x
+
+
+class ParallelTransformSequence(TransformSequence):
+    """
+    Simple processing class that forwards data through all of it's components parallely (not in a hardware sense) and
+    returns a list of the output or combines them if a merger is specified.
+    """
+    def __init__(self, components, input_slice, merger=None):
+        super().__init__(components=components, input_slice=input_slice)
+
+        self.merger = merger
+
+    def forward(self, *x):
+
+        out_cache = [None] * len(self)
+        for i, com in enumerate(self.com):
+            if self._input_slice is not None:
+                com_in = itemgetter(*self._input_slice[i])(x)
+                if len(self._input_slice[i]) >= 2:  # unpack
+                    out_cache[i] = com.forward(*com_in)
+                else:
+                    out_cache[i] = com.forward(com_in)
+            else:
+                out_cache[i] = com.forward(*x)
+
+        if self.merger is not None:
+            return self.merger(out_cache)
+        else:
+            return out_cache
