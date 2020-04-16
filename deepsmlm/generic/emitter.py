@@ -867,8 +867,8 @@ class CoordinateOnlyEmitter(EmitterSet):
 class EmptyEmitterSet(CoordinateOnlyEmitter):
     """An empty emitter set."""
 
-    def __init__(self):
-        super().__init__(torch.zeros((0, 3)))
+    def __init__(self, xy_unit=None, px_size=None):
+        super().__init__(torch.zeros((0, 3)), xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
         super().__init__(xyz=em.xyz,

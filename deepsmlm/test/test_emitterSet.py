@@ -276,7 +276,7 @@ class TestLooseEmitterSet:
         assert (frame_ix[1:4] == torch.Tensor([3, 4, 5])).all()
         assert test_utils.tens_almeq(phot[1:4], torch.tensor([0.8 * 2, 2, 0.2 * 2]), 1e-6)
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def dummy_set(self):
         num_emitters = 10000
         t0_max = 5000
@@ -288,7 +288,6 @@ class TestLooseEmitterSet:
 
     def test_distribution(self):
         loose_em = emitter.LooseEmitterSet(torch.zeros((2, 3)), torch.tensor([1000., 10]), torch.tensor([1., 5]),
-                                           torch.tensor([-0.2, 0.9]), None,
-                                           xy_unit='px')
+                                           torch.tensor([-0.2, 0.9]), xy_unit='px')
 
         em = loose_em.return_emitterset()
