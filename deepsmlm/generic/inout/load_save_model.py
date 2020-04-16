@@ -21,7 +21,7 @@ def hash_model(modelfile):
 
 
 class LoadSaveModel:
-    def __init__(self, model_instance, output_file, input_file=None, name_time_interval=(60*60), better_th=1e-6,
+    def __init__(self, model_instance, output_file: (str, pathlib.Path), input_file=None, name_time_interval=(60*60), better_th=1e-6,
                  max_files=3):
         """
 
@@ -32,7 +32,7 @@ class LoadSaveModel:
         :param better_th: relative threshold on a metric to determine whether a model is better or not.
         """
         self.warmstart_file = input_file
-        self.output_file = output_file
+        self.output_file = output_file if isinstance(output_file, pathlib.Path) else pathlib.Path(output_file)
         self.output_file_suffix = -1  # because will be increased to one in the first round
         self.model = model_instance
         self.name_time_interval = name_time_interval
@@ -103,7 +103,7 @@ class LoadSaveModel:
             self._new_name_time = time.time()
 
         """Determine file name and save."""
-        fname = self.output_file[:-3] + '_' + str(self.output_file_suffix) + '.pt'
+        fname = pathlib.Path(str(self.output_file.with_suffix('')) + '_' + str(self.output_file_suffix) + '.pt')
         torch.save(model.state_dict(), fname)
         print('Saved model to file: {}'.format(fname))
 
