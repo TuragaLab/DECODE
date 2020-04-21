@@ -93,11 +93,14 @@ namespace spline_psf_gpu {
         return d_sp;
     }
 
+
     // Wrapper function to compute the ROIs on the device.
     // Takes in all the host arguments and returns leaves the ROIs on the device
     // 
     auto forward_rois_host2device(spline *d_sp, const int n, const int roi_size_x, const int roi_size_y,
     const float *h_x, const float *h_y, const float *h_z, const float *h_phot) -> float* {
+
+        cudaError_t err;
 
         // allocate and copy coordinates and photons
         float *d_x, *d_y, *d_z, *d_phot;
@@ -113,6 +116,14 @@ namespace spline_psf_gpu {
         // allocate space for rois on device
         float* d_rois;
         cudaMalloc(&d_rois, n * roi_size_x * roi_size_y * sizeof(float));
+        
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::stringstream rt_err;
+            rt_err << "Error during ROI memory allocation.\nCode: "<< err << "\nInformation: \n" << cudaGetErrorString(err);
+            throw std::runtime_error(rt_err.str());
+        }
+
         cudaMemset(d_rois, 0.0, n * roi_size_x * roi_size_y * sizeof(float));
 
         #if DEBUG
@@ -182,11 +193,27 @@ namespace spline_psf_gpu {
     auto forward_drv_rois_host2host(spline *d_sp, float *h_rois, float *h_drv_rois, const int n, const int roi_size_x, const int roi_size_y,
         const float *h_x, const float *h_y, const float *h_z, const float *h_phot, const float *h_bg, const bool add_bg) -> void {
         
+        cudaError_t err;
+        
         // allocate space for rois and derivatives on device
         const int n_par = 5;
-        float *d_rois, *d_drv_rois;     
+        float *d_rois, *d_drv_rois;  
+
         cudaMalloc(&d_rois, n * roi_size_x * roi_size_y * sizeof(float));
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::stringstream rt_err;
+            rt_err << "Error during ROI memory allocation.\nCode: "<< err << "\nInformation: \n" << cudaGetErrorString(err);
+            throw std::runtime_error(rt_err.str());
+        }
+
         cudaMalloc(&d_drv_rois, n_par * n * roi_size_x * roi_size_y * sizeof(float));
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::stringstream rt_err;
+            rt_err << "Error during derivative ROI memory allocation.\nCode: "<< err << "\nInformation: \n" << cudaGetErrorString(err);
+            throw std::runtime_error(rt_err.str());
+        }
 
         // forward
         forward_drv_rois_host2device(d_sp, d_rois, d_drv_rois, n, roi_size_x, roi_size_y, h_x, h_y, h_z, h_phot, h_bg, add_bg);
@@ -224,6 +251,12 @@ namespace spline_psf_gpu {
         // ToDo: maybe convert to stream
         float* d_frames;
         cudaMalloc(&d_frames, n_frames * frame_size_x * frame_size_y * sizeof(float));
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            std::stringstream rt_err;
+            rt_err << "Error during Frame memory allocation.\nCode: "<< err << "\nInformation: \n" << cudaGetErrorString(err);
+            throw std::runtime_error(rt_err.str());
+        }
         cudaMemset(d_frames, 0.0, n_frames * frame_size_x * frame_size_y * sizeof(float));
 
         // allocate indices

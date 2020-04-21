@@ -662,7 +662,7 @@ class CubicSplinePSF(PSF):
         xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
 
         if xyz.size(0) == 0:
-            return torch.zeros((0, *self.img_shape))
+            return torch.zeros((ix_high - ix_low + 1, *self.img_shape))
 
         """Convert Coordinates into ROI based coordinates and transform into implementation coordinates"""
         xyz_r, ix = self.frame2roi_coord(xyz)
