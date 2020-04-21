@@ -41,7 +41,7 @@ class PSF(ABC):
                                                                                        self.img_shape)
 
     @abstractmethod
-    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
+    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low: int, ix_high: int):
         """
         Forward coordinates frame index aware through the psf model.
         Implementation methods should call this method first in order not to handle the default argument stuff.
@@ -78,7 +78,7 @@ class PSF(ABC):
         weight_ = weight[in_frame] if weight is not None else None
         frame_ix_ = frame_ix[in_frame] - ix_low
 
-        ix_high -= ix_low
+        ix_high = ix_high - ix_low
         ix_low = 0
 
         return xyz_, weight_, frame_ix_, ix_low, ix_high
@@ -644,8 +644,8 @@ class CubicSplinePSF(PSF):
         crlb, rois = self.crlb(xyz, phot, bg, inversion)
         return crlb.sqrt(), rois
 
-    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor = None, ix_low=None,
-                ix_high=None):
+    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor = None, ix_low: int = None,
+                ix_high: int = None):
         """
         Forward coordinates frame index aware through the psf model.
 
