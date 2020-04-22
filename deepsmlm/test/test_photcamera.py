@@ -30,5 +30,15 @@ class TestPhotons2Camera:
         x = torch.rand((32, 3, 64, 64))
         out = m2_spec.backward(x)
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Shipping to CUDA makes only sense if CUDA is available.")
+    @pytest.mark.parametrize("input_device", ["cpu", "cuda"])
+    @pytest.mark.parametrize("forward_device", ["cpu", "cuda"])
+    def test_forward_backward_device(self, m2_spec, input_device, forward_device):
 
+        exp_device = torch.rand(1).to(forward_device).device
 
+        assert m2_spec.forward(torch.rand((1, 32, 32)).to(input_device), forward_device).device \
+               == exp_device
+
+        assert m2_spec.backward(torch.rand((1, 32, 32)).to(input_device), forward_device).device \
+               == exp_device

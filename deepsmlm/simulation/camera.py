@@ -2,20 +2,23 @@ import torch
 import warnings
 
 import deepsmlm.simulation.background
-import deepsmlm.simulation.noise
 import deepsmlm.simulation.noise as noise
 
 
 class Photon2Camera:
-    def __init__(self, qe, spur_noise, em_gain, e_per_adu, baseline, read_sigma, photon_units):
+    def __init__(self, qe, spur_noise, em_gain, e_per_adu, baseline, read_sigma, photon_units,
+                 device: (str, torch.device) = None):
         """
 
-        :param qe: quantum efficiency
-        :param spur_noise: spurious noise
-        :param em_gain: em-gain
-        :param e_per_adu: electrons per analog digital unit
-        :param baseline: baseline (for non negative values)
-        :param read_sigma: read-out sigma (in electrons)
+        Args:
+            qe:
+            spur_noise:
+            em_gain:
+            e_per_adu:
+            baseline:
+            read_sigma:
+            photon_units:
+            device: default device for forward and backward
         """
         self.qe = qe
         self.spur = spur_noise
@@ -23,11 +26,11 @@ class Photon2Camera:
         self.e_per_adu = e_per_adu
         self.baseline = baseline
         self.read_sigma = read_sigma
+        self.device = device
 
-        self.poisson = deepsmlm.simulation.noise.Poisson()
+        self.poisson = noise.Poisson()
         self.gain = noise.Gamma(scale=self.em_gain)
-        self.read = noise.Gaussian(sigma_gaussian=self.read_sigma,
-                                   bg_uniform=0)
+        self.read = noise.Gaussian(sigma_gaussian=self.read_sigma)
         self.photon_units = photon_units
 
     def __str__(self):
@@ -48,12 +51,22 @@ class Photon2Camera:
                              baseline=param['Camera']['baseline'], read_sigma=param['Camera']['read_sigma'],
                              photon_units=param['Camera']['convert2photons'])
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor, device: (str, torch.device) = None) -> torch.Tensor:
         """
-        Input in photons
-        :param x:
-        :return:
+        Forwards frame through camera
+
+        Args:
+            x (torch.Tensor): camera frame of dimension *, H, W
+            device (str, torch.device): device for forward
+
+        Returns:
+            torch.Tensor
         """
+        if device is not None:
+            x = x.to(device)
+        elif self.device is not None:
+            x = x.to(self.device)
+
         """Clamp input to 0."""
         x = torch.clamp(x, 0.)
         """Poisson for photon characteristics of emitter (plus autofluorescence etc."""
@@ -68,7 +81,7 @@ class Photon2Camera:
         camera = camera.floor()
         """Add Manufacturer baseline. Make sure it's not below 0."""
         camera += self.baseline
-        camera = torch.max(camera, torch.tensor([0.]))
+        camera = torch.max(camera, torch.tensor([0.]).to(camera.device))
 
         if self.photon_units:
             if self.em_gain is not None:
@@ -77,12 +90,23 @@ class Photon2Camera:
                 camera = ((camera - self.baseline) * self.e_per_adu - self.spur) / self.qe
         return camera
 
-    def backward(self, x):
+    def backward(self, x: torch.Tensor, device: (str, torch.device) = None) -> torch.Tensor:
         """
-        Calculate (expected) number of photons
-        :param x:
-        :return:
+        Calculates the expected number of photons from a noisy image.
+
+        Args:
+            x:
+            device:
+
+        Returns:
+
         """
+
+        if device is not None:
+            x = x.to(device)
+        elif self.device is not None:
+            x = x.to(self.device)
+
         if self.photon_units:
             warnings.warn(UserWarning("You try to convert from ADU (camera units) back to photons although this camera simulator"
                           "already outputs photon units. Make sure you know what you are doing."))
