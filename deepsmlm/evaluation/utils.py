@@ -12,7 +12,7 @@ from scipy import stats
 from scipy.stats import gaussian_kde
 
 import deepsmlm.evaluation.evaluation
-from deepsmlm.evaluation.metric_library import efficiency
+from deepsmlm.evaluation.evaluation import EvalSet
 
 
 class MetricMeter:
@@ -176,63 +176,6 @@ class CumulantMeter(MetricMeter):
         """
 
         self.vals = torch.cat((self.vals, val), 0)
-
-
-class EvalSet:
-    alpha_lat = 1  # nm
-    alpha_ax = 0.5  # nm
-
-    """Just a dummy class to combine things into one object."""
-
-    def __init__(self, prec, rec, jac, f1,
-                 delta_num,
-                 rmse_vol, rmse_lat, rmse_axial,
-                 mad_vol, mad_lat, mad_axial,
-                 dx, dy, dz, dxw, dyw, dzw):
-        self.prec = prec
-        self.rec = rec
-        self.jac = jac
-        self.f1 = f1
-
-        self.delta_num = delta_num
-
-        self.rmse_vol = rmse_vol
-        self.rmse_lat = rmse_lat
-        self.rmse_axial = rmse_axial
-        self.mad_vol = mad_vol
-        self.mad_lat = mad_lat
-        self.mad_axial = mad_axial
-
-        """Efficiency as in the challenge"""
-        self.effcy_lat = efficiency(self.jac, self.rmse_lat, self.alpha_lat)
-        self.effcy_ax = efficiency(self.jac, self.rmse_axial, self.alpha_ax)
-        self.effcy_vol = (self.effcy_lat + self.effcy_ax) / 2
-
-        self.dx = dx
-        self.dy = dy
-        self.dz = dz
-        self.dxw = dxw
-        self.dyw = dyw
-        self.dzw = dzw
-
-    def __str__(self):
-        str = "------------------------ Evaluation Set ------------------------\n"
-        str += "Precision {}\n".format(self.prec.__str__())
-        str += "Recall {}\n".format(self.rec.__str__())
-        str += "Jaccard {}\n".format(self.jac.__str__())
-        str += "F1Score {}\n".format(self.f1.__str__())
-        str += "Delta num. emitters (out - tar.) {}\n".format(self.delta_num.__str__())
-        str += "RMSE lat. {}\n".format(self.rmse_lat.__str__())
-        str += "RMSE ax. {}\n".format(self.rmse_axial.__str__())
-        str += "RMSE vol. {}\n".format(self.rmse_vol.__str__())
-        str += "MAD lat. {}\n".format(self.mad_lat.__str__())
-        str += "MAD ax. {}\n".format(self.mad_axial.__str__())
-        str += "MAD vol. {}\n".format(self.mad_vol.__str__())
-        str += "Efficiency lat. {}\n".format(self.effcy_lat.__str__())
-        str += "Efficiency ax. {}\n".format(self.effcy_ax.__str__())
-        str += "Efficiency vol. {}\n".format(self.effcy_vol.__str__())
-        str += "-----------------------------------------------------------------"
-        return str
 
 
 class BatchEvaluation:

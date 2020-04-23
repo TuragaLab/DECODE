@@ -65,7 +65,7 @@ class TestDistanceEval(TestEval):
         return evaluation.DistanceEvaluation()
 
     test_data = [
-        (em.EmptyEmitterSet(), em.EmptyEmitterSet(), (float('nan'), ) * 6)
+        (em.EmptyEmitterSet('nm'), em.EmptyEmitterSet('nm'), (float('nan'), ) * 6)
     ]
 
     @pytest.mark.parametrize("tp,tp_match,expect", test_data)
@@ -97,14 +97,14 @@ class TestDistanceEval(TestEval):
 
         """
         with pytest.raises(ValueError):
-            evaluator.forward(em.EmptyEmitterSet(), em.RandomEmitterSet(1))
+            evaluator.forward(em.EmptyEmitterSet('nm'), em.RandomEmitterSet(1, xy_unit='nm'))
 
 
 class TestWeightedErrors(TestEval):
 
     @pytest.fixture(params=['phot', 'crlb'])
     def evaluator(self, request):
-        return evaluation.WeightedErrors(mode=request.param, reduction=None)
+        return evaluation.WeightedErrors(mode=request.param, reduction='mstd')
 
     # one mode of paremtr. should not lead to an error because than the reduction type is also checked
     @pytest.mark.parametrize("mode", [None, 'abc', 'phot'])
@@ -132,7 +132,7 @@ class TestWeightedErrors(TestEval):
         ref.bg_cr = torch.tensor([1., 2., 3., 4]) ** 2
 
         """Run"""
-        dpos, dphot, dbg = evaluator.forward(tp, ref)
+        _, _, _, dpos, dphot, dbg = evaluator.forward(tp, ref)  # test only on non reduced values
 
         """Assertions"""
         assert (dpos.abs().argsort(0) == torch.arange(4).unsqueeze(1).repeat(1, 3)).all(), "Weighted error for pos." \
@@ -145,7 +145,7 @@ class TestWeightedErrors(TestEval):
                                                                                 "monot. decreasing"
 
     data_forward_sanity = [
-        (em.EmptyEmitterSet(), em.EmptyEmitterSet(), False, (torch.empty((0, 3)), torch.empty((0, )), torch.empty((0, )))),
+        (em.EmptyEmitterSet(xy_unit='nm'), em.EmptyEmitterSet(xy_unit='nm'), False, (torch.empty((0, 3)), torch.empty((0, )), torch.empty((0, )))),
         (em.RandomEmitterSet(5), em.EmptyEmitterSet(), True, None)
     ]
 
@@ -172,7 +172,7 @@ class TestWeightedErrors(TestEval):
 
         """Assertions"""
         assert isinstance(out, evaluator._return), "Wrong output type"
-        for out_i, expt_i in zip(out, expt_out):
+        for out_i, expt_i in zip(out[3:], expt_out):  # test only the non reduced outputs
             assert test_utils.tens_almeq(out_i, expt_i, 1e-4)
 
     def test_reduction(self, evaluator):
@@ -184,13 +184,6 @@ class TestWeightedErrors(TestEval):
         """
 
         """Setup, Run and Test"""
-        # no reduction
-        dxyz, dphot, dbg = torch.rand((0, 3)), torch.rand(0), torch.rand(0)
-        dxyz_, dphot_, dbg_ = evaluator._reduce(dxyz, dphot, dbg, None)
-
-        assert (dxyz_ == dxyz).all()
-        assert (dphot_ == dphot).all()
-        assert (dbg_ == dbg).all()
 
         # mean and std
         dxyz, dphot, dbg = torch.randn((250000, 3)), torch.randn(250000) + 20, torch.rand(250000)
@@ -238,4 +231,3 @@ class TestWeightedErrors(TestEval):
 
         """Assert"""
         plt.show()
-
