@@ -1,18 +1,19 @@
-import click
 import datetime
+import os
 import socket
 from pathlib import Path
-import os
 
-import deepsmlm.simulation.psf_kernel
+import click
+
+import deepsmlm.generic.inout.load_calibration
+import deepsmlm.generic.inout.util
+import deepsmlm.generic.inout.write_load_param as dsmlm_par
 import deepsmlm.generic.utils
+import deepsmlm.neuralfitter.dataset
 import deepsmlm.simulation.background
 import deepsmlm.simulation.camera
-import deepsmlm.generic.inout.write_load_param as dsmlm_par
-import deepsmlm.generic.inout.util
 import deepsmlm.simulation.engine
-import deepsmlm.generic.inout.load_calibration
-import deepsmlm.neuralfitter.dataset
+import deepsmlm.simulation.psf_kernel
 
 deepsmlm_root = Path(__file__).parent.parent.parent
 
@@ -85,9 +86,9 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     """
     psf = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(
         calib_file=param.InOut.calibration_file).init_spline(
-            xextent=param.Simulation.psf_extent[0],
-            yextent=param.Simulation.psf_extent[1],
-            img_shape=param.Simulation.img_size,
+        xextent=param.Simulation.psf_extent[0],
+        yextent=param.Simulation.psf_extent[1],
+        img_shape=param.Simulation.img_size,
         cuda_kernel=True if param.Hardware.device_sim[:4] == 'cuda' else False
     )
 
@@ -97,17 +98,14 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
         yextent=param.Simulation.emitter_extent[1],
         zextent=param.Simulation.emitter_extent[2])
 
-    """Increase samples because the border cases should not be used for training."""
-    half_window = (param.HyperParameter.channels_in - 1) // 2
-
-    frame_range_train = (0 - half_window, param.HyperParameter.pseudo_ds_size + half_window)
-    frame_range_test = (0 - half_window, param.HyperParameter.test_size + half_window)
+    frame_range_train = (0, param.HyperParameter.pseudo_ds_size)
+    frame_range_test = (0, param.HyperParameter.test_size)
 
     prior_train = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame.parse(
-        param, structure=prior_struct, frames=(frame_range_train))
+        param, structure=prior_struct, frames=frame_range_train)
 
     prior_test = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame.parse(
-        param, structure=prior_struct, frames=(frame_range_test))
+        param, structure=prior_struct, frames=frame_range_test)
 
     """Define our background and noise model."""
     if param.Simulation.bg_perlin_amplitude is None:
