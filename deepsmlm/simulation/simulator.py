@@ -17,20 +17,18 @@ class Simulation:
         noise (Noise): noise implementation
     """
 
-    def __init__(self, psf, em=None, em_sampler=None, background=None, noise=None, frame_range=None):
+    def __init__(self, psf, em_sampler=None, background=None, noise=None, frame_range: tuple = None):
         """
         Init Simulation.
 
         Args:
-            psf:
-            em:
-            em_sampler:
-            background:
-            noise:
-            frame_range:
+            psf: point spread function instance
+            em_sampler: callable that returns an EmitterSet upon call
+            background: background instance
+            noise: noise instance
+            frame_range: limit frames to static range
         """
 
-        self.em = em
         self.em_sampler = em_sampler
         self.frame_range = frame_range if frame_range is not None else (None, None)
 
@@ -44,14 +42,12 @@ class Simulation:
                           "Background is defined as something which does not depend on the actual "
                           "signal whereas noise does.")
 
-    def forward(self, em_new=None):
+    def forward(self, em=None):
 
-        if em_new is not None:
-            self.em = em_new
-        elif self.em_sampler is not None:
-            self.em = self.em_sampler()
+        if em is None:
+            em = self.em_sampler()
 
-        frames = self.psf.forward(self.em.xyz_px, self.em.phot, self.em.frame_ix,
+        frames = self.psf.forward(em.xyz_px, em.phot, em.frame_ix,
                                   ix_low=self.frame_range[0], ix_high=self.frame_range[1])
 
         """
@@ -67,4 +63,4 @@ class Simulation:
         if self.noise is not None:
             frames = self.noise.forward(frames)
 
-        return frames, bg_frames, self.em
+        return frames, bg_frames, em

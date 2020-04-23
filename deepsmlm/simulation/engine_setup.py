@@ -63,6 +63,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     """Hardware / Server stuff."""
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(param.Hardware.device_sim_ix)
+    os.nice(param.Hardware.unix_niceness_sim)  # set niceness of process
 
     import torch
     # torch.multiprocessing.set_sharing_strategy('file_system')  # does not seem to work with spawn method together
@@ -70,7 +71,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     """Set multiprocessing strategy to spawn, otherwise you get errors"""
     # if param.Hardware.device_sim[:4] == 'cuda':
     import multiprocessing as mp
-    mp.set_start_method('spawn')
+    mp.set_start_method('forkserver')
 
     assert torch.cuda.device_count() <= param.Hardware.max_cuda_devices
     torch.set_num_threads(param.Hardware.torch_threads)
@@ -88,7 +89,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
             xextent=param.Simulation.psf_extent[0],
             yextent=param.Simulation.psf_extent[1],
             img_shape=param.Simulation.img_size,
-        cuda=True if param.Hardware.device_sim[:4] == 'cuda' else False
+        cuda_kernel=True if param.Hardware.device_sim[:4] == 'cuda' else False
     )
 
     """Structure Prior"""
@@ -100,11 +101,12 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     prior = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame(
         structure=prior_struct,
         xy_unit=param.Simulation.xy_unit,
-        density=param.Simulation.density,
+        px_size=param.Camera.px_size,
+        density=param.Simulation._density,
         intensity_mu_sig=param.Simulation.intensity_mu_sig,
         lifetime=param.Simulation.lifetime_avg,
-        num_frames=3,
-        emitter_av=param.Simulation.emitter_av,
+        frames=3,
+        emitter_av=param.Simulation._emitter_av,
         intensity_th=param.Simulation.intensity_th)
 
     """Define our background and noise model."""
@@ -113,7 +115,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     else:
         bg = deepsmlm.generic.utils.processing.TransformSequence.parse(
             [deepsmlm.simulation.background.UniformBackground,
-             deepsmlm.simulation.background.PerlinBackground], param, input_slice=[[0]])
+             deepsmlm.simulation.background.PerlinBackground], param, input_slice=[[0], [0]])
 
     noise = deepsmlm.simulation.camera.Photon2Camera.parse(param)
 
@@ -124,24 +126,20 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     # use frame range of 3 all the time, maybe kick out unnecessary frames later
     frame_range = (-1, 1)
 
-    simulation = deepsmlm.simulation.simulator.Simulation(
-        em_sampler=prior,
-        psf=psf,
-        background=bg,
-        noise=noise,
-        frame_range=frame_range)
+    simulation = deepsmlm.simulation.simulator.Simulation(psf=psf, em_sampler=prior, background=bg, noise=noise,
+                                                          frame_range=frame_range)
 
     ds_train = deepsmlm.simulation.engine.SMLMSimulationDatasetOnFly(simulator=simulation,
                                                                      ds_size=param.HyperParameter.pseudo_ds_size)
     ds_test = deepsmlm.simulation.engine.SMLMSimulationDatasetOnFly(simulator=simulation,
                                                                     ds_size=param.HyperParameter.test_size)
 
-    simulation_engine = deepsmlm.simulation.engine.SimulationEngine(cache_dir=cache_dir,
-                                                                    exp_id=exp_id,
-                                                                    cpu_worker=param.Hardware.num_worker_sim,
-                                                                    buffer_size=param.HyperParameter.ds_buffer,
-                                                                    ds_train=ds_train,
-                                                                    ds_test=ds_test)
+    simulation_engine = deepsmlm.simulation.engine.SampleStreamEngine(cache_dir=cache_dir,
+                                                                      exp_id=exp_id,
+                                                                      cpu_worker=param.Hardware.num_worker_sim,
+                                                                      buffer_size=param.HyperParameter.ds_buffer,
+                                                                      ds_train=ds_train,
+                                                                      ds_test=ds_test)
 
     simulation_engine.run()
     
