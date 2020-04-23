@@ -1,18 +1,70 @@
+from abc import abstractmethod
 import ctypes
 import multiprocessing as mp
 
 import numpy as np
 import torch
 import tqdm
+from deepsmlm.generic import EmitterSet
 from torch.utils.data import Dataset
 
 
-class SMLMStaticDataset(Dataset):
+class SMLMDataset(Dataset):
+
+    _pad_modes = (None, 'same')
+
+    def __init__(self, *, em_proc, frame_proc, tar_gen, weight_gen, frame_window: int, pad: str = None):
+        super().__init__()
+
+        self.em_proc = em_proc
+        self.frame_proc = frame_proc
+        self.tar_gen = tar_gen
+        self.weight_gen = weight_gen
+
+        self.frame_window = frame_window
+        self.pad = pad
+
+        """Sanity"""
+        self.sanity_check()
+
+    def sanity_check(self):
+
+        if self.pad not in self._pad_modes:
+            raise ValueError(f"Pad mode {self.pad} not available. Available pad modes are {self._pad_modes}.")
+
+        if self.frame_window is not None and self.frame_window % 2 != 1:
+            raise ValueError(f"Unsupported frame window. Frame window must be odd integered, not {self.frame_window}.")
+
+    def _get_frames(self, frames, index):
+        hw = (self.frame_window - 1) // 2  # half window without centre
+
+        frame_ix = torch.arange(index - hw, index + hw + 1).clamp(0, len(frames) - 1)
+        return frames[frame_ix]
+
+    @staticmethod
+    def _get_emitters(emitters, index):
+
+        if isinstance(emitters, (list, tuple)):
+            return emitters[index]
+
+        elif isinstance(emitters, EmitterSet):
+            return emitters.get_subset_frame(index, index)
+
+    def _pad_index(self, index):
+
+        if self.pad is None:
+            return index
+
+        elif self.pad == 'same':
+            return index + (self.frame_window - 1) // 2
+
+
+class SMLMStaticDataset(SMLMDataset):
     """
     A simple and static SMLMDataset.
 
     Attributes:
-        f_win (int): width of frame window
+        frame_window (int): width of frame window
 
         tar_gen: target generator function
         frame_proc: frame processing function
@@ -22,7 +74,8 @@ class SMLMStaticDataset(Dataset):
         return_em (bool): return EmitterSet in getitem method.
     """
 
-    def __init__(self, *, frames, em, frame_proc, em_proc, tar_gen, weight_gen=None, f_win=3, return_em=True):
+    def __init__(self, *, frames, em: (None, list, tuple), frame_proc, em_proc, tar_gen, weight_gen=None,
+                 frame_window=3, return_em=True):
         """
 
         Args:
@@ -32,27 +85,19 @@ class SMLMStaticDataset(Dataset):
             em_proc: emitter processing / filter function
             tar_gen: target generator function
             weight_gen: weight generator function
-            f_win (int): width of frame window
+            frame_window (int): width of frame window
             return_em (bool): return EmitterSet in getitem method.
         """
 
-        super().__init__()
+        super().__init__(em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen,
+                         frame_window=frame_window)
 
         self._frames = frames
         self._em = em
 
-        self.frame_proc = frame_proc
-        self.em_proc = em_proc
-        self.tar_gen = tar_gen
-        self.weight_gen = weight_gen
-        self.multi_frame = f_win if f_win is not None else 1  # otherwise the slicing logic does not work
-
         self.return_em = return_em
 
         """Sanity checks."""
-        if self.multi_frame is not None and self.multi_frame % 2 != 1:
-            raise ValueError("Multi-Frame must be None or odd integer.")
-
         if self._em is not None and not isinstance(self._em, (list, tuple)):
             raise ValueError("EM must be None, list or tuple.")
 
@@ -61,22 +106,6 @@ class SMLMStaticDataset(Dataset):
 
     def __len__(self):
         return self._frames.size(0)
-
-    def _get_frame_window(self, index):
-        """
-        Get frames in a given window and pad with same.
-
-        Args:
-            index:
-
-        Returns:
-            frames:
-
-        """
-        hw = (self.multi_frame - 1) // 2  # half window without centre
-        frame_ix = torch.arange(index - hw, index + hw + 1).clamp(0, len(self) - 1)
-        frames = self._frames[frame_ix].squeeze(1)
-        return frames
 
     def __getitem__(self, index):
         """
@@ -91,14 +120,16 @@ class SMLMStaticDataset(Dataset):
             em_tar (optional): Ground truth emitters
 
         """
+        index = self._pad_index(index)
+
         """Get frames. Pad with same."""
-        frames = self._get_frame_window(index)
+        frames = self._get_frames(self._frames, index).squeeze(1)
 
         if self.frame_proc:
             frames = self.frame_proc.forward(frames)
 
         """Process Emitters"""
-        em_tar = self._em[index] if self._em is not None else None
+        em_tar = self._get_emitters(self._em, index) if self._em is not None else None
         if self.em_proc:
             em_tar = self.em_proc.forward(em_tar)
 
@@ -122,16 +153,16 @@ class InferenceDataset(SMLMStaticDataset):
     A SMLM dataset without ground truth data. This is dummy wrapper to keep the visual appearance of a separate dataset.
     """
 
-    def __init__(self, *, frames, frame_proc, f_win=3):
+    def __init__(self, *, frames, frame_proc, frame_window):
         """
 
         Args:
             frames (torch.Tensor): frames
             frame_proc: frame processing function
-            f_win (int): frame window
+            frame_window (int): frame window
         """
-        super().__init__(frames=frames, em=None, frame_proc=frame_proc, em_proc=None, tar_gen=None, f_win=f_win,
-                         return_em=False)
+        super().__init__(frames=frames, em=None, frame_proc=frame_proc, em_proc=None, tar_gen=None,
+                         frame_window=frame_window, return_em=False)
 
     def __getitem__(self, index):
         """
@@ -143,7 +174,9 @@ class InferenceDataset(SMLMStaticDataset):
         Returns:
            frames (torch.Tensor): processed frames. C x H x W
         """
-        frames = self._get_frame_window(index)
+        index = self._pad_index(index)
+
+        frames = self._get_frames(self._frames, index).squeeze(1)
 
         if self.frame_proc:
             frames = self.frame_proc.forward(frames)
@@ -151,7 +184,7 @@ class InferenceDataset(SMLMStaticDataset):
         return frames
 
 
-class SMLMTrainingEngineDataset(Dataset):
+class SMLMSampleStreamEngineDataset(SMLMDataset):
     """
     A dataset to use in conjunction with the training engine. It serves the purpose to load the data from the engine.
 
@@ -177,15 +210,12 @@ class SMLMTrainingEngineDataset(Dataset):
             return_em: (bool) return target emitters in the form of an emitter set. use for test set
 
         """
+        super().__init__(em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen, frame_window=None, pad=None)
+
         self._engine = engine
         self._x_in = None  # camera frames
         self._tar_em = None  # emitter target
         self._aux = None  # auxiliary things
-
-        self.frame_proc = frame_proc
-        self.em_proc = em_proc
-        self.tar_gen = tar_gen
-        self.weight_gen = weight_gen
 
         self.return_em = return_em
 
@@ -235,7 +265,42 @@ class SMLMTrainingEngineDataset(Dataset):
         x_in = self.frame_proc.forward(x_in)
         tar_em = self.em_proc.forward(tar_em)
         tar_frame = self.tar_gen.forward(tar_em, *aux)
-        weight = self.weight_gen.forward(x_in, tar_em, *aux)
+        weight = self.weight_gen.forward(tar_frame, tar_em, *aux)
+
+        if not self.return_em:
+            return x_in, tar_frame, weight
+        else:
+            return x_in, tar_frame, weight, tar_em
+
+
+class SMLMDatasetEngineDataset(SMLMSampleStreamEngineDataset):
+
+    def __init__(self, *, engine, em_proc, frame_proc, tar_gen, weight_gen, frame_window, pad=None, return_em=False):
+        super().__init__(engine=engine, em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen,
+                         return_em=return_em)
+
+        self.frame_window = frame_window
+        self.pad = pad
+
+    def __len__(self):
+        if self.pad is None:  # loosing samples at the border
+            return self._x_in.size(0) - self.frame_window + 1
+        elif self.pad == 'same':
+            return self._x_in.size(0)
+
+    def __getitem__(self, index):
+
+        index = self._pad_index(index)
+
+        x_in = self._get_frames(self._x_in, index)
+        tar_em = self._get_emitters(self._tar_em, index)
+        aux = [a[index] for a in self._aux]
+
+        """Preparation on input, emitter filtering, target generation"""
+        x_in = self.frame_proc.forward(x_in)
+        tar_em = self.em_proc.forward(tar_em)
+        tar_frame = self.tar_gen.forward(tar_em, *aux) if self.tar_gen is not None else None
+        weight = self.weight_gen.forward(tar_frame, tar_em, *aux) if self.weight_gen is not None else None
 
         if not self.return_em:
             return x_in, tar_frame, weight
