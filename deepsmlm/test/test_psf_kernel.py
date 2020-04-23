@@ -209,7 +209,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
         smap_psf = load_cal.SMAPSplineCoefficient(calib_file=str(self.bead_cal_file))
         psf_impl = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=smap_psf.ref0,
-                                        coeff=smap_psf.coeff, vx_size=(1., 1., 10), roi_size=(32, 32), cuda=False)
+                                             coeff=smap_psf.coeff, vx_size=(1., 1., 10), roi_size=(32, 32), cuda_kernel=False)
 
         return psf_impl
 
@@ -428,9 +428,9 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
         # modify reference
         psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape,
-                         ref0=psf.ref0, coeff=psf._coeff, vx_size=psf.vx_size,
-                         roi_size=psf.roi_size_px, ref_re=psf.ref0 - torch.Tensor([1., 2., 0.]),
-                         cuda=psf._cuda)
+                     ref0=psf.ref0, coeff=psf._coeff, vx_size=psf.vx_size,
+                     roi_size=psf.roi_size_px, ref_re=psf.ref0 - torch.Tensor([1., 2., 0.]),
+                     cuda_kernel=psf._cuda)
 
         roi_shift = psf.forward_rois(xyz, torch.ones(1, ))
 
@@ -475,6 +475,48 @@ class TestCubicSplinePSF(AbstractPSFTest):
         plf.PlotFrameCoord(frames_cpu[0], pos_tar=xyz).plot()
         plt.title("Random Frame sample.\nShould show a couple of emitters at\nrandom positions distributed over a frame.")
         plt.show()
+
+    @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1), (1, 1), (-5, 5)])
+    def test_forward_chunks(self, psf, ix_low, ix_high):
+        """
+        Tests whether chunked forward returns the same frames as forward method
+
+        Args:
+            psf: fixture
+
+        """
+
+        """Setup"""
+        n = 100
+        xyz = torch.rand((n, 3)) * 64
+        phot = torch.ones(n)
+        frame_ix = torch.randint(-5, 4, size=(n, ))
+
+        """Run"""
+        out_chunk = psf._forward_chunks(xyz, phot, frame_ix, ix_low, ix_high, chunk_size=2)
+        out_forward = psf.forward(xyz, phot, frame_ix, ix_low, ix_high)
+
+        """Test"""
+        assert tutil.tens_almeq(out_chunk, out_forward)
+
+    @pytest.mark.slow
+    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF._cuda_compiled(),
+                       reason="Skipped because PSF implementation not compiled with CUDA support.")
+    def test_many_em_forward(self, psf_cuda):
+
+        """Setup"""
+        psf_cuda.cuda_max_roi_chunk = 1000000
+        n = 10000000
+        n_frames = n // 50
+        xyz = torch.rand((n, 3)) + 15
+        phot = torch.ones(n)
+        frame_ix = torch.randint(0, n_frames, size=(n, )).long()
+
+        """Run"""
+        frames = psf_cuda.forward(xyz, phot, frame_ix, 0, n_frames)
+
+        """Assert"""
+        assert frames.size() == torch.Size([n_frames + 1, 64, 64])
 
     def test_derivatives(self, psf, onek_rois):
         """
@@ -554,3 +596,37 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert tutil.tens_almeq(diff_inv[:, 4], torch.zeros_like(diff_inv[:, 4]), 1e-3)
 
         assert rois.size() == torch.Size([n, *psf.roi_size_px]), "Wrong dimension of ROIs."
+
+    # @pytest.mark.skipif(not torch.cuda.is_available(),
+    #                     reason="Does only makes sense when CUDA device is available.")
+    # @pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
+    # def test_device_return(self, psf, device):
+    #
+    #     """Setup"""
+    #     device = torch.rand((5, 5)).to(device).device  # otherwise a CUDA index might be missing and then assertions fail
+    #     psf.return_device = device
+    #
+    #     xyz, phot, frame_ix, bg = torch.rand((10000, 3)), torch.ones(10000), torch.randint(-5, 5, size=(10000, )), torch.ones(10000)
+    #
+    #     """Run and Assert"""
+    #     roi = psf.forward_rois(xyz, phot)
+    #     assert roi.device == device, "Wrong output device."
+    #
+    #     frames = psf.forward(xyz, phot, frame_ix)
+    #     assert frames.device == device, "Wrong output device."
+    #
+    #     drv, roi = psf.derivative(xyz, phot, bg)
+    #     assert drv.device == device, "Wrong output device."
+    #     assert roi.device == device, "Wrong output device."
+    #
+    #     fisher, roi = psf.fisher(xyz, phot, bg)
+    #     assert fisher.device == device, "Wrong output device."
+    #     assert roi.device == device, "Wrong output device."
+    #
+    #     crlb, roi = psf.crlb(xyz, phot, bg)
+    #     assert crlb.device == device, "Wrong output device."
+    #     assert roi.device == device, "Wrong output device."
+    #
+    #     crlb_sq, roi = psf.crlb_sq(xyz, phot, bg)
+    #     assert crlb_sq.device == device, "Wrong output device."
+    #     assert roi.device == device, "Wrong output device."
