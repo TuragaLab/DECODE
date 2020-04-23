@@ -1,4 +1,5 @@
 import warnings
+from deprecated import deprecated
 
 import numpy as np
 import torch
@@ -585,6 +586,7 @@ class EmitterSet:
         """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
+    @deprecated(reason="Needs to be debugged.")
     def chunks(self, n: int):
         """
         Splits the EmitterSet into (almost) equal chunks
@@ -727,7 +729,21 @@ class EmitterSet:
             self.xy_unit = new_xy_unit
 
     def populate_crlb(self, psf, **kwargs):
-        raise NotImplementedError
+        """
+        Populate the CRLB values by the PSF function.
+
+        Args:
+            psf (PSF): Point Spread function with CRLB implementation
+            **kwargs: additional arguments to be parsed to the CRLB method
+
+        Returns:
+
+        """
+
+        crlb, _ = psf.crlb(self.xyz, self.phot, self.bg, **kwargs)
+        self.xyz_cr = crlb[:, :3]
+        self.phot_cr = crlb[:, 3]
+        self.bg_cr = crlb[:, 4]
 
     def write_to_csv(self, filename, xy_unit=None, comments=None, plain_header=False, xy_unit2=None):
         """
