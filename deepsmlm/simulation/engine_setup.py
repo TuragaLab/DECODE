@@ -66,15 +66,14 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     os.nice(param.Hardware.unix_niceness_sim)  # set niceness of process
 
     import torch
-    # torch.multiprocessing.set_sharing_strategy('file_system')  # does not seem to work with spawn method together
-
-    """Set multiprocessing strategy to spawn, otherwise you get errors"""
-    # if param.Hardware.device_sim[:4] == 'cuda':
-    import multiprocessing as mp
-    mp.set_start_method('forkserver')
-
+    # # torch.multiprocessing.set_sharing_strategy('file_system')  # does not seem to work with spawn method together
+    #
+    # """Set multiprocessing strategy to spawn, otherwise you get errors"""
+    # # if param.Hardware.device_sim[:4] == 'cuda':
+    # import multiprocessing as mp
+    # mp.set_start_method('forkserver')
     assert torch.cuda.device_count() <= param.Hardware.max_cuda_devices
-    torch.set_num_threads(param.Hardware.torch_threads)
+    torch.set_num_threads(param.Hardware.torch_threads_sim)
 
     """
     Setup the actual simulation
@@ -98,16 +97,17 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
         yextent=param.Simulation.emitter_extent[1],
         zextent=param.Simulation.emitter_extent[2])
 
-    prior = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame(
-        structure=prior_struct,
-        xy_unit=param.Simulation.xy_unit,
-        px_size=param.Camera.px_size,
-        density=param.Simulation._density,
-        intensity_mu_sig=param.Simulation.intensity_mu_sig,
-        lifetime=param.Simulation.lifetime_avg,
-        frames=3,
-        emitter_av=param.Simulation._emitter_av,
-        intensity_th=param.Simulation.intensity_th)
+    """Increase samples because the border cases should not be used for training."""
+    half_window = (param.HyperParameter.channels_in - 1) // 2
+
+    frame_range_train = (0 - half_window, param.HyperParameter.pseudo_ds_size + half_window)
+    frame_range_test = (0 - half_window, param.HyperParameter.test_size + half_window)
+
+    prior_train = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame.parse(
+        param, structure=prior_struct, frames=(frame_range_train))
+
+    prior_test = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame.parse(
+        param, structure=prior_struct, frames=(frame_range_test))
 
     """Define our background and noise model."""
     if param.Simulation.bg_perlin_amplitude is None:
@@ -117,32 +117,21 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
             [deepsmlm.simulation.background.UniformBackground,
              deepsmlm.simulation.background.PerlinBackground], param, input_slice=[[0], [0]])
 
-    noise = deepsmlm.simulation.camera.Photon2Camera.parse(param)
+    noise = deepsmlm.simulation.camera.Photon2Camera.parse(param, device=param.Hardware.device_sim)
 
-    """
-    Here we define some constants to give all possibilities during training. 
-    Unnecessary stuff can be still kicked out later
-    """
-    # use frame range of 3 all the time, maybe kick out unnecessary frames later
-    frame_range = (-1, 1)
+    simulation_train = deepsmlm.simulation.simulator.Simulation(
+        psf=psf, em_sampler=prior_train, background=bg, noise=noise, frame_range=frame_range_train)
 
-    simulation = deepsmlm.simulation.simulator.Simulation(psf=psf, em_sampler=prior, background=bg, noise=noise,
-                                                          frame_range=frame_range)
+    simulation_test = deepsmlm.simulation.simulator.Simulation(
+        psf=psf, em_sampler=prior_test, background=bg, noise=noise, frame_range=frame_range_test)
 
-    ds_train = deepsmlm.simulation.engine.SMLMSimulationDatasetOnFly(simulator=simulation,
-                                                                     ds_size=param.HyperParameter.pseudo_ds_size)
-    ds_test = deepsmlm.simulation.engine.SMLMSimulationDatasetOnFly(simulator=simulation,
-                                                                    ds_size=param.HyperParameter.test_size)
-
-    simulation_engine = deepsmlm.simulation.engine.SampleStreamEngine(cache_dir=cache_dir,
-                                                                      exp_id=exp_id,
-                                                                      cpu_worker=param.Hardware.num_worker_sim,
-                                                                      buffer_size=param.HyperParameter.ds_buffer,
-                                                                      ds_train=ds_train,
-                                                                      ds_test=ds_test)
+    """Setup the simulation engine"""
+    simulation_engine = deepsmlm.simulation.engine.DatasetStreamEngine(
+        cache_dir=cache_dir, exp_id=exp_id, buffer_size=param.HyperParameter.ds_buffer,
+        sim_train=simulation_train, sim_test=simulation_test)
 
     simulation_engine.run()
-    
+
 
 if __name__ == '__main__':
     smlm_engine_setup()
