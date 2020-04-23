@@ -114,7 +114,7 @@ class DistanceEvaluation:
             mad_vol: MAD volumetric
         """
 
-        rmse_vol, rmse_lat, rmse_axial, mad_vol, mad_lat, mad_axial = rmse_mad_dist(tp.xyz_nm, tp_match.xyz_nm)
+        rmse_lat, rmse_axial, rmse_vol, mad_lat, mad_axial, mad_vol= rmse_mad_dist(tp.xyz_nm, tp_match.xyz_nm)
 
         """Store in cache"""
         self._rmse_lat, self._rmse_ax, self._rmse_vol = rmse_lat, rmse_axial, rmse_vol
