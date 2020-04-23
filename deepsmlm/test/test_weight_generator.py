@@ -170,9 +170,9 @@ class TestSimpleWeight(TestWeightGenerator):
         with pytest.raises(ValueError):  # wrong channel count
             waiter.forward(torch.zeros((1, 3, 5, 5)), emitter.EmptyEmitterSet(), None)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError):  # negative photon count
             em = emitter.RandomEmitterSet(32)
-            em.phot[5] = 0.
+            em.phot[5] = -0.1
             waiter.forward(torch.rand((1, 6, 5, 5)), em, None)
 
         if waiter.weight_mode == 'phot':
