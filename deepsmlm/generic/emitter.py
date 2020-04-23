@@ -541,9 +541,11 @@ class EmitterSet:
         if isinstance(ix, int):
             ix = [ix]
 
-        if isinstance(ix, torch.Tensor) and ix.numel() == 1:  # PyTorch single element support
+        # PyTorch single element support
+        if not isinstance(ix, torch.BoolTensor) and isinstance(ix, torch.Tensor) and ix.numel() == 1:
             ix = [int(ix)]
 
+        # Todo: Check for numpy boolean array
         if isinstance(ix, (np.ndarray, np.generic)) and ix.size == 1:  # numpy support
             ix = [int(ix)]
 
@@ -582,6 +584,26 @@ class EmitterSet:
             (bool)
         """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
+
+    def chunks(self, n: int):
+        """
+        Splits the EmitterSet into (almost) equal chunks
+
+        Args:
+            n (int): number of splits
+
+        Returns:
+            list: of emittersets
+
+        """
+        from itertools import islice, chain
+
+        def chunky(iterable, size=10):
+            iterator = iter(iterable)
+            for first in iterator:
+                yield chain([first], islice(iterator, size - 1))
+
+        return chunky(self, n)
 
     def split_in_frames(self, ix_low: int = 0, ix_up: int = None):
         """
@@ -900,7 +922,7 @@ class LooseEmitterSet:
     """
 
     def __init__(self, xyz: torch.Tensor, intensity: torch.Tensor, ontime: torch.Tensor, t0: torch.Tensor,
-                 xy_unit: str, id: torch.Tensor = None, sanity_check=True):
+                 xy_unit: str, px_size, id: torch.Tensor = None, sanity_check=True):
         """
 
         Args:
@@ -918,6 +940,7 @@ class LooseEmitterSet:
 
         self.xyz = xyz
         self.xy_unit = xy_unit
+        self.px_size = px_size
         self._phot = None
         self.intensity = intensity
         self.id = id
@@ -1034,6 +1057,6 @@ class LooseEmitterSet:
         """
 
         xyz_, phot_, frame_ix_, id_ = self._distribute_framewise()
-        return EmitterSet(xyz_, phot_, frame_ix_.int(), id_.int(), xy_unit=self.xy_unit)
+        return EmitterSet(xyz_, phot_, frame_ix_.int(), id_.int(), xy_unit=self.xy_unit, px_size=self.px_size)
 
 
