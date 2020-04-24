@@ -32,7 +32,7 @@ class EmitterPopperSingle(EmitterPopperABC):
         super().__init__()
 
         self.structure = structure
-        self.density = density
+        self._density = density
         self.photon_range = photon_range
         self.xy_unit = xy_unit
         self.px_size = px_size
@@ -47,9 +47,9 @@ class EmitterPopperSingle(EmitterPopperABC):
         self.area = self.structure.area
 
         if emitter_av is not None:
-            self.emitter_av = emitter_av
+            self._emitter_av = emitter_av
         else:
-            self.emitter_av = self.density * self.area
+            self._emitter_av = self._density * self.area
 
     def pop(self) -> EmitterSet:
         """
@@ -59,7 +59,7 @@ class EmitterPopperSingle(EmitterPopperABC):
             EmitterSet:
 
         """
-        n = np.random.poisson(lam=self.emitter_av)
+        n = np.random.poisson(lam=self._emitter_av)
 
         xyz = self.structure.pop(n, 3)
         phot = torch.randint(*self.photon_range, (n,))
@@ -186,7 +186,7 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         """
 
         out = self._test_actual_number(n)
-        return n / out * self.emitter_av
+        return n / out * self._emitter_av
 
     def gen_loose_emitter(self, num_em):
         """
@@ -200,7 +200,7 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         xyz = self.structure.pop(n, 3)
 
         """Draw from intensity distribution but clamp the value so as not to fall below 0."""
-        intensity = torch.clamp(self.intensity_dist.sample((n,)), self.intensity_th, None)
+        intensity = torch.clamp(self.intensity_dist.sample((n,)), self.intensity_th)
 
         """Distribute emitters in time. Increase the range a bit."""
         t0 = self.t0_dist.sample((n,))

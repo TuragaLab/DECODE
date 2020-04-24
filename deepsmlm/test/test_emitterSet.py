@@ -116,7 +116,6 @@ class TestEmitterSet:
     def test_split(self):
 
         big_em = RandomEmitterSet(100000)
-        splits = 3
 
         splits = big_em.chunks(10000)
         re_merged = EmitterSet.cat(splits)

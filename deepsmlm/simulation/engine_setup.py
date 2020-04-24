@@ -67,12 +67,6 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     os.nice(param.Hardware.unix_niceness_sim)  # set niceness of process
 
     import torch
-    # # torch.multiprocessing.set_sharing_strategy('file_system')  # does not seem to work with spawn method together
-    #
-    # """Set multiprocessing strategy to spawn, otherwise you get errors"""
-    # # if param.Hardware.device_sim[:4] == 'cuda':
-    # import multiprocessing as mp
-    # mp.set_start_method('forkserver')
     assert torch.cuda.device_count() <= param.Hardware.max_cuda_devices
     torch.set_num_threads(param.Hardware.torch_threads_sim)
 

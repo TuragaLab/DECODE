@@ -121,3 +121,71 @@ class TestDatasetEngineDataset:
         assert em.frame_ix.unique().numel() == 1
 
 
+class TestSMLMOnFlyDataset:
+
+    @pytest.fixture()
+    def ds(self):
+
+        class DummySimulation:
+            def __init__(self):
+                self.em_sampler = True
+
+            @staticmethod
+            def forward():
+                em = deepsmlm.RandomEmitterSet(1024)
+                em.frame_ix = torch.randint_like(em.frame_ix, 0, 256)
+                return torch.rand((256, 64, 64)), torch.rand((256, 64, 64)), em
+
+        class DummyTarAndWeightGen:
+            def forward(self, *args):
+                return torch.rand((6, 64, 64))
+
+        dataset = can.SMLMLiveDataset(simulator=DummySimulation(), em_proc=None, frame_proc=None,
+                                      tar_gen=DummyTarAndWeightGen(), weight_gen=DummyTarAndWeightGen(), frame_window=1, pad=None)
+
+        return dataset
+
+    @pytest.mark.parametrize("window", [1, 3, 5])
+    @pytest.mark.parametrize("pad", [None, "same"])
+    def test_sample(self, ds, window, pad):
+
+        """Setup"""
+        ds.frame_window = window
+        ds.pad = pad
+
+        """Run"""
+        ds.sample()
+
+        """Assert"""
+        if pad == 'same':
+            assert len(ds) == 256
+
+        elif pad is None:
+            assert len(ds) == 256 - window + 1
+
+    @pytest.mark.parametrize("window", [1, 3, 5])
+    @pytest.mark.parametrize("ix", [0, 50, 200])
+    @pytest.mark.parametrize("return_em", [False, True])
+    def test_get_item(self, ds, window, ix, return_em):
+
+        """Setup"""
+        ds.frame_window = window
+        ds.return_em = return_em
+
+        """Run"""
+        ds.sample()
+        sample_out = ds[ix]
+
+        """Assert"""
+        assert len(sample_out) == 4 if return_em else 3
+        if return_em:  # unpack
+            x, y_tar, weight, emitter = sample_out
+            assert emitter.frame_ix.unique().numel() == 1
+        else:
+            x, y_tar, weight = sample_out
+
+        assert x.dim() == 3
+        assert y_tar.dim() == 3
+        assert weight.dim() == 3
+
+

@@ -235,8 +235,8 @@ class SimpleWeight(WeightGenerator):
             if not tar_frames.size()[-2:] == torch.Size(self.weight_psf.img_shape):
                 raise ValueError("Frame shape not according to init")
 
-            if not (tar_em.phot > 0.).all():
-                raise ValueError("Photon count must be greater than zero")
+            if not (tar_em.phot >= 0.).all():
+                raise ValueError(f"Photon count must be greater than zero.\nValues: {tar_em.phot}")
 
             if self.weight_mode == 'phot':
                 if (tar_frames[:, [-1]] == 0).any():

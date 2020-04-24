@@ -63,7 +63,7 @@ class TestEmitterPopper(TestEmitterPopperABC):
         """
 
         """Setup"""
-        exp_av = em_pop.emitter_av
+        exp_av = em_pop._emitter_av
         em_av_out = []
 
         """Run"""

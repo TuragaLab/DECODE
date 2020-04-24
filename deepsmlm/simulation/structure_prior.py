@@ -2,7 +2,6 @@ import torch
 
 from abc import ABC, abstractmethod
 
-
 class StructurePrior(ABC):
 
     @abstractmethod
@@ -55,6 +54,12 @@ class RandomStructure(StructurePrior):
     @property
     def area(self):
         return (self.xextent[1] - self.xextent[0]) * (self.yextent[1] - self.yextent[0])
+
+    @classmethod
+    def parse(cls, param):
+        return cls(xextent=param.Simulation.emitter_extent[0],
+                   yextent=param.Simulation.emitter_extent[1],
+                   zextent=param.Simulation.emitter_extent[2])
 
     def pop(self, n, dim=3):
         xyz = torch.rand((n, 3)) * self.scale + self.shift

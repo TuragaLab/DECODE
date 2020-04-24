@@ -54,6 +54,16 @@ class SimpleSMLMNet(deepsmlm.neuralfitter.models.unet_param.UNet2d):
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
         )
 
+    @staticmethod
+    def check_target(y_tar):
+
+        assert y_tar.dim() == 4, "Wrong dim."
+        assert y_tar.size(1) == 6, "Wrong num. of channels"
+        assert ((y_tar[:, 0] >= 0.) * (y_tar[:, 0] <= 1.)).all(), "Probability outside of the range."
+        assert ((y_tar[:, 1] >= 0.) * (y_tar[:, 1] <= 1.)).all(), "Photons outside of the range."
+        assert ((y_tar[:, 2:5] >= -1.) * (y_tar[:, 2:5] <= 1.)).all(), "XYZ outside of the range."
+        assert ((y_tar[:, 1] >= 0.) * (y_tar[:, 1] <= 1.)).all(), "BG outside of the range."
+
     def rescale_last_layer_grad(self, loss, optimizer):
         """
 

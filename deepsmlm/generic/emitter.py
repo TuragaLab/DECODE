@@ -554,14 +554,14 @@ class EmitterSet:
                           self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix], sanity_check=False,
                           xy_unit=self.xy_unit, px_size=self.px_size)
 
-    def get_subset_frame(self, frame_start, frame_end, shift_to=None):
+    def get_subset_frame(self, frame_start, frame_end, frame_ix_shift=None):
         """
         Returns emitters that are in the frame range as specified.
 
         Args:
             frame_start: (int) lower frame index limit
             frame_end: (int) upper frame index limit (including)
-            shift_to:
+            frame_ix_shift:
 
         Returns:
 
@@ -569,12 +569,13 @@ class EmitterSet:
 
         ix = (self.frame_ix >= frame_start) * (self.frame_ix <= frame_end)
         em = self[ix]
-        if not shift_to:
+
+        if not frame_ix_shift:
             return em
-        else:
-            if em.num_emitter != 0:  # shifting makes only sense if we have an emitter.
-                raise ValueError
-            return em
+        elif len(em) != 0:  # only shift if there is actually something
+            em.frame_ix += frame_ix_shift
+
+        return em
 
     @property
     def single_frame(self):

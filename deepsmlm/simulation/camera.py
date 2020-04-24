@@ -1,8 +1,7 @@
 import torch
 import warnings
 
-import deepsmlm.simulation.background
-import deepsmlm.simulation.noise as noise
+from . import noise
 
 
 class Photon2Camera:
@@ -39,17 +38,14 @@ class Photon2Camera:
                f"e_per_adu {self.e_per_adu} | Baseline {self.baseline} | Readnoise {self.read_sigma}\n" + \
                f"Output in Photon units: {self.photon_units}"
 
-    @staticmethod
-    def parse(param: dict):
-        """
+    @classmethod
+    def parse(cls, param, **kwargs):
 
-        :param param: parameter dictonary
-        :return:
-        """
-        return Photon2Camera(qe=param['Camera']['qe'], spur_noise=param['Camera']['spur_noise'],
-                             em_gain=param['Camera']['em_gain'], e_per_adu=param['Camera']['e_per_adu'],
-                             baseline=param['Camera']['baseline'], read_sigma=param['Camera']['read_sigma'],
-                             photon_units=param['Camera']['convert2photons'])
+        return Photon2Camera(qe=param.Camera.qe, spur_noise=param.Camera.spur_noise,
+                             em_gain=param.Camera.em_gain, e_per_adu=param.Camera.e_per_adu,
+                             baseline=param.Camera.baseline, read_sigma=param.Camera.read_sigma,
+                             photon_units=param.Camera.convert2photons,
+                             **kwargs)
 
     def forward(self, x: torch.Tensor, device: (str, torch.device) = None) -> torch.Tensor:
         """

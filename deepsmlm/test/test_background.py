@@ -1,3 +1,4 @@
+from abc import ABC
 import matplotlib.pyplot as plt
 import pytest
 import torch
@@ -8,36 +9,13 @@ from deepsmlm.generic.plotting.frame_coord import PlotFrame
 from deepsmlm.generic.utils import test_utils
 
 
-class TestBackground:
+class BackgroundAbstractTest(ABC):
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def bgf(self):
-        """
-        Dummy background fixture.
+        raise NotImplementedError
 
-        Returns:
-
-        """
-
-        class DummyBG(background.Background):
-            def __init__(self, xextent, yextent, img_shape):
-                super().__init__()
-
-                self.xextent = xextent
-                self.yextent = yextent
-                self.img_shape = img_shape
-
-            def forward(self, x: torch.Tensor):
-                bg_term = torch.rand_like(x)
-                return self.bg_return(xbg=x + bg_term, bg=bg_term)
-
-        xextent = (-0.5, 63.5)
-        yextent = (-0.5, 63.5)
-        img_shape = (64, 64)
-
-        return DummyBG(xextent, yextent, img_shape)
-
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def rframe(self):
         """
         Just a random frame batch.
@@ -47,6 +25,38 @@ class TestBackground:
 
         """
         return torch.rand((2, 3, 64, 64))
+
+    def test_sanity(self, bgf):
+
+        with pytest.raises(ValueError) as e_info:
+            bgf.__init__(forward_return='asjdfki')
+
+    def test_sample(self, bgf):
+        """Tests sampler"""
+
+        out = bgf.sample(size=(32, 32), device=torch.device('cpu'))
+
+        assert out.size() == torch.Size((32, 32))
+
+    def test_sample_like(self, bgf):
+        """Tests sampler"""
+
+        x = torch.rand((32, 32)).double()
+
+        out = bgf.sample_like(x)
+
+        assert x.size() == out.size()
+        assert x.device == out.device
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Makes only sense if we have another device to test on.")
+    def test_sample_like_cuda(self, bgf):
+
+        x = torch.rand((2, 32, 32)).cuda()
+
+        out = bgf.sample_like(x)
+
+        assert x.size() == out.size()
+        assert x.device == out.device
 
     def test_shape(self, bgf, rframe):
         """
@@ -77,9 +87,30 @@ class TestBackground:
         _ = rframe + bg_term  # test whether one can add background to the rframe so that dimension etc. are correct
 
 
-class TestOofEmitterBackground(TestBackground):
+class TestUniformBackground(BackgroundAbstractTest):
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
+    def bgf(self):
+        return background.UniformBackground((0., 100.), forward_return='tuple')
+
+    def test_sample(self, bgf):
+
+        super().test_sample(bgf)
+
+        out = bgf.sample((5, 32, 32))
+
+        assert len(out.unique()) == 5, "Should have as many unique values as we have batch size."
+
+        for out_c in out:
+            assert len(out_c.unique()) == 1, "Background not spacially constant"
+
+        assert ((out >= 0) * (out <= 100)).all(), "Wrong output values."
+
+
+@pytest.mark.skip(reason="Currently ToDos, not useable rn.")
+class TestOofEmitterBackground(BackgroundAbstractTest):
+
+    @pytest.fixture()
     def bgf(self):
         extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
         img_shape = (64, 64)
@@ -96,7 +127,8 @@ class TestOofEmitterBackground(TestBackground):
         assert pytest.approx(out.max().item(), 0.01) == 1.
 
 
-class TestPerlinBg(TestBackground):
+@pytest.mark.skip(reason="Currently ToDos, not useable rn.")
+class TestPerlinBg(BackgroundAbstractTest):
 
     @pytest.fixture(scope='class')
     def bgf(self):
@@ -121,7 +153,8 @@ class TestPerlinBg(TestBackground):
         assert x_out.max() <= bgf.amplitude * 1.
 
 
-class TestMultiPerlin(TestBackground):
+@pytest.mark.skip(reason="Currently ToDos, not useable rn.")
+class TestMultiPerlin(BackgroundAbstractTest):
 
     @pytest.fixture(scope='class')
     def bgf(self):
@@ -141,7 +174,7 @@ class TestBgPerEmitterFromBgFrame:
 
     @pytest.fixture(scope='class')
     def extractor(self):
-        return background.BgPerEmitterFromBgFrame(17, (-0.5, 63.5), (64, 64), (-0.5, 63.5))
+        return background.BgPerEmitterFromBgFrame(17, (-0.5, 63.5), (-0.5, 63.5), (64, 64))
 
     def test_mean_filter(self, extractor):
         """

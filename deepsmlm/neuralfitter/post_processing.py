@@ -153,8 +153,9 @@ class ConsistencyPostprocessing(PostProcessing):
         self._filter = match_emittersets.GreedyHungarianMatching(match_dims=match_dims, dist_lat=lat_th,
                                                                  dist_ax=ax_th, dist_vol=vol_th).filter
 
-        self._bg_calculator = deepsmlm.simulation.background.BgPerEmitterFromBgFrame(filter_size=13, yextent=(0., 1.),
-                                                                                     img_shape=img_shape, xextent=(0., 1.))
+        self._bg_calculator = deepsmlm.simulation.background.BgPerEmitterFromBgFrame(filter_size=13, xextent=(0., 1.),
+                                                                                     yextent=(0., 1.),
+                                                                                     img_shape=img_shape)
 
         self._neighbor_kernel = torch.tensor([[diag, 1, diag], [1, 1, 1], [diag, 1, diag]]).float().view(1, 1, 3, 3)
 
@@ -179,7 +180,7 @@ class ConsistencyPostprocessing(PostProcessing):
 
         """
         return ConsistencyPostprocessing(raw_th=param.PostProcessing.single_val_th, em_th=param.PostProcessing.total_th,
-                                         xy_unit='nm', img_shape=param.Simulation.img_size,
+                                         xy_unit='px', px_size=param.Camera.px_size, img_shape=param.Simulation.img_size,
                                          ax_th=param.PostProcessing.ax_th, vol_th=param.PostProcessing.vol_th,
                                          lat_th=param.PostProcessing.lat_th, match_dims=param.PostProcessing.match_dims,
                                          return_format='batch-set')
@@ -462,7 +463,7 @@ class ConsistencyPostprocessing(PostProcessing):
 
         em = EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix,
                         prob=prob_final, bg=feature_list[:, 4],
-                        xy_unit=self.xy_unit, px_size=None)
+                        xy_unit=self.xy_unit, px_size=self.px_size)
 
         return self._return_as_type(em, ix_low=0, ix_high=features.size(0))
 

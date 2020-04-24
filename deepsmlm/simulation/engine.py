@@ -188,7 +188,7 @@ class DatasetStreamEngine(SimulationEngine):
         frames, bg_frames, emitter = simulator.forward()
         # emitter = emitter.split_in_frames(0, len(frames) - 1)
 
-        return frames.cpu(), bg_frames.cpu(), emitter
+        return emitter, frames.cpu(), bg_frames.cpu(),
 
     def sample_train(self):
         return self._sample_data(self.sim_train)

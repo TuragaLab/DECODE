@@ -499,6 +499,30 @@ class TestCubicSplinePSF(AbstractPSFTest):
         """Test"""
         assert tutil.tens_almeq(out_chunk, out_forward)
 
+    @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1), (1, 1), (-5, 5)])
+    def test_forward_drv_chunks(self, psf_cuda, ix_low, ix_high):
+        """
+        Tests whether chunked drv forward returns the same frames as drv forward method
+
+        Args:
+           psf: fixture
+
+         """
+        psf = psf_cuda
+        """Setup"""
+        n = 100
+        xyz = torch.rand((n, 3)) * 64
+        phot = torch.ones(n)
+        bg = torch.rand_like(phot) * 100
+
+        """Run"""
+        drv_chunk, roi_chunk = psf._forward_drv_chunks(xyz, phot, bg, add_bg=False, chunk_size=2)
+        drv, roi = psf.derivative(xyz, phot, bg, add_bg=False)
+
+        """Test"""
+        assert tutil.tens_almeq(drv_chunk, drv)
+        assert tutil.tens_almeq(roi_chunk, roi)
+
     @pytest.mark.slow
     @pytest.mark.skipif(not psf_kernel.CubicSplinePSF._cuda_compiled(),
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
@@ -506,7 +530,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
         """Setup"""
         psf_cuda.cuda_max_roi_chunk = 1000000
-        n = 10000000
+        n = psf_cuda.cuda_max_roi_chunk * 5
         n_frames = n // 50
         xyz = torch.rand((n, 3)) + 15
         phot = torch.ones(n)
@@ -517,6 +541,24 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
         """Assert"""
         assert frames.size() == torch.Size([n_frames + 1, 64, 64])
+
+    @pytest.mark.slow
+    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF._cuda_compiled(),
+                        reason="Skipped because PSF implementation not compiled with CUDA support.")
+    def test_many_drv_roi_forward(self, psf_cuda):
+        """Setup"""
+        psf_cuda.cuda_max_roi_chunk = 1000000
+        n = psf_cuda._cuda_max_drv_roi_chunk * 5
+        xyz = torch.rand((n, 3)) + 15
+        phot = torch.ones(n)
+        bg = torch.rand_like(phot) * 100
+
+        """Run"""
+        drv, rois = psf_cuda.derivative(xyz, phot, bg)
+
+        """Assert"""
+        assert drv.size() == torch.Size([n, 5, *psf_cuda.roi_size_px])
+        assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px])
 
     def test_derivatives(self, psf, onek_rois):
         """

@@ -221,13 +221,7 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
                                                          emitter_av=param['Simulation']['emitter_av'],
                                                          intensity_th=param.Simulation.intensity_th)
 
-        sim = simulator.Simulation(None, extent=param['Simulation']['emitter_extent'],
-                                         psf=psf,
-                                         background=bg,
-                                         noise=noise,
-                                         frame_range=frame_range,
-                                         poolsize=0,
-                                         out_bg=param['HyperParameter']['predict_bg'])
+        sim = simulator.Simulation(None, background=bg, noise=noise, frame_range=frame_range)
 
         input_preparation = processing.TransformSequence([
             DiscardBackground(),
@@ -238,8 +232,10 @@ def train_wrap(param_file, no_log, debug_param, log_folder, num_worker_override)
         if param.HyperParameter.weight_base in ('crlb', 'crlb_single', 'crlb_multi'):
             weight_mask_generator = processing.TransformSequence([
                 prepro.ThresholdPhotons.parse(param, mode='weight'),
-                deepsmlm.simulation.background.BgPerEmitterFromBgFrame(psf.roi_size, param['Simulation']['psf_extent'][1],
-                                                                       param['Simulation']['img_size'], param['Simulation']['psf_extent'][0]),
+                deepsmlm.simulation.background.BgPerEmitterFromBgFrame(psf.roi_size,
+                                                                       param['Simulation']['psf_extent'][0],
+                                                                       param['Simulation']['psf_extent'][1],
+                                                                       param['Simulation']['img_size']),
                 wgen.CalcCRLB(psf, crlb_mode=param.HyperParameter.weight_base[5:]),
                 wgen.GenerateWeightMaskFromCRLB(param['Simulation']['psf_extent'][0],
                                           param['Simulation']['psf_extent'][1],

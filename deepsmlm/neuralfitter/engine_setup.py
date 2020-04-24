@@ -1,24 +1,31 @@
-import pathlib
-import click
 import os
+import pathlib
+import shutil
+import socket
+import datetime
+import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 
-import deepsmlm.evaluation.utils
-import deepsmlm.neuralfitter.filter
-import deepsmlm.neuralfitter.target_generator
-import deepsmlm.neuralfitter.utils.pytorch_customs
+import click
+from deepsmlm.neuralfitter.utils import log_train_val_progress
 
 import deepsmlm
-import deepsmlm.generic.utils.logging
-import deepsmlm.simulation
-import deepsmlm.generic.utils
 import deepsmlm.evaluation
-import deepsmlm.generic.inout.write_load_param as dsmlm_par
+import deepsmlm.evaluation.utils
+import deepsmlm.generic.inout.load_calibration
 import deepsmlm.generic.inout.load_save_model
 import deepsmlm.generic.inout.util
-import deepsmlm.generic.inout.load_calibration
-import deepsmlm.neuralfitter.models.model_param
-import deepsmlm.neuralfitter.train_val_impl
+import deepsmlm.generic.inout.write_load_param as dsmlm_par
+import deepsmlm.generic.utils
+import deepsmlm.generic.utils.logging
 import deepsmlm.neuralfitter.engine
+import deepsmlm.neuralfitter.filter
+import deepsmlm.neuralfitter.utils
+import deepsmlm.neuralfitter.models.model_param
+import deepsmlm.neuralfitter.target_generator
+import deepsmlm.neuralfitter.train_val_impl
+import deepsmlm.neuralfitter.utils.pytorch_customs
+import deepsmlm.simulation
 
 """Root folder"""
 deepsmlm_root = pathlib.Path(deepsmlm.__file__).parent.parent  # 'repo' directory
@@ -36,7 +43,7 @@ deepsmlm_root = pathlib.Path(deepsmlm.__file__).parent.parent  # 'repo' director
 @click.option('--debug_param', '-d', default=False, is_flag=True,
               help='Debug the specified parameter file. Will reduce ds size for example.')
 @click.option('--log_folder', '-l', default='runs',
-              help='Specify the folder you want to log to. If rel-path, relative to DeepSMLM root.')
+              help='Specify the (parent) folder you want to log to. If rel-path, relative to DeepSMLM root.')
 @click.option('--num_worker_override', '-w', default=None, type=int,
               help='Override the number of workers for the dataloaders.')
 def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_folder, num_worker_override):
@@ -55,10 +62,8 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     """
 
     """Load Parameters"""
+    param_file = pathlib.Path(param_file)
     param = dsmlm_par.ParamHandling().load_params(param_file)
-
-    if no_log:
-        log_folder = cache_dir.parent / pathlib.Path("tmp_log")
 
     if debug_param:
         dsmlm_par.ParamHandling.convert_param_debug(param)
@@ -69,10 +74,11 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     """Hardware / Server stuff."""
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(param.Hardware.device_sim_ix)
+    os.nice(param.Hardware.unix_niceness_train)  # set niceness of process
 
-    import torch.utils
+    import torch.utils.tensorboard
     assert torch.cuda.device_count() <= param.Hardware.max_cuda_devices
-    torch.set_num_threads(param.Hardware.torch_threads)
+    torch.set_num_threads(param.Hardware.torch_threads_train)
     # torch.multiprocessing.set_sharing_strategy('file_system')  # does not seem to work with spawn method together
 
     """If path is relative add deepsmlm root."""
@@ -82,13 +88,16 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         param.InOut.model_init = deepsmlm.generic.inout.util.add_root_relative(param.InOut.model_init,
                                                                                deepsmlm_root)
 
-    """Backup copy of the modified parameters."""
-    param_file_out = param.InOut.model_out.with_suffix(".json")
-    dsmlm_par.ParamHandling().write_params(param_file_out, param)
+    """Backup copy of the parameters."""
+    param_backup = param.InOut.model_out.with_suffix(param_file.suffix)
+    shutil.copy(param_file, param_backup)
 
     """Setup Log System"""
-    # experiment = setup_logging()
-    logger = torch.utils.tensorboard.SummaryWriter(log_dir=log_folder)
+    if no_log:
+        logger = deepsmlm.neuralfitter.utils.logger.NoLog()
+    else:
+        log_folder = log_folder + '/' + datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S") + '_' + socket.gethostname()
+        logger = deepsmlm.neuralfitter.utils.logger.SummaryWriterSoph(log_dir=log_folder)
 
     """Setup the engines."""
     engine_train = deepsmlm.neuralfitter.engine.SMLMTrainingEngine(
@@ -98,7 +107,8 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
 
     engine_test = deepsmlm.neuralfitter.engine.SMLMTrainingEngine(
         cache_dir=cache_dir,
-        sim_id=exp_id
+        sim_id=exp_id,
+        test_set=True
     )
 
     """Set model, optimiser, loss and schedulers"""
@@ -128,7 +138,8 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     optimizer = optimizer(model.parameters(), **param.HyperParameter.opt_param)
 
     """Loss function."""
-    criterion = deepsmlm.neuralfitter.losscollection.MaskedPxyzLoss.parse(param, logger)
+    criterion = deepsmlm.neuralfitter.losscollection.PPXYZBLoss(chweight_stat=param.HyperParameter.ch_static_scale,
+                                                                device=param.Hardware.device_train)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, **param.LearningRateScheduler)
@@ -138,6 +149,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         dummy = torch.rand((2, param.HyperParameter.channels_in,
                             *param.Simulation.img_size), requires_grad=True).to(next(model.parameters()).device)
         logger.add_graph(model, dummy, False)
+
     except:
         raise RuntimeError("Your dummy input is wrong. Please update it.")
 
@@ -148,42 +160,57 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
             deepsmlm.neuralfitter.scale_transform.AmplitudeRescale
         ], param=param)
 
-    em_filter = deepsmlm.neuralfitter.filter.TarEmitterFilter()
+    # em_filter = deepsmlm.neuralfitter.filter.TarEmitterFilter()
+    em_filter = deepsmlm.neuralfitter.filter.NoEmitterFilter()
 
-    tar_gen = deepsmlm.generic.utils.processing.TransformSequence.parse(
+    # Target generator is a sequence of multiple modules
+    tar_gen = deepsmlm.generic.utils.processing.TransformSequence(
         [
-            deepsmlm.neuralfitter.target_generator.KernelEmbedding,
-            deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale
-        ], param=param)
+            deepsmlm.generic.utils.processing.ParallelTransformSequence.parse(
+                [
+                    deepsmlm.neuralfitter.target_generator.KernelEmbedding,
+                    deepsmlm.generic.utils.processing.Identity
+                ],
+                param, input_slice=[[0], [1]], merger=lambda x: torch.cat((x[0], x[1].unsqueeze(0)), 1).squeeze(0)),
+            deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale.parse(param)
+        ],
+        input_slice=None)
+
+    # Set frame range for target generator  # this is somewhat dirty ...
+    tar_gen.com[0].com[0].ix_low = 0
+    tar_gen.com[0].com[0].ix_high = 0
 
     weight_gen = deepsmlm.neuralfitter.weight_generator.SimpleWeight.parse(param)
 
     """Setup training and test dataset / data loader."""
 
-    train_ds = deepsmlm.neuralfitter.dataset.SMLMTrainingEngineDataset(
+    train_ds = deepsmlm.neuralfitter.dataset.SMLMDatasetEngineDataset(
         engine=engine_train,
         em_proc=em_filter,
         frame_proc=in_prep,
         tar_gen=tar_gen,
         weight_gen=weight_gen,
-        return_em_tar=False
+        frame_window=param.HyperParameter.channels_in,
+        return_em=False
     )
 
-    test_ds = deepsmlm.neuralfitter.dataset.SMLMTrainingEngineDataset(
+    test_ds = deepsmlm.neuralfitter.dataset.SMLMDatasetEngineDataset(
         engine=engine_test,
         em_proc=em_filter,
         frame_proc=in_prep,
         tar_gen=tar_gen,
         weight_gen=weight_gen,
-        return_em_tar=True
+        frame_window=param.HyperParameter.channels_in,
+        return_em=True
     )
 
-    train_ds.load_from_engine()
     test_ds.load_from_engine()
+    train_ds.load_from_engine()
 
     train_dl = torch.utils.data.DataLoader(
         dataset=train_ds,
         batch_size=param.HyperParameter.batch_size,
+        drop_last=True,
         shuffle=True,
         num_workers=param.Hardware.num_worker_train,
         pin_memory=False,
@@ -192,6 +219,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     test_dl = torch.utils.data.DataLoader(
         dataset=test_ds,
         batch_size=param.HyperParameter.batch_size,
+        drop_last=False,
         shuffle=False,
         num_workers=param.Hardware.num_worker_train,
         pin_memory=False,
@@ -211,16 +239,12 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
 
     """Evaluation Specification"""
     matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
-    segmentation_eval = deepsmlm.evaluation.SegmentationEvaluation(False)
-    distance_eval = deepsmlm.evaluation.DistanceEvaluation(print_mode=False)
-
-    batch_ev = deepsmlm.evaluation.utils.BatchEvaluation(matcher, segmentation_eval, distance_eval,
-                                                         batch_size=param.HyperParameter.batch_size,
-                                                         px_size=torch.tensor(param.Camera.px_size),
-                                                         weight='photons')
+    # segmentation_eval = deepsmlm.evaluation.SegmentationEvaluation()
+    # distance_eval = deepsmlm.evaluation.DistanceEvaluation()
 
     # useful if we restart a training
     first_epoch = param.HyperParameter.epoch_0 if param.HyperParameter.epoch_0 is not None else 0
+
     for i in range(first_epoch, param.HyperParameter.epochs):
         logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
 
@@ -235,11 +259,11 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
             logger=logger
         )
 
-        val_loss = deepsmlm.neuralfitter.train_val_impl.test(
+        val_loss, test_out = deepsmlm.neuralfitter.train_val_impl.test(
             model=model,
             optimizer=optimizer,
             loss=criterion,
-            dataloader=train_dl,
+            dataloader=test_dl,
             grad_rescale=param.HyperParameter.moeller_gradient_rescale,
             post_processor=post_processor,
             epoch=i,
@@ -247,19 +271,20 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
             logger=logger
         )
 
-        """
-        When using online generated data and data is given a lifetime, 
-        reduce the steps until a new dataset is to be created. This needs to happen before sim_scheduler (for reasons).
-        """
-        # if param.InOut.data_set == 'online':
-        #     train_loader.dataset.step()
-        #
+        """Post-Process and Evaluate"""
+        log_train_val_progress.post_process_log_test(test_out.loss, loss_scalar=val_loss,
+                                                     x=test_out.x, y_out=test_out.y_out, y_tar=test_out.y_tar,
+                                                     weight=test_out.weight, em_tar=test_out.em_tar,
+                                                     post_processor=post_processor, matcher=matcher, logger=logger,
+                                                     step=i)
 
-        # sim_scheduler.step(val_loss)
         lr_scheduler.step(val_loss)
 
         """Save."""
         model_ls.save(model, val_loss)
+
+        """Load a new dataset"""
+        train_ds.load_from_engine()
 
 
 if __name__ == '__main__':

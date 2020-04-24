@@ -1,4 +1,6 @@
+import warnings
 from abc import abstractmethod
+from deprecated import deprecated
 import ctypes
 import multiprocessing as mp
 
@@ -13,8 +15,11 @@ class SMLMDataset(Dataset):
 
     _pad_modes = (None, 'same')
 
-    def __init__(self, *, em_proc, frame_proc, tar_gen, weight_gen, frame_window: int, pad: str = None):
+    def __init__(self, *, em_proc, frame_proc, tar_gen, weight_gen, frame_window: int, pad: str = None, return_em: bool):
         super().__init__()
+
+        self._frames = None
+        self._emitter = None
 
         self.em_proc = em_proc
         self.frame_proc = frame_proc
@@ -23,6 +28,7 @@ class SMLMDataset(Dataset):
 
         self.frame_window = frame_window
         self.pad = pad
+        self.return_em = return_em
 
         """Sanity"""
         self.sanity_check()
@@ -42,21 +48,31 @@ class SMLMDataset(Dataset):
         return frames[frame_ix]
 
     @staticmethod
+    @deprecated
     def _get_emitters(emitters, index):
 
         if isinstance(emitters, (list, tuple)):
             return emitters[index]
 
         elif isinstance(emitters, EmitterSet):
-            return emitters.get_subset_frame(index, index)
+            warnings.warn("This is slow.", DeprecationWarning)
+            return emitters.get_subset_frame(index, index, frame_ix_shift=-index)  # shift them to frame index 0
 
     def _pad_index(self, index):
 
         if self.pad is None:
-            return index
+            assert index >= 0, "Negative indexing not supported."
+            return index + (self.frame_window - 1) // 2
 
         elif self.pad == 'same':
-            return index + (self.frame_window - 1) // 2
+            return index
+
+    def _return_sample(self, frame, target, weight, emitter):
+        if self.return_em:
+            return frame, target, weight, emitter
+        else:
+            return frame, target, weight
+
 
 
 class SMLMStaticDataset(SMLMDataset):
@@ -90,12 +106,10 @@ class SMLMStaticDataset(SMLMDataset):
         """
 
         super().__init__(em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen,
-                         frame_window=frame_window)
+                         frame_window=frame_window, return_em=return_em)
 
         self._frames = frames
         self._em = em
-
-        self.return_em = return_em
 
         """Sanity checks."""
         if self._em is not None and not isinstance(self._em, (list, tuple)):
@@ -210,14 +224,13 @@ class SMLMSampleStreamEngineDataset(SMLMDataset):
             return_em: (bool) return target emitters in the form of an emitter set. use for test set
 
         """
-        super().__init__(em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen, frame_window=None, pad=None)
+        super().__init__(em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen, frame_window=None,
+                         pad=None, return_em=return_em)
 
         self._engine = engine
         self._x_in = None  # camera frames
         self._tar_em = None  # emitter target
         self._aux = None  # auxiliary things
-
-        self.return_em = return_em
 
     def load_from_engine(self):
         """
@@ -288,6 +301,23 @@ class SMLMDatasetEngineDataset(SMLMSampleStreamEngineDataset):
         elif self.pad == 'same':
             return self._x_in.size(0)
 
+    def load_from_engine(self):
+        def set_frame_ix(em):
+            em.frame_ix = torch.zeros_like(em.frame_ix)
+            return em
+
+        super().load_from_engine()
+
+        """
+        It's more efficient to write an entire frame set to binary instead of a list of emittersets (per frame).
+        However, getting a subset of the frameset each time is expensive, since search starts over and over.
+        Therefore, split the EmitterSet after loading and move the indices to 0 (since the target emitters per
+        example are expected to be 0).
+        """
+        if not isinstance(self._tar_em, (list, tuple)):
+            self._tar_em = self._tar_em.split_in_frames(0, self._x_in.size(0) - 1)
+            self._tar_em = [set_frame_ix(em) for em in self._tar_em]
+
     def __getitem__(self, index):
 
         index = self._pad_index(index)
@@ -296,18 +326,80 @@ class SMLMDatasetEngineDataset(SMLMSampleStreamEngineDataset):
         tar_em = self._get_emitters(self._tar_em, index)
         aux = [a[index] for a in self._aux]
 
+        """Give Frames and BG a channel dimension"""
+        assert len(aux) == 1, "Auxiliary input can only be background."
+        aux[0].unsqueeze_(0)
+
         """Preparation on input, emitter filtering, target generation"""
         x_in = self.frame_proc.forward(x_in)
         tar_em = self.em_proc.forward(tar_em)
         tar_frame = self.tar_gen.forward(tar_em, *aux) if self.tar_gen is not None else None
         weight = self.weight_gen.forward(tar_frame, tar_em, *aux) if self.weight_gen is not None else None
 
-        if not self.return_em:
-            return x_in, tar_frame, weight
+        self._return_sample(x_in, tar_frame, weight, tar_em)
+
+
+class SMLMLiveDataset(SMLMDataset):
+
+    def __init__(self, *, simulator, em_proc, frame_proc, tar_gen, weight_gen, frame_window, pad, return_em=False):
+
+        super().__init__(em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen,
+                         frame_window=frame_window, pad=pad, return_em=return_em)
+
+        self.simulator = simulator
+        self._bg_frames = None
+
+    def sanity_check(self):
+
+        super().sanity_check()
+        if self._emitter is not None and not isinstance(self._emitter, (list, tuple)):
+            raise TypeError("EmitterSet shall be stored in list format, where each list item is one target emitter.")
+
+    def __len__(self):
+        if self.pad is None:  # loosing samples at the border
+            return self._frames.size(0) - self.frame_window + 1
+
+        elif self.pad == 'same':
+            return self._frames.size(0)
+
+    def sample(self):
+
+        frames, bg_frames, emitter = self.simulator.forward()
+        emitter = emitter.split_in_frames(0, frames.size(0) - 1)
+
+        self._emitter = emitter
+        self._frames = frames
+        self._bg_frames = bg_frames
+
+    def __getitem__(self, ix):
+
+        ix = self._pad_index(ix)
+
+        tar_emitter = self._emitter[ix]
+        frames = self._get_frames(self._frames, ix)
+        bg_frame = self._bg_frames[ix]
+
+        """Process"""
+        if self.frame_proc is not None:
+            frames = self.frame_proc.forward(frames)
+
+        if self.em_proc is not None:
+            tar_emitter = self.em_proc.forward(tar_emitter)
+
+        if self.tar_gen is not None:
+            target = self.tar_gen.forward(tar_emitter, bg_frame)
         else:
-            return x_in, tar_frame, weight, tar_em
+            target = None
+
+        if self.weight_gen is not None:
+            weight = self.weight_gen.forward(target, tar_emitter, bg_frame)
+        else:
+            weight = None
+
+        return self._return_sample(frames, target, weight, tar_emitter)
 
 
+@deprecated(version="0.1.def", reason="Deprecated in favour of SMLMLiveDataset.")
 class SMLMDatasetOnFly(Dataset):
     """
     A dataset in which the samples are generated on the fly.
@@ -403,6 +495,7 @@ class SMLMDatasetOneTimer(SMLMDatasetOnFly):
         return self.frame[index], self.target[index], self.weight_mask[index]
 
 
+@deprecated(reason="No need for it anymore.")
 class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
     def __init__(self, *, prior, simulator, ds_size, lifetime, frame_proc, em_proc, tar_gen, weight_gen,
                  return_em=False):
