@@ -14,7 +14,7 @@ find_package(CUDA)
 if(CMAKE_CUDA_COMPILER AND NOT CUDA_DISABLED)  # the latter is a user definable variable
    enable_language(CUDA)
 
-   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --gpu-architecture=sm_75")
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --gpu-architecture=sm_37")
    add_compile_definitions(CUDA_ENABLED)
 
 else()
