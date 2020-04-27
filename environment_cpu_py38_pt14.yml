@@ -21,7 +21,7 @@ dependencies:
   - numpy
   - opencv
   - pybind11>=2.4
-  - python=3.8
+  - python=3.6
   - pytorch=1.4.*
   - pyyaml
   - pytest
