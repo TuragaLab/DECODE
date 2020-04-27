@@ -21,7 +21,8 @@ class RMAfterTest:
         return self.file
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.file.unlink(missing_ok=True)
+        if self.file.exists():
+            self.file.unlink()
 
 
 class AssetHandler:
