@@ -105,15 +105,15 @@ class GreedyHungarianMatching(MatcherABC):
 
         if self.dist_lat is not None:
             dist_mat = torch.cdist(xyz_out[:, :, :2], xyz_tar[:, :, :2], p=2)
-            filter_mask[dist_mat > self.dist_lat ** 2] = 0
+            filter_mask[dist_mat > self.dist_lat] = 0
 
         if self.dist_ax is not None:
             dist_mat = torch.cdist(xyz_out[:, :, [2]], xyz_tar[:, :, [2]], p=2)
-            filter_mask[dist_mat > self.dist_ax ** 2] = 0
+            filter_mask[dist_mat > self.dist_ax] = 0
 
         if self.dist_vol is not None:
             dist_mat = torch.cdist(xyz_out, xyz_tar, p=2)
-            filter_mask[dist_mat > self.dist_vol ** 2] = 0
+            filter_mask[dist_mat > self.dist_vol] = 0
 
         if sque_ret:
             filter_mask = filter_mask.squeeze(0)
@@ -172,8 +172,10 @@ class GreedyHungarianMatching(MatcherABC):
 
         if self.match_dims == 2:
             dist_mat = torch.cdist(xyz_out[None, :, :2], xyz_tar[None, :, :2], p=2).squeeze(0)
+
         elif self.match_dims == 3:
             dist_mat = torch.cdist(xyz_out[None, :, :], xyz_tar[None, :, :], p=2).squeeze(0)
+
         else:
             raise ValueError
 

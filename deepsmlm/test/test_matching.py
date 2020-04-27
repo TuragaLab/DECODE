@@ -1,5 +1,4 @@
 import warnings
-from unittest.case import TestCase
 
 import pytest
 import torch
@@ -7,8 +6,7 @@ import torch
 import deepsmlm.evaluation
 import deepsmlm.evaluation.match_emittersets as match_em
 import deepsmlm.generic
-from deepsmlm import EmitterSet, CoordinateOnlyEmitter
-from deepsmlm.evaluation.match_emittersets import NNMatching
+from deepsmlm import CoordinateOnlyEmitter
 
 
 class TestMatcherABC:
@@ -40,14 +38,14 @@ class TestMatcherABC:
 
     @pytest.fixture()
     def can_em_out(self):  # candidate emitter output
-        em = deepsmlm.generic.emitter.RandomEmitterSet(1000)
+        em = deepsmlm.generic.emitter.RandomEmitterSet(1000, xy_unit='nm')
         em.frame_ix = torch.randint_like(em.frame_ix, 100)
 
         return em
 
     @pytest.fixture()
     def can_em_tar(self, can_em_out):  # candidate emitter target
-        em = deepsmlm.generic.emitter.RandomEmitterSet(len(can_em_out))
+        em = deepsmlm.generic.emitter.RandomEmitterSet(len(can_em_out), xy_unit='nm')
         em.frame_ix = torch.randint_like(em.frame_ix, 50)
 
         return em
@@ -96,34 +94,57 @@ class TestGreedyMatching(TestMatcherABC):
         with pytest.raises(ValueError):
             match_em.GreedyHungarianMatching(match_dims=4)
 
-    @pytest.mark.parametrize("dist_lat", [None, 1.])
-    @pytest.mark.parametrize("dist_ax", [None, 1.])
-    @pytest.mark.parametrize("dist_vol", [None, 1.])
-    def test_filter_kernel(self, dist_lat, dist_ax, dist_vol):
+    @staticmethod
+    def assert_dists(r_out, r_tar, dist_lat, dist_ax, dist_vol, filter_mask):
+
+        assert isinstance(filter_mask, torch.BoolTensor)
+
+        if dist_lat is not None:
+            dist_mat = torch.cdist(r_out[:, :, :2], r_tar[:, :, :2], p=2).sqrt()
+            assert (dist_mat[filter_mask] <= dist_lat).all()
+
+        if dist_ax is not None:
+            dist_mat = torch.cdist(r_out[:, :, [2]], r_tar[:, :, [2]], p=2).sqrt()
+            assert (dist_mat[filter_mask] <= dist_ax).all()
+
+        if dist_vol is not None:
+            dist_mat = torch.cdist(r_out, r_tar, p=2).sqrt()
+            assert (dist_mat[filter_mask] <= dist_vol).all()
+
+    def test_filter_kernel_hand(self):
+
+        """Setup"""
+        matcher = match_em.GreedyHungarianMatching(match_dims=2, dist_lat=2., dist_ax=None, dist_vol=None)
+
+        """Run"""
+        filter = matcher.filter(torch.zeros((4, 3)),
+                                 torch.tensor([[1.9, 0., 0.], [2.1, 0., 0.], [0., 0., -5000.], [1.5, 1.5, 0.]]))
+
+        """Assert"""
+        assert filter[:, 0].all()
+        assert not filter[:, 1].all()
+        assert filter[:, 2].all()
+        assert not filter[:, 3].all()
+
+
+    @pytest.mark.parametrize("dist_lat", [None, 150.])
+    @pytest.mark.parametrize("dist_ax", [None, 300.])
+    @pytest.mark.parametrize("dist_vol", [None, 350.])
+    def test_filter_kernel_statistical(self, dist_lat, dist_ax, dist_vol):
 
         """Setup"""
         matcher = match_em.GreedyHungarianMatching(match_dims=2, dist_lat=dist_lat, dist_ax=dist_ax, dist_vol=dist_vol)
 
-        n_out = 100
-        n_tar = 120
-        xyz_out = torch.rand((1, n_out, 3))  # batch implementation
-        xyz_tar = torch.rand((1, n_tar, 3))  # batch implementation
+        n_out = 1000
+        n_tar = 1200
+        xyz_out = torch.rand((10, n_out, 3)) * torch.tensor([500, 500, 1000]).unsqueeze(0).unsqueeze(0)  # batch implementation
+        xyz_tar = torch.rand((10, n_tar, 3)) * torch.tensor([500, 500, 1000]).unsqueeze(0).unsqueeze(0)  # batch implementation
 
         """Run"""
         act = matcher.filter(xyz_out, xyz_tar)  # active pairs
 
         """Asserts"""
-        if dist_lat is not None:
-            dist_mat = torch.cdist(xyz_out[:, :, :2], xyz_tar[:, :, :2], p=2).sqrt()
-            assert (dist_mat[act] <= dist_lat).all()
-
-        if dist_ax is not None:
-            dist_mat = torch.cdist(xyz_out[:, :, [2]], xyz_tar[:, :, [2]], p=2).sqrt()
-            assert (dist_mat[act] <= dist_ax).all()
-
-        if dist_vol is not None:
-            dist_mat = torch.cdist(xyz_out, xyz_tar, p=2).sqrt()
-            assert (dist_mat[act] <= dist_vol).all()
+        self.assert_dists(xyz_out, xyz_tar, dist_lat, dist_ax, dist_vol, act)
 
     test_coordinates = [  # xyz_out, xyz_tar, expected outcome
         # 1 Prediction, 1 References
@@ -171,8 +192,8 @@ class TestGreedyMatching(TestMatcherABC):
 
         """Setup"""
         matcher.dist_lat = 1
-        em_tar = CoordinateOnlyEmitter(xyz_tar)
-        em_out = CoordinateOnlyEmitter(xyz_out)
+        em_tar = CoordinateOnlyEmitter(xyz_tar, xy_unit='nm')
+        em_out = CoordinateOnlyEmitter(xyz_out, xy_unit='nm')
 
         """Run"""
         tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
@@ -184,11 +205,3 @@ class TestGreedyMatching(TestMatcherABC):
 
         assert ((tp.xyz - tp_match.xyz) <= 1.).all()
         assert (tp.id == tp_match.id).all()
-
-
-#
-# class TestNNMatching(TestMatcherABC):
-#
-#     @pytest.fixture()
-#     def matcher(self):
-#         return NNMatching()
