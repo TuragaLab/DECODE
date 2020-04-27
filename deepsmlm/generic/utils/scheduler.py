@@ -149,9 +149,9 @@ class ScheduleSimulation(GenericScheduler):
 
     def _do_step(self, epoch):
 
-        if self.prior.emitter_av < self.max_emitter_av:
-            self.prior.emitter_av *= self.step_size
-            print("Increased complexitiy. New emitter average: {}".format(self.prior.emitter_av))
+        if self.prior._emitter_av < self.max_emitter_av:
+            self.prior._emitter_av *= self.step_size
+            print("Increased complexitiy. New emitter average: {}".format(self.prior._emitter_av))
             for dataset in self.datasets:
                 dataset.drop_data_set(self.verbose)
 

@@ -1,114 +1,72 @@
-import matplotlib.pyplot as plt
-
 from abc import ABC, abstractmethod
+import torch.utils.tensorboard
 
 
-class Logger(ABC):
-    """Wraps a logger / multiple loggers and supports a no-op mode."""
-    def __init__(self, op=True):
-        super().__init__()
+class SummaryWriterSoph(torch.utils.tensorboard.SummaryWriter):
 
-        self.op = op
-
-    def add_scalar(self, val: (int, float), descr: str, ix: int):
+    def add_scalar_dict(self, prefix: str, scalar_dict: dict, global_step=None, walltime=None):
         """
-        Log a scalar. Calls the implementation method if not in no-op mode.
-
-        Args:
-            val (int,float): value to log
-            descr (str): descriptor
-            ix (int): index
-
-         Returns:
-            bool: if something was logged, None if not / no op
-
-        """
-        if self.op:
-            self._log_scalar_impl(val, descr, ix)
-            return True
-            
-    def add_figure(self, fig: plt.figure, descr: str, ix: int):
-        """
-        Log a figure. Calls the implemention method if not in no-op mode.
-
-        Args:
-            fig (plt.figure): figure to log
-            descr (str): descriptor
-            ix (int): index
-
-        Returns:
-            bool: if something was logged, None if not / no op
+        Adds a couple of scalars that are in a dictionary to the summary.
+        Note that this is different from 'add_scalars'
 
         """
 
-        if self.op:
-            self._log_plot_impl(fig, descr, ix)
-            return True
-
-    def log_param(self, param, descr):
-        """
-        Logs a parameter or a set of parameters (dictionary). Should only be called once per parameter
-
-        Args:
-            param:
-            descr:
-
-        Returns:
-            bool: if something was logged, None if not / no op
-
-        """
-        if self.op:
-            self._log_param_impl(param, descr)
-            return True
-
-    @abstractmethod
-    def _log_scalar_impl(self, val, descr, ix):
-        """
-        Implementation of scalar logging.
-
-        Args:
-            val (int,float): value to log
-            descr (str): descriptor
-            ix (int): index
-
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def _log_plot_impl(self, fig, descr, ix):
-        """
-        Implementation of plot logging.
-
-        Args:
-            fig (plt.figure): figure to log
-            descr (str): descriptor
-            ix (int): index
-
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def _log_param_impl(self, param, descr):
-        """
-        Implementation of param logging
-
-        Args:
-            param: parameter to log. Can be numeric, string, dictionary
-            descr: descriptor for single value logger, or prefix string for dict logging
-
-        """
-        raise NotImplementedError
+        for name, value in scalar_dict.items():
+            self.add_scalar(prefix + name, value, global_step=global_step, walltime=walltime)
 
 
-class NoLog(Logger):
-    def __init__(self):
-        super().__init__(op=False)
-
-    def _log_scalar_impl(self, val, descr, ix):
+class NoLog(SummaryWriterSoph):
+    """The hardcoded No-Op of the tensorboard SummaryWriter."""
+    def __init__(self, *args, **kwargs):
         return
 
-    def _log_plot_impl(self, fig, descr, ix):
+    def add_scalar(self, *args, **kwargs):
         return
 
-    def _log_param_impl(self, param, descr):
+    def add_scalars(self, *args, **kwargs):
+        return
+
+    def add_scalar_dict(self, *args, **kwargs):
+        return
+
+    def add_histogram(self, *args, **kwargs):
+        return
+
+    def add_figure(self, *args, **kwargs):
+        return
+
+    def add_figures(self, *args, **kwargs):
+        return
+
+    def add_image(self, *args, **kwargs):
+        return
+
+    def add_images(self, *args, **kwargs):
+        return
+
+    def add_video(self, *args, **kwargs):
+        return
+
+    def add_audio(self, *args, **kwargs):
+        return
+
+    def add_text(self, *args, **kwargs):
+        return
+
+    def add_graph(self, *args, **kwargs):
+        return
+
+    def add_embedding(self, *args, **kwargs):
+        return
+
+    def add_pr_curve(self, *args, **kwargs):
+        return
+
+    def add_custom_scalars(self, *args, **kwargs):
+        return
+
+    def add_mesh(self, *args, **kwargs):
+        return
+
+    def add_hparams(self, *args, **kwargs):
         return

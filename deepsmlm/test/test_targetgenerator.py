@@ -3,24 +3,26 @@ import torch
 from matplotlib import pyplot as plt
 
 import deepsmlm.simulation.psf_kernel as psf_kernel
-from deepsmlm.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
+from deepsmlm.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet
 from deepsmlm.generic.plotting.frame_coord import PlotFrame, PlotFrameCoord
 from deepsmlm.generic.utils import test_utils as tutil
 from deepsmlm.generic.utils.test_utils import equal_nonzero
+from deepsmlm.neuralfitter import target_generator
 from deepsmlm.neuralfitter.target_generator import SinglePxEmbedding, KernelEmbedding, GlobalOffsetRep, SpatialEmbedding
 
 
 class TestTargetGenerator:
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def targ(self):
         """
         Setup dummy target generator for inheritors.
 
         """
 
-        class DummyTarget:
+        class DummyTarget(target_generator.TargetGenerator):
             def __init__(self, xextent, yextent, img_shape):
+                super().__init__()
                 self.xextent = xextent
                 self.yextent = yextent
                 self.img_shape = img_shape
@@ -29,8 +31,8 @@ class TestTargetGenerator:
                                                  yextent=self.yextent,
                                                  img_shape=self.img_shape)
 
-            def forward(self, x: EmitterSet) -> torch.Tensor:
-                return self.delta.forward(x.xyz, x.phot).unsqueeze(1)
+            def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
+                return self.delta.forward(xyz, phot, None, ix_low, ix_high).unsqueeze(1)
 
         xextent = (-0.5, 63.5)
         yextent = (-0.5, 63.5)
@@ -39,7 +41,8 @@ class TestTargetGenerator:
 
     @pytest.fixture(scope='class')
     def fem(self):
-        return EmitterSet(xyz=torch.tensor([[0., 0., 0.]]), phot=torch.Tensor([1.]), frame_ix=torch.tensor([0]))
+        return EmitterSet(xyz=torch.tensor([[0., 0., 0.]]), phot=torch.Tensor([1.]), frame_ix=torch.tensor([0]),
+                          xy_unit='px')
 
     def test_shape(self, targ, fem):
         """
@@ -55,6 +58,19 @@ class TestTargetGenerator:
 
         """Tests"""
         assert out.dim() == 4, "Wrong dimensionality."
+
+    @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1)])
+    @pytest.mark.parametrize("em_data", [EmptyEmitterSet(xy_unit='px'), RandomEmitterSet(10, xy_unit='px')])
+    def test_default_range(self, targ, ix_low, ix_high, em_data):
+
+        targ.ix_low = ix_low
+        targ.ix_high = ix_high
+
+        """Run"""
+        out = targ.forward(em_data)
+
+        """Assertions"""
+        assert out.size(0) == ix_high - ix_low + 1
 
 
 class TestSpatialEmbedding:
@@ -229,6 +245,10 @@ class TestKernelEmbedding(TestSinglePxEmbedding):
         assert tutil.tens_almeq(target[:, 15, 17], torch.tensor([1., 1., -0.1, 0.2, 300.]), 1e-5)
         assert tutil.tens_almeq(target[2, 15, 16:19], torch.tensor([-0.1, -0.1, -0.1]), 1e-5)
         assert tutil.tens_almeq(target[3, 14:17, 17], torch.tensor([0.2, 0.2, 0.2]), 1e-5)
+
+    def test_forward(self, roi_offset, em_set):
+
+        _ = roi_offset.forward(em_set)
 
 
 @pytest.mark.skip("Deprecated.")

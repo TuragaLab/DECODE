@@ -1,4 +1,4 @@
 # import deepsmlm.generic.psf_kernel
 # import deepsmlm.generic.background
 
-from .emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet
+from deepsmlm.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet

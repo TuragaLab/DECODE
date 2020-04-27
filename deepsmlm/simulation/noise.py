@@ -48,20 +48,18 @@ class Gamma(NoisePost):
 
 class Gaussian(NoisePost):
 
-    def __init__(self, sigma_gaussian, bg_uniform):
+    def __init__(self, sigma_gaussian):
         """
 
         :param sigma_gaussian: sigma value of gauss noise
         :param bg_uniform: uniform value to be added
         """
         super().__init__()
-
         self.sigma_gaussian = sigma_gaussian
-        self.bg_uniform = bg_uniform
 
     def forward(self, image):
 
-        return image + self.bg_uniform + self.sigma_gaussian * torch.randn_like(image)
+        return image + self.sigma_gaussian * torch.randn_like(image)
 
 
 class GaussianSmoothing(nn.Module):

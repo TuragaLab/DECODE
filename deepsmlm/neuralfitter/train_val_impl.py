@@ -2,6 +2,7 @@ import torch
 import time
 
 from tqdm import tqdm
+from collections import namedtuple
 
 from .utils import log_train_val_progress
 from ..generic import emitter
@@ -51,6 +52,9 @@ def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logge
     return
 
 
+_val_return = namedtuple("network_output", ["loss", "x", "y_out", "y_tar", "weight", "em_tar"])
+
+
 def test(model, optimizer, loss, dataloader, grad_rescale, post_processor, epoch, device, logger):
 
     """Setup"""
@@ -74,9 +78,9 @@ def test(model, optimizer, loss, dataloader, grad_rescale, post_processor, epoch
 
             loss_val = loss(y_out, y_tar, weight)
 
-            if grad_rescale:  # rescale gradients so that they are in the same order for the last layer
-                weight, _, _ = model.rescale_last_layer_grad(loss_val, optimizer)
-                loss_val = loss_val * weight
+            # if grad_rescale:  # rescale gradients so that they are in the same order for the last layer
+            #     weight, _, _ = model.rescale_last_layer_grad(loss_val, optimizer)
+            #     loss_val = loss_val * weight
 
             t_batch = time.time() - t0
 
@@ -91,8 +95,7 @@ def test(model, optimizer, loss, dataloader, grad_rescale, post_processor, epoch
             # because the training samples are all on frame 0
             em_tar_ep.append(emitter.EmitterSet.cat(em_tar, step_frame_ix=1))
 
-    """Epoch-Wise Merging and Post-Processing"""
-    print(f"(Test) E: {epoch} - Post-Processing and Evaluation.", flush=True)
+    """Epoch-Wise Merging"""
     loss_cmp_ep = torch.cat(loss_cmp_ep, 0)
     x_ep = torch.cat(x_ep, 0)
     y_out_ep = torch.cat(y_out_ep, 0)
@@ -100,9 +103,6 @@ def test(model, optimizer, loss, dataloader, grad_rescale, post_processor, epoch
     y_tar_ep = torch.cat(y_tar_ep, 0)
     weight_ep = torch.cat(weight_ep, 0)
 
-    em_out_ep = post_processor.forward(y_out_ep)
+    return loss_cmp_ep.mean(), _val_return(loss=loss_cmp_ep,
+                                           x=x_ep, y_out=y_out_ep, y_tar=y_tar_ep, weight=weight_ep, em_tar=em_tar_ep)
 
-    log_train_val_progress.log_val(loss_cmp_ep, x_ep, y_out_ep, y_tar_ep, weight_ep, em_out_ep, em_tar_ep,
-                                   epoch, logger)
-
-    return

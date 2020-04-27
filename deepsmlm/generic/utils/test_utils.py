@@ -1,4 +1,5 @@
 import torch
+from pathlib import Path
 
 
 def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8, nan: bool = False):
@@ -85,3 +86,11 @@ def equal_nonzero(*a):
         is_equal = is_equal * torch.equal(a[i].nonzero(), a[i + 1].nonzero())
 
     return is_equal
+
+
+def del_file_finalizer(file: Path):
+
+    def fin():
+        file.unlink()
+
+    return fin

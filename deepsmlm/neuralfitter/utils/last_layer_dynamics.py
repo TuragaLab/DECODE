@@ -18,8 +18,8 @@ def rescale_last_layer_grad(heads, loss, optimizer):
     weighting = torch.ones_like(head_grads).to(loss.device)
 
     for i in range(ch_out):
-        head_grads[i] = torch.autograd.grad(loss_ch[i], heads[i].out_conv.weight, retain_graph=True)[
-            0].abs().sum()
+        head_grads[i] = torch.autograd.grad(loss_ch[i], heads[i].out_conv.weight, retain_graph=True)[0].abs().sum()
+
     optimizer.zero_grad()
     N = (1 / head_grads).sum()
     weighting = weighting / head_grads

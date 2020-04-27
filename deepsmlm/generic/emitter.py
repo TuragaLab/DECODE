@@ -1,4 +1,5 @@
 import warnings
+from deprecated import deprecated
 
 import numpy as np
 import torch
@@ -541,9 +542,11 @@ class EmitterSet:
         if isinstance(ix, int):
             ix = [ix]
 
-        if isinstance(ix, torch.Tensor) and ix.numel() == 1:  # PyTorch single element support
+        # PyTorch single element support
+        if not isinstance(ix, torch.BoolTensor) and isinstance(ix, torch.Tensor) and ix.numel() == 1:
             ix = [int(ix)]
 
+        # Todo: Check for numpy boolean array
         if isinstance(ix, (np.ndarray, np.generic)) and ix.size == 1:  # numpy support
             ix = [int(ix)]
 
@@ -551,14 +554,14 @@ class EmitterSet:
                           self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix], sanity_check=False,
                           xy_unit=self.xy_unit, px_size=self.px_size)
 
-    def get_subset_frame(self, frame_start, frame_end, shift_to=None):
+    def get_subset_frame(self, frame_start, frame_end, frame_ix_shift=None):
         """
         Returns emitters that are in the frame range as specified.
 
         Args:
             frame_start: (int) lower frame index limit
             frame_end: (int) upper frame index limit (including)
-            shift_to:
+            frame_ix_shift:
 
         Returns:
 
@@ -566,12 +569,13 @@ class EmitterSet:
 
         ix = (self.frame_ix >= frame_start) * (self.frame_ix <= frame_end)
         em = self[ix]
-        if not shift_to:
+
+        if not frame_ix_shift:
             return em
-        else:
-            if em.num_emitter != 0:  # shifting makes only sense if we have an emitter.
-                raise ValueError
-            return em
+        elif len(em) != 0:  # only shift if there is actually something
+            em.frame_ix += frame_ix_shift
+
+        return em
 
     @property
     def single_frame(self):
@@ -582,6 +586,27 @@ class EmitterSet:
             (bool)
         """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
+
+    @deprecated(reason="Needs to be debugged.")
+    def chunks(self, n: int):
+        """
+        Splits the EmitterSet into (almost) equal chunks
+
+        Args:
+            n (int): number of splits
+
+        Returns:
+            list: of emittersets
+
+        """
+        from itertools import islice, chain
+
+        def chunky(iterable, size=10):
+            iterator = iter(iterable)
+            for first in iterator:
+                yield chain([first], islice(iterator, size - 1))
+
+        return chunky(self, n)
 
     def split_in_frames(self, ix_low: int = 0, ix_up: int = None):
         """
@@ -705,7 +730,21 @@ class EmitterSet:
             self.xy_unit = new_xy_unit
 
     def populate_crlb(self, psf, **kwargs):
-        raise NotImplementedError
+        """
+        Populate the CRLB values by the PSF function.
+
+        Args:
+            psf (PSF): Point Spread function with CRLB implementation
+            **kwargs: additional arguments to be parsed to the CRLB method
+
+        Returns:
+
+        """
+
+        crlb, _ = psf.crlb(self.xyz, self.phot, self.bg, **kwargs)
+        self.xyz_cr = crlb[:, :3]
+        self.phot_cr = crlb[:, 3]
+        self.bg_cr = crlb[:, 4]
 
     def write_to_csv(self, filename, xy_unit=None, comments=None, plain_header=False, xy_unit2=None):
         """
@@ -867,8 +906,8 @@ class CoordinateOnlyEmitter(EmitterSet):
 class EmptyEmitterSet(CoordinateOnlyEmitter):
     """An empty emitter set."""
 
-    def __init__(self):
-        super().__init__(torch.zeros((0, 3)))
+    def __init__(self, xy_unit=None, px_size=None):
+        super().__init__(torch.zeros((0, 3)), xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
         super().__init__(xyz=em.xyz,
@@ -900,7 +939,7 @@ class LooseEmitterSet:
     """
 
     def __init__(self, xyz: torch.Tensor, intensity: torch.Tensor, ontime: torch.Tensor, t0: torch.Tensor,
-                 id: torch.Tensor = None, xy_unit=None):
+                 xy_unit: str, px_size, id: torch.Tensor = None, sanity_check=True):
         """
 
         Args:
@@ -918,11 +957,33 @@ class LooseEmitterSet:
 
         self.xyz = xyz
         self.xy_unit = xy_unit
+        self.px_size = px_size
         self._phot = None
         self.intensity = intensity
         self.id = id
         self.t0 = t0
         self.ontime = ontime
+
+        if sanity_check:
+            self.sanity_check()
+
+    def sanity_check(self):
+
+        """Check IDs"""
+        if self.id.unique().numel() != self.id.numel():
+            raise ValueError("IDs are not unique.")
+
+        """Check xyz"""
+        if self.xyz.dim() != 2 or self.xyz.size(1) != 3:
+            raise ValueError("Wrong xyz dimension.")
+
+        """Check intensity"""
+        if (self.intensity < 0).any():
+            raise ValueError("Negative intensity values encountered.")
+
+        """Check timings"""
+        if (self.ontime < 0).any():
+            raise ValueError("Negative ontime encountered.")
 
     @property
     def te(self):  # end time
@@ -939,31 +1000,67 @@ class LooseEmitterSet:
             id_ (torch.Tensor): identities
 
         """
-        frame_start = torch.floor(self.t0)
-        frame_last = torch.ceil(self.te)
-        frame_dur = (frame_last - frame_start).type(torch.LongTensor)
 
-        num_emitter_brut = frame_dur.sum()
+        def cum_count_per_group(arr):
+            """
+            Helper function that returns the cumulative sum per group.
 
-        xyz_ = torch.zeros(num_emitter_brut, self.xyz.shape[1])
-        phot_ = torch.zeros_like(xyz_[:, 0])
-        frame_ix_ = torch.zeros_like(phot_)
-        id_ = torch.zeros_like(frame_ix_)
+            Example:
+                [0, 0, 0, 1, 2, 2, 0] --> [0, 1, 2, 0, 0, 1, 3]
+            """
 
-        # ToDo: This is a bottleneck
+            def grp_range(counts: torch.Tensor):
+                assert counts.dim() == 1
 
-        c = 0
-        for i in range(self.xyz.shape[0]):  # loop over emitters
-            for j in range(frame_dur[i]):  # loop over its frames
-                xyz_[c, :] = self.xyz[i]
-                frame_ix_[c] = frame_start[i] + j
-                id_[c] = self.id[i]
+                idx = counts.cumsum(0)
+                id_arr = torch.ones(idx[-1], dtype=int)
+                id_arr[0] = 0
+                id_arr[idx[:-1]] = -counts[:-1] + 1
+                return id_arr.cumsum(0)
 
-                """Calculate time on frame and multiply that by the intensity."""
-                ontime_on_frame = torch.min(self.te[i], frame_ix_[c] + 1) - torch.max(self.t0[i], frame_ix_[c])
-                phot_[c] = ontime_on_frame * self.intensity[i]  # photon flux times on-time = photons
+            if arr.numel() == 0:
+                return arr
 
-                c += 1
+            _, cnt = torch.unique(arr, return_counts=True)
+            return grp_range(cnt)[torch.argsort(arr).argsort()]
+
+        frame_start = torch.floor(self.t0).long()
+        frame_last = torch.floor(self.te).long()
+        frame_count = (frame_last - frame_start).long()
+
+        frame_count_full = frame_count - 2
+        ontime_first = torch.min(self.te - self.t0, frame_start + 1 - self.t0)
+        ontime_last = torch.min(self.te - self.t0, self.te - frame_last)
+
+        """Repeat by full-frame duration"""
+
+        # kick out everything that has no full frame_duration
+        ix_full = frame_count_full >= 0
+        xyz_ = self.xyz[ix_full, :]
+        flux_ = self.intensity[ix_full]
+        id_ = self.id[ix_full]
+        frame_start_full = frame_start[ix_full]
+        frame_dur_full_clean = frame_count_full[ix_full]
+
+        xyz_ = xyz_.repeat_interleave(frame_dur_full_clean + 1, dim=0)
+        phot_ = flux_.repeat_interleave(frame_dur_full_clean + 1, dim=0)  # because intensity * 1 = phot
+        id_ = id_.repeat_interleave(frame_dur_full_clean + 1, dim=0)
+        # because 0 is first occurence
+        frame_ix_ = frame_start_full.repeat_interleave(frame_dur_full_clean + 1, dim=0) + cum_count_per_group(id_) + 1
+
+        """First frame"""
+        # first
+        xyz_ = torch.cat((xyz_, self.xyz), 0)
+        phot_ = torch.cat((phot_, self.intensity * ontime_first), 0)
+        id_ = torch.cat((id_, self.id), 0)
+        frame_ix_ = torch.cat((frame_ix_, frame_start), 0)
+
+        # last (only if frame_last != frame_first
+        ix_with_last = frame_last >= frame_start + 1
+        xyz_ = torch.cat((xyz_, self.xyz[ix_with_last]))
+        phot_ = torch.cat((phot_, self.intensity[ix_with_last] * ontime_last[ix_with_last]), 0)
+        id_ = torch.cat((id_, self.id[ix_with_last]), 0)
+        frame_ix_ = torch.cat((frame_ix_, frame_last[ix_with_last]))
 
         return xyz_, phot_, frame_ix_, id_
 
@@ -977,6 +1074,6 @@ class LooseEmitterSet:
         """
 
         xyz_, phot_, frame_ix_, id_ = self._distribute_framewise()
-        return EmitterSet(xyz_, phot_, frame_ix_.int(), id_.int(), xy_unit=self.xy_unit)
+        return EmitterSet(xyz_, phot_, frame_ix_.int(), id_.int(), xy_unit=self.xy_unit, px_size=self.px_size)
 
 

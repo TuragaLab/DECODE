@@ -1,12 +1,13 @@
+import warnings
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from functools import partial
-from deprecated import deprecated
-import warnings
+
 import numpy as np
 import torch
+from deprecated import deprecated
 from sklearn.neighbors import NearestNeighbors
-from scipy.optimize import linear_sum_assignment
+
 from deepsmlm.generic import emitter as emitter
 
 
@@ -45,6 +46,7 @@ class GreedyHungarianMatching(MatcherABC):
     Attributes:
 
     """
+
     def __init__(self, *, match_dims: int, dist_ax: float = None, dist_lat: float = None, dist_vol: float = None):
         """
         Initialise "Greedy Hungarian Matching". Incorporates some rule-out thresholds
@@ -71,6 +73,13 @@ class GreedyHungarianMatching(MatcherABC):
 
         if self.dist_lat is None and self.dist_ax is None and self.dist_vol is None:
             warnings.warn("You specified neither a lateral, axial nor volumetric threshold. Are you sure about this?")
+
+    @classmethod
+    def parse(cls, param):
+        return cls(match_dims=param.Evaluation.match_dims,
+                   dist_lat=param.Evaluation.dist_lat,
+                   dist_ax=param.Evaluation.dist_ax,
+                   dist_vol=param.Evaluation.dist_vol)
 
     def filter(self, xyz_out, xyz_tar) -> torch.Tensor:
         """
@@ -126,7 +135,7 @@ class GreedyHungarianMatching(MatcherABC):
         assert dists.dim() == 2
 
         if dists.numel() == 0:
-            return torch.zeros((0, )).long(), torch.zeros((0, )).long()
+            return torch.zeros((0,)).long(), torch.zeros((0,)).long()
 
         dists_ = dists.clone()
 
@@ -171,12 +180,12 @@ class GreedyHungarianMatching(MatcherABC):
         dist_mat[~filter_mask] = float('inf')  # rule out matches by filter
         tp_ix, tp_match_ix = self._rule_out_kernel(dist_mat)
 
-        tp_ix_ = torch.zeros(xyz_out.size(0)).bool()
-        tp_ix_[tp_ix] = 1
-        tp_match_ix_ = torch.zeros(xyz_tar.size(0)).bool()
-        tp_match_ix_[tp_match_ix] = 1
+        tp_ix_bool = torch.zeros(xyz_out.size(0)).bool()
+        tp_ix_bool[tp_ix] = 1
+        tp_match_ix_bool = torch.zeros(xyz_tar.size(0)).bool()
+        tp_match_ix_bool[tp_match_ix] = 1
 
-        return tp_ix_, tp_match_ix_
+        return tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool
 
     def forward(self, output, target):
         """
@@ -189,8 +198,17 @@ class GreedyHungarianMatching(MatcherABC):
 
         """
         """Setup split in frames. Determine the frame range automatically so as to cover everything."""
-        frame_low = output.frame_ix.min() if output.frame_ix.min() < target.frame_ix.min() else target.frame_ix.min()
-        frame_high = output.frame_ix.max() if output.frame_ix.max() > target.frame_ix.max() else target.frame_ix.max().item()
+        if len(output) >= 1 and len(target) >= 1:
+            frame_low = output.frame_ix.min() if output.frame_ix.min() < target.frame_ix.min() else target.frame_ix.min()
+            frame_high = output.frame_ix.max() if output.frame_ix.max() > target.frame_ix.max() else target.frame_ix.max().item()
+        elif len(output) >= 1:
+            frame_low = output.frame_ix.min()
+            frame_high = output.frame_ix.max()
+        elif len(target) >= 1:
+            frame_low = target.frame_ix.min()
+            frame_high = target.frame_ix.max()
+        else:
+            return (emitter.EmptyEmitterSet(xy_unit=target.xyz, px_size=target.px_size), ) * 4
 
         out_pframe = output.split_in_frames(frame_low, frame_high)
         tar_pframe = target.split_in_frames(frame_low, frame_high)
@@ -199,13 +217,13 @@ class GreedyHungarianMatching(MatcherABC):
 
         """Assign the emitters framewise"""
         for out_f, tar_f in zip(out_pframe, tar_pframe):
-            filter_mask = self.filter(out_f.xyz, tar_f.xyz)  # batch implemented
-            tp_ix, tp_match_ix = self._match_kernel(out_f.xyz, tar_f.xyz, filter_mask)  # non batch impl.
+            filter_mask = self.filter(out_f.xyz_nm, tar_f.xyz_nm)  # batch implemented
+            tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool = self._match_kernel(out_f.xyz_nm, tar_f.xyz_nm, filter_mask)  # non batch impl.
 
             tpl.append(out_f[tp_ix])
             tpml.append(tar_f[tp_match_ix])
-            fpl.append(out_f[~tp_ix])
-            fnl.append(tar_f[~tp_match_ix])
+            fpl.append(out_f[~tp_ix_bool])
+            fnl.append(tar_f[~tp_match_ix_bool])
 
         """Concat them back"""
         tp = emitter.EmitterSet.cat(tpl)
@@ -215,197 +233,9 @@ class GreedyHungarianMatching(MatcherABC):
 
         """Let tp and tp_match share the same id's. IDs of ground truth are copied to true positives."""
         if (tp_match.id == -1).all().item():
-            tp_match.id = torch.arange(tp_match.__len__())
-        tp.id = tp_match.id
+            tp_match.id = torch.arange(len(tp_match)).type(tp_match.id.dtype)
 
-        return self._return_match(tp=tp, fp=fp, fn=fn, tp_match=tp_match)
-
-
-@deprecated
-class GreedyHungarianMatchingDepr(MatcherABC):
-    """
-    Matching emitters in a greedy 'hungarian' fashion, by using best first search.
-
-    Attributes:
-
-    """
-
-    def __init__(self, *, match_dims: int,
-                 dist_ax: float = None, dist_vol: float = None, dist_lat: float = None):
-        """
-        Initialise "Greedy Hungarian Matching". If you specify dist_lat and dist_ax you can specify whether matching
-        should be performed in 3D or in 2D. Otherwise it will be automatically determined. If you specify 2D while
-        providing a lateral and an axial threshold, the axial threshold will only be used to exclude matchs that are
-        too far off in the axial direction.
-
-        Args:
-            match_dims (int): match in 2D or 3D
-            dist_lat: lateral tolerance radius
-            dist_ax: axial tolerance threshold
-            dist_vol: volumetric tolerance radius
-        """
-        super().__init__()
-
-        self._dist_thresh = None
-        self._rule_out_thresh = None
-        self._match_dims = None
-        self._cdist_kernel = None
-
-        """Some safety checks."""
-        if ((dist_lat is not None) and (dist_vol is not None)) or ((dist_lat is None) and (dist_vol is None)):
-            raise ValueError("You need to specify exactly exclusively either dist_lat or dist_vol.")
-
-        if (dist_ax is not None) and (dist_vol is not None):
-            raise ValueError("You can not specify dist_ax and dist_vol.")
-
-        """Set the threshold and apropriate match_dim logic."""
-        if dist_lat is not None and dist_ax is None:
-            self._dist_thresh = dist_lat
-            self._match_dims = 2
-        elif dist_lat is not None and dist_ax is not None:
-            self._dist_thresh = dist_lat
-            self.rule_out_thresh = dist_ax  # kick out things which are too far off in z.
-
-            # either match in 2D or 3D, this can be both.
-            if match_dims is not None:
-                if match_dims in (2, 3):
-                    self._match_dims = match_dims
-                else:
-                    raise ValueError("Match dimension not allowed.")
-            else:
-                raise ValueError("You need to specify whether you want to match in 2D or 3D, when specifying both"
-                                 "dist_lat and dist_ax")
-
-        elif dist_vol is not None:
-            self._dist_thresh = dist_vol
-            self._match_dims = 3
-
-        self._cdist_kernel = partial(torch.cdist, p=2)  # does not take the square root
-
-    @staticmethod
-    def parse(param):
-        return GreedyHungarianMatching(match_dims=param.Evaluation.match_dims, dist_ax=param.Evaluation.dist_ax,
-                                       dist_vol=param.Evaluation.dist_vol, dist_lat=param.Evaluation.dist_lat)
-
-    @staticmethod
-    def rule_out_dist_match(dists, threshold):
-        """
-        Kernel which goes through the distance matrix, picks shortest distance and assign match
-         until a threshold is reached.
-
-        Args:
-            dists: distance matrix
-            threshold: threshold until match
-
-        Returns:
-
-        """
-        dists_ = dists.clone()
-
-        match_list = []
-        while dists_.min() < threshold:
-            ix = np.unravel_index(dists_.argmin(), dists_.shape)
-            dists_[ix[0]] = float('inf')
-            dists_[:, ix[1]] = float('inf')
-
-            match_list.append(ix)
-        if match_list.__len__() >= 1:
-            return torch.tensor(match_list)
-        else:
-            return torch.zeros((0, 2)).int()
-
-    def assign_kernel(self, out, tar):
-        """
-        Assigns out and tar, blind to a frame index. Therefore, split in frames beforehand
-        :param out:
-        :param tar:
-        :return:
-        """
-        """If no emitter has been found, all are false negatives. No tp, no fp."""
-        if out.__len__() == 0:
-            tp, fp, tp_match = emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet()
-            fn = tar
-            return tp, fp, fn, tp_match
-
-        """If there were no positives, no tp, no fn, all fp, no match."""
-        if tar.__len__() == 0:
-            tp, fn, tp_match = emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet(), emitter.EmptyEmitterSet()
-            fp = out
-            return tp, fp, fn, tp_match
-
-        if self._match_dims == 2:
-            dists = self._cdist_kernel(out.xyz[:, :2], tar.xyz[:, :2])
-        elif self._match_dims == 3:
-            dists = self._cdist_kernel(out.xyz, tar.xyz)
-
-        if self._rule_out_thresh is not None:
-            dists_ax = self._cdist_kernel(out.xyz[:, [2]], tar.xyz[:, [2]])
-            dists[dists_ax > self._rule_out_thresh] = float('inf')
-
-        match_ix = self.rule_out_dist_match(dists, self._dist_thresh).numpy()
-        all_ix_out = np.arange(out.__len__())
-        all_ix_tar = np.arange(tar.__len__())
-
-        tp = out.get_subset(match_ix[:, 0])
-        tp_match = tar.get_subset(match_ix[:, 1])
-
-        fp_ix = torch.from_numpy(np.setdiff1d(all_ix_out, match_ix[:, 0]))
-        fn_ix = torch.from_numpy(np.setdiff1d(all_ix_tar, match_ix[:, 1]))
-
-        fp = out.get_subset(fp_ix)
-        fn = tar.get_subset(fn_ix)
-
-        return tp, fp, fn, tp_match
-
-    def forward(self, output: emitter.EmitterSet, target: emitter.EmitterSet):
-        """
-        Matches two sets of emitters.
-
-        Args:
-            output: predicted localisations
-            target: ground truth localisations
-
-        Returns:
-            tp: true positives
-            fp: false positives
-            fn: false negatives
-            tp_match  gt localisations that were considered found (by means of this matching)
-        """
-
-        """Setup split in frames. Determine the frame range automatically so as to cover everything."""
-        if output.frame_ix.min() < target.frame_ix.min():
-            frame_low = output.frame_ix.min().item()
-        else:
-            frame_low = target.frame_ix.min().item()
-
-        if output.frame_ix.max() > target.frame_ix.max():
-            frame_high = output.frame_ix.max().item()
-        else:
-            frame_high = target.frame_ix.max().item()
-
-        out_pframe = output.split_in_frames(frame_low, frame_high)
-        tar_pframe = target.split_in_frames(frame_low, frame_high)
-
-        tpl, fpl, fnl, tpml = [], [], [], []  # true positive list, false positive list, false neg. ...
-
-        """Assign the emitters framewise"""
-        for i in range(out_pframe.__len__()):
-            tp, fp, fn, tp_match = self.assign_kernel(out_pframe[i], tar_pframe[i])
-            tpl.append(tp)
-            fpl.append(fp)
-            fnl.append(fn)
-            tpml.append(tp_match)
-
-        """Concat them back"""
-        tp = emitter.EmitterSet.cat(tpl)
-        fp = emitter.EmitterSet.cat(fpl)
-        fn = emitter.EmitterSet.cat(fnl)
-        tp_match = emitter.EmitterSet.cat(tpml)
-
-        """Let tp and tp_match share the same id's. IDs of ground truth are copied to true positives."""
-        if (tp_match.id == -1).all().item():
-            tp_match.id = torch.arange(tp_match.__len__())
-        tp.id = tp_match.id
+        tp.id = tp_match.id.type(tp.id.dtype)
 
         return self._return_match(tp=tp, fp=fp, fn=fn, tp_match=tp_match)
 

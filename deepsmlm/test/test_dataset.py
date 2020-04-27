@@ -1,14 +1,22 @@
 import pytest
 import torch
+import pathlib
+import pickle
 
+import deepsmlm
+import deepsmlm.generic.utils.test_utils as test_utils
 import deepsmlm.generic.emitter
 import deepsmlm.neuralfitter.target_generator
 import deepsmlm.neuralfitter.dataset as can  # candidate
+from deepsmlm.neuralfitter.engine import SMLMTrainingEngine
+from deepsmlm.neuralfitter.pre_processing import Identity
+
+deepsmlm_root = pathlib.Path(deepsmlm.__file__).parent.parent  # 'repo' directory
 
 
 class TestDataset:
 
-    @pytest.fixture(scope='class', params=[None, 1, 3, 5])
+    @pytest.fixture(scope='class', params=[1, 3, 5])
     def ds(self, request):
         class DummyFrameProc:
             def forward(x: torch.Tensor):
@@ -26,7 +34,7 @@ class TestDataset:
         dataset = can.SMLMStaticDataset(frames=torch.rand((n, 1, 32, 32)), em=em.split_in_frames(0, n - 1),
                                         frame_proc=DummyFrameProc, em_proc=DummyEmProc,
                                         tar_gen=deepsmlm.neuralfitter.target_generator.SinglePxEmbedding(
-                                            (-0.5, 31.5), (-0.5, 31.5), (32, 32)), f_win=request.param, return_em=True)
+                                            (-0.5, 31.5), (-0.5, 31.5), (32, 32)), frame_window=request.param, return_em=True)
 
         return dataset
 
@@ -62,15 +70,12 @@ class TestDataset:
         assert frs.dim() == 3, "Wrong dimensionality."
         assert frs.max() <= 0.5
 
-        if ds.multi_frame:
-            assert frs.size(0) == ds.multi_frame
-        else:
-            assert frs.size(0) == 1
+        assert frs.size(0) == ds.frame_window
 
 
 class TestInferenceDataset(TestDataset):
 
-    @pytest.fixture(scope='class', params=[None, 1, 3, 5])
+    @pytest.fixture(scope='class', params=[1, 3, 5])
     def ds(self, request):
         class DummyFrameProc:
             def forward(x: torch.Tensor):
@@ -79,6 +84,108 @@ class TestInferenceDataset(TestDataset):
         n = 100
 
         dataset = can.InferenceDataset(frames=torch.rand((n, 1, 32, 32)), frame_proc=DummyFrameProc,
-                                       f_win=request.param)
+                                       frame_window=request.param)
 
         return dataset
+
+
+class TestDatasetEngineDataset:
+
+    @pytest.fixture(scope='class', params=[1, 3, 5])
+    def ds(self, request):
+
+        dataset = can.SMLMDatasetEngineDataset(engine=None, em_proc=Identity(), frame_proc=Identity(), tar_gen=None, weight_gen=None,
+                                               frame_window=request.param, pad=None, return_em=True)
+        dataset._x_in = torch.rand((2048, 64, 64))
+
+        em = deepsmlm.RandomEmitterSet(20000)
+        em.frame_ix = torch.randint_like(em.frame_ix, low=0, high=2048)
+        dataset._tar_em = em
+
+        dataset._aux = [torch.rand_like(dataset._x_in)]
+        return dataset
+
+    def test_len(self, ds):
+
+        ds.pad = None
+        assert len(ds) == ds._x_in.size(0) - ds.frame_window + 1
+
+        ds.pad = 'same'
+        assert len(ds) == ds._x_in.size(0)
+
+    def test_get_samples(self, ds):
+
+        x, y, w, em = ds.__getitem__(500)  # frames, target, weight, emitters
+
+        assert x.size(0) == ds.frame_window
+        assert em.frame_ix.unique().numel() == 1
+
+
+class TestSMLMOnFlyDataset:
+
+    @pytest.fixture()
+    def ds(self):
+
+        class DummySimulation:
+            def __init__(self):
+                self.em_sampler = True
+
+            @staticmethod
+            def forward():
+                em = deepsmlm.RandomEmitterSet(1024)
+                em.frame_ix = torch.randint_like(em.frame_ix, 0, 256)
+                return torch.rand((256, 64, 64)), torch.rand((256, 64, 64)), em
+
+        class DummyTarAndWeightGen:
+            def forward(self, *args):
+                return torch.rand((6, 64, 64))
+
+        dataset = can.SMLMLiveDataset(simulator=DummySimulation(), em_proc=None, frame_proc=None,
+                                      tar_gen=DummyTarAndWeightGen(), weight_gen=DummyTarAndWeightGen(), frame_window=1, pad=None)
+
+        return dataset
+
+    @pytest.mark.parametrize("window", [1, 3, 5])
+    @pytest.mark.parametrize("pad", [None, "same"])
+    def test_sample(self, ds, window, pad):
+
+        """Setup"""
+        ds.frame_window = window
+        ds.pad = pad
+
+        """Run"""
+        ds.sample()
+
+        """Assert"""
+        if pad == 'same':
+            assert len(ds) == 256
+
+        elif pad is None:
+            assert len(ds) == 256 - window + 1
+
+    @pytest.mark.parametrize("window", [1, 3, 5])
+    @pytest.mark.parametrize("ix", [0, 50, 200])
+    @pytest.mark.parametrize("return_em", [False, True])
+    def test_get_item(self, ds, window, ix, return_em):
+
+        """Setup"""
+        ds.frame_window = window
+        ds.return_em = return_em
+
+        """Run"""
+        ds.sample()
+        sample_out = ds[ix]
+
+        """Assert"""
+        assert len(sample_out) == 4 if return_em else 3
+        if return_em:  # unpack
+            x, y_tar, weight, emitter = sample_out
+            assert emitter.frame_ix.unique().numel() == 1
+        else:
+            x, y_tar, weight = sample_out
+
+        assert x.dim() == 3
+        assert y_tar.dim() == 3
+        assert weight.dim() == 3
+
+

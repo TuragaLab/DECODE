@@ -8,22 +8,68 @@ import numpy as np
 import torch
 from scipy import interpolate
 
-from deepsmlm.neuralfitter.utils import padding_calc as padcalc
 from deepsmlm.simulation import psf_kernel as psf_kernel
 
 
 class Background(ABC):
     """
-    Abstract background class. All inheritors must implement a forward method that takes a batch of frames and
-    adds(!) the background to it.
+    Abstract background class. All childs must implement a sample method.
     """
 
-    bg_return = namedtuple('bg_return', ['xbg', 'bg'])  # return arguments, x plus bg and bg term alone
+    _forward_modes = ('like', 'cum', 'tuple')
+    _bg_return = namedtuple('bg_return', ['xbg', 'bg'])  # return arguments, x plus bg and bg term alone
 
-    def __init__(self):
+    def __init__(self, forward_return: str = None):
+        """
+
+        Args:
+            forward_mode (str): if 'batch' a new sample is returned for every element along the batch dimension
+                where the first dimension is the batch-dimension assuming a minimum of 3 dimensions.
+                If 'const' one sample is drawn.
+            forward_return (str): determines the return of the forward function. 'like' returns a sample of the same size
+                as the input, 'cum' adds the sample to the input and 'tuple' returns both the sum and the bg component
+                alone.
+
+        """
         super().__init__()
 
+        self.forward_return = forward_return if forward_return is not None else 'tuple'
+
+        self.sanity_check()
+
+    def sanity_check(self):
+        """Tests the sanity"""
+
+        if self.forward_return not in self._forward_modes:
+            raise ValueError(f"Forward return mode {self.forward_return} unsupported. "
+                             f"Available modes are: {self._forward_modes}")
+
     @abstractmethod
+    def sample(self, size, device=torch.device('cpu')):
+        """
+        Samples from background implementation in the specified size.
+
+        Args:
+            size:
+            device: where to put the data
+
+        Returns:
+            sample: background sample
+
+        """
+        raise NotImplementedError
+
+    def sample_like(self, x: torch.Tensor):
+        """
+
+        Args:
+            x:
+
+        Returns:
+
+        """
+        return self.sample(size=x.size(), device=x.device)
+
     def forward(self, x: torch.Tensor):
         """
         Takes a batch of frames and adds the implemented background component to it.
@@ -35,12 +81,27 @@ class Background(ABC):
             xbg (torch.Tensor): x including background
 
         """
-        bg = torch.zeros_like(x)
-        return self.bg_return(xbg=x + bg, bg=bg)
+
+        if self.forward_return == 'like':
+            return self.sample_like(x)
+
+        elif self.forward_return == 'cum':
+            return self.sample_like(x) + x
+
+        elif self.forward_return == 'tuple':
+            bg = self.sample_like(x)
+            return self._bg_return(xbg=x + bg, bg=bg)
+
+        else:
+            raise ValueError
 
 
 class UniformBackground(Background):
-    def __init__(self, bg_uniform: (float, tuple) = 0., bg_sampler=None):
+    """
+    Spatially constant background (i.e. a constant offset).
+
+    """
+    def __init__(self, bg_uniform: (float, tuple) = None, bg_sampler=None, forward_return=None):
         """
         Adds spatially constant background.
 
@@ -49,7 +110,7 @@ class UniformBackground(Background):
                 will be sampled from a random uniform.
             bg_sampler (function): a custom bg sampler function
         """
-        super().__init__()
+        super().__init__(forward_return=forward_return)
 
         if (bg_uniform is not None) and (bg_sampler is not None):
             raise ValueError("You must either specify bg_uniform XOR a bg_distribution")
@@ -66,21 +127,21 @@ class UniformBackground(Background):
     def parse(param):
         return UniformBackground(param.Simulation.bg_uniform)
 
-    def forward(self, x: torch.Tensor):
-        """
-        Takes a batch of frames and adds uniform background to it.
+    def sample(self, size, device=torch.device('cpu')):
 
-        Args:
-            x (torch.Tensor): input frames. Dimension N x C x H x W
+        assert len(size) in (2, 3, 4), "Not implemented size spec."
 
-        Returns:
-            xbg (torch.Tensor): x including background
+        # create as many sample as there are batch-dims
+        bg = self._bg_distribution(sample_shape=[size[0]] if len(size) >= 3 else torch.Size([]))
 
-        """
-        bg_term = self._bg_distribution()
-        return self.bg_return(xbg=x + bg_term, bg=bg_term)
+        # unsqueeze until we have enough dimensions
+        if len(size) >= 3:
+            bg = bg.view(-1, *((1, ) * (len(size) - 1)))
+
+        return bg.to(device) * torch.ones(size, device=device)
 
 
+#ToDo: Update to modified abstract background
 class OutOfFocusEmitters(Background):
     """
     Simulate far out of focus emitters by using huge z values and a gaussian kernel.
@@ -132,9 +193,10 @@ class OutOfFocusEmitters(Background):
         levels = self.level_dist.sample((xyz.size(0),))
 
         bg_term = self.gauss_psf.forward(xyz, levels)
-        return self.bg_return(xbg=x + bg_term, bg=bg_term)
+        return self._bg_return(xbg=x + bg_term, bg=bg_term)
 
 
+#ToDo: Update Perlin Background to modified abstract background
 class PerlinBackground(Background):
     """
     Taken from https://gist.github.com/vadimkantorov/ac1b097753f217c5c11bc2ff396e0a57.
@@ -238,7 +300,7 @@ class PerlinBackground(Background):
 
         bg_term = self.amplitude * amp_factor * (self.calc_perlin(self.img_size, [self.perlin_scale,
                                                                                   self.perlin_scale]) + 1) / 2.0
-        return self.bg_return(xbg=x + bg_term, bg=bg_term)
+        return self._bg_return(xbg=x + bg_term, bg=bg_term)
 
 
 class MultiPerlin(Background):
@@ -294,7 +356,7 @@ class MultiPerlin(Background):
             bg_term = bg_term + bg_term_  # book-keep bg_term
 
         """The behaviour here must be a bit different because the perlin components already add their bg_term to x."""
-        return self.bg_return(xbg=x, bg=bg_term)
+        return self._bg_return(xbg=x, bg=bg_term)
 
 
 class BgPerEmitterFromBgFrame:
@@ -302,7 +364,7 @@ class BgPerEmitterFromBgFrame:
     Extract a background value per localisation from a background frame. This is done by mean filtering.
     """
 
-    def __init__(self, filter_size: int, yextent: tuple, img_shape: tuple, xextent: tuple):
+    def __init__(self, filter_size: int, xextent: tuple, yextent: tuple, img_shape: tuple):
         """
 
         Args:
@@ -312,6 +374,8 @@ class BgPerEmitterFromBgFrame:
             img_shape (tuple): image shape
         """
         super().__init__()
+
+        from deepsmlm.neuralfitter.utils import padding_calc as padcalc
         """Sanity checks"""
         if filter_size % 2 == 0:
             raise ValueError("ROI size must be odd.")
@@ -341,7 +405,7 @@ class BgPerEmitterFromBgFrame:
         """
 
         # put the kernel to the right device
-        if x.size()[-2:] != self.img_shape:
+        if x.size()[-2:] != torch.Size(self.img_shape):
             raise ValueError("Background does not match specified image size.")
 
         self.kernel = self.kernel.to(x.device)
@@ -351,7 +415,7 @@ class BgPerEmitterFromBgFrame:
     def forward(self, tar_em, tar_bg):
 
         if tar_bg.dim() == 3:
-            tar_bg = tar_bg.unsqueeze()
+            tar_bg = tar_bg.unsqueeze(1)
 
         if len(tar_em) == 0:
             return tar_em

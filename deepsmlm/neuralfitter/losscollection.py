@@ -698,7 +698,6 @@ class BumpMSELoss3DzLocal(Loss):
         return loss_compositum
 
 
-
 class MaskedPxyzLoss(SpeiserLoss):
     def __init__(self, model_out_ch, device, pos_weight=1., ch_static_scale=None, ch_rescale=True,
                  cmp_prefix='loss',
@@ -719,7 +718,7 @@ class MaskedPxyzLoss(SpeiserLoss):
         :return:
         """
         return MaskedPxyzLoss(model_out_ch=param.HyperParameter.channels_out,
-                              device=torch.device(param.Hardware.device),
+                              device=torch.device(param.Hardware.device_train),
                               pos_weight=param.HyperParameter.fgbg_factor,
                               ch_static_scale=torch.tensor(param.HyperParameter.ch_static_scale).float(),
                               ch_rescale=param.HyperParameter.dynamic_weight, logger=logger)

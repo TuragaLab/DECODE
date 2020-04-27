@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
+
 import deprecated
-import numpy as np
 import torch
 from sklearn import neighbors
 from torch.nn import functional
@@ -11,7 +11,7 @@ from deepsmlm.simulation.psf_kernel import PSF, DeltaPSF
 
 
 class TargetGenerator(ABC):
-    def __init__(self, unit='px'):
+    def __init__(self, unit='px', ix_low=None, ix_high=None):
         """
 
         Args:
@@ -19,6 +19,8 @@ class TargetGenerator(ABC):
         """
         super().__init__()
         self._unit = unit
+        self.ix_low = ix_low
+        self.ix_high = ix_high
 
     @abstractmethod
     def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
@@ -38,6 +40,11 @@ class TargetGenerator(ABC):
             tar (torch.Tensor): Target.
 
         """
+        if ix_low is None:
+            ix_low = self.ix_low
+        if ix_high is None:
+            ix_high = self.ix_high
+
         if self._unit == 'px':
             return self.forward_(xyz=em.xyz_px, phot=em.phot, frame_ix=em.frame_ix, ix_low=ix_low, ix_high=ix_high)
         elif self._unit == 'nm':
@@ -50,6 +57,7 @@ class SpatialEmbedding(DeltaPSF):
     """
     Compute Spatial Embedding.
     """
+
     def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple):
         """
 
@@ -129,6 +137,7 @@ class SinglePxEmbedding(TargetGenerator):
     """
     Generate binary target and embeddings of coordinates and photons.
     """
+
     def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple):
         """
 
@@ -184,6 +193,7 @@ class KernelEmbedding(SinglePxEmbedding):
     Attributes:
         roi_size (int): size of the ROI in which we define a target
     """
+
     def __init__(self, xextent, yextent, img_shape, roi_size=3):
         super().__init__(xextent, yextent, img_shape)
         self._xextent = xextent
@@ -313,7 +323,7 @@ class GlobalOffsetRep(SinglePxEmbedding):
             photxyz_mask = functional.conv2d(p_map.unsqueeze(0), conv_kernel, padding=1).squeeze(0).squeeze(0)
             photxyz_mask[photxyz_mask >= 1.] = 1
 
-            img_pseudo_extent = ((-0.5, self.img_shape[0]-0.5), (-0.5, self.img_shape[1]-0.5))
+            img_pseudo_extent = ((-0.5, self.img_shape[0] - 0.5), (-0.5, self.img_shape[1] - 0.5))
             # find indices
             mat_indices = photxyz_mask.squeeze(0).nonzero()
             coordinates = A2BTransform(img_pseudo_extent, (self.xextent, self.yextent)).a2b(mat_indices.float())

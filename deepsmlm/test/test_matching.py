@@ -7,7 +7,7 @@ import torch
 import deepsmlm.evaluation
 import deepsmlm.evaluation.match_emittersets as match_em
 import deepsmlm.generic
-from deepsmlm import EmitterSet
+from deepsmlm import EmitterSet, CoordinateOnlyEmitter
 from deepsmlm.evaluation.match_emittersets import NNMatching
 
 
@@ -153,12 +153,37 @@ class TestGreedyMatching(TestMatcherABC):
         filter_mask = matcher.filter(xyz_out.unsqueeze(0), xyz_tar.unsqueeze(0))
         assignment = matcher._match_kernel(xyz_out, xyz_tar, filter_mask.squeeze(0))
 
-        tp_ix_out, tp_match_ix_out = assignment
+        tp_ix_out, tp_match_ix_out = assignment[2:]
         tp_ix_exp, tp_match_ix_exp = expected
 
         """Assert"""
         assert (tp_ix_out.nonzero() == tp_ix_exp).all()  # boolean index in output
         assert (tp_match_ix_out.nonzero() == tp_match_ix_exp).all()
+
+    test_data_forward = [
+        (torch.arange(5).unsqueeze(1).float() * 2 + torch.zeros((5, 3)),
+         torch.arange(4, -1, -1).unsqueeze(1).float() * 2 + torch.zeros((5, 3)) + torch.rand((5, 1)) - 0.5)
+    ]
+
+    @pytest.mark.parametrize("xyz_tar,xyz_out", test_data_forward)
+    def test_forward(self, matcher, xyz_tar, xyz_out):
+        """Tests the sanity"""
+
+        """Setup"""
+        matcher.dist_lat = 1
+        em_tar = CoordinateOnlyEmitter(xyz_tar)
+        em_out = CoordinateOnlyEmitter(xyz_out)
+
+        """Run"""
+        tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
+
+        """Assertions"""
+        assert len(tp) == len(tp_match)
+        assert len(tp) + len(fp) == len(em_out)
+        assert len(tp) + len(fn) == len(em_tar)
+
+        assert ((tp.xyz - tp_match.xyz) <= 1.).all()
+        assert (tp.id == tp_match.id).all()
 
 
 #

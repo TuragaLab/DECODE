@@ -15,13 +15,14 @@ v
 """
 
 
-def connect_point_set(set0, set1, ax=None):
+def connect_point_set(set0, set1, threeD=False, ax=None):
     """
     Plots the connecting lines between the set0 and set1 in 2D.
 
     Args:
         set0:  torch.Tensor / np.array of dim N x 2
         set1:  torch.Tensor / np.array of dim N x 2
+        threeD (bool): plot / connect in 3D
         ax:  axis where to plot
 
     Returns:
@@ -29,8 +30,13 @@ def connect_point_set(set0, set1, ax=None):
     """
     if ax is None:
         ax = plt.gca()
-    for i in range(set0.size(0)):
-        ax.plot([set0[i, 0], set1[i, 0]], [set0[i, 1], set1[i, 1]], 'b')
+
+    if threeD:
+        for i in range(set0.size(0)):
+            ax.plot3D([set0[i, 0], set1[i, 0]], [set0[i, 1], set1[i, 1]], [set0[i, 2], set1[i, 2]], 'orange')
+    else:
+        for i in range(set0.size(0)):
+            ax.plot([set0[i, 0], set1[i, 0]], [set0[i, 1], set1[i, 1]], 'orange')
 
 
 class PlotFrame:
@@ -69,12 +75,14 @@ class PlotFrame:
 
 
 class PlotCoordinates:
+    _labels_default = ('Target', 'Output', 'Init')
     def __init__(self,
                  pos_tar=None, phot_tar = None,
                  pos_out=None, phot_out=None,
                  pos_ini=None, phot_ini=None,
                  extent_limit=None,
-                 match_lines=False):
+                 match_lines=False,
+                 labels=None):
         """
         Plots points in 2D projection.
         Args:
@@ -96,6 +104,7 @@ class PlotCoordinates:
         self.pos_ini = pos_ini
         self.phot_ini = phot_ini
         self.match_lines = match_lines
+        self.labels = labels if labels is not None else self._labels_default
 
         self.tar_marker = 'ro'
         self.tar_cmap = 'winter'
@@ -119,24 +128,24 @@ class PlotCoordinates:
 
         if self.pos_tar is not None:
             if self.phot_tar is not None:
-                plot_xyz_phot(self.pos_tar, self.phot_tar, self.tar_marker[1], self.tar_cmap, 'Target')
+                plot_xyz_phot(self.pos_tar, self.phot_tar, self.tar_marker[1], self.tar_cmap, self.labels[0])
             else:
-                plot_xyz(self.pos_tar, self.tar_marker[1], self.tar_marker[0], 'Target')
+                plot_xyz(self.pos_tar, self.tar_marker[1], self.tar_marker[0], self.labels[0])
 
         if self.pos_out is not None:
             if self.phot_out is not None:
-                plot_xyz_phot(self.pos_out, self.phot_out, self.out_marker[1], self.out_cmap, 'Output')
+                plot_xyz_phot(self.pos_out, self.phot_out, self.out_marker[1], self.out_cmap, self.labels[1])
             else:
-                plot_xyz(self.pos_out, self.out_marker[1], self.out_marker[0], 'Output')
+                plot_xyz(self.pos_out, self.out_marker[1], self.out_marker[0], self.labels[1])
 
         if self.pos_ini is not None:
             if self.phot_ini is not None:
-                plot_xyz_phot(self.pos_ini, self.phot_ini, self.ini_marker[1], self.ini_cmap, 'Init')
+                plot_xyz_phot(self.pos_ini, self.phot_ini, self.ini_marker[1], self.ini_cmap, self.labels[2])
             else:
-                plot_xyz(self.pos_ini, self.ini_marker[1], self.ini_marker[0], 'Init')
+                plot_xyz(self.pos_ini, self.ini_marker[1], self.ini_marker[0], self.labels[2])
 
         if self.pos_tar is not None and self.pos_out is not None and self.match_lines:
-            connect_point_set(self.pos_tar, self.pos_out)
+            connect_point_set(self.pos_tar, self.pos_out, threeD=False)
 
         plt.gca().set_aspect('equal', adjustable='box')
         plt.xlabel('x')
@@ -148,11 +157,15 @@ class PlotCoordinates:
         return plt.gca()
 
 class PlotCoordinates3D:
-    def __init__(self, pos_tar=None, pos_out=None, phot_out=None):
+    _labels_default = ('Target', 'Output', 'Init')
+    def __init__(self, pos_tar=None, pos_out=None, phot_out=None, match_lines=False, labels=None):
 
         self.pos_tar = pos_tar
         self.pos_out = pos_out
         self.phot_out = phot_out
+
+        self.match_lines = match_lines
+        self.labels = labels if labels is not None else self._labels_default
 
         self.fig = plt.gcf()
         self.ax = self.fig.add_subplot(111, projection='3d')
@@ -160,19 +173,21 @@ class PlotCoordinates3D:
     def plot(self):
         if self.pos_tar is not None:
             xyz = self.pos_tar
-            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], c='r', marker='o', label='Target')
+            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], c='red', marker='o', label=self.labels[0])
 
         if self.pos_out is not None:
             xyz = self.pos_out
-            phot = self.phot_out
 
             rgba_colors = torch.zeros((xyz.shape[0], 4))
             rgba_colors[:, 2] = 1.0
-            rgba_colors[:, 3] = phot / phot.max()
-            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], marker='^', color=rgba_colors, label='Output')
+            rgba_colors[:, 3] = 1.0
+            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], marker='^', color=rgba_colors, label=self.labels[1])
             plt.xlabel('x')
             plt.ylabel('y')
             plt.gca().invert_yaxis()
+
+        if self.pos_tar is not None and self.pos_out is not None and self.match_lines:
+            connect_point_set(self.pos_tar, self.pos_out, threeD=True)
 
 
 class PlotFrameCoord(PlotCoordinates, PlotFrame):
@@ -184,7 +199,8 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
                  pos_ini=None, phot_ini=None,
                  extent=None, coord_limit=None,
                  norm=None, clim=None,
-                 match_lines=False):
+                 match_lines=False, labels=None,
+                 plot_colorbar_frame=False):
         """
         (see base classes)
         :param frame:
@@ -201,9 +217,10 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
                                  pos_ini=pos_ini,
                                  phot_ini=phot_ini,
                                  extent_limit=coord_limit,
-                                 match_lines=match_lines)
+                                 match_lines=match_lines,
+                                 labels=labels)
 
-        PlotFrame.__init__(self, frame, extent, norm, clim)
+        PlotFrame.__init__(self, frame, extent, norm, clim, plot_colorbar=plot_colorbar_frame)
 
     def plot(self):
         """
@@ -215,34 +232,3 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
 
         PlotFrame.plot(self)
         PlotCoordinates.plot(self)
-
-if __name__ == '__main__':
-    extent = ((-0.5, 31.5), (-0.5, 31.5), None)
-    img_shape = (32, 32)
-
-    img = torch.rand((img_shape[0], img_shape[1]))
-    # PlotFrame(frame=img, extent=extent).plot()
-    # plt.show()
-
-    xyz = torch.rand((5, 3)) * img_shape[0]
-    phot = torch.rand((5,)) * 1000
-
-    xyz_out = torch.cat((xyz, xyz), 0)
-    xyz_out += 5 * torch.randn_like(xyz_out)
-    phot_out = torch.cat((phot, phot), dim=0)
-
-    PlotCoordinates(pos_ini=xyz, phot_ini=phot).plot()
-    plt.show()
-
-    PlotFrameCoord(frame=img, pos_out=xyz, phot_out=phot).plot()
-    plt.show()
-
-    PlotCoordinates3D(pos_tar=xyz, pos_out=xyz_out, phot_out=phot_out).plot()
-    plt.show()
-
-    img = torch.zeros((25, 25)) + 0.0001
-    img[10, 10] = 1
-    img[15, 15] = 10
-    img[20, 20] = 100
-    PlotFrame(img, norm='log', clim=(0.01, 100)).plot()
-    plt.show()

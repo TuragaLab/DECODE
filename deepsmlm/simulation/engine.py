@@ -1,12 +1,16 @@
 import copy
-import math
+import hashlib
 import itertools
+import math
+from abc import ABC, abstractmethod
+
 import torch
+
+torch.multiprocessing.set_sharing_strategy('file_system')
 from torch.utils.data import Dataset
 
 import deepsmlm.neuralfitter.utils.pytorch_customs
 
-torch.multiprocessing.set_sharing_strategy('file_system')
 import torch.utils
 import tqdm
 import time
@@ -14,37 +18,28 @@ import pickle
 from pathlib import Path
 
 import deepsmlm.generic.emitter
+import deepsmlm.simulation
 import deepsmlm.generic.utils.data_utils as deepsmlm_utils
 
 
-class SimulationEngine:
-    """
-    Simulation engine.
-    Note that the elements of the datasets must be pickable!
-    """
-    def __init__(self, cache_dir, exp_id, cpu_worker, buffer_size, ds_train, ds_test=None):
+class SimulationEngine(ABC):
+
+    def __init__(self, cache_dir, exp_id, buffer_size, write_testdata):
+        super().__init__()
 
         self.cache_dir = cache_dir
         self.exp_id = exp_id
         self.exp_dir = None
-        self.cpu_worker = cpu_worker
-        self._batch_size = None
-        self.buffer = []
-        self.buffer_size = buffer_size
+        self.write_testdata = write_testdata
+
         self._train_engines = []
         self._train_engines_path = None
         self._train_data_ix = -1
 
-        self.ds_train = ds_train
-        self.ds_test = ds_test
+        self.buffer = []
+        self.buffer_size = buffer_size
 
-        self._dl_train = None
-        self._dl_test = None
-
-        self.setup_dataloader()
         self._setup_exchange()
-
-        print("Simulation engine setup up done.")
 
     def _setup_exchange(self):
         """
@@ -65,37 +60,6 @@ class SimulationEngine:
         eng_path = self.exp_dir / 'training_engines'
         eng_path.mkdir()
         self._train_engines_path = eng_path
-
-    def setup_dataloader(self, batch_size=256):
-        """
-        Sets up the dataloader for the simulation engine.
-
-        Args:
-            batch_size: (int) the batch_size for the dataloaders to produce the training samples. High values reduce
-            thread overhead, but can lead to shared memory issues.
-
-        Returns:
-
-        """
-        """If the ds is small, reduce the batch_size accordingly to utilise all workers."""
-        if len(self.ds_train) < batch_size * self.cpu_worker:
-            batch_size = math.ceil(len(self.ds_train) / batch_size)
-
-        self._batch_size = batch_size
-
-        self._dl_train = torch.utils.data.DataLoader(dataset=self.ds_train, batch_size=self._batch_size, shuffle=False,
-                                                     num_workers=self.cpu_worker, collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate,
-                                                     pin_memory=False)
-
-        if self.ds_test is not None:
-            if len(self.ds_test) < batch_size * self.cpu_worker:
-                batch_size = math.ceil(len(self.ds_test) / batch_size)
-
-            batch_size_test = batch_size
-
-            self._dl_test = torch.utils.data.DataLoader(dataset=self.ds_test, batch_size=batch_size_test, shuffle=False,
-                                                        num_workers=self.cpu_worker, collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate,
-                                                        pin_memory=False)
 
     @staticmethod
     def _get_engines(folderpath):
@@ -144,6 +108,153 @@ class SimulationEngine:
         print('Buffer checked and cleared. Waiting for training engines to pick up the data.', end="\r")
 
     @staticmethod
+    def save(dataset, folder, filename):
+
+        out_folder = Path(folder)
+        assert not out_folder.exists()
+        out_folder.mkdir()
+
+        # monitor time to disk
+        t0 = time.time()
+        file = folder / filename
+
+        pickle_out = pickle.dumps(dataset, protocol=-1)
+        # write hash first, then the actual file
+        hash_file = Path(str(file) + '_hash').with_suffix('.txt')
+
+        with hash_file.open('w+') as f:
+            f.write(hashlib.sha256(pickle_out).hexdigest())
+
+        with file.open('wb+') as f:
+            f.write(pickle_out)
+
+        t1 = time.time()
+        print(f"Wrote dataset {filename} in {t1 - t0:.2f}s to disk. Filesize: {file.stat().st_size / 10 ** 6:.1f} MB "
+              f"(i.e. {(file.stat().st_size / 10 ** 6) / (t1 - t0):.1f} MB/s)")
+
+    @abstractmethod
+    def sample_train(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def sample_test(self):
+        raise NotImplementedError
+
+    def run(self, n_max: int = None):
+
+        """Write testdata once"""
+        if self.write_testdata:
+            testdata = self.sample_test()
+            self.save(testdata, self.exp_dir / 'testdata', 'testdata')
+
+        """Check if buffer is full, otherwise simulate."""
+        n = 0
+        while n_max is None or n < n_max:
+
+            """Check and Clear Buffer"""
+            if len(self.buffer) >= self.buffer_size:
+                # possibly clear buffer element if all engines touched
+                self._relax_buffer()
+                time.sleep(5)  # add some rest here because if the engine needs to wait it's kept in the loop
+
+            else:  # generate new training samples and save the,
+                self._train_data_ix += 1
+                train_data_name = ('traindata_' + str(self._train_data_ix))
+                self.buffer.append(train_data_name)
+
+                data_train = self.sample_train()
+                self.save(data_train, self.exp_dir / train_data_name, train_data_name)
+
+            n += 1
+
+
+class DatasetStreamEngine(SimulationEngine):
+
+    def __init__(self, cache_dir: (str, Path), exp_id: str, buffer_size: int,
+                 sim_train: deepsmlm.simulation.Simulation, sim_test: deepsmlm.simulation.Simulation = None):
+        super().__init__(cache_dir=cache_dir, exp_id=exp_id, buffer_size=buffer_size,
+                         write_testdata=True if sim_test is not None else False)
+
+        self.sim_train = sim_train
+        self.sim_test = sim_test
+
+        self.sanity_check()
+
+    def sanity_check(self):
+        assert self.sim_train.em_sampler is not None, "Simulation Engine must contain emitter sampler."
+
+    @staticmethod
+    def _sample_data(simulator):
+        frames, bg_frames, emitter = simulator.forward()
+        # emitter = emitter.split_in_frames(0, len(frames) - 1)
+
+        return emitter, frames.cpu(), bg_frames.cpu(),
+
+    def sample_train(self):
+        return self._sample_data(self.sim_train)
+
+    def sample_test(self):
+        return self._sample_data(self.sim_test)
+
+
+class SampleStreamEngine(SimulationEngine):
+    """
+    Simulation engine.
+    Note that the elements of the datasets must be pickable!
+    """
+
+    def __init__(self, cache_dir: (str, Path), exp_id: str, cpu_worker: int, buffer_size: int, ds_train, ds_test=None):
+
+        super().__init__(cache_dir=cache_dir, exp_id=exp_id, buffer_size=buffer_size,
+                         write_testdata=True if ds_test is not None else False)
+
+        self.cpu_worker = cpu_worker
+        self._batch_size = None
+
+        self.ds_train = ds_train
+        self.ds_test = ds_test
+
+        self._dl_train = None
+        self._dl_test = None
+
+        self._setup_dataloader()
+
+        print("Simulation engine setup up done.")
+
+    def _setup_dataloader(self, batch_size=16):
+        """
+        Sets up the dataloader for the simulation engine.
+
+        Args:
+            batch_size: (int) the batch_size for the dataloaders to produce the training samples. High values reduce
+            thread overhead, but can lead to shared memory issues.
+
+        Returns:
+
+        """
+        """If the ds is small, reduce the batch_size accordingly to utilise all workers."""
+        if len(self.ds_train) < batch_size * self.cpu_worker:
+            batch_size = math.ceil(len(self.ds_train) / batch_size)
+
+        self._batch_size = batch_size
+
+        self._dl_train = torch.utils.data.DataLoader(dataset=self.ds_train, batch_size=self._batch_size, shuffle=False,
+                                                     num_workers=self.cpu_worker,
+                                                     collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate,
+                                                     pin_memory=False)
+
+        if self.ds_test is not None:
+            if len(self.ds_test) < batch_size * self.cpu_worker:
+                batch_size = math.ceil(len(self.ds_test) / batch_size)
+
+            batch_size_test = batch_size
+
+            self._dl_test = torch.utils.data.DataLoader(dataset=self.ds_test, batch_size=batch_size_test, shuffle=False,
+                                                        num_workers=self.cpu_worker,
+                                                        collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate,
+                                                        pin_memory=False)
+
+    @staticmethod
     def reduce_batch_dim(batches):
         """
         Transforms from list of batches with content elements into collection of content elements
@@ -171,18 +282,9 @@ class SimulationEngine:
 
         return con
 
-    @staticmethod
-    def run_pickle_dl(dl, folder, filename):
-        """
-        Runs the dataloader for a single epoch and pickles the results into a file
-        Args:
-            dl: dataloader
-            folder: folder in which the data should be placed in
-            filename: output filename
+    @classmethod
+    def sample_data(cls, dl):
 
-        Returns:
-
-        """
         dl_out = []
         for dl_batch in tqdm.tqdm(dl):
             dl_batch_ = copy.deepcopy(dl_batch)  # otherwise you get multiprocessing issues
@@ -190,58 +292,15 @@ class SimulationEngine:
             dl_out.append(dl_batch_)
 
         # if batch size was more than 1, collate
-        dl_out = SimulationEngine.reduce_batch_dim(dl_out)
+        dl_out = cls.reduce_batch_dim(dl_out)
 
-        out_folder = Path(folder)
-        assert not out_folder.exists()
-        out_folder.mkdir()
+        return dl_out
 
-        # monitor time to disk
-        t0 = time.time()
-        file = folder / filename
-        with open(str(file), 'wb+') as f:
-            pickle.dump(dl_out, f, protocol=-1)
+    def sample_train(self):
+        return self.sample_data(self._dl_train)
 
-        t1 = time.time()
-        print(f"Wrote {len(dl)} batches with batch-size {dl.batch_size} in {t1-t0:.2f}s to disk. "
-              f"Filesize: {file.stat().st_size / 10**6:.1f} MB "
-              f"(i.e. {(file.stat().st_size / 10**6) / (t1-t0):.1f} MB/s)")
-
-    def run(self, n_max=None):
-        """
-        Main method to run the simulation engine.
-        Simulates test data once if not None; simulates epochs of training data until buffer is full; clears cached
-        training data if loaded by all active training engines;
-
-        Args:
-            n_max: (integer, None) maximum number of loops. Rarely needed (but needed for testing)
-
-        Returns:
-
-        """
-
-        """Write test data once."""
-        if self._dl_test is not None:
-            self.run_pickle_dl(self._dl_test, self.exp_dir / 'testdata', 'testdata')
-            print("Finished computation of test data.")
-
-        """Check if buffer is full, otherwise simulate"""
-        n = 0
-        while n_max is None or n < n_max:
-            # check buffer
-            if len(self.buffer) >= self.buffer_size:
-                # possibly clear buffer element if all engines touched
-                self._relax_buffer()
-                time.sleep(5)  # add some rest here because if the engine needs to wait it's kept in the loop
-
-            else:
-                # generate new training data
-                self._train_data_ix += 1
-                train_data_name = ('traindata_' + str(self._train_data_ix))
-                self.buffer.append(train_data_name)
-                self.run_pickle_dl(self._dl_train, self.exp_dir / train_data_name, train_data_name)
-
-            n += 1
+    def sample_test(self):
+        return self.sample_data(self._dl_test)
 
 
 class SMLMSimulationDatasetOnFly(Dataset):
