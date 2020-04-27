@@ -205,3 +205,19 @@ class TestGreedyMatching(TestMatcherABC):
 
         assert ((tp.xyz - tp_match.xyz) <= 1.).all()
         assert (tp.id == tp_match.id).all()
+
+    def test_forward_statistical(self, matcher):
+
+        matcher.dist_lat = 1.
+        xyz_tar = torch.zeros((1000, 3))
+        xyz_out = torch.zeros_like(xyz_tar)
+        xyz_out[:, 0] = torch.randn_like(xyz_out[:, 0])
+
+        em_tar = CoordinateOnlyEmitter(xyz_tar, xy_unit='nm')
+        em_out = CoordinateOnlyEmitter(xyz_out, xy_unit='nm')
+
+        """Run"""
+        tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
+
+        """Assert"""
+        assert len(tp) /len(em_tar) == pytest.approx(0.7, abs=0.1)
