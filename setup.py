@@ -57,6 +57,7 @@ setup(
     packages=setuptools.find_packages(),
     ext_modules=[CMakeExtension('spline_psf_cuda', 'deepsmlm/cpp_src')],
     cmdclass=dict(build_ext=CMakeBuild),
+    include_package_data=True,
     zip_safe=False,
     url='',
     license='',
