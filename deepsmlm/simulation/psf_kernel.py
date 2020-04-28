@@ -120,11 +120,9 @@ class DeltaPSF(PSF):
     """
     Delta function PSF. You input a list of coordinates, this class outputs a single one-hot representation in 2D of
     your input.
+    If multiple things fall into the same bin, the output is the weight of either of the two (which one is arbitrary
+    implementation detail).
 
-    Attributes:
-        photon_normalise (bool):
-        dark_value (float, optional): value where no binning happened, if None, the default will be 0
-        _bin_x
     """
 
     def __init__(self, xextent, yextent, img_shape):
