@@ -127,58 +127,43 @@ class DeltaPSF(PSF):
         _bin_x
     """
 
-    def __init__(self, xextent, yextent, img_shape, photon_normalise=False, dark_value=None):
+    def __init__(self, xextent, yextent, img_shape):
+        super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape)
 
-        super().__init__(xextent=xextent, yextent=yextent, zextent=None, img_shape=img_shape)
+        from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV
 
-        self.photon_normalise = photon_normalise
-        self.dark_value = dark_value
-        """
-        Binning in numpy: binning is (left Bin, right Bin]
-        (open left edge, including right edge)
-        """
-        self._bin_x = np.linspace(xextent[0], xextent[1],
-                                  img_shape[0] + 1, endpoint=True)
-        self._bin_y = np.linspace(yextent[0], yextent[1],
-                                  img_shape[1] + 1, endpoint=True)
+        self._fov_filter = RemoveOutOfFOV(xextent=self.xextent, yextent=self.yextent, zextent=None)
+        self._x_bins = torch.linspace(*xextent, steps=img_shape[0] + 1)
+        self._y_bins = torch.linspace(*yextent, steps=img_shape[1] + 1)
 
-    def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
+    def _delta_impl(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.LongTensor, n_frames: int):
         """
-        Calculates the PSF for emitters on the same frame
+        Implementation via searchsorted.
 
         Args:
-            xyz: coordinates
-            weight: weight
+            xyz:
+            weight:
+            frame_ix:
+            n_frames:
 
         Returns:
-            (torch.Tensor) size H x W
 
         """
 
-        def max_0(values):
-            if values.__len__() == 0:
-                return 0
-            else:
-                return np.max(values)
+        """Remove Emitters that are out of FOV"""
+        mask = self._fov_filter.clean_emitter(xyz)
+        assert isinstance(frame_ix, (torch.IntTensor, torch.LongTensor, torch.ShortTensor))
+        xyz_, weight_, frame_ix_ = xyz[mask], weight[mask], frame_ix[mask].long()
 
-        if weight is None:
-            weight = torch.ones_like(xyz[:, 0])
+        """Generate frames"""
+        frames = torch.zeros((n_frames, *self.img_shape))
 
-        if self.photon_normalise:
-            weight = torch.ones_like(weight)
+        x_ix = np.searchsorted(self._x_bins, xyz_[:, 0], side='right') - 1
+        y_ix = np.searchsorted(self._y_bins, xyz_[:, 1], side='right') - 1
 
-        if xyz.size(0) == 0:
-            camera = torch.zeros(self.img_shape).numpy()
-        else:
-            camera, _, _, _ = binned_statistic_2d(xyz[:, 0].numpy(), xyz[:, 1].numpy(), weight.numpy(),
-                                                  bins=(self._bin_x, self._bin_y), statistic=max_0)
+        frames[frame_ix_, x_ix, y_ix] = weight_
 
-        camera = torch.from_numpy(camera.astype(np.float32))
-
-        if self.dark_value is not None:
-            camera[camera == 0.] = self.dark_value
-
-        return camera
+        return frames
 
     def forward(self, xyz: torch.Tensor, weight: torch.Tensor = None, frame_ix: torch.Tensor = None,
                 ix_low=None, ix_high=None):
@@ -195,8 +180,9 @@ class DeltaPSF(PSF):
         Returns:
             frames (torch.Tensor): frames of size N x H x W where N is the batch dimension.
         """
+
         xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
-        return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
+        return self._delta_impl(xyz, weight, frame_ix, ix_high - ix_low + 1)
 
 
 class GaussianExpect(PSF):

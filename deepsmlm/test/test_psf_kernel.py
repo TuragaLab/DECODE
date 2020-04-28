@@ -107,13 +107,13 @@ class TestSingleFrameImplementedPSF(AbstractPSFTest):
 
 class TestDeltaPSF:
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def delta_1px(self):
         return psf_kernel.DeltaPSF(xextent=(-0.5, 31.5),
                                    yextent=(-0.5, 31.5),
                                    img_shape=(32, 32))
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def delta_05px(self):
         return psf_kernel.DeltaPSF(xextent=(-0.5, 31.5),
                                    yextent=(-0.5, 31.5),
@@ -152,6 +152,17 @@ class TestDeltaPSF:
 
         assert (out_1px.unique() == torch.Tensor([0., 1.])).all()
         assert (out_05px.unique() == torch.Tensor([0., 1.])).all()
+
+    def test_forward_border(self, delta_1px):
+
+        _ = delta_1px.forward(torch.zeros((0, 3)), torch.zeros((0, )), torch.zeros(0).long(), 0, 0)
+
+    def test_doubles(self, delta_1px):
+
+        frames = delta_1px.forward(torch.zeros((2, 3)), torch.tensor([1., 2.]), torch.zeros(2).long(), 0, 0)
+
+        """Assert"""
+        assert frames[0, 0, 0] in (1., 2.)
 
 
 class TestGaussianExpect(TestSingleFrameImplementedPSF):
