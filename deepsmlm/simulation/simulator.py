@@ -1,5 +1,7 @@
 import warnings
 
+from ..generic import EmitterSet
+
 
 class Simulation:
     """
@@ -42,10 +44,31 @@ class Simulation:
                           "Background is defined as something which does not depend on the actual "
                           "signal whereas noise does.")
 
-    def forward(self, em=None):
+    def sample(self):
+        """
+        Sample a new set of emitters and forward them through the simulation pipeline.
 
-        if em is None:
-            em = self.em_sampler()
+        Returns:
+            EmitterSet: sampled emitters
+            torch.Tensor: simulated frames
+            torch.Tensor: background frames
+        """
+
+        emitter = self.em_sampler()
+        frames, bg = self.forward(emitter)
+        return emitter, frames, bg
+
+    def forward(self, em: EmitterSet):
+        """
+        Forward an EmitterSet through the simulation pipeline.
+
+        Args:
+            em (EmitterSet): Emitter Set
+
+        Returns:
+            torch.Tensor: simulated frames
+            torch.Tensor: background frames (e.g. to predict the bg seperately)
+        """
 
         frames = self.psf.forward(em.xyz_px, em.phot, em.frame_ix,
                                   ix_low=self.frame_range[0], ix_high=self.frame_range[1])
@@ -63,4 +86,4 @@ class Simulation:
         if self.noise is not None:
             frames = self.noise.forward(frames)
 
-        return frames, bg_frames, em
+        return frames, bg_frames

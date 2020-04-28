@@ -1,5 +1,5 @@
-import torch
 import pytest
+import torch
 
 import deepsmlm.generic.emitter as emitter
 import deepsmlm.simulation.background as background
@@ -22,16 +22,6 @@ class TestSimulator:
     def em(self):
         return emitter.RandomEmitterSet(10)
 
-    def test_em_eq(self, sim, em):
-        """
-        Tests whether input emitter and output emitter are the same
-
-        """
-        _, _, em_ = sim.forward(em)
-
-        """Tests"""
-        assert em_ == em
-
     def test_framerange(self, sim, em):
         """
         Tests whether the frames are okay.
@@ -39,9 +29,23 @@ class TestSimulator:
         """
 
         """Run"""
-        frames, bg, _ = sim.forward(em)
+        frames, bg = sim.forward(em)
 
         """Tests"""
         assert frames.size() == torch.Size([3, *sim.psf.img_shape])
         assert (frames[[0, -1]] == 10.).all(), "Only middle frame is supposed to be active."
         assert frames[1].max() > 10., "Middle frame should be active"
+
+    def test_sampler(self, sim):
+        """Setup"""
+
+        def dummy_sampler():
+            return emitter.RandomEmitterSet(20)
+
+        sim.em_sampler = dummy_sampler
+
+        """Run"""
+        em, frames, bg_frames = sim.sample()
+
+        """Assertions"""
+        assert isinstance(em, emitter.EmitterSet)
