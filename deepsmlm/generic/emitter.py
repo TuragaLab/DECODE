@@ -3,6 +3,8 @@ from deprecated import deprecated
 
 import numpy as np
 import torch
+import pickle
+from pathlib import Path
 
 from .utils import test_utils as tutil
 from .utils import generic as gutil
@@ -161,6 +163,27 @@ class EmitterSet:
         }
 
         return em_dict
+
+    def save(self, file: (str, Path)):
+
+        if not isinstance(file, Path):
+            file = Path(file)
+
+        em_dict = self.to_dict()
+        with file.open('wb+') as f:
+            pickle.dump(em_dict, f, protocol=-1)
+
+    @staticmethod
+    def load(file: (str, Path)):
+
+        if not isinstance(file, Path):
+            file = Path(file)
+
+        with file.open('rb+') as f:
+            em_dict = pickle.load(f)
+
+        return EmitterSet(**em_dict)
+
 
     @property
     def num_emitter(self):

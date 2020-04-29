@@ -1,5 +1,6 @@
 import os
 
+from pathlib import Path
 import pytest
 import numpy as np
 import torch
@@ -7,6 +8,11 @@ import torch
 import deepsmlm.generic.emitter as emitter
 from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
 from deepsmlm.generic.utils import test_utils
+from deepsmlm.test.asset_handler import RMAfterTest
+
+deepsmlm_root = os.path.abspath(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         os.pardir, os.pardir)) + '/'
 
 
 class TestEmitterSet:
@@ -113,6 +119,7 @@ class TestEmitterSet:
         else:
             assert test_utils.tens_almeq(em.xyz_cr_nm, expct_nm)
 
+    @pytest.mark.skip("At the moment deprecated.")
     def test_split(self):
 
         big_em = RandomEmitterSet(100000)
@@ -194,15 +201,26 @@ class TestEmitterSet:
         with pytest.raises(ValueError):
             EmitterSet(xyz, phot, frame_ix)
 
+    def test_save_load(self):
+
+        random_em = RandomEmitterSet(1000)
+        file = Path(deepsmlm_root + 'deepsmlm/test/assets/dummy_emitter_save.pl')
+
+        with RMAfterTest(file):
+            random_em.save(file)
+
+            """Assertions"""
+            assert file.exists()
+            random_em_load = EmitterSet.load(file)
+            assert random_em == random_em_load
+
     @pytest.mark.skip("Function deprecated and will be moved.")
     def test_write_to_csv(self):
         """
         Test to write to csv file.
         :return:
         """
-        deepsmlm_root = os.path.abspath(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         os.pardir, os.pardir)) + '/'
+
 
         random_em = RandomEmitterSet(1000)
         fname = deepsmlm_root + 'deepsmlm/test/assets/dummy_csv.txt'
