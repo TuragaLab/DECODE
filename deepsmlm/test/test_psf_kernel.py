@@ -259,18 +259,19 @@ class TestCubicSplinePSF(AbstractPSFTest):
     def test_recentre_roi(self, psf):
         with pytest.raises(ValueError) as err:  # even roi size --> no center
             psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
-                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(24, 24), auto_center=True)
+                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(24, 24), roi_auto_center=True)
 
             assert err == 'PSF reference can not be centered when the roi_size is even.'
 
         with pytest.raises(ValueError) as err:  # even roi size --> no center
             psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
-                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), ref_re=(5, 5, 100), auto_center=True)
+                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), ref_re=(5, 5, 100), roi_auto_center=True)
 
             assert err == 'PSF reference can not be automatically centered when you specify a custom center at the same time.'
 
         psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
-                     coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), auto_center=True)
+                     coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), roi_auto_center=True,
+                     cuda_kernel=False)
 
         assert (psf.ref_re == torch.tensor([12, 12, psf.ref0[2]])).all()
 

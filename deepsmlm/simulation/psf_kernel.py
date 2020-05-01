@@ -319,7 +319,7 @@ class CubicSplinePSF(PSF):
 
     def __init__(self, xextent, yextent, img_shape, ref0, coeff, vx_size,
                  *, roi_size: (None, tuple) = None, ref_re: (None, torch.Tensor, tuple) = None,
-                 auto_center: bool = False, cuda_kernel=True, cuda_max_roi_chunk: int = 1000000):
+                 roi_auto_center: bool = False, cuda_kernel=True, cuda_max_roi_chunk: int = 1000000):
         """
         Initialise Spline PSF
 
@@ -340,7 +340,7 @@ class CubicSplinePSF(PSF):
 
         self._coeff = coeff
         self._roi_native = self._coeff.size()[:2]  # native roi based on the coeff's size
-        self.roi_size_px = roi_size if roi_size is not None else self._roi_native
+        self.roi_size_px = torch.Size(roi_size) if roi_size is not None else self._roi_native
 
         if vx_size is None:
             vx_size = torch.Tensor([1., 1., 1.])
@@ -348,7 +348,7 @@ class CubicSplinePSF(PSF):
         self.vx_size = vx_size if isinstance(vx_size, torch.Tensor) else torch.Tensor(vx_size)
         self.ref0 = ref0 if isinstance(ref0, torch.Tensor) else torch.Tensor(ref0)
 
-        self.ref_re = self._shift_ref(ref_re, auto_center)
+        self.ref_re = self._shift_ref(ref_re, roi_auto_center)
 
         self._cuda = cuda_kernel
         self.cuda_max_roi_chunk = cuda_max_roi_chunk
@@ -400,7 +400,7 @@ class CubicSplinePSF(PSF):
                 (self.img_shape[1] != (self.yextent[1] - self.yextent[0])):
             raise ValueError("Unequal size of extent and image shape not supported.")
 
-        if self.roi_size_px > self._roi_native:
+        if (torch.tensor(self.roi_size_px) > torch.tensor(self._roi_native)).any():
             warnings.warn("The specified ROI size is larger than the size supported by the spline coefficients."
                           "While this mostly likely works computationally, results may be unexpected.")
 
@@ -411,7 +411,7 @@ class CubicSplinePSF(PSF):
     @property
     def _ref_diff(self):
         if self.ref_re is None:
-            return torch.zeros((1, 3))
+            return torch.zeros((3))
         else:
             return self.ref_re - self.ref0
 
@@ -521,7 +521,7 @@ class CubicSplinePSF(PSF):
 
         """Place emitters according to the Reference (reference is in px)"""
         xyz_r[:, :2] = (xyz_r[:, :2] + self.ref0[:2]) * self.vx_size[:2]
-        xyz_px = (xyz_nm[:, :2] / self.vx_size[:2] - self.ref0[:2]).floor().int()
+        xyz_px = (xyz_nm[:, :2] / self.vx_size[:2] - self.ref0[:2] - self._ref_diff[:2]).floor().int()
 
         return xyz_r, xyz_px
 
