@@ -204,15 +204,15 @@ class TestEmitterSet:
     def test_save_load(self):
 
         random_em = RandomEmitterSet(1000)
-        file = Path(deepsmlm_root + 'deepsmlm/test/assets/dummy_emitter_save.pl')
+        file = Path(deepsmlm_root + 'deepsmlm/test/assets/dummy_emitter_save.pickle')
 
         with RMAfterTest(file):
             random_em.save(file)
 
             """Assertions"""
-            assert file.exists()
+            assert file.exists(), "File does not exist."
             random_em_load = EmitterSet.load(file)
-            assert random_em == random_em_load
+            assert random_em == random_em_load, "Reloaded emitterset is not equivalent to inital one."
 
     @pytest.mark.skip("Function deprecated and will be moved.")
     def test_write_to_csv(self):

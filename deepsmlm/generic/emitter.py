@@ -184,7 +184,6 @@ class EmitterSet:
 
         return EmitterSet(**em_dict)
 
-
     @property
     def num_emitter(self):
         raise DeprecationWarning
@@ -219,7 +218,7 @@ class EmitterSet:
 
     @property
     def xyz_cr_px(self):
-        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='px')
+        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='px', power=2)
 
     @property
     def xyz_scr_px(self):
@@ -227,7 +226,7 @@ class EmitterSet:
 
     @property
     def xyz_cr_nm(self):
-        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='nm')
+        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='nm', power=2)
 
     @property
     def xyz_scr_nm(self):
@@ -649,7 +648,7 @@ class EmitterSet:
 
         return gutil.split_sliceable(x=self, x_ix=self.frame_ix, ix_low=ix_low, ix_high=ix_up)
 
-    def _pxnm_conversion(self, xyz, in_unit, tar_unit):
+    def _pxnm_conversion(self, xyz, in_unit, tar_unit, power: float = 1.):
 
         if in_unit is None:
             raise ValueError("Conversion not possible if unit not specified.")
@@ -662,13 +661,13 @@ class EmitterSet:
             if self.px_size is None:
                 raise ValueError("Conversion not possible if px size is not specified.")
 
-            return self._convert_coordinates(factor=1/self.px_size, xyz=xyz)
+            return self._convert_coordinates(factor=1/self.px_size ** power, xyz=xyz)
 
         elif in_unit == 'px' and tar_unit == 'nm':
             if self.px_size is None:
                 raise ValueError("Conversion not possible if px size is not specified.")
 
-            return self._convert_coordinates(factor=self.px_size, xyz=xyz)
+            return self._convert_coordinates(factor=self.px_size ** power, xyz=xyz)
 
         else:
             raise ValueError("Unsupported conversion.")

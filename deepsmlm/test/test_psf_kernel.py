@@ -1,16 +1,16 @@
-from abc import ABC, abstractmethod
-import random
-import matplotlib.pyplot as plt
 import pathlib
+import pickle
+import random
+from abc import ABC, abstractmethod
+
+import matplotlib.pyplot as plt
 import pytest
 import torch
-import pickle
 
 import deepsmlm.generic.inout.load_calibration as load_cal
 import deepsmlm.generic.plotting.frame_coord as plf
-import deepsmlm.simulation.psf_kernel as psf_kernel
 import deepsmlm.generic.utils.test_utils as tutil
-
+import deepsmlm.simulation.psf_kernel as psf_kernel
 from . import asset_handler
 
 
@@ -154,11 +154,9 @@ class TestDeltaPSF:
         assert (out_05px.unique() == torch.Tensor([0., 1.])).all()
 
     def test_forward_border(self, delta_1px):
-
-        _ = delta_1px.forward(torch.zeros((0, 3)), torch.zeros((0, )), torch.zeros(0).long(), 0, 0)
+        _ = delta_1px.forward(torch.zeros((0, 3)), torch.zeros((0,)), torch.zeros(0).long(), 0, 0)
 
     def test_doubles(self, delta_1px):
-
         frames = delta_1px.forward(torch.zeros((2, 3)), torch.tensor([1., 2.]), torch.zeros(2).long(), 0, 0)
 
         """Assert"""
@@ -220,7 +218,8 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
         smap_psf = load_cal.SMAPSplineCoefficient(calib_file=str(self.bead_cal_file))
         psf_impl = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=smap_psf.ref0,
-                                             coeff=smap_psf.coeff, vx_size=(1., 1., 10), roi_size=(32, 32), cuda_kernel=False)
+                                             coeff=smap_psf.coeff, vx_size=(1., 1., 10), roi_size=(32, 32),
+                                             cuda_kernel=False)
 
         return psf_impl
 
@@ -257,8 +256,25 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
         return xyz, phot, bg, n
 
-    def test_forward_ix_out_of_range(self, psf):
+    def test_recentre_roi(self, psf):
+        with pytest.raises(ValueError) as err:  # even roi size --> no center
+            psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
+                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(24, 24), auto_center=True)
 
+            assert err == 'PSF reference can not be centered when the roi_size is even.'
+
+        with pytest.raises(ValueError) as err:  # even roi size --> no center
+            psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
+                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), ref_re=(5, 5, 100), auto_center=True)
+
+            assert err == 'PSF reference can not be automatically centered when you specify a custom center at the same time.'
+
+        psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
+                     coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), auto_center=True)
+
+        assert (psf.ref_re == torch.tensor([12, 12, psf.ref0[2]])).all()
+
+    def test_forward_ix_out_of_range(self, psf):
         out = psf.forward(torch.zeros((0, 3)), torch.zeros(0), torch.zeros(0).long(), -5, 5)
         assert out.size(0) == 11
 
@@ -435,7 +451,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
         """Assert and test"""
         xyz = torch.tensor([[15., 15., 0.]])
-        roi_0 = psf.forward_rois(xyz, torch.ones(1,))
+        roi_0 = psf.forward_rois(xyz, torch.ones(1, ))
 
         # modify reference
         psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape,
@@ -484,7 +500,8 @@ class TestCubicSplinePSF(AbstractPSFTest):
         """Additional Plotting if manual testing (comment out return statement)."""
         plt.figure()
         plf.PlotFrameCoord(frames_cpu[0], pos_tar=xyz).plot()
-        plt.title("Random Frame sample.\nShould show a couple of emitters at\nrandom positions distributed over a frame.")
+        plt.title(
+            "Random Frame sample.\nShould show a couple of emitters at\nrandom positions distributed over a frame.")
         plt.show()
 
     @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1), (1, 1), (-5, 5)])
@@ -501,7 +518,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         n = 100
         xyz = torch.rand((n, 3)) * 64
         phot = torch.ones(n)
-        frame_ix = torch.randint(-5, 4, size=(n, ))
+        frame_ix = torch.randint(-5, 4, size=(n,))
 
         """Run"""
         out_chunk = psf._forward_chunks(xyz, phot, frame_ix, ix_low, ix_high, chunk_size=2)
@@ -511,15 +528,15 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert tutil.tens_almeq(out_chunk, out_forward)
 
     @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1), (1, 1), (-5, 5)])
-    def test_forward_drv_chunks(self, psf_cuda, ix_low, ix_high):
+    def test_forward_drv_chunks(self, psf, ix_low, ix_high):
         """
         Tests whether chunked drv forward returns the same frames as drv forward method
 
         Args:
            psf: fixture
 
-         """
-        psf = psf_cuda
+        """
+
         """Setup"""
         n = 100
         xyz = torch.rand((n, 3)) * 64
@@ -536,16 +553,15 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
     @pytest.mark.slow
     @pytest.mark.skipif(not psf_kernel.CubicSplinePSF._cuda_compiled(),
-                       reason="Skipped because PSF implementation not compiled with CUDA support.")
+                        reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_many_em_forward(self, psf_cuda):
-
         """Setup"""
         psf_cuda.cuda_max_roi_chunk = 1000000
         n = psf_cuda.cuda_max_roi_chunk * 5
         n_frames = n // 50
         xyz = torch.rand((n, 3)) + 15
         phot = torch.ones(n)
-        frame_ix = torch.randint(0, n_frames, size=(n, )).long()
+        frame_ix = torch.randint(0, n_frames, size=(n,)).long()
 
         """Run"""
         frames = psf_cuda.forward(xyz, phot, frame_ix, 0, n_frames)

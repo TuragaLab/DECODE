@@ -115,8 +115,8 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         self._emitter_av_total = self._total_emitter_average_search()
 
         """Sanity"""
-        if self.num_frames != 3 or self.frame_range != (-1, 1):
-            warnings.warn("Not yet tested number of frames / frame range.")
+        # if self.num_frames != 3 or self.frame_range != (-1, 1):
+        #     warnings.warn("Not yet tested number of frames / frame range.")
 
     @property
     def frame_range(self):
