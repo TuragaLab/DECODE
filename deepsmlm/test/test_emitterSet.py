@@ -92,9 +92,22 @@ class TestEmitterSet:
         else:
             assert test_utils.tens_almeq(em.xyz_nm, expct_nm)
 
-    @pytest.mark.parametrize("xyz_cr_input,xy_unit,px_size,expct_px,expct_nm", xyz_conversion_data)
+    xyz_cr_conversion_data = [  # xyz_scr_input, # xy_unit, #px-size # expect_scr_px, # expect scr_nm
+        (torch.empty((0, 3)), None, None, "err", "err"),
+        (torch.empty((0, 3)), 'px', None, torch.empty((0, 3)), "err"),
+        (torch.empty((0, 3)), 'nm', None, "err", torch.empty((0, 3))),
+        (torch.tensor([[25., 25., 5.]]), None, None, "err", "err"),
+        (torch.tensor([[25., 25., 5.]]), 'px', None, torch.tensor([[25., 25., 5.]]), "err"),
+        (torch.tensor([[25., 25., 5.]]), 'nm', None, "err", torch.tensor([[25., 25., 5.]])),
+        (torch.tensor([[.25, .25, 5.]]), 'px', (50., 100.), torch.tensor([[.25, .25, 5.]]),
+         torch.tensor([[12.5, 25., 5.]])),
+        (torch.tensor([[25., 25., 5.]]), 'nm', (50., 100.), torch.tensor([[.5, .25, 5.]]),
+         torch.tensor([[25., 25., 5.]]))
+    ]
+
+    @pytest.mark.parametrize("xyz_scr_input,xy_unit,px_size,expct_px,expct_nm", xyz_cr_conversion_data)
     @pytest.mark.filterwarnings("ignore:UserWarning")
-    def test_xyz_cr_conversion(self, xyz_cr_input, xy_unit, px_size, expct_px, expct_nm):
+    def test_xyz_cr_conversion(self, xyz_scr_input, xy_unit, px_size, expct_px, expct_nm):
         """
         Here we test the cramer rao unit conversion. We can reuse the testdata as for the xyz conversion because it does
         not make a difference for the test candidate.
@@ -102,22 +115,22 @@ class TestEmitterSet:
         """
 
         """Init and expect warning if specified"""
-        em = emitter.CoordinateOnlyEmitter(torch.rand_like(xyz_cr_input), xy_unit=xy_unit, px_size=px_size)
-        em.xyz_cr = xyz_cr_input
+        em = emitter.CoordinateOnlyEmitter(torch.rand_like(xyz_scr_input), xy_unit=xy_unit, px_size=px_size)
+        em.xyz_cr = xyz_scr_input ** 2
 
         """Test the respective units"""
         if isinstance(expct_px, str) and expct_px == "err":
             with pytest.raises(ValueError):
                 _ = em.xyz_cr_px
         else:
-            assert test_utils.tens_almeq(em.xyz_cr_px, expct_px)
+            assert test_utils.tens_almeq(em.xyz_scr_px, expct_px)
 
         if isinstance(expct_nm, str) and expct_nm == "err":
             with pytest.raises(ValueError):
                 _ = em.xyz_cr_nm
 
         else:
-            assert test_utils.tens_almeq(em.xyz_cr_nm, expct_nm)
+            assert test_utils.tens_almeq(em.xyz_scr_nm, expct_nm)
 
     @pytest.mark.skip("At the moment deprecated.")
     def test_split(self):
