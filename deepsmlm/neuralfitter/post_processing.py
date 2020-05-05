@@ -8,11 +8,11 @@ from deprecated import deprecated
 from joblib import Parallel, delayed
 from sklearn.cluster import AgglomerativeClustering, DBSCAN
 
-import deepsmlm.simulation.background
 import deepsmlm.generic.utils.statistics as fan_stat
+import deepsmlm.simulation.background
 from deepsmlm.evaluation import match_emittersets
 from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
-from deepsmlm.neuralfitter.target_generator import SpatialEmbedding
+from deepsmlm.neuralfitter.target_generator import UnifiedEmbeddingTarget
 
 
 class PostProcessing(ABC):
@@ -180,7 +180,8 @@ class ConsistencyPostprocessing(PostProcessing):
 
         """
         return ConsistencyPostprocessing(raw_th=param.PostProcessing.single_val_th, em_th=param.PostProcessing.total_th,
-                                         xy_unit='px', px_size=param.Camera.px_size, img_shape=param.Simulation.img_size,
+                                         xy_unit='px', px_size=param.Camera.px_size,
+                                         img_shape=param.Simulation.img_size,
                                          ax_th=param.PostProcessing.ax_th, vol_th=param.PostProcessing.vol_th,
                                          lat_th=param.PostProcessing.lat_th, match_dims=param.PostProcessing.match_dims,
                                          return_format='batch-set')
@@ -482,9 +483,9 @@ class Offset2Coordinate:
             img_shape (tuple): image shape
         """
 
-        off_psf = SpatialEmbedding(xextent=xextent,
-                                   yextent=yextent,
-                                   img_shape=img_shape)
+        off_psf = UnifiedEmbeddingTarget(xextent=xextent,
+                                         yextent=yextent,
+                                         img_shape=img_shape, roi_size=1)
 
         xv, yv = torch.meshgrid([off_psf._bin_ctr_x, off_psf._bin_ctr_y])
         self._x_mesh = xv.unsqueeze(0)

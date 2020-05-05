@@ -74,7 +74,7 @@ class RemoveOutOfFOV(PreProcessing):
         self.yextent = yextent
         self.zextent = zextent
 
-    def _clean_emitter(self, xyz):
+    def clean_emitter(self, xyz):
         """
         Returns index of emitters that are inside the specified extent.
 
@@ -104,7 +104,7 @@ class RemoveOutOfFOV(PreProcessing):
             EmitterSet
         """
         em_mat = em_set.xyz
-        is_emit = self._clean_emitter(em_mat)
+        is_emit = self.clean_emitter(em_mat)
 
         return em_set[is_emit]
 

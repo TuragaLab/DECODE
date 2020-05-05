@@ -199,7 +199,7 @@ class SimpleWeight(WeightGenerator):
         super().__init__()
 
         self.target_roi_size = target_roi_size
-        self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape, None)
+        self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape)
         self.delta2roi = OneHotInflator(roi_size=self.target_roi_size,
                                         channels=4,
                                         overlap_mode='zero')
