@@ -89,11 +89,11 @@ class TestSpatialEmbedding:
 
     @pytest.fixture(scope='class')
     def delta_1px(self):
-        return psf_kernel.DeltaPSF((-0.5, 31.5), (-0.5, 31.5), (32, 32), False, None)
+        return psf_kernel.DeltaPSF((-0.5, 31.5), (-0.5, 31.5), (32, 32))
 
     @pytest.fixture(scope='class')
     def delta_05px(self):
-        return psf_kernel.DeltaPSF((-0.5, 31.5), (-0.5, 31.5), (64, 64), False, None)
+        return psf_kernel.DeltaPSF((-0.5, 31.5), (-0.5, 31.5), (64, 64))
 
     def test_binning(self, tar_bin_1px, tar_bin_05px):
         """
@@ -117,10 +117,10 @@ class TestSpatialEmbedding:
         assert 0.25 == tar_bin_05px._offset_max_y
         assert 0.25 == tar_bin_05px._offset_max_y
 
-    def test_forward_range(self, tar_bin_1px, tar_bin_05px):
-        em = CoordinateOnlyEmitter(torch.rand((1000, 3)) * 40)
-        offset_1px = tar_bin_1px.forward_(em.xyz)
-        offset_hpx = tar_bin_05px.forward_(em.xyz)
+    def test_forward_range(self, tar_bin_05px, tar_bin_1px):
+        em = CoordinateOnlyEmitter(torch.rand((1000, 3)) * 40, xy_unit='px')
+        offset_1px = tar_bin_1px.forward(em)
+        offset_hpx = tar_bin_05px.forward(em)
 
         assert offset_1px.max().item() <= 0.5
         assert offset_1px.min().item() > -0.5
@@ -134,18 +134,18 @@ class TestSpatialEmbedding:
         xyz = CoordinateOnlyEmitter(torch.tensor([[15.1, 2.9, 0.]]), xy_unit='px').xyz
 
         img_ = delta_1px.forward(xyz)
-        tar_ = tar_bin_1px.forward_(xyz)
+        tar_ = tar_bin_1px.forward_(xyz, torch.zeros_like(xyz[:, 0]).long())
         assert torch.equal(img_.nonzero(), tar_[:, 0].nonzero())
         assert torch.equal(img_.nonzero(), tar_[:, 1].nonzero())
 
         img_ = delta_05px.forward(xyz)
-        tar_ = tar_bin_05px.forward_(xyz)
+        tar_ = tar_bin_05px.forward_(xyz, torch.zeros_like(xyz[:, 0]).long())
         assert torch.equal(img_.nonzero(), tar_[:, 0].nonzero())
         assert torch.equal(img_.nonzero(), tar_[:, 1].nonzero())
 
         """Test an out of range emitter."""
         xyz = CoordinateOnlyEmitter(torch.tensor([[31.6, 16., 0.]]), xy_unit='px').xyz
-        offset_map = tar_bin_1px.forward_(xyz)
+        offset_map = tar_bin_1px.forward_(xyz, torch.zeros_like(xyz[:, 0]).long())
         assert torch.equal(torch.zeros_like(offset_map), offset_map)
 
     def test_forward_offset_1px_units(self, tar_bin_1px, tar_bin_05px):
@@ -161,11 +161,11 @@ class TestSpatialEmbedding:
                                                   [1.5, 1.2, 0.],
                                                   [2.7, 0.5, 0.]])).xyz
 
-        offset_1px = tar_bin_1px.forward_(xyz).squeeze(0)
+        offset_1px = tar_bin_1px.forward_(xyz, torch.zeros_like(xyz[:, 0]).long()).squeeze(0)
 
         assert torch.allclose(torch.tensor([0., 0.]), offset_1px[:, 0, 0])
-        assert torch.allclose(torch.tensor([0.5, 0.2]), offset_1px[:, 1, 1])
-        assert torch.allclose(torch.tensor([-0.3, 0.5]), offset_1px[:, 3, 0])
+        assert torch.allclose(torch.tensor([-0.5, 0.2]), offset_1px[:, 2, 1])
+        assert torch.allclose(torch.tensor([-0.3, -0.5]), offset_1px[:, 3, 1])
 
 
 class TestSinglePxEmbedding:
@@ -249,6 +249,71 @@ class TestKernelEmbedding(TestSinglePxEmbedding):
     def test_forward(self, roi_offset, em_set):
 
         _ = roi_offset.forward(em_set)
+
+
+class TestUnifiedEmbeddingTarget(TestTargetGenerator):
+
+    @pytest.fixture()
+    def targ(self):
+
+        xextent = (-0.5, 63.5)
+        yextent = (-0.5, 63.5)
+        img_shape = (64, 64)
+
+        return target_generator.UnifiedEmbeddingTarget(xextent, yextent, img_shape, roi_size=5, ix_low=0, ix_high=5)
+
+    @pytest.fixture()
+    def random_emitter(self):
+        em = RandomEmitterSet(1000)
+        em.frame_ix = torch.randint_like(em.frame_ix, low=-20, high=30)
+
+        return em
+
+    def test_eq_centralpx_delta(self, targ, random_emitter):
+        """Check whether central pixels agree with delta function"""
+
+        """Run"""
+        mask, ix = targ._get_central_px(random_emitter.xyz, random_emitter.frame_ix)
+        mask_delta = targ._delta_psf._fov_filter.clean_emitter(random_emitter.xyz)
+        ix_delta = targ._delta_psf.px_search(random_emitter.xyz[mask], random_emitter.frame_ix[mask])
+
+        """Assert"""
+        assert (mask == mask_delta).all()
+        for ix_el, ix_el_delta in zip(ix, ix_delta):
+            assert (ix_el == ix_el_delta).all()
+
+    @pytest.mark.parametrize("roi_size", torch.tensor([1, 3, 5, 7]))
+    def test_roi_px(self, targ, random_emitter, roi_size):
+
+        """Setup"""
+        targ.__init__(xextent=targ.xextent, yextent=targ.yextent, img_shape=targ.img_shape,
+                      roi_size=roi_size, ix_low=targ.ix_low, ix_high=targ.ix_high)
+
+        """Run"""
+        mask, ix = targ._get_central_px(random_emitter.xyz, random_emitter.frame_ix)
+        batch_ix, x_ix, y_ix, off_x, off_y, id = targ._get_roi_px(*ix)
+
+        """Assert"""
+        assert (batch_ix.unique() == ix[0].unique()).all()
+        assert (x_ix >= 0).all()
+        assert (y_ix >= 0).all()
+        assert (x_ix <= 63).all()
+        assert (y_ix <= 63).all()
+        assert batch_ix.size() == off_x.size()
+        assert off_x.size() == off_y.size()
+
+        expct_vals = torch.arange(-(targ._roi_size - 1) // 2, (targ._roi_size - 1) // 2 + 1)
+
+        assert (off_x.unique() == expct_vals).all()
+        assert (off_y.unique() == expct_vals).all()
+
+    def test_forward(self, targ):
+
+        em_set = CoordinateOnlyEmitter(torch.tensor([[15.1, 19.6, 250.]]), xy_unit='px')
+        out = targ.forward(em_set)[0]  # single frame
+        assert tutil.tens_almeq(out[:, 15, 20], torch.tensor([1., 1., 0.1, -0.4, 250.]), 1e-5)
+        assert tutil.tens_almeq(out[:, 16, 20], torch.tensor([0., 1., -0.9, -0.4, 250.]), 1e-5)
+        assert tutil.tens_almeq(out[:, 15, 21], torch.tensor([0., 1., 0.1, -1.4, 250.]), 1e-5)
 
 
 @pytest.mark.skip("Deprecated.")
