@@ -170,18 +170,12 @@ class EmitterSet:
             file = Path(file)
 
         em_dict = self.to_dict()
-        with file.open('wb+') as f:
-            pickle.dump(em_dict, f, protocol=-1)
+        torch.save(em_dict, file)
 
     @staticmethod
     def load(file: (str, Path)):
 
-        if not isinstance(file, Path):
-            file = Path(file)
-
-        with file.open('rb+') as f:
-            em_dict = pickle.load(f)
-
+        em_dict = torch.load(file)
         return EmitterSet(**em_dict)
 
     @property
