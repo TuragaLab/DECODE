@@ -118,14 +118,13 @@ class TestGreedyMatching(TestMatcherABC):
 
         """Run"""
         filter = matcher.filter(torch.zeros((4, 3)),
-                                 torch.tensor([[1.9, 0., 0.], [2.1, 0., 0.], [0., 0., -5000.], [1.5, 1.5, 0.]]))
+                                torch.tensor([[1.9, 0., 0.], [2.1, 0., 0.], [0., 0., -5000.], [1.5, 1.5, 0.]]))
 
         """Assert"""
         assert filter[:, 0].all()
         assert not filter[:, 1].all()
         assert filter[:, 2].all()
         assert not filter[:, 3].all()
-
 
     @pytest.mark.parametrize("dist_lat", [None, 150.])
     @pytest.mark.parametrize("dist_ax", [None, 300.])
@@ -137,8 +136,10 @@ class TestGreedyMatching(TestMatcherABC):
 
         n_out = 1000
         n_tar = 1200
-        xyz_out = torch.rand((10, n_out, 3)) * torch.tensor([500, 500, 1000]).unsqueeze(0).unsqueeze(0)  # batch implementation
-        xyz_tar = torch.rand((10, n_tar, 3)) * torch.tensor([500, 500, 1000]).unsqueeze(0).unsqueeze(0)  # batch implementation
+        xyz_out = torch.rand((10, n_out, 3)) * torch.tensor([500, 500, 1000]).unsqueeze(0).unsqueeze(
+            0)  # batch implementation
+        xyz_tar = torch.rand((10, n_tar, 3)) * torch.tensor([500, 500, 1000]).unsqueeze(0).unsqueeze(
+            0)  # batch implementation
 
         """Run"""
         act = matcher.filter(xyz_out, xyz_tar)  # active pairs
@@ -220,4 +221,4 @@ class TestGreedyMatching(TestMatcherABC):
         tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
 
         """Assert"""
-        assert len(tp) /len(em_tar) == pytest.approx(0.7, abs=0.1)
+        assert len(tp) / len(em_tar) == pytest.approx(0.7, abs=0.1)

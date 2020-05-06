@@ -1,7 +1,6 @@
 import warnings
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from functools import partial
 
 import numpy as np
 import torch
@@ -210,7 +209,7 @@ class GreedyHungarianMatching(MatcherABC):
             frame_low = target.frame_ix.min()
             frame_high = target.frame_ix.max()
         else:
-            return (emitter.EmptyEmitterSet(xy_unit=target.xyz, px_size=target.px_size), ) * 4
+            return (emitter.EmptyEmitterSet(xy_unit=target.xyz, px_size=target.px_size),) * 4
 
         out_pframe = output.split_in_frames(frame_low, frame_high)
         tar_pframe = target.split_in_frames(frame_low, frame_high)
@@ -220,7 +219,8 @@ class GreedyHungarianMatching(MatcherABC):
         """Assign the emitters framewise"""
         for out_f, tar_f in zip(out_pframe, tar_pframe):
             filter_mask = self.filter(out_f.xyz_nm, tar_f.xyz_nm)  # batch implemented
-            tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool = self._match_kernel(out_f.xyz_nm, tar_f.xyz_nm, filter_mask)  # non batch impl.
+            tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool = self._match_kernel(out_f.xyz_nm, tar_f.xyz_nm,
+                                                                                  filter_mask)  # non batch impl.
 
             tpl.append(out_f[tp_ix])
             tpml.append(tar_f[tp_match_ix])

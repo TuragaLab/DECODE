@@ -1,10 +1,9 @@
 import os
 import time
-import glob
 
 import pytest
 import deepsmlm.neuralfitter.models.model as model
-import deepsmlm.generic.inout.load_save_model as io_model
+import deepsmlm.utils.model_io as io_model
 
 deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),

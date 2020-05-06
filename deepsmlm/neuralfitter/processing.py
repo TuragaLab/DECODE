@@ -5,6 +5,7 @@ class TransformSequence:
     """
     Simple class which calls forward method of all it's components sequentially.
     """
+
     def __init__(self, components, input_slice=None):
         """
 
@@ -75,6 +76,7 @@ class ParallelTransformSequence(TransformSequence):
     Simple processing class that forwards data through all of it's components parallelly (not in a hardware sense) and
     returns a list of the output or combines them if a merger is specified.
     """
+
     def __init__(self, components, input_slice, merger=None):
         super().__init__(components=components, input_slice=input_slice)
 
@@ -101,6 +103,7 @@ class ParallelTransformSequence(TransformSequence):
 
 class Identity:
     """Return what came in."""
+
     @staticmethod
     def parse(param):
         return Identity()
@@ -110,4 +113,3 @@ class Identity:
         if len(x) == 1:
             return x[0]
         return x
-

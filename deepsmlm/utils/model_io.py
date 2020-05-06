@@ -31,8 +31,9 @@ class LoadSaveModel:
         :param name_time_interval:
         :param better_th: relative threshold on a metric to determine whether a model is better or not.
         """
-        self.warmstart_file = input_file
-        self.output_file = output_file if isinstance(output_file, pathlib.Path) else pathlib.Path(output_file)
+
+        self.warmstart_file = pathlib.Path(input_file) if input_file is not None else None
+        self.output_file = pathlib.Path(output_file) if output_file is not None else None
         self.output_file_suffix = -1  # because will be increased to one in the first round
         self.model = model_instance
         self.name_time_interval = name_time_interval

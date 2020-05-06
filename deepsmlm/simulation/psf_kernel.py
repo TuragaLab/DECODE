@@ -7,7 +7,7 @@ import spline_psf_cuda  # CPP / CUDA implementation
 # from torchsearchsorted import searchsorted
 import torch
 
-from deepsmlm.generic.utils import generic as gutil
+from deepsmlm.generic import slicing as gutil
 
 
 class PSF(ABC):
@@ -129,7 +129,7 @@ class DeltaPSF(PSF):
     def __init__(self, xextent, yextent, img_shape):
         super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape)
 
-        from deepsmlm.neuralfitter.pre_processing import RemoveOutOfFOV
+        from deepsmlm.generic.process import RemoveOutOfFOV
 
         self._fov_filter = RemoveOutOfFOV(xextent=self.xextent, yextent=self.yextent, zextent=None)
         self._bin_x = torch.linspace(*xextent, steps=img_shape[0] + 1)

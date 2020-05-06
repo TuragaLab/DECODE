@@ -2,8 +2,7 @@ import pytest
 import torch
 
 import deepsmlm.simulation.psf_kernel as psf_kernel
-from deepsmlm.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet
-from deepsmlm.generic.utils import test_utils as tutil
+from deepsmlm.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet, test_utils as tutil
 from deepsmlm.neuralfitter import target_generator
 
 

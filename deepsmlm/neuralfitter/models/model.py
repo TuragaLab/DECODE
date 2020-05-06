@@ -230,36 +230,3 @@ class PhotXYZnet(nn.Module):
         phot = F.relu(self.photon_fcnet(x))
         return xyz, phot
 
-
-if __name__ == '__main__':
-    # model = DeepSMLN(in_ch=1)
-    # x = torch.rand((32, 1, 16, 16), requires_grad=True)
-    # out = model.encode(x)
-    # loss = torch.sum(out)
-    # loss.backward()
-    #
-    # model = DeepLoco(((0., 1), (0., 1), (0., 1.)), 1, 3)
-    # x = torch.rand((32, 1, 64, 64), requires_grad=True)
-    # out = model(x)
-    # # loss = torch.sum(out)
-    # # loss.backward()
-    #
-    # model = DenseLoco(((0., 1), (0., 1), (0., 1.)), 1, 3)
-    # x = torch.rand((2, 1, 256, 256), requires_grad=True)
-    # out = model(x)
-    # # loss = torch.sum(out)
-    # # loss.backward()
-    #
-    # model = USMLM(1, 8)
-    # x = torch.rand((32, 1, 32, 32), requires_grad=True)
-    # out = model(x)
-    # loss = torch.sum(out)
-    # loss.backward()
-
-    psf_extent = ((-0.5, 31.5), (-0.5, 31.5), (-750., 750.))
-    model = USMLMLoco(3, 8, 'nearest', psf_extent, 3, 128, 2048)
-    model = model.cuda()
-    x = torch.rand((12, 3, 32, 32), requires_grad=True).cuda()
-    out = model(x)
-
-    print("Sucess.")

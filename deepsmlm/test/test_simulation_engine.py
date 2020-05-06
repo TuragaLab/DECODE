@@ -3,6 +3,7 @@ import os
 import pytest
 import torch
 
+import deepsmlm.simulation.engine
 from deepsmlm import RandomEmitterSet
 
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -11,7 +12,6 @@ from torch.utils.data import Dataset
 import pathlib
 
 import deepsmlm.simulation.engine as engine
-import deepsmlm.generic.utils.data_utils as deepsmlm_utils
 
 deepsmlm_root = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -37,7 +37,7 @@ class TestSampleStreamEngine:
     @staticmethod
     def fin():
         """Delete temp. folder after fixture is out of scope."""
-        deepsmlm_utils.del_dir(deepsmlm_root + 'deepsmlm/test/assets/sim_engine/dummy_data')
+        deepsmlm.simulation.engine.del_dir(deepsmlm_root + 'deepsmlm/test/assets/sim_engine/dummy_data')
 
     @pytest.fixture()
     def dummy_sim_engine(self, request):

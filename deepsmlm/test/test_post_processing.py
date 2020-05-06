@@ -1,9 +1,8 @@
 import pytest
 import torch
 
-from deepsmlm.generic import emitter
+from deepsmlm.generic import emitter, test_utils
 from deepsmlm.neuralfitter import post_processing
-from deepsmlm.generic.utils import test_utils
 
 
 class TestPostProcessingAbstract:
@@ -14,7 +13,7 @@ class TestPostProcessingAbstract:
             def forward(self):
                 return emitter.EmptyEmitterSet()
 
-        return PostProcessingMock(return_format=request.param)
+        return PostProcessingMock(xy_unit=None, px_size=None, return_format=request.param)
 
     @pytest.mark.parametrize("return_format", [None, 'batch_set', 'frame_set', 'emitters'])
     def test_sanity(self, post, return_format):
@@ -184,8 +183,8 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
                                          (torch.tensor([[0.5, 0., 0.], [0., 0., 0.]]).unsqueeze(0).unsqueeze(0), False)])
     def test_filter(self, post, x, expct):
 
+        post.skip_th = 0.2
         assert post.skip_if(x) is expct
-
 
 
 @pytest.mark.skip("Deprecated function.")

@@ -1,19 +1,15 @@
+import csv
+import pathlib
 from abc import ABC, abstractmethod  # abstract class
 
-import pathlib
+import tifffile
 import torch
 import torch.utils
-import tifffile
-import csv
 from tqdm import tqdm
 
 import deepsmlm.generic.emitter as em
-from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
-from deepsmlm.generic.utils.processing import TransformSequence
-from deepsmlm.neuralfitter.dataset import InferenceDataset, SMLMDatasetOnFly, SMLMDatasetOneTimer
-from deepsmlm.neuralfitter.pre_processing import N2C
-from deepsmlm.neuralfitter.target_generator import KernelEmbedding
-from deepsmlm.neuralfitter.scale_transform import InverseOffsetRescale, AmplitudeRescale
+from deepsmlm.neuralfitter.dataset import InferenceDataset, SMLMDatasetOneTimer
+from deepsmlm.neuralfitter.utils.collate import smlm_collate
 
 
 class PredictEval(ABC):
@@ -52,8 +48,7 @@ class PredictEval(ABC):
         """Eval mode."""
         with torch.no_grad():
             for sample in tqdm(self.dataloader):
-                x_in = sample[0]
-                x_in = x_in.to(self.device)
+                x_in = sample.to(self.device)
 
                 # compute output
                 output = self.model(x_in)
@@ -90,8 +85,7 @@ class PredictEval(ABC):
         self.model.eval()
         with torch.no_grad():
             for sample in tqdm(self.dataloader):
-                x_in = sample[0]
-                x_in = x_in.to(self.device)
+                x_in = sample.to(self.device)
 
                 # compute output
                 output = self.model(x_in)
@@ -102,13 +96,6 @@ class PredictEval(ABC):
 
         raw_frames = torch.cat(raw_frames, 0)
         return raw_frames
-
-    # def forward_post(self):
-    #     """
-    #     Forwards raw frames ty the post processor
-    #     Returns:
-    #
-    #     """
 
     def evaluate(self):
         """
@@ -125,31 +112,14 @@ class PredictEval(ABC):
 
 class PredictEvalSimulation(PredictEval):
     def __init__(self, eval_size, prior, simulator, model, post_processor, evaluator=None, param=None,
-                 px_size=100.,
                  device='cuda', batch_size=32, input_preparation=None, multi_frame=True, dataset=None,
                  data_loader=None):
-        """
 
-        :param eval_size: how many samples to use for evaluation
-        :param prior:
-        :param simulator:
-        :param model:
-        :param post_processor:
-        :param evaluator:
-        :param param:
-        :param px_size:
-        :param device:
-        :param batch_size:
-        :param multi_frame:
-        :param dataset:
-        :param data_loader:
-        """
         super().__init__(model, post_processor, evaluator, batch_size, device)
 
         self.eval_size = eval_size
         self.prior = prior
         self.simulator = simulator
-        self.px_size = px_size
         self.multi_frame = multi_frame
         self.prediction = None
         self.dataset = dataset
@@ -162,17 +132,11 @@ class PredictEvalSimulation(PredictEval):
             raise ValueError("You need to provide the parameters or you need to provide a dataset and a data loader."
                              "Do the latter if the former fails.")
 
-        if self.input_preparation is None:
-            self.input_preparation = TransformSequence([
-                N2C(),
-                AmplitudeRescale.parse(param)
-            ])
-            print("Setting Input Preparation to: Order Sample axis, Rescale Input Frame.")
+        self.input_preparation = input_preparation
 
         self._init_dataset()
 
     def _init_dataset(self):
-        input_preparation = N2C()
 
         if self.dataset is None:
             self.dataset = SMLMDatasetOneTimer(None, self.prior, self.simulator, self.eval_size, self.input_preparation,
@@ -190,8 +154,9 @@ class PredictEvalSimulation(PredictEval):
 
 
 class PredictEvalTif(PredictEval):
-    def __init__(self, tif_stack, activations, model, post_processor, evaluator=None, px_size=100, device='cuda',
-                 batch_size=32, multi_frame=True):
+    def __init__(self, tif_stack, activations, model, post_processor, frame_proc, evaluator=None, device='cuda',
+                 batch_size=32, frame_window: int = 3):
+
         super().__init__(model=model,
                          post_processor=post_processor,
                          evaluator=evaluator,
@@ -200,15 +165,16 @@ class PredictEvalTif(PredictEval):
 
         self.tif_stack = tif_stack
         self.activation_file = activations
-        self.px_size = px_size
-        self.multi_frame = multi_frame
+        self.frame_window = frame_window
+        self.frame_proc = frame_proc
 
         self.prediction = None
         self.frames = None
         self.dataset = None
         self.dataloader = None
 
-    def load_tif(self, no_init=False):
+    @staticmethod
+    def load_tif(file: (str, pathlib.Path)):
         """
         Reads the tif(f) files. When a folder is specified, potentially multiple files are loaded.
         Which are stacked into a new first axis.
@@ -221,7 +187,7 @@ class PredictEvalTif(PredictEval):
         Returns:
 
         """
-        p = pathlib.Path(self.tif_stack)
+        p = pathlib.Path(file)
 
         # if dir, load multiple files and stack them if more than one found
         if p.is_dir():
@@ -240,40 +206,17 @@ class PredictEvalTif(PredictEval):
                 frames = frames[0]
 
         else:
-            im = tifffile.imread(self.tif_stack)
+            im = tifffile.imread(str(p))
             print("Tiff successfully read.")
             frames = torch.from_numpy(im.astype('float32'))
 
         if frames.squeeze().ndim <= 2:
             raise ValueError("Tif seems to be of wrong dimension or could only find a single frame.")
 
-        frames.unsqueeze_(1)
-
-        self.frames = frames
-        if not no_init:
-            self.init_dataset()
-
-    def init_dataset(self, frames=None):
-        """
-        Initiliase the dataset. Usually by preloaded frames but you can overwrite.
-        :param frames: N C(=1) H W
-        :return:
-        """
-        if frames is None:
-            frames = self.frames
-
-        self.dataset = InferenceDataset(None, frames=frames,
-                                        multi_frame_output=self.multi_frame)
-        self.dataloader = torch.utils.data.DataLoader(self.dataset,
-                                                      batch_size=self.batch_size, shuffle=False,
-                                                      num_workers=8, pin_memory=False)
-
-    def load_csv_(self):
-        gt = self.load_csv(self.activation_file)
-        self.gt = gt
+        return frames
 
     @staticmethod
-    def load_csv(activation_file):
+    def load_csv(activation_file, verbose=False):
 
         if activation_file is None:
             print("WARNING: No activations loaded since file not specified; i.e. there is no ground truth.")
@@ -285,21 +228,37 @@ class PredictEvalTif(PredictEval):
             line_count = 0
             id_frame_xyz_camval = []
             for row in csv_reader:
-                if line_count == 0:
+                if verbose and line_count == 0:
                     print(row)
-                else:
+                elif line_count >= 1:
                     id_frame_xyz_camval.append(torch.tensor(
                         (float(row[0]), float(row[1]), float(row[2]), float(row[3]), float(row[4]), float(row[5]))))
                 line_count += 1
 
         id_frame_xyz_camval = torch.stack(id_frame_xyz_camval, 0)
 
-        gt = em.EmitterSet(xyz=id_frame_xyz_camval[:, 2:5], frame_ix=id_frame_xyz_camval[:, 1],
-                           phot=id_frame_xyz_camval[:, -1], id=id_frame_xyz_camval[:, 0])
+        gt = em.EmitterSet(xyz=id_frame_xyz_camval[:, 2:5], frame_ix=id_frame_xyz_camval[:, 1].long(),
+                           phot=id_frame_xyz_camval[:, -1], id=id_frame_xyz_camval[:, 0].long())
         gt.sort_by_frame_()
 
         return gt
 
     def load_tif_csv(self):
-        self.load_tif()
-        self.load_csv_()
+        self.frames = self.load_tif(self.tif_stack)
+        self.gt = self.load_csv(self.activation_file)
+
+    def init_dataset(self, frames=None):
+        """
+        Initiliase the dataset. Usually by preloaded frames but you can overwrite.
+        :param frames: N C(=1) H W
+        :return:
+        """
+        if frames is None:
+            frames = self.frames
+
+        self.dataset = InferenceDataset(frames=frames,
+                                        frame_window=self.frame_window,
+                                        frame_proc=self.frame_proc)
+        self.dataloader = torch.utils.data.DataLoader(self.dataset,
+                                                      batch_size=self.batch_size, shuffle=False,
+                                                      num_workers=8, pin_memory=True)

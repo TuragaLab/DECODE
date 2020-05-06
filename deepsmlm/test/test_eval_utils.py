@@ -3,7 +3,7 @@ import torch
 from matplotlib import pyplot as plt
 
 import deepsmlm.evaluation
-from deepsmlm.generic.utils import test_utils as tutil
+from deepsmlm.generic import test_utils as tutil
 
 
 class TestMetricMeter:

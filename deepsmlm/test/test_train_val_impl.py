@@ -7,7 +7,7 @@ from deepsmlm.neuralfitter.models import unet_param
 from deepsmlm.neuralfitter import losscollection
 from deepsmlm.neuralfitter.utils import logger as logger_utils
 from deepsmlm.neuralfitter import post_processing
-from deepsmlm.neuralfitter.utils.pytorch_customs import smlm_collate
+from deepsmlm.neuralfitter.utils.collate import smlm_collate
 
 
 class TestTrain:
@@ -90,7 +90,7 @@ class TestVal(TestTrain):
         param_before = model.encoder[0][0].weight.data.clone()
 
         """Run"""
-        train_val_impl.test(model, opt, loss, dataloader, False, post_processor, 0, device, logger)
+        train_val_impl.test(model, loss, dataloader, 0, device)
         param_after = model.encoder[0][0].weight.data.clone()
 
         """Assert"""

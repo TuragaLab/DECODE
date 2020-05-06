@@ -2,9 +2,9 @@
 Here we provide some filtering on EmitterSets.
 """
 from abc import ABC, abstractmethod
-import torch
+from deprecated import deprecated
 
-import deepsmlm.generic.emitter
+import torch
 
 
 class EmitterFilter(ABC):
@@ -18,12 +18,14 @@ class EmitterFilter(ABC):
 
 class NoEmitterFilter(EmitterFilter):
     """The no filter"""
+
     def forward(self, em):
         return em
 
 
 class TarEmitterFilter(EmitterFilter):
     """Filters the emitters on the target frame index."""
+
     def __init__(self, tar_ix=0):
         """
 
@@ -48,6 +50,7 @@ class TarEmitterFilter(EmitterFilter):
 
 class PhotonFilter(EmitterFilter):
     """Filter on the photon count."""
+
     def __init__(self, th):
         """
 
@@ -70,10 +73,12 @@ class PhotonFilter(EmitterFilter):
         return em[ix]
 
 
+@deprecated(reason="I don't see use for this class anymore.")
 class FrameFilter:
     """
     Simple class to filter out input frames when simulation may provide more
     """
+
     def __init__(self, n_frames):
         """
 

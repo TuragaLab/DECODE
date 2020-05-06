@@ -11,7 +11,7 @@ class SpatialInterpolation:
         dim (int): dimensionality for safety checks
     """
 
-    def __init__(self, dim=2, mode='nearest', size=None, scale_factor=None, impl=None):
+    def __init__(self, mode='nearest', size=None, scale_factor=None, impl=None):
         """
 
         Args:
@@ -19,13 +19,38 @@ class SpatialInterpolation:
             function
             impl (optional): override function for interpolation
         """
-        self.dim = dim
 
         if impl is not None:
             self._inter_impl = impl
         else:
             self._inter_impl = functools.partial(torch.nn.functional.interpolate,
                                                  mode=mode, size=size, scale_factor=scale_factor)
+
+    @staticmethod
+    def _unsq_call_sq(func, x: torch.Tensor, dim: int) -> any:
+        """
+        Unsqueeze input tensor until dimensionality 'dim' is matched and squeeze output before return
+
+        Args:
+            func:
+            x:
+            dim:
+
+        Returns:
+
+        """
+
+        n_unsq = 0
+        while x.dim() < dim:
+            x.unsqueeze_(0)
+            n_unsq += 1
+
+        out = func(x)
+
+        for _ in range(n_unsq):
+            out.squeeze_(0)
+
+        return out
 
     def forward(self, x: torch.Tensor):
         """
@@ -38,11 +63,8 @@ class SpatialInterpolation:
         Returns:
             x_inter: interpolated tensor
         """
-        if x.dim() != self.dim + 2:  # dimensionality plus channel and batch
-            raise ValueError(f"Dimensionality does not comply to specified initialisation. Expected tensor with "
-                             "minibatch and channels plus {self.dim} dimensions (height, width ...)")
 
-        return self._inter_impl(x)
+        return self._unsq_call_sq(self._inter_impl, x, 4)
 
 
 class AmplitudeRescale:

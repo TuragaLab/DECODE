@@ -1,12 +1,9 @@
-from abc import ABC, abstractmethod  # abstract class
+from abc import ABC  # abstract class
+
 import numpy as np
-import h5py
 import torch
-import scipy.io as sio
-from skimage.io import imread
 
-from deepsmlm.generic.emitter import EmitterSet
-
+import deepsmlm
 
 """
 Interfaces should provide the minimum set of variables that are obligatory to create an emitterset.
@@ -52,6 +49,7 @@ class MatlabInterface(BinaryInterface):
 
         """
         super().__init__()
+
         self.frame_shift = frame_shift
         self.axis_trafo = axis
         self._cache_sml = None
@@ -66,6 +64,8 @@ class MatlabInterface(BinaryInterface):
         Returns:
             (EmitterSet)
         """
+        import h5py
+
         f = h5py.File(mat_file, 'r')
         self._cache_sml = f
 
@@ -76,11 +76,11 @@ class MatlabInterface(BinaryInterface):
             torch.from_numpy(np.array(loc_dict[self.z_key])).permute(1, 0)
         ], 1)
 
-        em = EmitterSet(xyz=xyz,
-                        phot=torch.from_numpy(np.array(loc_dict[self.phot_key])).squeeze(),
-                        frame_ix=torch.from_numpy(np.array(loc_dict[self.frame_key])).squeeze(),
-                        bg=torch.from_numpy(np.array(loc_dict[self.bg_key])).squeeze(),
-                        xy_unit=self.xy_unit)
+        em = deepsmlm.EmitterSet(xyz=xyz,
+                                 phot=torch.from_numpy(np.array(loc_dict[self.phot_key])).squeeze(),
+                                 frame_ix=torch.from_numpy(np.array(loc_dict[self.frame_key])).squeeze(),
+                                 bg=torch.from_numpy(np.array(loc_dict[self.bg_key])).squeeze(),
+                                 xy_unit=self.xy_unit)
 
         em.convert_em_(axis=self.axis_trafo)
         em.frame_ix += self.frame_shift

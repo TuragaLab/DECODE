@@ -7,7 +7,7 @@ import deepsmlm
 import deepsmlm.generic.emitter
 import deepsmlm.neuralfitter.dataset as can  # candidate
 import deepsmlm.neuralfitter.target_generator
-from deepsmlm.neuralfitter.pre_processing import Identity
+from deepsmlm.generic.process import Identity
 from deepsmlm.simulation.simulator import Simulation
 
 deepsmlm_root = pathlib.Path(deepsmlm.__file__).parent.parent  # 'repo' directory
@@ -25,15 +25,20 @@ class TestDataset:
             def forward(em: deepsmlm.generic.emitter.EmitterSet):
                 return em[em.xyz[:, 0] <= 16]
 
+        class DummyWeight:
+            def forward(self, *args, **kwargs):
+                return torch.rand((1, 1, 32, 32))
+
         n = 100
 
         em = deepsmlm.generic.emitter.RandomEmitterSet(n * 100)
         em.frame_ix = torch.randint_like(em.frame_ix, n + 1)
 
         dataset = can.SMLMStaticDataset(frames=torch.rand((n, 1, 32, 32)), emitter=em.split_in_frames(0, n - 1),
-                                        frame_proc=DummyFrameProc, em_proc=DummyEmProc,
+                                        frame_proc=DummyFrameProc, bg_frame_proc=None, em_proc=DummyEmProc,
                                         tar_gen=deepsmlm.neuralfitter.target_generator.UnifiedEmbeddingTarget(
                                             (-0.5, 31.5), (-0.5, 31.5), (32, 32), roi_size=1, ix_low=0, ix_high=0),
+                                        weight_gen=DummyWeight(),
                                         frame_window=request.param,
                                         pad='same',
                                         return_em=True)
@@ -144,7 +149,7 @@ class TestSMLMLiveDataset:
             def forward(self, *args):
                 return torch.rand((6, 64, 64))
 
-        dataset = can.SMLMLiveDataset(simulator=DummySimulation(), em_proc=None, frame_proc=None,
+        dataset = can.SMLMLiveDataset(simulator=DummySimulation(), em_proc=None, frame_proc=None, bg_frame_proc=None,
                                       tar_gen=DummyTarAndWeightGen(), weight_gen=DummyTarAndWeightGen(), frame_window=1,
                                       pad=None)
 

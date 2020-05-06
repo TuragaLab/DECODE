@@ -2,7 +2,7 @@ import torch
 import pytest
 
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
-import deepsmlm.generic.utils.test_utils as tutil
+import deepsmlm.generic.test_utils as tutil
 
 
 class TestOffsetUnet:

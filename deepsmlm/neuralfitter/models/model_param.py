@@ -1,11 +1,11 @@
 import torch
 from torch import nn as nn
 
-import deepsmlm.neuralfitter.models.unet_param
+from . import unet_param
 from ..utils import last_layer_dynamics as lyd
 
 
-class SimpleSMLMNet(deepsmlm.neuralfitter.models.unet_param.UNet2d):
+class SimpleSMLMNet(unet_param.UNet2d):
 
     def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, p_dropout=0.,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
@@ -140,8 +140,9 @@ class SMLMNetBG(SimpleSMLMNet):
         self.total_ch_out = ch_out
         self.detach_bg = detach_bg
 
-        self.bg_net = deepsmlm.neuralfitter.models.unet_param.UNet2d(1, 1, 2, 48, pad_convs=True, norm=norm_bg, norm_groups=norm_bg_groups,
-                             activation=activation)
+        self.bg_net = deepsmlm.neuralfitter.models.unet_param.UNet2d(1, 1, 2, 48, pad_convs=True, norm=norm_bg,
+                                                                     norm_groups=norm_bg_groups,
+                                                                     activation=activation)
 
     @staticmethod
     def parse(param):
@@ -181,14 +182,16 @@ class DoubleMUnet(nn.Module):
                  norm_head_groups=None, pool_mode='Conv2d', skip_gn_level=None):
         super().__init__()
 
-        self.unet_shared = deepsmlm.neuralfitter.models.unet_param.UNet2d(1 + ext_features, inter_features, depth=depth, pad_convs=True,
-                                  initial_features=initial_features,
-                                  activation=activation, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode,
-                                  skip_gn_level=skip_gn_level)
-        self.unet_union = deepsmlm.neuralfitter.models.unet_param.UNet2d(ch_in * inter_features, inter_features, depth=depth, pad_convs=True,
-                                 initial_features=initial_features,
-                                 activation=activation, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode,
-                                 skip_gn_level=skip_gn_level)
+        self.unet_shared = unet_param.UNet2d(1 + ext_features, inter_features, depth=depth, pad_convs=True,
+                                             initial_features=initial_features,
+                                             activation=activation, norm=norm, norm_groups=norm_groups,
+                                             pool_mode=pool_mode,
+                                             skip_gn_level=skip_gn_level)
+        self.unet_union = unet_param.UNet2d(ch_in * inter_features, inter_features, depth=depth, pad_convs=True,
+                                            initial_features=initial_features,
+                                            activation=activation, norm=norm, norm_groups=norm_groups,
+                                            pool_mode=pool_mode,
+                                            skip_gn_level=skip_gn_level)
 
         assert ch_in in (1, 3)
         assert ch_out in (5, 6)
@@ -354,16 +357,18 @@ class MLTHeads(nn.Module):
 
 class DoubleMUNetSeperateBG(SimpleSMLMNet):
     def __init__(self, ch_in, ch_out, depth=3, initial_features=64, recpt_bg=16, inter_features=64, depth_bg=2,
-                 initial_features_bg=16, activation=nn.ReLU(), use_last_nl=True, norm=None,  norm_groups=None,
+                 initial_features_bg=16, activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None,
                  norm_bg=None, norm_bg_groups=None, pool_mode='Conv2d', skip_gn_level=None):
         super().__init__(ch_in=ch_in, ch_out=5, depth=depth, initial_features=initial_features,
                          inter_features=inter_features, activation=activation,
                          use_last_nl=use_last_nl, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode,
                          skip_gn_level=skip_gn_level)
 
-        self.bg_net = deepsmlm.neuralfitter.models.unet_param.UNet2d(ch_in, 1, depth=depth_bg, pad_convs=True, initial_features=initial_features_bg,
-                             activation=activation, norm=norm_bg, norm_groups=norm_bg_groups, pool_mode=pool_mode,
-                             skip_gn_level=skip_gn_level)
+        self.bg_net = unet_param.UNet2d(ch_in, 1, depth=depth_bg, pad_convs=True,
+                                        initial_features=initial_features_bg,
+                                        activation=activation, norm=norm_bg,
+                                        norm_groups=norm_bg_groups, pool_mode=pool_mode,
+                                        skip_gn_level=skip_gn_level)
 
         self.bg_nl = torch.tanh
         self.bg_recpt = recpt_bg
@@ -423,16 +428,16 @@ class BGNet(nn.Module):
         super().__init__()
         self.ch_out = ch_out  # pseudo channels for easier trainig
         self.recpt_field = recpt_field
-        self.net = deepsmlm.neuralfitter.models.unet_param.UNet2d(in_channels=ch_in,
-                          out_channels=1,
-                          depth=depth_bg,
-                          initial_features=initial_features_bg,
-                          pad_convs=True,
-                          activation=activation,
-                          norm=norm,
-                          norm_groups=norm_groups,
-                          pool_mode=pool_mode,
-                          skip_gn_level=skip_gn_level)
+        self.net = unet_param.UNet2d(in_channels=ch_in,
+                                     out_channels=1,
+                                     depth=depth_bg,
+                                     initial_features=initial_features_bg,
+                                     pad_convs=True,
+                                     activation=activation,
+                                     norm=norm,
+                                     norm_groups=norm_groups,
+                                     pool_mode=pool_mode,
+                                     skip_gn_level=skip_gn_level)
 
     @staticmethod
     def parse(param):

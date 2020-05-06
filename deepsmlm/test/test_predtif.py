@@ -1,12 +1,10 @@
-import pytest
-import torch
 import os
 
-from deepsmlm.generic.inout.load_save_model import LoadSaveModel
-from deepsmlm.generic.inout.write_load_param import load_params
-from deepsmlm.generic.utils.processing import TransformSequence
+from deepsmlm.utils.model_io import LoadSaveModel
+from deepsmlm.utils.param_io import load_params
+import deepsmlm.neuralfitter
+from deepsmlm.neuralfitter.processing import TransformSequence
 from deepsmlm.neuralfitter.models.model_offset import OffsetUnet
-from deepsmlm.neuralfitter.post_processing import Offset2Coordinate, SpeiserPost
 from deepsmlm.neuralfitter.pred_tif import PredictEvalTif
 from deepsmlm.neuralfitter.scale_transform import OffsetRescale
 
@@ -30,10 +28,10 @@ if __name__ == '__main__':
                       param['Scaling']['z_max'],
                       param['Scaling']['phot_max'],
                       param['Scaling']['linearisation_buffer']),
-        Offset2Coordinate(param['Simulation']['psf_extent'][0],
+        deepsmlm.neuralfitter.Offset2Coordinate(param['Simulation']['psf_extent'][0],
                           param['Simulation']['psf_extent'][1],
                           param['Simulation']['img_size']),
-        SpeiserPost(param['PostProcessing']['single_val_th'],
+        deepsmlm.neuralfitter.SpeiserPost(param['PostProcessing']['single_val_th'],
                     param['PostProcessing']['total_th'],
                 'emitters_batch')
     ])

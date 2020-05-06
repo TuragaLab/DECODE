@@ -1,9 +1,6 @@
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
 import torch
-import warnings
+from matplotlib.colors import LogNorm
 
 """
 Convention:
@@ -76,8 +73,9 @@ class PlotFrame:
 
 class PlotCoordinates:
     _labels_default = ('Target', 'Output', 'Init')
+
     def __init__(self,
-                 pos_tar=None, phot_tar = None,
+                 pos_tar=None, phot_tar=None,
                  pos_out=None, phot_out=None,
                  pos_ini=None, phot_ini=None,
                  extent_limit=None,
@@ -113,18 +111,18 @@ class PlotCoordinates:
         self.ini_marker = 'g+'
         self.ini_cmap = 'copper'
 
-
     def plot(self):
         """
         Plot the coordinates.
         """
+
         def plot_xyz(pos, marker, color, label):
             plt.scatter(pos[:, 0].numpy(), pos[:, 1].numpy(),
                         marker=marker, c=color, facecolors='none', label=label)
 
         def plot_xyz_phot(pos, phot, marker, cmap, label):
             plt.scatter(pos[:, 0].numpy(), pos[:, 1].numpy(), c=phot.numpy(),
-                     marker=marker, facecolors='none', cmap=cmap ,label=label)
+                        marker=marker, facecolors='none', cmap=cmap, label=label)
 
         if self.pos_tar is not None:
             if self.phot_tar is not None:
@@ -156,8 +154,10 @@ class PlotCoordinates:
 
         return plt.gca()
 
+
 class PlotCoordinates3D:
     _labels_default = ('Target', 'Output', 'Init')
+
     def __init__(self, pos_tar=None, pos_out=None, phot_out=None, match_lines=False, labels=None):
 
         self.pos_tar = pos_tar
@@ -194,7 +194,7 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
     """Combination of Frame and Coord"""
 
     def __init__(self, frame,
-                 pos_tar=None, phot_tar = None,
+                 pos_tar=None, phot_tar=None,
                  pos_out=None, phot_out=None,
                  pos_ini=None, phot_ini=None,
                  extent=None, coord_limit=None,

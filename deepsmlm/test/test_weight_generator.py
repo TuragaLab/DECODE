@@ -1,8 +1,7 @@
 import pytest
 import torch
 
-from deepsmlm.generic import emitter
-from deepsmlm.generic.utils import test_utils
+from deepsmlm.generic import emitter, test_utils
 from deepsmlm.neuralfitter import weight_generator
 
 

@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+import matplotlib.pyplot as plt
 import torch.utils.tensorboard
 
 
@@ -17,6 +17,7 @@ class SummaryWriterSoph(torch.utils.tensorboard.SummaryWriter):
 
 class NoLog(SummaryWriterSoph):
     """The hardcoded No-Op of the tensorboard SummaryWriter."""
+
     def __init__(self, *args, **kwargs):
         return
 
@@ -32,7 +33,8 @@ class NoLog(SummaryWriterSoph):
     def add_histogram(self, *args, **kwargs):
         return
 
-    def add_figure(self, *args, **kwargs):
+    def add_figure(self, tag, figure, *args, **kwargs):
+        plt.close(figure)
         return
 
     def add_figures(self, *args, **kwargs):

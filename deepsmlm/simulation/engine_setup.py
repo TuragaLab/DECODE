@@ -5,9 +5,9 @@ from pathlib import Path
 
 import click
 
-import deepsmlm.generic.inout.load_calibration
+import deepsmlm.utils.calibration_io
 import deepsmlm.generic.inout.util
-import deepsmlm.generic.inout.write_load_param as dsmlm_par
+import deepsmlm.utils.param_io as dsmlm_par
 import deepsmlm.generic.utils
 import deepsmlm.neuralfitter.dataset
 import deepsmlm.simulation.background
@@ -78,7 +78,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     2. Define background and noise
     3. Setup simulation and datasets
     """
-    psf = deepsmlm.generic.inout.load_calibration.SMAPSplineCoefficient(
+    psf = deepsmlm.utils.calibration_io.SMAPSplineCoefficient(
         calib_file=param.InOut.calibration_file).init_spline(
         xextent=param.Simulation.psf_extent[0],
         yextent=param.Simulation.psf_extent[1],
@@ -105,7 +105,7 @@ def smlm_engine_setup(param_file, cache_dir, exp_id, debug_param=False, num_work
     if param.Simulation.bg_perlin_amplitude is None:
         bg = deepsmlm.simulation.background.UniformBackground.parse(param)
     else:
-        bg = deepsmlm.generic.utils.processing.TransformSequence.parse(
+        bg = deepsmlm.utils.processing.TransformSequence.parse(
             [deepsmlm.simulation.background.UniformBackground,
              deepsmlm.simulation.background.PerlinBackground], param, input_slice=[[0], [0]])
 

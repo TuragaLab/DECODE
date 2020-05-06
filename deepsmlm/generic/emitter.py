@@ -3,11 +3,9 @@ from deprecated import deprecated
 
 import numpy as np
 import torch
-import pickle
 from pathlib import Path
 
-from .utils import test_utils as tutil
-from .utils import generic as gutil
+from . import slicing as gutil, test_utils as tutil
 
 
 class EmitterSet:
@@ -72,15 +70,15 @@ class EmitterSet:
 
         self._sorted = False
         # get at least one_dim tensors
-        tutil.at_least_one_dim(self.xyz,
-                               self.phot,
-                               self.frame_ix,
-                               self.id,
-                               self.prob,
-                               self.bg,
-                               self.xyz_cr,
-                               self.phot_cr,
-                               self.bg_cr)
+        at_least_one_dim(self.xyz,
+                         self.phot,
+                         self.frame_ix,
+                         self.id,
+                         self.prob,
+                         self.bg,
+                         self.xyz_cr,
+                         self.phot_cr,
+                         self.bg_cr)
 
         self.xy_unit = xy_unit
         self.px_size = px_size
@@ -266,11 +264,11 @@ class EmitterSet:
         Returns:
             (bool) sane or not sane
         """
-        if not tutil.same_shape_tensor(0, self.xyz, self.phot, self.frame_ix, self.id, self.bg,
-                                       self.xyz_cr, self.phot_cr, self.bg_cr):
+        if not same_shape_tensor(0, self.xyz, self.phot, self.frame_ix, self.id, self.bg,
+                                 self.xyz_cr, self.phot_cr, self.bg_cr):
             raise ValueError("Coordinates, photons, frame ix, id and prob are not of equal shape in 0th dimension.")
 
-        if not tutil.same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
+        if not same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
             raise ValueError("Expected photons, probability frame index and id to be 1D.")
 
         # Motivate the user to specify an xyz unit.
@@ -820,7 +818,7 @@ class EmitterSet:
         Returns:
             (None)
         """
-        import deepsmlm.generic.inout.csv_in_out as tra
+        import deepsmlm.utils.emitter_trafo_dict as tra
         """Checks before actual run"""
         # lud and lud_name are XOR
         if lud is not None and lud_name is not None:
@@ -1093,3 +1091,27 @@ class LooseEmitterSet:
         return EmitterSet(xyz_, phot_, frame_ix_.int(), id_.int(), xy_unit=self.xy_unit, px_size=self.px_size)
 
 
+def at_least_one_dim(*args):
+    for arg in args:
+        if arg.dim() == 0:
+            arg.unsqueeze_(0)
+
+
+def same_shape_tensor(dim, *args):
+    for i in range(args.__len__() - 1):
+        if args[i].size(dim) == args[i + 1].size(dim):
+            continue
+        else:
+            return False
+
+    return True
+
+
+def same_dim_tensor(*args):
+    for i in range(args.__len__() - 1):
+        if args[i].dim() == args[i + 1].dim():
+            continue
+        else:
+            return False
+
+    return True

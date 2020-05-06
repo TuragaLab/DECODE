@@ -1,4 +1,3 @@
-import torch
 
 """Predefined Transformations."""
 pre_trafo = {
@@ -11,6 +10,7 @@ pre_trafo = {
         'axis': [1, 0, 2],
         'plain_header': True
     },
+
     'smap': {
         'comments': 'SMAP format export.',
         'xyz_shift': None,
@@ -21,6 +21,3 @@ pre_trafo = {
         'plain_header': True
     }
 }
-
-def save(em, file):
-    pass

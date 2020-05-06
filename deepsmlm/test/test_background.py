@@ -4,9 +4,8 @@ import pytest
 import torch
 
 import deepsmlm.simulation.background as background
-from deepsmlm.generic import emitter
-from deepsmlm.generic.plotting.frame_coord import PlotFrame
-from deepsmlm.generic.utils import test_utils
+from deepsmlm.generic import emitter, test_utils
+from deepsmlm.plot import PlotFrame
 
 
 class BackgroundAbstractTest(ABC):

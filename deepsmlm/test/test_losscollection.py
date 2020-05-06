@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from deepsmlm.generic.utils import test_utils
+from deepsmlm.generic import test_utils
 from deepsmlm.neuralfitter import losscollection as loss
 
 

@@ -4,6 +4,9 @@ import shutil
 import socket
 import datetime
 import torch
+
+import deepsmlm.utils.param_io
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 import click
@@ -12,19 +15,16 @@ from deepsmlm.neuralfitter.utils import log_train_val_progress
 import deepsmlm
 import deepsmlm.evaluation
 import deepsmlm.evaluation.utils
-import deepsmlm.generic.inout.load_calibration
-import deepsmlm.generic.inout.load_save_model
-import deepsmlm.generic.inout.util
-import deepsmlm.generic.inout.write_load_param as dsmlm_par
-import deepsmlm.generic.utils
-import deepsmlm.generic.utils.logging
+import deepsmlm.utils.calibration_io
+import deepsmlm.utils.model_io
+import deepsmlm.utils.param_io as dsmlm_par
 import deepsmlm.neuralfitter.engine
 import deepsmlm.neuralfitter.filter
 import deepsmlm.neuralfitter.utils
 import deepsmlm.neuralfitter.models.model_param
 import deepsmlm.neuralfitter.target_generator
 import deepsmlm.neuralfitter.train_val_impl
-import deepsmlm.neuralfitter.utils.pytorch_customs
+import deepsmlm.neuralfitter.utils.collate
 import deepsmlm.simulation
 
 """Root folder"""
@@ -69,7 +69,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         dsmlm_par.ParamHandling.convert_param_debug(param)
 
     if num_worker_override is not None:
-        param.Hardware.num_worker_sim = num_worker_override
+        param.Hardware.num_worker_train = num_worker_override
 
     """Hardware / Server stuff."""
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -82,11 +82,11 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     # torch.multiprocessing.set_sharing_strategy('file_system')  # does not seem to work with spawn method together
 
     """If path is relative add deepsmlm root."""
-    param.InOut.model_out = deepsmlm.generic.inout.util.add_root_relative(param.InOut.model_out,
-                                                                          deepsmlm_root)
+    param.InOut.model_out = deepsmlm.utils.param_io.add_root_relative(param.InOut.model_out,
+                                                                      deepsmlm_root)
     if param.InOut.model_init is not None:
-        param.InOut.model_init = deepsmlm.generic.inout.util.add_root_relative(param.InOut.model_init,
-                                                                               deepsmlm_root)
+        param.InOut.model_init = deepsmlm.utils.param_io.add_root_relative(param.InOut.model_init,
+                                                                           deepsmlm_root)
 
     """Backup copy of the parameters."""
     param_backup = param.InOut.model_out.with_suffix(param_file.suffix)
@@ -121,9 +121,9 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     model = models_ava[param.HyperParameter.architecture]
     model = model.parse(param)
 
-    model_ls = deepsmlm.generic.inout.load_save_model.LoadSaveModel(model,
-                                                                    output_file=param.InOut.model_out,
-                                                                    input_file=param.InOut.model_init)
+    model_ls = deepsmlm.utils.model_io.LoadSaveModel(model,
+                                                     output_file=param.InOut.model_out,
+                                                     input_file=param.InOut.model_init)
 
     model = model_ls.load_init()
     model = model.to(torch.device(param.Hardware.device_train))
@@ -154,7 +154,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         raise RuntimeError("Your dummy input is wrong. Please update it.")
 
     """Transform input data, compute weight mask and target data"""
-    in_prep = deepsmlm.generic.utils.processing.TransformSequence.parse(
+    in_prep = deepsmlm.utils.processing.TransformSequence.parse(
         [
             deepsmlm.neuralfitter.filter.FrameFilter,
             deepsmlm.neuralfitter.scale_transform.AmplitudeRescale
@@ -164,12 +164,12 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
     em_filter = deepsmlm.neuralfitter.filter.NoEmitterFilter()
 
     # Target generator is a sequence of multiple modules
-    tar_gen = deepsmlm.generic.utils.processing.TransformSequence(
+    tar_gen = deepsmlm.utils.processing.TransformSequence(
         [
-            deepsmlm.generic.utils.processing.ParallelTransformSequence.parse(
+            deepsmlm.utils.processing.ParallelTransformSequence.parse(
                 [
                     deepsmlm.neuralfitter.target_generator.KernelEmbedding,
-                    deepsmlm.generic.utils.processing.Identity
+                    deepsmlm.utils.processing.Identity
                 ],
                 param, input_slice=[[0], [1]], merger=lambda x: torch.cat((x[0], x[1].unsqueeze(0)), 1).squeeze(0)),
             deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale.parse(param)
@@ -214,7 +214,7 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         shuffle=True,
         num_workers=param.Hardware.num_worker_train,
         pin_memory=False,
-        collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate)
+        collate_fn=deepsmlm.neuralfitter.utils.collate.smlm_collate)
 
     test_dl = torch.utils.data.DataLoader(
         dataset=test_ds,
@@ -223,11 +223,11 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
         shuffle=False,
         num_workers=param.Hardware.num_worker_train,
         pin_memory=False,
-        collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate)
+        collate_fn=deepsmlm.neuralfitter.utils.collate.smlm_collate)
 
     """Set up post processor"""
     if not param.HyperParameter.suppress_post_processing:
-        post_processor = deepsmlm.generic.utils.processing.TransformSequence.parse(
+        post_processor = deepsmlm.utils.processing.TransformSequence.parse(
             [
                 deepsmlm.neuralfitter.scale_transform.OffsetRescale,
                 deepsmlm.neuralfitter.post_processing.Offset2Coordinate,
@@ -239,8 +239,6 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
 
     """Evaluation Specification"""
     matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
-    # segmentation_eval = deepsmlm.evaluation.SegmentationEvaluation()
-    # distance_eval = deepsmlm.evaluation.DistanceEvaluation()
 
     # useful if we restart a training
     first_epoch = param.HyperParameter.epoch_0 if param.HyperParameter.epoch_0 is not None else 0
@@ -259,22 +257,15 @@ def setup_train_engine(param_file, exp_id, cache_dir, no_log, debug_param, log_f
             logger=logger
         )
 
-        val_loss, test_out = deepsmlm.neuralfitter.train_val_impl.test(
-            model=model,
-            optimizer=optimizer,
-            loss=criterion,
-            dataloader=test_dl,
-            grad_rescale=param.HyperParameter.moeller_gradient_rescale,
-            post_processor=post_processor,
-            epoch=i,
-            device=torch.device(param.Hardware.device_train),
-            logger=logger
-        )
+        val_loss, test_out = deepsmlm.neuralfitter.train_val_impl.test(model=model, loss=criterion, dataloader=test_dl,
+                                                                       epoch=i,
+                                                                       device=torch.device(param.Hardware.device_train))
 
         """Post-Process and Evaluate"""
-        log_train_val_progress.post_process_log_test(test_out.loss, loss_scalar=val_loss,
+        log_train_val_progress.post_process_log_test(loss_cmp=test_out.loss, loss_scalar=val_loss,
                                                      x=test_out.x, y_out=test_out.y_out, y_tar=test_out.y_tar,
                                                      weight=test_out.weight, em_tar=test_out.em_tar,
+                                                     px_border=-0.5, px_size=1.,
                                                      post_processor=post_processor, matcher=matcher, logger=logger,
                                                      step=i)
 

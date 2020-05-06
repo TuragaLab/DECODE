@@ -1,8 +1,7 @@
-import pytest
 import torch
 
-import deepsmlm.generic.utils.test_utils as tutil
-import deepsmlm.neuralfitter.pre_processing as prep
+import deepsmlm.generic.test_utils as tutil
+import deepsmlm.generic.process as prep
 
 from deepsmlm.generic.emitter import RandomEmitterSet
 

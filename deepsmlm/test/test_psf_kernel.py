@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 import pytest
 import torch
 
-import deepsmlm.generic.inout.load_calibration as load_cal
-import deepsmlm.generic.plotting.frame_coord as plf
-import deepsmlm.generic.utils.test_utils as tutil
+import deepsmlm.utils.calibration_io as load_cal
+import deepsmlm.plot.frame_coord as plf
+import deepsmlm.generic.test_utils as tutil
 import deepsmlm.simulation.psf_kernel as psf_kernel
 from . import asset_handler
 

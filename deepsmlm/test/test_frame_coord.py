@@ -3,8 +3,7 @@ import matplotlib.pyplot as plt
 
 import pytest
 
-from deepsmlm.generic.plotting import frame_coord
-from deepsmlm.generic.emitter import EmptyEmitterSet, RandomEmitterSet
+from deepsmlm.plot import frame_coord
 
 
 @pytest.mark.plot

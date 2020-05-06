@@ -1,11 +1,15 @@
+import matplotlib
+matplotlib.rcParams['figure.figsize'] = (10, 8)
+matplotlib.rcParams['figure.dpi'] = 150
 import matplotlib.pyplot as plt
 import torch
 
 import deepsmlm.generic.emitter
 from deepsmlm.evaluation.evaluation import WeightedErrors
-from deepsmlm.generic.plotting import frame_coord
+from deepsmlm.evaluation import predict_dist
+from deepsmlm.plot import frame_coord
 
-from deepsmlm.evaluation import evaluation, match_emittersets
+from deepsmlm.evaluation import evaluation
 
 
 def log_frames(x, y_out, y_tar, weight, em_out, em_tar, tp, tp_match, logger, step, colorbar=True):
@@ -82,29 +86,36 @@ def log_kpi(loss_scalar: float, loss_cmp: dict, eval_set: dict, logger, step):
     logger.add_scalar_dict('eval/', eval_set, step)
 
 
-def log_dists(x, y_out, y_tar, weight, em_out, em_tar, tp, tp_match, logger, step):
+def log_dists(tp, tp_match, px_border, px_size, logger, step):
 
     """Log z vs z_gt"""
-    f_tar = plt.figure()
-    plt.plot(tp_match.xyz_nm[:, 2], tp.xyz_nm[:, 2], 'x')
-    plt.plot(tp_match.xyz_nm[:, 2], tp_match.xyz_nm[:, 2], 'r')
-    plt.xlabel('z gt')
-    plt.ylabel('z pred.')
-    logger.add_figure('residuals/z_gt_pred', f_tar, step)
+    f_x, ax_x = plt.subplots()
+    f_y, ax_y = plt.subplots()
+    f_z, ax_z = plt.subplots()
+    f_phot, ax_phot = plt.subplots()
+
+    predict_dist.emitter_deviations(tp, tp_match,
+                                    px_border=px_border, px_size=px_size, axes=[ax_x, ax_y, ax_z, ax_phot])
+
+    logger.add_figure('dist/x_offset', f_x, step)
+    logger.add_figure('dist/y_offset', f_y, step)
+    logger.add_figure('residuals/z_gt_pred', f_z, step)
+    logger.add_figure('residuals/phot_gt_pred', f_phot, step)
 
 
 def log_train(*args):
     return
 
 
-def post_process_log_test(loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_tar, post_processor, matcher, logger, step):
+def post_process_log_test(*, loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_tar,
+                          px_border, px_size, post_processor, matcher, logger, step):
 
     """Post-Process"""
     em_out = post_processor.forward(y_out)
 
     """Match and Evaluate"""
     tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
-    result = evaluation.EvalSet(weighted_eval=WeightedErrors(mode='phot', reduction='gaussian')).forward(tp, fp, fn, tp_match)
+    result = evaluation.EvalSet(weighted_eval=WeightedErrors(mode='crlb', reduction='gaussian')).forward(tp, fp, fn, tp_match)
 
     """Log"""
     # raw frames
@@ -115,7 +126,6 @@ def post_process_log_test(loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_tar
     log_kpi(loss_scalar=loss_scalar, loss_cmp=loss_cmp, eval_set=result._asdict(), logger=logger, step=step)
 
     # distributions
-    log_dists(x=x, y_out=y_out, y_tar=y_tar, weight=weight, em_out=em_out, em_tar=em_tar, tp=tp, tp_match=tp_match,
-              logger=logger, step=step)
+    log_dists(tp=tp, tp_match=tp_match, px_border=px_border, px_size=px_size, logger=logger, step=step)
 
     return

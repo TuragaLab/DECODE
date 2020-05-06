@@ -1,12 +1,10 @@
-import warnings
 from abc import ABC, abstractmethod  # abstract class
 
 import numpy as np
-import time
 import torch
 from torch.distributions.exponential import Exponential
 
-from deepsmlm.generic.emitter import EmitterSet, LooseEmitterSet
+import deepsmlm.generic.emitter
 
 
 class EmitterPopperABC(ABC):
@@ -14,11 +12,11 @@ class EmitterPopperABC(ABC):
     def __init__(self):
         super().__init__()
 
-    def __call__(self) -> EmitterSet:
+    def __call__(self) -> deepsmlm.generic.emitter.EmitterSet:
         return self.pop()
 
     @abstractmethod
-    def pop(self) -> EmitterSet:
+    def pop(self) -> deepsmlm.generic.emitter.EmitterSet:
         raise NotImplementedError
 
 
@@ -51,7 +49,7 @@ class EmitterPopperSingle(EmitterPopperABC):
         else:
             self._emitter_av = self._density * self.area
 
-    def pop(self) -> EmitterSet:
+    def pop(self) -> deepsmlm.generic.emitter.EmitterSet:
         """
         Pop a new EmitterSet
 
@@ -65,12 +63,12 @@ class EmitterPopperSingle(EmitterPopperABC):
         phot = torch.randint(*self.photon_range, (n,))
         frame_ix = torch.zeros_like(phot)
 
-        return EmitterSet(xyz=xyz,
-                          phot=phot,
-                          frame_ix=frame_ix,
-                          id=None,
-                          xy_unit=self.xy_unit,
-                          px_size=self.px_size)
+        return deepsmlm.generic.emitter.EmitterSet(xyz=xyz,
+                                                   phot=phot,
+                                                   frame_ix=frame_ix,
+                                                   id=None,
+                                                   xy_unit=self.xy_unit,
+                                                   px_size=self.px_size)
 
 
 class EmitterPopperMultiFrame(EmitterPopperSingle):
@@ -165,7 +163,8 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         Returns:
             int: number of emitters on a target frame
         """
-        return len(self.gen_loose_emitter(num_em).return_emitterset().get_subset_frame(*self.frame_range)) / self.num_frames
+        return len(
+            self.gen_loose_emitter(num_em).return_emitterset().get_subset_frame(*self.frame_range)) / self.num_frames
 
     def _total_emitter_average_search(self, n: int = 100000):
         """
@@ -206,7 +205,8 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         t0 = self.t0_dist.sample((n,))
         ontime = self.lifetime_dist.rsample((n,))
 
-        return LooseEmitterSet(xyz, intensity, ontime, t0, xy_unit=self.xy_unit, px_size=self.px_size, id=None)
+        return deepsmlm.generic.emitter.LooseEmitterSet(xyz, intensity, ontime, t0, xy_unit=self.xy_unit,
+                                                        px_size=self.px_size, id=None)
 
     def pop(self):
         """

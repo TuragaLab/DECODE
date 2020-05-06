@@ -1,7 +1,7 @@
 import torch
 import pytest
 
-import deepsmlm.generic.utils.generic as gutils  # candidate
+import deepsmlm.generic.slicing as gutils  # candidate
 
 
 class TestSplitSliceable:

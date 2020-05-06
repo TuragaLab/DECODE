@@ -7,7 +7,7 @@ import torch
 
 import deepsmlm.generic.emitter as emitter
 from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
-from deepsmlm.generic.utils import test_utils
+from deepsmlm.generic import test_utils
 from deepsmlm.test.asset_handler import RMAfterTest
 
 deepsmlm_root = os.path.abspath(

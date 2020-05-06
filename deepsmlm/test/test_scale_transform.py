@@ -3,7 +3,7 @@ import functools
 import pytest
 import torch
 
-import deepsmlm.generic.utils.test_utils as t_util
+import deepsmlm.generic.test_utils as t_util
 import deepsmlm.neuralfitter.scale_transform as scf
 
 
@@ -11,26 +11,12 @@ class TestSpatialinterpolation:
 
     @pytest.fixture(scope='class')
     def interp(self):
-        return scf.SpatialInterpolation(dim=2, mode='nearest', scale_factor=2)
+        return scf.SpatialInterpolation(mode='nearest', scale_factor=2)
 
     @pytest.fixture(scope='class')
     def interp_new_impl(self):
         impl = functools.partial(torch.nn.functional.interpolate, mode='nearest', scale_factor=2)
         return scf.SpatialInterpolation(mode=None, impl=impl)
-
-    @pytest.mark.parametrize("x", [torch.rand((32, 32)), torch.rand((1, 32, 32))])
-    def test_dimensionality_test(self, interp, x):
-        """
-        Tests the dimensionality assertions
-
-        Args:
-            interp: fixture as above
-            x: tensors that are of the wrong dimensionality and should lead to fail
-
-        """
-
-        with pytest.raises(ValueError):
-            interp.forward(x)
 
     def test_default_forward(self, interp):
         """
@@ -49,6 +35,14 @@ class TestSpatialinterpolation:
 
         """Values"""
         assert (x_out[0, 0, :2, :2] == x[0, 0, 0, 0]).all()
+
+    @pytest.mark.parametrize("x_in", [torch.rand((32, 32)), torch.rand((1, 32, 32)), torch.rand((1, 1, 32, 32))])
+    def test_diff_forward(self, interp, x_in):
+
+        out = interp.forward(x_in.clone())
+
+        """Assert"""
+        assert x_in.dim() == out.dim()
 
 
 class TestAmplitudeRescale:

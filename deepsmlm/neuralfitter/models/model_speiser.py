@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import math
-
 
 def icnr(x, scale=2, init=nn.init.xavier_uniform_):
     "ICNR init of `x`, with `scale` and `init` function. Adopted from the Theano implementation"
@@ -74,12 +72,3 @@ class SUNet(nn.Module):
                 if n == 0:
                     x = torch.cat([x, x_bridged.pop()], 1)
         return x
-
-
-if __name__ == '__main__':
-    model = SUNet(3, 48)
-    x = torch.rand((2, 3, 32, 32))
-    out = model.forward(x)
-    out.sum().backward()
-
-    print("Done.")

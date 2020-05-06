@@ -3,13 +3,14 @@ import hashlib
 import itertools
 import math
 from abc import ABC, abstractmethod
+from typing import Union
 
 import torch
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 from torch.utils.data import Dataset
 
-import deepsmlm.neuralfitter.utils.pytorch_customs
+import deepsmlm.neuralfitter.utils.collate
 
 import torch.utils
 import tqdm
@@ -19,7 +20,6 @@ from pathlib import Path
 
 import deepsmlm.generic.emitter
 import deepsmlm.simulation
-import deepsmlm.generic.utils.data_utils as deepsmlm_utils
 
 
 class SimulationEngine(ABC):
@@ -102,7 +102,7 @@ class SimulationEngine(ABC):
             # remove buffer element when all active engines saw this data already
             # if (self._train_engines == eng_loaded) and (len(self._train_engines) >= 1):
             if set(self._train_engines).issubset(eng_loaded) and (len(self._train_engines) >= 1):
-                deepsmlm_utils.del_dir(bel_fpath, False)
+                del_dir(bel_fpath, False)
                 del self.buffer[i]
 
         print('Buffer checked and cleared. Waiting for training engines to pick up the data.', end="\r")
@@ -240,7 +240,7 @@ class SampleStreamEngine(SimulationEngine):
 
         self._dl_train = torch.utils.data.DataLoader(dataset=self.ds_train, batch_size=self._batch_size, shuffle=False,
                                                      num_workers=self.cpu_worker,
-                                                     collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate,
+                                                     collate_fn=deepsmlm.neuralfitter.utils.collate.smlm_collate,
                                                      pin_memory=False)
 
         if self.ds_test is not None:
@@ -251,7 +251,7 @@ class SampleStreamEngine(SimulationEngine):
 
             self._dl_test = torch.utils.data.DataLoader(dataset=self.ds_test, batch_size=batch_size_test, shuffle=False,
                                                         num_workers=self.cpu_worker,
-                                                        collate_fn=deepsmlm.neuralfitter.utils.pytorch_customs.smlm_collate,
+                                                        collate_fn=deepsmlm.neuralfitter.utils.collate.smlm_collate,
                                                         pin_memory=False)
 
     @staticmethod
@@ -344,3 +344,19 @@ class SMLMSimulationDatasetOnFly(Dataset):
 
         cam_frames, bg_frames, em_tar = self.sim.forward()
         return em_tar, cam_frames, bg_frames
+
+
+def del_dir(target: Union[Path, str], only_if_empty: bool = False):
+    target = Path(target).expanduser()
+    assert target.is_dir()
+    for p in sorted(target.glob('**/*'), reverse=True):
+        if not p.exists():
+            continue
+        p.chmod(0o666)
+        if p.is_dir():
+            p.rmdir()
+        else:
+            if only_if_empty:
+                raise RuntimeError(f'{p.parent} is not empty!')
+            p.unlink()
+    target.rmdir()

@@ -2,7 +2,7 @@ import torch
 import pytest
 
 import deepsmlm.simulation.camera as pc
-import deepsmlm.generic.utils.test_utils as tutil
+import deepsmlm.generic.test_utils as tutil
 
 
 class TestPhotons2Camera:
@@ -14,7 +14,7 @@ class TestPhotons2Camera:
 
     def test_shape(self, m2_spec):
         x = torch.ones((32, 3, 64, 64))
-        assert tutil.tens_eqshape(x, m2_spec.forward(x))
+        assert x.size() == m2_spec.forward(x).size()
 
     def test_photon_units(self, m2_spec):
         m2_spec.photon_units = True

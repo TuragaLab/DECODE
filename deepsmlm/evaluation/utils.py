@@ -408,18 +408,43 @@ class BatchEvaluation:
         plt.show()
 
 
-def kde_sorted(x, y, plot=False, band_with=None):
+def kde_sorted(x, y, plot=False, ax=None, band_with=None, sub_sample: (None, int) = None):
     """
     Gives a density estimates useful for plotting many datapoints
     """
-    xy = np.vstack([x, y])
-    if band_with:
-        z = gaussian_kde(xy, bw_method=band_with)(xy)
+
+    if sub_sample:
+        ix_sample = np.random.permutation(x.size(0))
+        ix_in, ix_out = ix_sample[:sub_sample], ix_sample[sub_sample:]
+
     else:
-        z = gaussian_kde(xy)(xy)
-    # Sort the points by density, so that the densest points are plotted last
+        ix_in = np.arange(x.size(0))
+        ix_out = np.zeros(0, dtype=int)
+
+    xy = np.vstack([x, y])
+    xy_in = xy[:, ix_in]
+    xy_out = xy[:, ix_out]
+
+    if xy_in.size == 0:
+        z = np.zeros(0)
+    else:
+        if band_with:
+            z = gaussian_kde(xy_in, bw_method=band_with)(xy_in)
+        else:
+            z = gaussian_kde(xy_in)(xy_in)
+
+    # Sort the points by density, so that the most dense points are plotted last
     idx = z.argsort()
-    x, y, z = x[idx], y[idx], z[idx]
+    x_in, y_in, z = xy_in[0, idx], xy_in[1, idx], z[idx]
+
     if plot:
-        plt.scatter(x, y, c=z, s=10, edgecolor='', cmap='RdBu_r')
-    return z, x, y
+
+        if ax is None:
+            ax = plt.gca()
+
+        if sub_sample:
+            ax.scatter(xy_out[0, :], xy_out[1, :], c='k', s=10, edgecolor='')
+
+        ax.scatter(x_in, y_in, c=z, s=10, edgecolor='', cmap='RdBu_r')
+
+    return z, x_in, y_in

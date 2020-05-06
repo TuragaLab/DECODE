@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 class SMLMDataset(Dataset):
     _pad_modes = (None, 'same')
 
-    def __init__(self, *, em_proc, frame_proc, tar_gen, weight_gen, frame_window: int, pad: str = None,
+    def __init__(self, *, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window: int, pad: str = None,
                  return_em: bool):
         super().__init__()
 
@@ -21,6 +21,7 @@ class SMLMDataset(Dataset):
 
         self.em_proc = em_proc
         self.frame_proc = frame_proc
+        self.bg_frame_proc = bg_frame_proc
         self.tar_gen = tar_gen
         self.weight_gen = weight_gen
 
@@ -60,6 +61,9 @@ class SMLMDataset(Dataset):
         if self.frame_proc is not None:
             frames = self.frame_proc.forward(frames)
 
+        if self.bg_frame_proc is not None:
+            bg_frame = self.bg_frame_proc.forward(bg_frame)
+
         if self.em_proc is not None:
             tar_emitter = self.em_proc.forward(tar_emitter)
 
@@ -97,8 +101,8 @@ class SMLMStaticDataset(SMLMDataset):
         return_em (bool): return EmitterSet in getitem method.
     """
 
-    def __init__(self, *, frames, emitter: (None, list, tuple), frame_proc, em_proc, tar_gen, weight_gen=None,
-                 frame_window=3, pad: (str, None) = None, return_em=True):
+    def __init__(self, *, frames, emitter: (None, list, tuple), frame_proc, bg_frame_proc, em_proc, tar_gen,
+                 bg_frames=None, weight_gen=None, frame_window=3, pad: (str, None) = None, return_em=True):
         """
 
         Args:
@@ -112,11 +116,13 @@ class SMLMStaticDataset(SMLMDataset):
             return_em (bool): return EmitterSet in getitem method.
         """
 
-        super().__init__(em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen,
+        super().__init__(em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
+                         tar_gen=tar_gen, weight_gen=weight_gen,
                          frame_window=frame_window, pad=pad, return_em=return_em)
 
         self._frames = frames
         self._emitter = emitter
+        self._bg_frames = bg_frames
 
         if self._frames.size(1) != 1:
             raise ValueError("Frames must be one-channeled, i.e. N x C=1 x H x W.")
@@ -141,19 +147,21 @@ class SMLMStaticDataset(SMLMDataset):
         """Pad index, get frames and emitters."""
         index = self._pad_index(index)
         frames = self._get_frames(self._frames, index).squeeze(1)
+        bg_frame = self._bg_frames[index] if self._bg_frames is not None else None
         tar_emitter = self._emitter[index]
 
         """Process Emitters"""
-        frames, target, weight, tar_emitter = self._process_sample(frames, tar_emitter, None)
+        frames, target, weight, tar_emitter = self._process_sample(frames, tar_emitter, bg_frame)
 
-        return self._return_sample(frames, target, weight, tar_emitter)
+        return self._return_sample(frames, target.squeeze(0), weight.squeeze(0), tar_emitter)
 
 
 class SMLMLiveDataset(SMLMDataset):
 
-    def __init__(self, *, simulator, em_proc, frame_proc, tar_gen, weight_gen, frame_window, pad, return_em=False):
+    def __init__(self, *, simulator, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, pad, return_em=False):
 
-        super().__init__(em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen,
+        super().__init__(em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
+                         tar_gen=tar_gen, weight_gen=weight_gen,
                          frame_window=frame_window, pad=pad, return_em=return_em)
 
         self.simulator = simulator
@@ -218,7 +226,7 @@ class InferenceDataset(SMLMStaticDataset):
             frame_proc: frame processing function
             frame_window (int): frame window
         """
-        super().__init__(frames=frames, emitter=None, frame_proc=frame_proc, em_proc=None, tar_gen=None,
+        super().__init__(frames=frames, emitter=None, frame_proc=frame_proc, bg_frame_proc=None, em_proc=None, tar_gen=None,
                          frame_window=frame_window, return_em=False)
 
     def __getitem__(self, index):
@@ -268,8 +276,8 @@ class SMLMSampleStreamEngineDataset(SMLMDataset):
             return_em: (bool) return target emitters in the form of an emitter set. use for test set
 
         """
-        super().__init__(em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen,
-                         frame_window=None,
+        super().__init__(em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=None,
+                         tar_gen=tar_gen, weight_gen=weight_gen, frame_window=None,
                          pad=None, return_em=return_em)
 
         self._engine = engine

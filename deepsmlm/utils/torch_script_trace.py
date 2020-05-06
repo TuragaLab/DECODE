@@ -1,11 +1,8 @@
 import os
 import torch
 
-from deepsmlm.generic.inout.load_save_model import LoadSaveModel
-from deepsmlm.neuralfitter import scale_transform as scaling
-from deepsmlm.neuralfitter import post_processing as post
-from deepsmlm.generic.utils import processing as utils
-from deepsmlm.neuralfitter.models.model_offset import OffsetUnet, OffSetUNetBGBranch
+from deepsmlm.utils.model_io import LoadSaveModel
+from deepsmlm.neuralfitter.models.model_offset import OffSetUNetBGBranch
 
 
 def trace_offset_model(model, channels=3):

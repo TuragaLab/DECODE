@@ -45,9 +45,12 @@ def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logge
 
         """Logging"""
         loss_mean, loss_cmp = loss.log(loss_val)  # compute individual loss components
+        del loss_val
         tqdm_enum.set_description(f"E: {epoch} - t: {t_batch:.2} - t_dat: {t_data:.2} - L: {loss_mean:.3}")
 
         log_train_val_progress.log_train(loss_mean, t_batch, t_data, epoch, batch_num, 10, model, logger)
+
+        t0 = time.time()
 
     return
 
@@ -55,7 +58,7 @@ def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logge
 _val_return = namedtuple("network_output", ["loss", "x", "y_out", "y_tar", "weight", "em_tar"])
 
 
-def test(model, optimizer, loss, dataloader, grad_rescale, post_processor, epoch, device, logger):
+def test(model, loss, dataloader, epoch, device):
 
     """Setup"""
     x_ep, y_out_ep, y_tar_ep, weight_ep, em_tar_ep = [], [], [], [], []  # store things epoche wise (_ep)
@@ -77,10 +80,6 @@ def test(model, optimizer, loss, dataloader, grad_rescale, post_processor, epoch
             y_out = model(x)
 
             loss_val = loss(y_out, y_tar, weight)
-
-            # if grad_rescale:  # rescale gradients so that they are in the same order for the last layer
-            #     weight, _, _ = model.rescale_last_layer_grad(loss_val, optimizer)
-            #     loss_val = loss_val * weight
 
             t_batch = time.time() - t0
 

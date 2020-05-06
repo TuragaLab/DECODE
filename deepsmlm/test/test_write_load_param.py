@@ -1,10 +1,9 @@
-import os
 import pytest
 import dotmap
 
 from pathlib import Path
 
-import deepsmlm.generic.inout.write_load_param as wlp
+import deepsmlm.utils.param_io as wlp
 
 from . import asset_handler
 

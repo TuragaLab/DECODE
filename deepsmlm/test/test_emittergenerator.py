@@ -4,7 +4,7 @@ import torch
 
 import deepsmlm.generic.emitter as em
 import deepsmlm.simulation.emitter_generator as emgen
-from deepsmlm.generic.utils import test_utils
+from deepsmlm.generic import test_utils
 from deepsmlm.simulation.structure_prior import RandomStructure
 
 

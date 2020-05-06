@@ -1,12 +1,10 @@
-from collections import namedtuple
 import matplotlib.pyplot as plt
 import pytest
 import math
 import torch
 
 from deepsmlm.evaluation import evaluation
-from deepsmlm.generic import emitter as em
-from deepsmlm.generic.utils import test_utils
+from deepsmlm.generic import emitter as em, test_utils
 
 
 class TestEval:
@@ -189,8 +187,8 @@ class TestWeightedErrors(TestEval):
         dxyz, dphot, dbg = torch.randn((250000, 3)), torch.randn(250000) + 20, torch.rand(250000)
         dxyz_, dphot_, dbg_ = evaluator._reduce(dxyz, dphot, dbg, 'mstd')
 
-        assert test_utils.tens_almeq(dxyz_[0], torch.zeros((3, )), 1e-2)
-        assert test_utils.tens_almeq(dxyz_[1], torch.ones((3, )), 1e-2)
+        assert test_utils.tens_almeq(dxyz_[0], torch.zeros((3,)), 1e-2)
+        assert test_utils.tens_almeq(dxyz_[1], torch.ones((3,)), 1e-2)
 
         assert test_utils.tens_almeq(dphot_[0], torch.zeros((1,)) + 20, 1e-2)
         assert test_utils.tens_almeq(dphot_[1], torch.ones((1,)), 1e-2)
