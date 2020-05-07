@@ -1,19 +1,14 @@
-import ctypes
-import multiprocessing as mp
 import time
 
-import numpy as np
 import torch
-import tqdm
-from deprecated import deprecated
 from torch.utils.data import Dataset
 
 
 class SMLMDataset(Dataset):
     _pad_modes = (None, 'same')
 
-    def __init__(self, *, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window: int, pad: str = None,
-                 return_em: bool):
+    def __init__(self, *, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen,
+                 frame_window: int, pad: str = None, return_em: bool):
         super().__init__()
 
         self._frames = None
@@ -31,6 +26,13 @@ class SMLMDataset(Dataset):
 
         """Sanity"""
         self.sanity_check()
+
+    def __len__(self):
+        if self.pad is None:  # loosing samples at the border
+            return self._frames.size(0) - self.frame_window + 1
+
+        elif self.pad == 'same':
+            return self._frames.size(0)
 
     def sanity_check(self):
 
@@ -127,9 +129,6 @@ class SMLMStaticDataset(SMLMDataset):
         if self._frames.size(1) != 1:
             raise ValueError("Frames must be one-channeled, i.e. N x C=1 x H x W.")
 
-    def __len__(self):
-        return self._frames.size(0)
-
     def __getitem__(self, index):
         """
         Get a training sample.
@@ -158,7 +157,8 @@ class SMLMStaticDataset(SMLMDataset):
 
 class SMLMLiveDataset(SMLMDataset):
 
-    def __init__(self, *, simulator, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, pad, return_em=False):
+    def __init__(self, *, simulator, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, pad,
+                 return_em=False):
 
         super().__init__(em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
                          tar_gen=tar_gen, weight_gen=weight_gen,
@@ -172,13 +172,6 @@ class SMLMLiveDataset(SMLMDataset):
         super().sanity_check()
         if self._emitter is not None and not isinstance(self._emitter, (list, tuple)):
             raise TypeError("EmitterSet shall be stored in list format, where each list item is one target emitter.")
-
-    def __len__(self):
-        if self.pad is None:  # loosing samples at the border
-            return self._frames.size(0) - self.frame_window + 1
-
-        elif self.pad == 'same':
-            return self._frames.size(0)
 
     def sample(self, verbose=False):
 
@@ -226,8 +219,8 @@ class InferenceDataset(SMLMStaticDataset):
             frame_proc: frame processing function
             frame_window (int): frame window
         """
-        super().__init__(frames=frames, emitter=None, frame_proc=frame_proc, bg_frame_proc=None, em_proc=None, tar_gen=None,
-                         frame_window=frame_window, return_em=False)
+        super().__init__(frames=frames, emitter=None, frame_proc=frame_proc, bg_frame_proc=None, em_proc=None,
+                         tar_gen=None, pad='same', frame_window=frame_window, return_em=False)
 
     def __getitem__(self, index):
         """
@@ -387,181 +380,3 @@ class SMLMDatasetEngineDataset(SMLMSampleStreamEngineDataset):
         weight = self.weight_gen.forward(tar_frame, tar_em, *aux) if self.weight_gen is not None else None
 
         return self._return_sample(x_in, tar_frame, weight, tar_em)
-
-
-@deprecated(version="0.1.def", reason="Deprecated in favour of SMLMLiveDataset.")
-class SMLMDatasetOnFly(Dataset):
-    """
-    A dataset in which the samples are generated on the fly.
-
-    Attributes:
-        ds_size (int): dataset (pseudo) size
-        prior: something with a pop() method to pop new samples
-        simulator:
-
-    """
-
-    def __init__(self, *, prior, simulator, ds_size: int, frame_proc, em_proc, tar_gen, weight_gen,
-                 return_em: bool = False):
-        super().__init__()
-
-        self.ds_size = ds_size
-
-        self.prior = prior
-        self.simulator = simulator
-
-        self.frame_proc = frame_proc
-        self.em_proc = em_proc
-        self.tar_gen = tar_gen
-        self.weight_gen = weight_gen
-
-        self.return_em = return_em
-
-    def _pop_sample(self):
-        """
-        Generate new training sample
-
-        Returns:
-            emitter: all emitters
-            tar_em: target emitters (emitters on the central frame)
-            frame: input frames
-            target: target frames
-            weight: weight "frame"
-        """
-
-        emitter = self.prior.pop()  # pop new emitters (on all frames, those are not necessarily the target emitters)
-
-        frame, bg, _ = self.simulator.forward(emitter)
-        frame = self.frame_proc.forward(frame)
-        tar_em = emitter.get_subset_frame(0, 0)  # target emitters
-
-        if self.weight_gen is not None:
-            weight = self.weight_gen.forward(frame, tar_em, bg)
-        else:
-            weight = None
-
-        target = self.tar_gen.forward_(tar_em)
-
-        return emitter, tar_em, frame, target, weight
-
-    def __len__(self):
-        return self.ds_size
-
-    def __getitem__(self, index):
-
-        all_em, tar_em, frame, target, weight = self._pop_sample()
-
-        if self.return_em:
-            return frame, target, weight, tar_em
-
-        return frame, target, weight
-
-
-class SMLMDatasetOneTimer(SMLMDatasetOnFly):
-    def __init__(self, *, prior, simulator, ds_size, frame_proc, em_proc, tar_gen, weight_gen, return_em=False):
-        super().__init__(prior=prior, simulator=simulator, ds_size=ds_size, frame_proc=frame_proc, em_proc=em_proc,
-                         tar_gen=tar_gen, weight_gen=weight_gen, return_em=return_em)
-
-        self.frame = [None] * len(self)
-        self.target = [None] * len(self)
-        self.weight_mask = [None] * len(self)
-        self.tar_em = [None] * len(self)
-
-        """
-        Pre-calculate the complete dataset and use the same data as one draws samples.
-        This is useful for the testset or the classical deep learning feeling of limited training data.
-        """
-        for i in tqdm.trange(self.__len__(), desc='Pre-Calculate Dataset'):
-            _, tar_em, frame, target, weight_mask = self._pop_sample()
-            self.tar_em[i] = tar_em
-            self.frame[i] = frame
-            self.target[i] = target
-            self.weight_mask[i] = weight_mask
-
-    def __getitem__(self, index):
-
-        if self.return_em:
-            return self.frame[index], self.target[index], self.weight_mask[index], self.tar_em[index]
-
-        return self.frame[index], self.target[index], self.weight_mask[index]
-
-
-@deprecated(reason="No need for it anymore.")
-class SMLMDatasetOnFlyCached(SMLMDatasetOnFly):
-    def __init__(self, *, prior, simulator, ds_size, lifetime, frame_proc, em_proc, tar_gen, weight_gen,
-                 return_em=False):
-
-        super().__init__(prior=prior, simulator=simulator, ds_size=ds_size, frame_proc=frame_proc, em_proc=em_proc,
-                         tar_gen=tar_gen, weight_gen=weight_gen, return_em=return_em)
-
-        self.lifetime = lifetime
-        self.time_til_death = lifetime
-
-        """Initialise Frame and Target Cache. Call drop method to create list."""
-        _, frame_dummy, target_dummy, weight_dummy, _ = self._pop_sample()
-
-        frames_base = mp.Array(ctypes.c_float, self.__len__() * frame_dummy.numel())
-        frames = np.ctypeslib.as_array(frames_base.get_obj())
-        frames = frames.reshape(self.__len__(), frame_dummy.size(0), frame_dummy.size(1), frame_dummy.size(2))
-
-        target_base = mp.Array(ctypes.c_float, self.__len__() * target_dummy.numel())
-        target = np.ctypeslib.as_array(target_base.get_obj())
-        target = target.reshape(self.__len__(), target_dummy.size(0), target_dummy.size(1), target_dummy.size(2))
-
-        weight_base = mp.Array(ctypes.c_float, self.__len__() * weight_dummy.numel())
-        weight = np.ctypeslib.as_array(weight_base.get_obj())
-        weight = weight.reshape(self.__len__(), weight_dummy.size(0), weight_dummy.size(1), weight_dummy.size(2))
-
-        self.frame = torch.from_numpy(frames)
-        self.target = torch.from_numpy(target)
-        self.weight_mask = torch.from_numpy(weight)
-        self.em_tar = [None] * self.__len__()
-        self.use_cache = False
-
-        self.drop_data_set(verbose=False)
-
-    def drop_data_set(self, verbose=True):
-        """
-        Invalidate / clear cache.
-        Args:
-            verbose (bool): print to console when dropped
-        """
-
-        self.frame *= float('nan')
-        self.target *= float('nan')
-        self.weight_mask *= float('nan')
-        self.em_tar = [None] * len(self)
-
-        self.use_cache = False
-        self.time_til_death = self.lifetime
-
-        if verbose:
-            print("Dataset dropped. Will calculate a new one in next epoch.")
-
-    def step(self):
-        """
-        Reduces lifetime by one step
-
-        """
-        self.time_til_death -= 1
-        if self.time_til_death <= 0:
-            self.drop_data_set()
-        else:
-            self.use_cache = True
-
-    def __getitem__(self, index):
-
-        if not self.use_cache:
-            emitter, frame, target, weight_mask, em_tar = self._pop_sample()
-            self.frame[index] = frame
-            self.target[index] = target
-            self.weight_mask[index] = weight_mask
-            self.em_tar[index] = em_tar
-
-        frame, target, weight_mask, em_tar = self.frame[index], self.target[index], self.weight_mask[index], \
-                                             self.em_tar[index]
-
-        if self.return_em:
-            return frame, target, weight_mask, em_tar
-
-        return frame, target, weight_mask
