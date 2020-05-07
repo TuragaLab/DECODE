@@ -52,7 +52,7 @@ class Identity(ProcessEmitters):
 
 
 class RemoveOutOfFOV(ProcessEmitters):
-    def __init__(self, xextent, yextent, zextent=None):
+    def __init__(self, xextent, yextent, zextent=None, xy_unit=None):
         """
         Processing class to remove emitters that are outside a specified extent.
         The lower / left respective extent limits are included, the right / upper extent limit is excluded / open.
@@ -61,12 +61,15 @@ class RemoveOutOfFOV(ProcessEmitters):
             xextent: extent of allowed field in x direction
             yextent: extent of allowed field in y direction
             zextent: (optional) extent of allowed field in z direction
+            xy_unit: which xy is considered
         """
         super().__init__()
 
         self.xextent = xextent
         self.yextent = yextent
         self.zextent = zextent
+
+        self.xy_unit = xy_unit
 
     def clean_emitter(self, xyz):
         """
@@ -97,7 +100,16 @@ class RemoveOutOfFOV(ProcessEmitters):
         Returns:
             EmitterSet
         """
-        em_mat = em_set.xyz
+
+        if self.xy_unit is None:
+            em_mat = em_set.xyz
+        elif self.xy_unit == 'px':
+            em_mat = em_set.xyz_px
+        elif self.xy_unit == 'nm':
+            em_mat = em_set.xyz_nm
+        else:
+            raise ValueError(f"Unsupported xy unit: {self.xy_unit}")
+
         is_emit = self.clean_emitter(em_mat)
 
         return em_set[is_emit]

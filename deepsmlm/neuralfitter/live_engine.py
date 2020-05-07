@@ -97,7 +97,7 @@ def setup_random_simulation(param):
     return simulation_train, simulation_test
 
 
-def setup_trainer(simulator_train, simulator_test, logger, param):
+def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
 
     """Set model, optimiser, loss and schedulers"""
     models_ava = {
@@ -110,7 +110,7 @@ def setup_trainer(simulator_train, simulator_test, logger, param):
     model = model.parse(param)
 
     model_ls = deepsmlm.utils.model_io.LoadSaveModel(model,
-                                                     output_file=param.InOut.model_out,
+                                                     output_file=model_out,
                                                      input_file=param.InOut.model_init)
 
     model = model_ls.load_init()
@@ -291,18 +291,27 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
 
     """
 
-    """
-    This is mainly boilerplate code in which setup all the things for proper simulation.
-    0. Boilerplate parameter loading and some server assertions (using only one GPU etc.)
-    1. Setting up the actual simulation
-    """
-
     """Load Parameters and back them up to the network output directory"""
     param_file = Path(param_file)
     param = deepsmlm.utils.param_io.ParamHandling().load_params(param_file)
 
-    # backup
-    param_backup = Path(param.InOut.model_out).with_suffix(param_file.suffix)
+    """Experiment ID"""
+    if not debug:
+        experiment_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
+    else:
+        experiment_id = 'debug'
+
+    """Set up unique folder for experiment"""
+    experiment_path = Path(param.InOut.experiment_out) / Path(experiment_id)
+    if not experiment_path.parent.exists():
+        experiment_path.parent.mkdir()
+
+    experiment_path.mkdir()
+
+    model_out = experiment_path / Path('model.pt')
+
+    # Backup the parameter file under the network output path with the experiments ID
+    param_backup = experiment_path / Path('param_run').with_suffix(param_file.suffix)
     shutil.copy(param_file, param_backup)
 
     if debug:
@@ -316,7 +325,6 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
     torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
     os.nice(param.Hardware.unix_niceness)
 
-    # assert torch.cuda.device_count() <= param.Hardware.max_cuda_devices
     torch.set_num_threads(param.Hardware.torch_threads)
 
     """Setup Log System"""
@@ -325,17 +333,15 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
 
     else:
         if log_comment:
-            log_folder = log_folder + '/' + log_comment + '_' + datetime.datetime.now().strftime(
-                "%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
+            log_folder = log_folder + '/' + experiment_id + '_' + log_comment
         else:
-            log_folder = log_folder + '/' + datetime.datetime.now().strftime(
-                "%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
+            log_folder = log_folder + '/' + experiment_id
 
         logger = deepsmlm.neuralfitter.utils.logger.SummaryWriterSoph(log_dir=log_folder)
 
     sim_train, sim_test = setup_random_simulation(param)
     ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, post_processor, matcher = setup_trainer(
-        sim_train, sim_test, logger, param)
+        sim_train, sim_test, logger, model_out, param)
 
     dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
 

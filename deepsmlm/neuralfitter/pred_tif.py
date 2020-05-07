@@ -8,7 +8,7 @@ import torch.utils
 from tqdm import tqdm
 
 import deepsmlm.generic.emitter as em
-from deepsmlm.neuralfitter.dataset import InferenceDataset, SMLMDatasetOneTimer
+from deepsmlm.neuralfitter.dataset import InferenceDataset
 from deepsmlm.neuralfitter.utils.collate import smlm_collate
 
 
