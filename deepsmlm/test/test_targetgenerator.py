@@ -26,8 +26,10 @@ class TestTargetGenerator:
                                                  yextent=self.yextent,
                                                  img_shape=self.img_shape)
 
-            def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
-                return self.delta.forward(xyz, phot, None, ix_low, ix_high).unsqueeze(1)
+            def forward(self, em, bg=None, ix_low=None, ix_high=None):
+                em, ix_low, ix_high = self._filter_forward(em, ix_low, ix_high)
+
+                return self.delta.forward(em.xyz, em.phot, None, ix_low, ix_high).unsqueeze(1)
 
         xextent = (-0.5, 63.5)
         yextent = (-0.5, 63.5)
@@ -133,3 +135,48 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
         assert tutil.tens_almeq(out[:, 15, 20], torch.tensor([1., 4., 0.1, -0.4, 250.]), 1e-5)
         assert tutil.tens_almeq(out[:, 16, 20], torch.tensor([0., 4., -0.9, -0.4, 250.]), 1e-5)
         assert tutil.tens_almeq(out[:, 15, 21], torch.tensor([0., 4., 0.1, -1.4, 250.]), 1e-5)
+
+
+class Test4FoldTarget(TestTargetGenerator):
+
+    @pytest.fixture()
+    def targ(self):
+        xextent = (-0.5, 63.5)
+        yextent = (-0.5, 63.5)
+        img_shape = (64, 64)
+
+        return target_generator.FourFoldEmbedding(xextent=xextent, yextent=yextent, img_shape=img_shape,
+                                                  rim_size=0.125, roi_size=3, ix_low=0, ix_high=5)
+
+    def test_filter_rim(self, targ):
+
+        """Setup"""
+        xy = torch.tensor([[0.1, 0.9], [45.2, 47.8], [0.13, 0.9]]) - 0.5
+        ix_tar = torch.tensor([0, 1, 0]).bool()
+
+        """Run"""
+        ix_out = targ._filter_rim(xy, (-0.5, -0.5), 0.125, (1., 1.))
+
+        """Assert"""
+        assert (ix_out == ix_tar).all()
+
+    def test_forward(self, targ):
+
+        """Setup"""
+        em = EmitterSet(
+            xyz=torch.tensor([[0., 0., 0.], [0.49, 0., 0.], [0., 0.49, 0.], [0.49, 0.49, 0.]]),
+            phot=torch.ones(4),
+            frame_ix=torch.tensor([0, 1, 2, 3]),
+            xy_unit='px'
+        )
+
+        """Run"""
+        tar_out = targ.forward(em, None)
+
+        """Assert"""
+        assert tar_out.size() == torch.Size([6, 20, 64, 64])
+        # Negative samples
+        assert tar_out[1, 0, 0, 0] == 0.
+        # Positive Samples
+        assert (tar_out[[0, 1, 2, 3], [0, 5, 10, 15], 0, 0] == torch.tensor([1., 1., 1., 1.])).all()
+

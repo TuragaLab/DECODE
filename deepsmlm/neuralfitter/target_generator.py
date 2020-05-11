@@ -1,7 +1,8 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import torch
 
+from deepsmlm.evaluation import predict_dist
 from deepsmlm.generic import EmitterSet
 from deepsmlm.simulation.psf_kernel import DeltaPSF
 
@@ -18,7 +19,21 @@ class TargetGenerator(ABC):
         self.ix_low = ix_low
         self.ix_high = ix_high
 
-    def _filter_forward(self, em, ix_low, ix_high):
+    def _filter_forward(self, em: EmitterSet, ix_low: (int, None), ix_high: (int, None)):
+        """
+        Filter emitters and auto-set frame bounds
+
+        Args:
+            em:
+            ix_low:
+            ix_high:
+
+        Returns:
+            em (EmitterSet): filtered EmitterSet
+            ix_low (int): lower frame index
+            ix_high (int): upper frame index
+
+        """
 
         if ix_low is None:
             ix_low = self.ix_low
@@ -29,45 +44,6 @@ class TargetGenerator(ABC):
         em = em.get_subset_frame(ix_low, ix_high, -ix_low)
 
         return em, ix_low, ix_high
-
-    @abstractmethod
-    def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
-                 ix_low: int = None, ix_high: int = None) -> torch.Tensor:
-        """
-
-        Args:
-            xyz: Coordinates
-            phot: Photon values
-            frame_ix: Frame index
-            ix_low: lower frame index bound
-            ix_high: upper frame index bound
-
-        Returns:
-            torch.Tensor
-
-        """
-
-        raise NotImplementedError
-
-    def forward(self, em: EmitterSet, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
-        """
-
-        Args:
-            em (EmitterSet): EmitterSet. Defaults to xyz_nm coordinates.
-            ix_low (int): lower frame index bound
-            ix_high (int): upper frame index bound
-
-        Returns:
-            tar (torch.Tensor): Target.
-
-        """
-
-        em, ix_low, ix_high = self._filter_forward(em, ix_low, ix_high)
-
-        if self.xy_unit == 'px':
-            return self.forward_(xyz=em.xyz_px, phot=em.phot, frame_ix=em.frame_ix, ix_low=ix_low, ix_high=ix_high)
-        elif self.xy_unit == 'nm':
-            return self.forward_(xyz=em.xyz_nm, phot=em.phot, frame_ix=em.frame_ix, ix_low=ix_low, ix_high=ix_high)
 
 
 class UnifiedEmbeddingTarget(TargetGenerator):
@@ -154,7 +130,6 @@ class UnifiedEmbeddingTarget(TargetGenerator):
 
     def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
                  ix_low: int, ix_high: int) -> torch.Tensor:
-
         """Get index of central bin for each emitter, throw out emitters that are out of the frame."""
         mask, ix = self._get_central_px(xyz, frame_ix)
         xyz, phot, frame_ix = xyz[mask], phot[mask], frame_ix[mask]
@@ -177,7 +152,87 @@ class UnifiedEmbeddingTarget(TargetGenerator):
         return target
 
     def forward(self, em: EmitterSet, bg: torch.Tensor = None, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
-        target = super().forward(em, ix_low=ix_low, ix_high=ix_high)
+
+        em, ix_low, ix_high = self._filter_forward(em, ix_low, ix_high)
+        target = self.forward_(xyz=em.xyz_px, phot=em.phot, frame_ix=em.frame_ix, ix_low=ix_low, ix_high=ix_high)
+
+        if bg is not None:
+            target = torch.cat((target, bg.unsqueeze(1)), 1)
+
+        return target
+
+
+class FourFoldEmbedding(TargetGenerator):
+
+    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, rim_size: float,
+                 roi_size: int, ix_low=None, ix_high=None):
+
+        super().__init__(xy_unit='px', ix_low=ix_low, ix_high=ix_high)
+
+        self.xextent_native = xextent
+        self.yextent_native = yextent
+
+        self.rim = rim_size
+        self.img_shape = img_shape
+        self.roi_size = roi_size
+
+        self.embd_ctr = UnifiedEmbeddingTarget(xextent=xextent, yextent=yextent, img_shape=img_shape,
+                                               roi_size=roi_size, ix_low=ix_low, ix_high=ix_high)
+
+        self.embd_half_x = UnifiedEmbeddingTarget(xextent=(xextent[0] + 0.5, xextent[1] + 0.5), yextent=yextent,
+                                                  img_shape=img_shape, roi_size=roi_size,
+                                                  ix_low=ix_low, ix_high=ix_high)
+
+        self.embd_half_y = UnifiedEmbeddingTarget(xextent=xextent, yextent=(yextent[0] + 0.5, yextent[1] + 0.5),
+                                                  img_shape=img_shape, roi_size=roi_size,
+                                                  ix_low=ix_low, ix_high=ix_high)
+
+        self.embd_half_xy = UnifiedEmbeddingTarget(xextent=(xextent[0] + 0.5, xextent[1] + 0.5),
+                                                   yextent=(yextent[0] + 0.5, yextent[1] + 0.5),
+                                                   img_shape=img_shape, roi_size=roi_size,
+                                                   ix_low=ix_low, ix_high=ix_high)
+
+    def _filter_rim(self, xy, xy_0, rim, px_size) -> torch.BoolTensor:
+        """
+        Takes coordinates and checks whether they are close to a pixel border (i.e. within a rim).
+        True if not in rim, false if in rim.
+
+        Args:
+            xy:
+            xy_0:
+            rim:
+            px_size:
+
+        Returns:
+
+        """
+
+        """Transform coordinates relative to unit px"""
+        x_rel = (predict_dist.px_pointer_dist(xy[:, 0], xy_0[0], px_size[0]) - xy_0[0]) / px_size[0]
+        y_rel = (predict_dist.px_pointer_dist(xy[:, 1], xy_0[1], px_size[1]) - xy_0[1]) / px_size[1]
+
+        """Falsify coordinates that are inside the rim"""
+        ix = (x_rel >= rim) * (x_rel < (1 - rim)) * (y_rel >= rim) * (y_rel < (1 - rim))
+
+        return ix
+
+    def forward(self, em: EmitterSet, bg: torch.Tensor = None, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
+        em, ix_low, ix_high = self._filter_forward(em, ix_low=ix_low, ix_high=ix_high)
+
+        """Forward through each and all targets and filter the rim"""
+        ctr = self.embd_ctr.forward(em=em[self._filter_rim(em.xyz_px, (-0.5, -0.5), self.rim, (1., 1.))],
+                                    bg=None, ix_low=ix_low, ix_high=ix_high)
+
+        half_x = self.embd_ctr.forward(em=em[self._filter_rim(em.xyz_px, (0., -0.5), self.rim, (1., 1.))],
+                                       bg=None, ix_low=ix_low, ix_high=ix_high)
+
+        half_y = self.embd_ctr.forward(em=em[self._filter_rim(em.xyz_px, (-0.5, 0.), self.rim, (1., 1.))],
+                                       bg=None, ix_low=ix_low, ix_high=ix_high)
+
+        half_xy = self.embd_ctr.forward(em=em[self._filter_rim(em.xyz_px, (0., 0.), self.rim, (1., 1.))],
+                                        bg=None, ix_low=ix_low, ix_high=ix_high)
+
+        target = torch.cat((ctr, half_x, half_y, half_xy), 1)
 
         if bg is not None:
             target = torch.cat((target, bg.unsqueeze(1)), 1)
