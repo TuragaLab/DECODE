@@ -42,6 +42,62 @@ class TestNoPostProcessing(TestPostProcessingAbstract):
         assert isinstance(out, emitter.EmptyEmitterSet)
 
 
+class TestLookUpPostProcessing(TestPostProcessingAbstract):
+
+    @pytest.fixture()
+    def post(self):
+        return post_processing.LookUpPostProcessing(raw_th=0.1, xy_unit='px')
+
+    def test_filter(self, post):
+
+        """Setup"""
+        detection = torch.tensor([[0.1, 0.0], [0.6, 0.05]]).unsqueeze(0)
+
+        """Run"""
+        active_px = post._filter(detection)
+
+        """Assertions"""
+        assert (active_px == torch.tensor([[1, 0], [1, 0]]).unsqueeze(0).bool()).all()
+
+        return active_px
+
+    def test_lookup(self, post):
+
+        """Setup"""
+        active_px = self.test_filter(post)  # get the return value of the previous test
+
+        features = torch.tensor([[1., 2.], [3., 4.]]).unsqueeze(0).unsqueeze(0).repeat(1, 5, 1, 1)
+        features = features * torch.tensor([1., 2., 3., 4., 5.]).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+
+        """Run"""
+        batch_ix, features = post._lookup_features(features, active_px)
+
+        """Assertions"""
+        assert isinstance(batch_ix, torch.LongTensor), "Batch ix should be integer type."
+        assert (batch_ix == 0).all()
+        assert batch_ix.size()[0] == features.size()[1]
+
+        # This is hard coded designed for the very specific test case
+        assert ((features / (torch.arange(5).unsqueeze(1).float() + 1)).unique() == torch.tensor([1., 3.])).all()
+
+    def test_forward(self, post):
+
+        """Setup"""
+        detection = torch.tensor([[0.1, 0.0], [0.6, 0.05]]).unsqueeze(0).unsqueeze(0)
+        features = torch.tensor([[1., 2.], [3., 4.]]).unsqueeze(0).unsqueeze(0).repeat(1, 5, 1, 1)
+        features = features * torch.tensor([1., 2., 3., 4., 5.]).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+
+        pseudo_net_ouput = torch.cat((detection, features), 1)
+
+        """Run"""
+        emitter_out = post.forward(pseudo_net_ouput)
+
+        """Assert"""
+        assert isinstance(emitter_out, emitter.EmitterSet), "Output should be an emitter."
+        assert (emitter_out.frame_ix == 0).all()
+        assert (emitter_out.phot.unique() == torch.tensor([1., 3.])).all()
+
+
 class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
     @pytest.fixture()
@@ -185,97 +241,3 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
         post.skip_th = 0.2
         assert post.skip_if(x) is expct
-
-
-@pytest.mark.skip("Deprecated function.")
-class TestSpeiser:
-
-    @pytest.fixture(scope='class')
-    def speis(self):
-        return post.SpeiserPost(0.3, 0.6, 'frames')
-
-    @pytest.fixture(scope='class')
-    def feat(self):
-        feat = torch.zeros((2, 5, 32, 32))
-
-        feat[0, 0, 5, 5] = .4 + 1e-7
-        feat[0, 0, 5, 6] = .4
-        feat[0, 1, 5, 5] = 10.
-        feat[0, 1, 5, 6] = 20.
-
-        return feat
-
-    def test_run(self, speis, feat):
-        output = speis.forward(feat)
-        assert torch.eq(torch.tensor(feat.size()), torch.tensor(output.size())).all()
-        assert torch.eq(torch.tensor([15., 0.]), output[0, 1, 5, 5:7]).all()
-
-#
-# @pytest.fixture(scope='module')
-# def cc():
-#     return post.ConnectedComponents(0.1, 2)
-#
-#
-# @pytest.fixture(scope='module')
-# def cc_offset():
-#     return post.CC5ChModel(0.3, 0., 2)
-#
-# def test_crlbdist():
-#     """
-#     Tests the cramer rao lower bound distance function between x and y
-#     :return:
-#     """
-#     """Check for zero tensors and equal tensors."""
-#     X = torch.zeros((32, 3))
-#     Y = torch.zeros_like(X)
-#
-#     XCrlb = torch.ones_like(X)
-#     YCrlb = torch.ones_like(Y)
-#
-#     out = post.crlb_squared_distance(X, Y, XCrlb, YCrlb)
-#     assert tutil.tens_almeq(out, torch.zeros_like(X[:, 0]))
-#
-#     X = torch.rand((32, 3))
-#     Y = X
-#     out = post.crlb_squared_distance(X, Y, XCrlb, YCrlb)
-#     assert tutil.tens_almeq(out, torch.zeros_like(X[:, 0]))
-#
-#
-# def test_connected_components(cc):
-#     p_map = torch.tensor([[0., 0., 0.5], [0., 0., 0.5], [0., 0., 0.]])
-#     clusix = torch.tensor([[0, 0, 1.], [0, 0, 1], [0, 0, 0]])
-#     assert torch.eq(clusix, cc.compute_cix(p_map)).all()
-#
-#
-# class TestCC5ChModel:
-#     testdata = []
-#
-#     def test_average_features(self, cc_offset):
-#         p_map = torch.tensor([[0., 0., 0.5], [0., 0., 0.5], [0., 0., 0.]])
-#         clusix = torch.tensor([[0, 0, 1.], [0, 0, 1], [0, 0, 0]])
-#         features = torch.cat((
-#             p_map.unsqueeze(0),
-#             torch.tensor([[0, 0, .5], [0, 0, 1], [0, 0, 0]]).unsqueeze(0),
-#             torch.tensor([[0, 0, .5], [0, 0, 1], [0, 0, 0]]).unsqueeze(0)
-#         ), 0)
-#         out_feat, out_p = cc_offset.average_features(features, clusix, p_map)
-#
-#         expect_outcome_feat = torch.tensor([[0.5, 0.75, 0.75]])
-#         expect_p = torch.tensor([1.])
-#
-#         assert torch.eq(expect_outcome_feat, out_feat).all()
-#         assert torch.eq(expect_p, out_p).all()
-#
-#     def test_forward(self, cc_offset):
-#         p_map = torch.tensor([[1., 0., 0.5], [0., 0., 0.5], [0., 0., 0.]])
-#         clusix = torch.tensor([[1, 0, 2.], [0, 0, 2], [0, 0, 0]])
-#         features = torch.cat((
-#             p_map.unsqueeze(0),
-#             torch.tensor([[100., 10000., 500.], [0, 0, 500.], [0, 0, 0]]).unsqueeze(0),
-#             torch.tensor([[0, 0, .5], [0, 0, 1], [0, 0, 0]]).unsqueeze(0),
-#             torch.tensor([[0, 0, .5], [0, 0, 1], [0, 0, 0]]).unsqueeze(0),
-#             torch.tensor([[0, 0, -500.], [0, 0, -250], [0, 0, 0]]).unsqueeze(0),
-#         ), 0)
-#         features.unsqueeze_(0)
-#         em_list = cc_offset.forward(features)
-#         assert em_list.__len__() == 1

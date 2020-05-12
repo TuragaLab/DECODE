@@ -72,7 +72,7 @@ class PostProcessing(ABC):
             raise ValueError
 
     @abstractmethod
-    def forward(self, x):
+    def forward(self, x) -> (EmitterSet, list):
         """
         Forward anything through the post-processing and return an EmitterSet
 
@@ -107,6 +107,72 @@ class NoPostProcessing(PostProcessing):
 
         em = EmptyEmitterSet(xy_unit=self.xy_unit, px_size=self.px_size)
         return self._return_as_type(em, ix_low=0, ix_high=x.size(0))
+
+
+class LookUpPostProcessing(PostProcessing):
+
+    def __init__(self, raw_th: float, xy_unit: str, px_size=None):
+
+        super().__init__(xy_unit=xy_unit, px_size=px_size, return_format='batch-set')
+
+        self.raw_th = raw_th
+
+    def _filter(self, detection) -> torch.BoolTensor:
+        """
+
+        Args:
+            detection: any tensor that should be thresholded
+
+        Returns:
+            boolean with active px
+
+        """
+
+        return detection >= self.raw_th
+
+    @staticmethod
+    def _lookup_features(features: torch.Tensor, active_px: torch.Tensor) -> tuple:
+        """
+
+        Args:
+            features: size :math:`(N, C, H, W)`
+            active_px: size :math:`(N, H, W)`
+
+        Returns:
+            torch.Tensor: batch-ix, size :math: `M`
+            torch.Tensor: extracted features size :math:`(C, M)`
+
+        """
+
+        assert features.dim() == 4
+        assert active_px.dim() == features.dim() - 1
+
+        batch_ix = active_px.nonzero()[:, 0]
+        features_active = features.permute(1, 0, 2, 3)[:, active_px]
+
+        return batch_ix, features_active
+
+    def forward(self, x: torch.Tensor) -> EmitterSet:
+        """
+
+        Args:
+            x:
+
+        Returns:
+            EmitterSet
+
+        """
+
+        """Filter"""
+        active_px = self._filter(x[:, 0])  # 0th ch. is detection channel
+
+        """Look-Up in channels"""
+        frame_ix, features = self._lookup_features(x[:, 1:], active_px)
+
+        """Return EmitterSet"""
+        xyz = torch.stack([features[1, :], features[2, :], features[3, :]], 1)
+        return EmitterSet(xyz=xyz, frame_ix=frame_ix, phot=features[0, :], bg=features[4, :],
+                          xy_unit=self.xy_unit, px_size=self.px_size)
 
 
 class ConsistencyPostprocessing(PostProcessing):
