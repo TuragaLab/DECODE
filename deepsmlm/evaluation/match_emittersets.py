@@ -4,8 +4,6 @@ from collections import namedtuple
 
 import numpy as np
 import torch
-from deprecated import deprecated
-from sklearn.neighbors import NearestNeighbors
 
 from deepsmlm.generic import emitter as emitter
 
@@ -15,7 +13,7 @@ class MatcherABC(ABC):
     Abstract match class.
     """
 
-    _return_match = namedtuple('return_match', ['tp', 'fp', 'fn', 'tp_match'])  # return-type as namedtuple
+    _return_match = namedtuple('MatchResult', ['tp', 'fp', 'fn', 'tp_match'])  # return-type as namedtuple
 
     def __init__(self):
         super().__init__()
@@ -196,6 +194,10 @@ class GreedyHungarianMatching(MatcherABC):
             target:
 
         Returns:
+            tp (emitter.EmitterSet): true positives
+            fp (emitter.EmitterSet): false positives
+            fn (emitter.EmitterSet): false negatives
+            tp_match (emitter.EmitterSet): ground truth that was matched to true positives
 
         """
         """Setup split in frames. Determine the frame range automatically so as to cover everything."""
@@ -238,113 +240,5 @@ class GreedyHungarianMatching(MatcherABC):
             tp_match.id = torch.arange(len(tp_match)).type(tp_match.id.dtype)
 
         tp.id = tp_match.id.type(tp.id.dtype)
-
-        return self._return_match(tp=tp, fp=fp, fn=fn, tp_match=tp_match)
-
-
-@deprecated
-class NNMatching(MatcherABC):
-    """
-    A class to match outputs and targets based on 1neighbor nearest neighbor classifier.
-    """
-
-    def __init__(self, *, dist_lat=2.5, dist_ax=500, match_dims=3):
-        """
-
-        :param dist_lat: (float) lateral distance threshold
-        :param dist_ax: (float) axial distance threshold
-        :param match_dims: should we match the emitters only in 2D or also 3D
-        """
-        self.dist_lat_thresh = dist_lat
-        self.dist_ax_thresh = dist_ax
-        self.match_dims = match_dims
-
-        self.nearest_neigh = NearestNeighbors(n_neighbors=1, metric='minkowski', p=2)
-
-        if self.match_dims not in [2, 3]:
-            raise ValueError("You must compare in either 2 or 3 dimensions.")
-
-    @staticmethod
-    def parse(param: dict):
-        """
-
-        :param param: parameter dict
-        :return:
-        """
-        return NNMatching(**param['Evaluation'])
-
-    def forward(self, output, target):
-        """Forward arbitrary output and target set. Does not care about the frame_ix.
-
-        :param output: (emitterset)
-        :param target: (emitterset)
-        :return tp, fp, fn, tp_match: (emitterset) true positives, false positives, false negatives, ground truth matched to the true pos
-        """
-        xyz_tar = target.xyz.numpy()
-        xyz_out = output.xyz.numpy()
-
-        if self.match_dims == 2:
-            xyz_tar_ = xyz_tar[:, :2]
-            xyz_out_ = xyz_out[:, :2]
-        else:
-            xyz_tar_ = xyz_tar
-            xyz_out_ = xyz_out
-
-        """If no emitter has been found, all are false negatives. No tp, no fp."""
-        if xyz_out_.shape[0] == 0:
-            tp = emitter.EmptyEmitterSet()
-            fp = emitter.EmptyEmitterSet()
-            fn = target
-            tp_match = emitter.EmptyEmitterSet()
-
-            return tp, fp, fn, tp_match
-
-        if xyz_tar_.shape[0] != 0:
-            nbrs = self.nearest_neigh.fit(xyz_tar_)
-
-        else:
-            """If there were no positives, no tp, no fn, all fp, no match."""
-            tp = emitter.EmptyEmitterSet()
-            fn = emitter.EmptyEmitterSet()
-            fp = output
-            tp_match = emitter.EmptyEmitterSet()
-
-            return tp, fp, fn, tp_match
-
-        distances_nn, indices = nbrs.kneighbors(xyz_out_)
-
-        distances_nn = distances_nn.squeeze()
-        indices = np.atleast_1d(indices.squeeze())
-
-        xyz_match = target.get_subset(indices).xyz.numpy()
-
-        # calculate distances lateral and axial seperately
-        dist_lat = np.linalg.norm(xyz_out[:, :2] - xyz_match[:, :2], axis=1, ord=2)
-        dist_ax = np.linalg.norm(xyz_out[:, [2]] - xyz_match[:, [2]], axis=1, ord=2)
-
-        # remove those which are too far
-        if self.match_dims == 3:
-            is_tp = (dist_lat <= self.dist_lat_thresh) * (dist_ax <= self.dist_ax_thresh)
-        elif self.match_dims == 2:
-            is_tp = (dist_lat <= self.dist_lat_thresh)
-
-        is_fp = ~is_tp
-
-        indices[is_fp] = -1
-        indices_cleared = indices[indices != -1]
-
-        # create indices of targets
-        tar_ix = np.arange(target.__len__())
-        # remove indices which were found
-        fn_ix = np.setdiff1d(tar_ix, indices)
-
-        is_tp = torch.from_numpy(is_tp.astype(np.uint8)).type(torch.BoolTensor)
-        is_fp = torch.from_numpy(is_fp.astype(np.uint8)).type(torch.BoolTensor)
-        fn_ix = torch.from_numpy(fn_ix)
-
-        tp = output.get_subset(is_tp)
-        fp = output.get_subset(is_fp)
-        fn = target.get_subset(fn_ix)
-        tp_match = target.get_subset(indices_cleared)
 
         return self._return_match(tp=tp, fp=fp, fn=fn, tp_match=tp_match)
