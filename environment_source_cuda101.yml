@@ -27,6 +27,7 @@ dependencies:
   - nodejs
   - numpy
   - opencv
+  - pandas
   - pillow
   - pyyaml
   - pybind11>=2.4

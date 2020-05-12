@@ -20,6 +20,7 @@ dependencies:
   - matplotlib
   - ninja
   - numpy
+  - pandas
   - pybind11>=2.4
   - python=3.6
   - pytorch=1.4.*

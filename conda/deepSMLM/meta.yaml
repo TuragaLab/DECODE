@@ -36,6 +36,7 @@ requirements:
     - h5py
     - joblib
     - matplotlib
+    - pandas
     - pytest
     - pyyaml
     - requests
