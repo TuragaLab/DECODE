@@ -7,13 +7,39 @@ import pandas as pd
 import torch
 
 
-def load_csv(file: (str, pathlib.Path), mapping: dict) -> dict:
-    # chunks =  pd.read_csv(file, header=None, chunksize=100000)
-    # return pd.concat(chunks).to_dict()
-    raise NotImplementedError
+def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None) -> dict:
+    """
+    Loads a CSV file which does provide a header.
+
+    Args:
+        file: path to file
+        mapping: mapping dictionary with keys ('x', 'y', 'z', 'phot', 'id', 'frame_ix')
+
+    Returns:
+        dict: dictionary which can readily be converted to an EmitterSet by EmitterSet(**out_dict)
+    """
+    if mapping is None:
+        mapping = {'x': 'x', 'y': 'y', 'z': 'z', 'phot': 'phot'}
+
+    chunks = pd.read_csv(file, chunksize=100000)
+    data = pd.concat(chunks)
+
+    xyz = torch.stack((torch.from_numpy(data[mapping['x']].to_numpy()),
+                       torch.from_numpy(data[mapping['y']].to_numpy()),
+                       torch.from_numpy(data[mapping['z']].to_numpy())), 1).float()
+
+    phot = torch.from_numpy(data[mapping['phot']].to_numpy()).float()
+    frame_ix = torch.from_numpy(data[mapping['frame_ix']].to_numpy()).long()
+
+    if 'id' in mapping.keys():
+        identifier = torch.from_numpy(data[mapping['id']].to_numpy()).long()
+    else:
+        identifier = None
+
+    return {'xyz': xyz, 'phot': phot, 'frame_ix': frame_ix, 'id': identifier}
 
 
-def save_csv(file: (str, pathlib.Path), data):
+def save_csv(file: (str, pathlib.Path), data: dict):
     def convert_dict_torch_numpy(data: dict) -> dict:
         """Convert all torch tensors in dict to numpy."""
         for k, v in data.items():
