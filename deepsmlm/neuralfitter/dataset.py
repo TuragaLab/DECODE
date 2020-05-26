@@ -82,6 +82,7 @@ class SMLMDataset(Dataset):
         return frames, target, weight, tar_emitter
 
     def _return_sample(self, frame, target, weight, emitter):
+
         if self.return_em:
             return frame, target, weight, emitter
         else:
@@ -126,15 +127,15 @@ class SMLMStaticDataset(SMLMDataset):
         self._emitter = emitter
         self._bg_frames = bg_frames
 
-        if self._frames.size(1) != 1:
-            raise ValueError("Frames must be one-channeled, i.e. N x C=1 x H x W.")
+        if self._frames is not None and self._frames.dim() != 3:
+            raise ValueError("Frames must be 3 dimensional, i.e. N x H x W.")
 
-    def __getitem__(self, index):
+    def __getitem__(self, ix):
         """
         Get a training sample.
 
         Args:
-            index (int): index
+            ix (int): index
 
         Returns:
             frames (torch.Tensor): processed frames. C x H x W
@@ -144,23 +145,45 @@ class SMLMStaticDataset(SMLMDataset):
         """
 
         """Pad index, get frames and emitters."""
-        index = self._pad_index(index)
-        frames = self._get_frames(self._frames, index).squeeze(1)
-        bg_frame = self._bg_frames[index] if self._bg_frames is not None else None
-        tar_emitter = self._emitter[index]
+        ix = self._pad_index(ix)
 
-        """Process Emitters"""
+        tar_emitter = self._emitter[ix] if self._emitter is not None else None
+        frames = self._get_frames(self._frames, ix)
+        bg_frame = self._bg_frames[ix] if self._bg_frames is not None else None
+
         frames, target, weight, tar_emitter = self._process_sample(frames, tar_emitter, bg_frame)
 
-        return self._return_sample(frames, target.squeeze(0), weight.squeeze(0), tar_emitter)
+        return self._return_sample(frames, target, weight, tar_emitter)
 
 
-class SMLMLiveDataset(SMLMDataset):
+class InferenceDataset(SMLMStaticDataset):
+    """
+    A SMLM dataset without ground truth data.
+    This is dummy wrapper to keep the visual appearance of a separate dataset.
+    """
+
+    def __init__(self, *, frames, frame_proc, frame_window):
+        """
+
+        Args:
+            frames (torch.Tensor): frames
+            frame_proc: frame processing function
+            frame_window (int): frame window
+        """
+        super().__init__(frames=frames, emitter=None, frame_proc=frame_proc, bg_frame_proc=None, em_proc=None,
+                         tar_gen=None, pad='same', frame_window=frame_window, return_em=False)
+
+    def _return_sample(self, frame, target, weight, emitter):
+        return frame
+
+
+class SMLMLiveDataset(SMLMStaticDataset):
 
     def __init__(self, *, simulator, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, pad,
                  return_em=False):
 
-        super().__init__(em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
+        super().__init__(emitter=None, frames=None,
+                         em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
                          tar_gen=tar_gen, weight_gen=weight_gen,
                          frame_window=frame_window, pad=pad, return_em=return_em)
 
@@ -193,53 +216,33 @@ class SMLMLiveDataset(SMLMDataset):
         self._frames = frames.cpu()
         self._bg_frames = bg_frames.cpu()
 
+
+class SMLMLiveSampleDataset(SMLMDataset):
+
+    def __init__(self, *, simulator, ds_len, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, return_em=False):
+        super().__init__(em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
+                         tar_gen=tar_gen, weight_gen=weight_gen,
+                         frame_window=frame_window, pad=None, return_em=return_em)
+
+        self.simulator = simulator
+        self.ds_len = ds_len
+
+    def __len__(self):
+        return self.ds_len
+
     def __getitem__(self, ix):
 
-        ix = self._pad_index(ix)
+        """Sample"""
+        emitter, frames, bg_frames = self.simulator.sample()
 
-        tar_emitter = self._emitter[ix]
-        frames = self._get_frames(self._frames, ix)
-        bg_frame = self._bg_frames[[ix]]
+        assert frames.size(0) % 2 == 1
+        frames = self._get_frames(frames, (frames.size(0) - 1) // 2)
+        tar_emitter = emitter.get_subset_frame(0, 0)  # target emitters are the zero ones
+        bg_frames = bg_frames[1]
 
-        frames, target, weight, tar_emitter = self._process_sample(frames, tar_emitter, bg_frame)
+        frames, target, weight, tar_emitter = self._process_sample(frames, tar_emitter, bg_frames)
 
-        return self._return_sample(frames, target.squeeze(0), weight.squeeze(0), tar_emitter)
-
-
-class InferenceDataset(SMLMStaticDataset):
-    """
-    A SMLM dataset without ground truth data. This is dummy wrapper to keep the visual appearance of a separate dataset.
-    """
-
-    def __init__(self, *, frames, frame_proc, frame_window):
-        """
-
-        Args:
-            frames (torch.Tensor): frames
-            frame_proc: frame processing function
-            frame_window (int): frame window
-        """
-        super().__init__(frames=frames, emitter=None, frame_proc=frame_proc, bg_frame_proc=None, em_proc=None,
-                         tar_gen=None, pad='same', frame_window=frame_window, return_em=False)
-
-    def __getitem__(self, index):
-        """
-        Get an inference sample.
-
-        Args:
-           index (int): index
-
-        Returns:
-           frames (torch.Tensor): processed frames. C x H x W
-        """
-        index = self._pad_index(index)
-
-        frames = self._get_frames(self._frames, index).squeeze(1)
-
-        if self.frame_proc:
-            frames = self.frame_proc.forward(frames)
-
-        return frames
+        return self._return_sample(frames, target, weight, tar_emitter)
 
 
 class SMLMSampleStreamEngineDataset(SMLMDataset):
