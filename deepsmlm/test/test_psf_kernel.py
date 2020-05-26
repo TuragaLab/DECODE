@@ -557,8 +557,8 @@ class TestCubicSplinePSF(AbstractPSFTest):
                         reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_many_em_forward(self, psf_cuda):
         """Setup"""
-        psf_cuda.cuda_max_roi_chunk = 1000000
-        n = psf_cuda.cuda_max_roi_chunk * 5
+        psf_cuda.max_roi_chunk = 1000000
+        n = psf_cuda.max_roi_chunk * 5
         n_frames = n // 50
         xyz = torch.rand((n, 3)) + 15
         phot = torch.ones(n)
@@ -575,8 +575,8 @@ class TestCubicSplinePSF(AbstractPSFTest):
                         reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_many_drv_roi_forward(self, psf_cuda):
         """Setup"""
-        psf_cuda.cuda_max_roi_chunk = 1000000
-        n = psf_cuda._cuda_max_drv_roi_chunk * 5
+        psf_cuda.max_roi_chunk = 1000000
+        n = psf_cuda._max_drv_roi_chunk * 5
         xyz = torch.rand((n, 3)) + 15
         phot = torch.ones(n)
         bg = torch.rand_like(phot) * 100

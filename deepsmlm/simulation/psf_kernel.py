@@ -319,7 +319,7 @@ class CubicSplinePSF(PSF):
 
     def __init__(self, xextent, yextent, img_shape, ref0, coeff, vx_size,
                  *, roi_size: (None, tuple) = None, ref_re: (None, torch.Tensor, tuple) = None,
-                 roi_auto_center: bool = False, cuda_kernel=True, cuda_max_roi_chunk: int = 1000000):
+                 roi_auto_center: bool = False, cuda_kernel=True, max_roi_chunk: int = 500000):
         """
         Initialise Spline PSF
 
@@ -333,7 +333,7 @@ class CubicSplinePSF(PSF):
             vx_size (tuple): pixel / voxel size
             roi_size (tuple, None, optional): roi_size. optional. can be determined from dimension of coefficients.
             cuda_kernel: use cuda implementation
-            cuda_max_roi_chunk (int): max number of rois to be processed at a time via the cuda kernel. If you run into
+            max_roi_chunk (int): max number of rois to be processed at a time via the cuda kernel. If you run into
                 memory allocation errors, decrease this number or free some space on your CUDA device.
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=None, img_shape=img_shape)
@@ -351,7 +351,7 @@ class CubicSplinePSF(PSF):
         self.ref_re = self._shift_ref(ref_re, roi_auto_center)
 
         self._cuda = cuda_kernel
-        self.cuda_max_roi_chunk = cuda_max_roi_chunk
+        self.max_roi_chunk = max_roi_chunk
 
         self._init_spline_impl()
         self.sanity_check()
@@ -432,9 +432,9 @@ class CubicSplinePSF(PSF):
         return roi_size_nm
 
     @property
-    def _cuda_max_drv_roi_chunk(self) -> int:
+    def _max_drv_roi_chunk(self) -> int:
         # over 5 because 5 derivatives, over 2 because you return drv and roi
-        return self.cuda_max_roi_chunk // (5 * 2)
+        return self.max_roi_chunk // (5 * 2)
 
     # # define pickles
     def __getstate__(self):
@@ -603,8 +603,8 @@ class CubicSplinePSF(PSF):
         if xyz.size(0) == 0:  # fallback if there is no input
             return torch.zeros((0, 5, *self.roi_size_px)), torch.zeros((0, *self.roi_size_px))
 
-        if self._cuda and self._cuda_max_drv_roi_chunk is not None and len(xyz) > self._cuda_max_drv_roi_chunk:
-            return self._forward_drv_chunks(xyz, phot, bg, add_bg=add_bg, chunk_size=self._cuda_max_drv_roi_chunk)
+        if self._max_drv_roi_chunk is not None and len(xyz) > self._max_drv_roi_chunk:
+            return self._forward_drv_chunks(xyz, phot, bg, add_bg=add_bg, chunk_size=self._max_drv_roi_chunk)
 
         xyz_, _ = self.frame2roi_coord(xyz)
         xyz_ = self.coord2impl(xyz_)
@@ -729,8 +729,8 @@ class CubicSplinePSF(PSF):
         if xyz.size(0) == 0:
             return torch.zeros((ix_high - ix_low + 1, *self.img_shape))
 
-        if self._cuda and self.cuda_max_roi_chunk is not None and len(xyz) > self.cuda_max_roi_chunk:
-            return self._forward_chunks(xyz, weight, frame_ix, ix_low, ix_high, self.cuda_max_roi_chunk)
+        if self.max_roi_chunk is not None and len(xyz) > self.max_roi_chunk:
+            return self._forward_chunks(xyz, weight, frame_ix, ix_low, ix_high, self.max_roi_chunk)
 
         """Convert Coordinates into ROI based coordinates and transform into implementation coordinates"""
         xyz_r, ix = self.frame2roi_coord(xyz)
