@@ -103,8 +103,16 @@ def log_dists(tp, tp_match, px_border, px_size, logger, step):
     logger.add_figure('residuals/phot_gt_pred', f_phot, step)
 
 
-def log_train(*args):
-    return
+def log_train(*, loss_p_batch: (list, tuple), loss_mean: float, logger, step: int):
+
+    logger.add_scalar('loss/train_ep', loss_mean, step)
+
+    for i, loss_batch in enumerate(loss_p_batch):
+        step_batch = step * len(loss_p_batch) + i
+        if i % 10 != 0:
+            continue
+
+        logger.add_scalar('loss/train_batch', loss_batch, step_batch)
 
 
 def post_process_log_test(*, loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_tar,
