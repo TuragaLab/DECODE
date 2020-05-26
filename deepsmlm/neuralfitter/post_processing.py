@@ -1,6 +1,7 @@
 import math
 import warnings
 from abc import ABC, abstractmethod  # abstract class
+import scipy
 
 import torch
 from joblib import Parallel, delayed
@@ -112,7 +113,6 @@ class NoPostProcessing(PostProcessing):
 class LookUpPostProcessing(PostProcessing):
 
     def __init__(self, raw_th: float, xy_unit: str, px_size=None):
-
         super().__init__(xy_unit=xy_unit, px_size=px_size, return_format='batch-set')
 
         self.raw_th = raw_th
@@ -165,14 +165,17 @@ class LookUpPostProcessing(PostProcessing):
 
         """Filter"""
         active_px = self._filter(x[:, 0])  # 0th ch. is detection channel
+        prob = x[:, 0][active_px]
 
         """Look-Up in channels"""
         frame_ix, features = self._lookup_features(x[:, 1:], active_px)
 
         """Return EmitterSet"""
         xyz = torch.stack([features[1, :], features[2, :], features[3, :]], 1)
-        return EmitterSet(xyz=xyz, frame_ix=frame_ix, phot=features[0, :], bg=features[4, :],
-                          xy_unit=self.xy_unit, px_size=self.px_size)
+
+        return EmitterSet(xyz=xyz.cpu(), frame_ix=frame_ix.cpu(), phot=features[0, :].cpu(),
+                          bg=features[4, :].cpu() if features.size(0) == 5 else None,
+                          prob=prob.cpu(), xy_unit=self.xy_unit, px_size=self.px_size)
 
 
 class ConsistencyPostprocessing(PostProcessing):
@@ -308,12 +311,13 @@ class ConsistencyPostprocessing(PostProcessing):
 
             filter_mask = self._filter(f_frame[:, 1:4], f_frame[:, 1:4])
             if self.match_dims == 2:
-                dist_mat = torch.cdist(f_frame[:, 1:3], f_frame[:, 1:3])
+                dist_mat = torch.pdist(f_frame[:, 1:3])
             elif self.match_dims == 3:
-                dist_mat = torch.cdist(f_frame[:, 1:4], f_frame[:, 1:4])
+                dist_mat = torch.pdist(f_frame[:, 1:4])
             else:
                 raise ValueError
 
+            dist_mat = torch.from_numpy(scipy.spatial.distance.squareform(dist_mat))
             dist_mat[~filter_mask] = 999999999999.  # those who shall not match shall be separated, only finite vals ...
 
             if dist_mat.shape[0] == 1:
