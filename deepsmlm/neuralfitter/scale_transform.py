@@ -210,14 +210,14 @@ class InverseOffsetRescale(OffsetRescale):
         super().__init__(scale_x=scale_x, scale_y=scale_y, scale_z=scale_z, scale_phot=scale_phot,
                          mu_sig_bg=mu_sig_bg, buffer=buffer, power=power)
 
-    @staticmethod
-    def parse(param):
-        return InverseOffsetRescale(scale_x=param.Scaling.dx_max,
-                                    scale_y=param.Scaling.dy_max,
-                                    scale_z=param.Scaling.z_max,
-                                    scale_phot=param.Scaling.phot_max,
-                                    mu_sig_bg=param.Scaling.mu_sig_bg,
-                                    buffer=param.Scaling.linearisation_buffer)
+    @classmethod
+    def parse(cls, param):
+        return cls(scale_x=param.Scaling.dx_max,
+                   scale_y=param.Scaling.dy_max,
+                   scale_z=param.Scaling.z_max,
+                   scale_phot=param.Scaling.phot_max,
+                   mu_sig_bg=param.Scaling.mu_sig_bg,
+                   buffer=param.Scaling.linearisation_buffer)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
