@@ -250,3 +250,15 @@ class InverseOffsetRescale(OffsetRescale):
             return x_.squeeze(0)
         else:
             return x_
+
+
+class FourFoldInverseOffsetRescale(InverseOffsetRescale):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x_no_bg = torch.cat([super(FourFoldInverseOffsetRescale, self).forward(x[..., i:(i + 5), :, :]) for i in range(0, 20, 5)], dim=1 if x.dim() == 4 else 0)
+        bg = (x[..., [20], :, :] - self.mu_sig_bg[0]) / (self.mu_sig_bg[1] * self.buffer) ** self.power
+
+        return torch.cat([x_no_bg, bg], 1 if x.dim() == 4 else 0)
