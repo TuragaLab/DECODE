@@ -137,6 +137,17 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
         assert tutil.tens_almeq(out[:, 15, 21], torch.tensor([0., 4., 0.1, -1.4, 250.]), 1e-5)
 
 
+class TestJonasTarget(TestUnifiedEmbeddingTarget):
+
+    @pytest.fixture()
+    def targ(self):
+        xextent = (-0.5, 63.5)
+        yextent = (-0.5, 63.5)
+        img_shape = (64, 64)
+
+        return target_generator.JonasTarget(xextent, yextent, img_shape, roi_size=5, rim_max=0.6, ix_low=0, ix_high=5)
+
+
 class Test4FoldTarget(TestTargetGenerator):
 
     @pytest.fixture()
@@ -180,3 +191,30 @@ class Test4FoldTarget(TestTargetGenerator):
         # Positive Samples
         assert (tar_out[[0, 1, 2, 3], [0, 5, 10, 15], 0, 0] == torch.tensor([1., 1., 1., 1.])).all()
 
+    @pytest.mark.parametrize("axis", [0, 1, 'diag'])
+    def test_forward_systematic(self, targ, axis):
+
+        """Setup"""
+        pos_space = torch.linspace(-1, 1, 1001)
+        xyz = torch.zeros((pos_space.size(0), 3))
+        if axis == 'diag':
+            xyz[:, 0] = pos_space
+            xyz[:, 1] = pos_space
+        else:
+            xyz[:, axis] = pos_space
+
+        em = CoordinateOnlyEmitter(xyz, xy_unit='px')
+        em.frame_ix = torch.arange(pos_space.size(0)).type(em.id.dtype)
+
+        """Run"""
+        tar_outs = targ.forward(em, None, 0, em.frame_ix.max().item())
+
+        """Assert"""
+        assert (tar_outs[:, 0, 0, 0] == (pos_space >= -.375) * (pos_space < .375)).all(), "Central Pixel wrong."
+
+        if axis == 0:
+            assert (tar_outs[:, 5, 0, 0] == (pos_space >= .125) * (pos_space < .875)).all()
+        elif axis == 1:
+            assert (tar_outs[:, 10, 0, 0] == (pos_space >= .125) * (pos_space < .875)).all()
+        elif axis == 'diag':
+            assert (tar_outs[:, 15, 0, 0] == (pos_space >= .125) * (pos_space < .875)).all()

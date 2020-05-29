@@ -8,16 +8,29 @@ from deepsmlm.simulation.psf_kernel import DeltaPSF
 
 
 class TargetGenerator(ABC):
-    def __init__(self, xy_unit='px', ix_low=None, ix_high=None):
+    def __init__(self, xy_unit='px', ix_low: int = None, ix_high: int = None, squeeze_batch_dim: bool = False):
         """
 
         Args:
-            unit: Which unit to use for target generator.
+            xy_unit: Which unit to use for target generator
+            ix_low: lower bound of frame / batch index
+            ix_high: upper bound of frame / batch index
+            squeeze_batch_dim: if lower and upper frame_ix are the same, squeeze out the batch dimension before return
+
         """
         super().__init__()
+
         self.xy_unit = xy_unit
         self.ix_low = ix_low
         self.ix_high = ix_high
+        self.squeeze_batch_dim = squeeze_batch_dim
+
+        self.sanity_check()
+
+    def sanity_check(self):
+
+        if self.squeeze_batch_dim and self.ix_low != self.ix_high:
+            raise ValueError(f"Automatic batch squeeze can only be used when upper and lower ix fall together.")
 
     def _filter_forward(self, em: EmitterSet, ix_low: (int, None), ix_high: (int, None)):
         """
@@ -45,11 +58,20 @@ class TargetGenerator(ABC):
 
         return em, ix_low, ix_high
 
+    def _postprocess_output(self, target: torch.Tensor) -> torch.Tensor:
+        """Do some simple post-processual steps before return"""
+
+        if self.squeeze_batch_dim:
+            return target.squeeze(0)
+
+        return target
+
 
 class UnifiedEmbeddingTarget(TargetGenerator):
 
-    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, roi_size: int, ix_low=None, ix_high=None):
-        super().__init__(xy_unit='px', ix_low=ix_low, ix_high=ix_high)
+    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, roi_size: int, ix_low=None, ix_high=None,
+                 squeeze_batch_dim: bool = False):
+        super().__init__(xy_unit='px', ix_low=ix_low, ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
 
         self._roi_size = roi_size
         self.img_shape = img_shape
@@ -152,22 +174,72 @@ class UnifiedEmbeddingTarget(TargetGenerator):
         return target
 
     def forward(self, em: EmitterSet, bg: torch.Tensor = None, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
-
         em, ix_low, ix_high = self._filter_forward(em, ix_low, ix_high)
         target = self.forward_(xyz=em.xyz_px, phot=em.phot, frame_ix=em.frame_ix, ix_low=ix_low, ix_high=ix_high)
 
         if bg is not None:
-            target = torch.cat((target, bg.unsqueeze(1)), 1)
+            target = torch.cat((target, bg.unsqueeze(0).unsqueeze(0)), 1)
 
-        return target
+        return self._postprocess_output(target)
+
+
+class JonasTarget(UnifiedEmbeddingTarget):
+
+    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, roi_size: int, rim_max, ix_low=None,
+                 ix_high=None, squeeze_batch_dim: bool = False):
+        super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape, roi_size=roi_size, ix_low=ix_low,
+                         ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
+
+        self.rim_max = rim_max
+
+    @classmethod
+    def parse(cls, param, **kwargs):
+        return cls(xextent=param.Simulation.psf_extent[0],
+                   yextent=param.Simulation.psf_extent[1],
+                   img_shape=param.Simulation.img_size,
+                   roi_size=param.HyperParameter.target_roi_size,
+                   rim_max=param.HyperParameter.target_doublette_rim,
+                   **kwargs)
+
+    @staticmethod
+    def p_from_dxy(dx, dy, active_px, border, rim_max):
+
+        def piecewise_prob(x, border, rim_max):
+            prob = torch.zeros_like(x)
+            prob[x.abs() <= border] = 1.
+
+            ix_in_rim = (x.abs() > border) * (x.abs() <= rim_max)
+            # prob[ix_in_rim] = (0.5 - x[ix_in_rim].abs()) / (rim_max - 0.5) + 1
+            prob[ix_in_rim] = 1
+
+            return prob
+
+        ix = (dx.abs() <= 0.7) * (dy.abs() <= 0.5) * active_px
+        p_x = torch.zeros_like(dx)
+        p_x[ix] = piecewise_prob(dx[ix], border, rim_max)
+
+        # y
+        ix = (dy.abs() <= 0.7) * (dx.abs() <= 0.5) * active_px
+        p_y = torch.zeros_like(dy)
+        p_y[ix] = piecewise_prob(dy[ix], border, rim_max)
+
+        return torch.max(p_x, p_y)
+
+    def forward(self, em: EmitterSet, bg: torch.Tensor = None, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
+        tar = super().forward(em, bg, ix_low, ix_high)
+
+        # modify probabilities
+        active_px = tar[:, 2] != 0
+        tar[:, 0] = self.p_from_dxy(tar[:, 2], tar[:, 3], active_px, 0.5, self.rim_max)
+
+        return self._postprocess_output(tar)
 
 
 class FourFoldEmbedding(TargetGenerator):
 
     def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, rim_size: float,
-                 roi_size: int, ix_low=None, ix_high=None):
-
-        super().__init__(xy_unit='px', ix_low=ix_low, ix_high=ix_high)
+                 roi_size: int, ix_low=None, ix_high=None, squeeze_batch_dim: bool = False):
+        super().__init__(xy_unit='px', ix_low=ix_low, ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
 
         self.xextent_native = xextent
         self.yextent_native = yextent
@@ -192,7 +264,17 @@ class FourFoldEmbedding(TargetGenerator):
                                                    img_shape=img_shape, roi_size=roi_size,
                                                    ix_low=ix_low, ix_high=ix_high)
 
-    def _filter_rim(self, xy, xy_0, rim, px_size) -> torch.BoolTensor:
+    @classmethod
+    def parse(cls, param, **kwargs):
+        return cls(xextent=param.Simulation.psf_extent[0],
+                   yextent=param.Simulation.psf_extent[1],
+                   img_shape=param.Simulation.img_size,
+                   roi_size=param.HyperParameter.target_roi_size,
+                   rim_size=param.HyperParameter.target_train_rim,
+                   **kwargs)
+
+    @staticmethod
+    def _filter_rim(xy, xy_0, rim, px_size) -> torch.BoolTensor:
         """
         Takes coordinates and checks whether they are close to a pixel border (i.e. within a rim).
         True if not in rim, false if in rim.
@@ -223,18 +305,18 @@ class FourFoldEmbedding(TargetGenerator):
         ctr = self.embd_ctr.forward(em=em[self._filter_rim(em.xyz_px, (-0.5, -0.5), self.rim, (1., 1.))],
                                     bg=None, ix_low=ix_low, ix_high=ix_high)
 
-        half_x = self.embd_ctr.forward(em=em[self._filter_rim(em.xyz_px, (0., -0.5), self.rim, (1., 1.))],
-                                       bg=None, ix_low=ix_low, ix_high=ix_high)
+        half_x = self.embd_half_x.forward(em=em[self._filter_rim(em.xyz_px, (0., -0.5), self.rim, (1., 1.))],
+                                          bg=None, ix_low=ix_low, ix_high=ix_high)
 
-        half_y = self.embd_ctr.forward(em=em[self._filter_rim(em.xyz_px, (-0.5, 0.), self.rim, (1., 1.))],
-                                       bg=None, ix_low=ix_low, ix_high=ix_high)
+        half_y = self.embd_half_y.forward(em=em[self._filter_rim(em.xyz_px, (-0.5, 0.), self.rim, (1., 1.))],
+                                          bg=None, ix_low=ix_low, ix_high=ix_high)
 
-        half_xy = self.embd_ctr.forward(em=em[self._filter_rim(em.xyz_px, (0., 0.), self.rim, (1., 1.))],
-                                        bg=None, ix_low=ix_low, ix_high=ix_high)
+        half_xy = self.embd_half_xy.forward(em=em[self._filter_rim(em.xyz_px, (0., 0.), self.rim, (1., 1.))],
+                                            bg=None, ix_low=ix_low, ix_high=ix_high)
 
         target = torch.cat((ctr, half_x, half_y, half_xy), 1)
 
         if bg is not None:
-            target = torch.cat((target, bg.unsqueeze(1)), 1)
+            target = torch.cat((target, bg.unsqueeze(0).unsqueeze(0)), 1)
 
-        return target
+        return self._postprocess_output(target)

@@ -215,3 +215,25 @@ class TestSimpleWeight(TestWeightGenerator):
             assert mask[:, 3, 3, 3] == pytest.approx(40.51641, abs=0.0001), "Y CRLB estimate"
             assert mask[:, 4, 3, 3] == pytest.approx(40.51641, abs=0.0001), "Y CRLB estimate"
             assert test_utils.tens_almeq(mask[:, 5], 1 / tar_frames[:, 5] ** 2.3, 1e-5), "BG CRLB estimate"
+
+
+class TestFourFoldWeight(TestWeightGenerator):
+
+    @pytest.fixture()
+    def waiter(self):
+        return weight_generator.FourFoldSimpleWeight(
+            xextent=(-0.5, 63.5), yextent=(-0.5, 63.5), img_shape=(64, 64), target_roi_size=3,
+            rim=0.125
+        )
+
+    def test_forward(self, waiter):
+
+        """Setup"""
+        tar_frames = torch.rand((2, 21, 64, 64))
+        tar_em = emitter.CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.], [0.49, 0., 0.]]), 'px')
+
+        """Run"""
+        weight_out = waiter.forward(tar_frames, tar_em, None)
+
+        """Assertions"""
+        assert weight_out.size(1) == 21

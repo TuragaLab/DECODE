@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from deprecated import deprecated
+
 import torch
 import torch.nn
 
@@ -216,12 +216,12 @@ class SimpleWeight(WeightGenerator):
             raise ValueError(f"Weight power of {self.weight_power} != 1."
                              f" which does not have an effect for constant weight mode")
 
-    @staticmethod
-    def parse(param):
-        return SimpleWeight(xextent=param.Simulation.psf_extent[0], yextent=param.Simulation.psf_extent[1],
-                            img_shape=param.Simulation.img_size, target_roi_size=param.HyperParameter.target_roi_size,
-                            weight_mode=param.HyperParameter.weight_base,
-                            weight_power=param.HyperParameter.weight_power)
+    @classmethod
+    def parse(cls, param):
+        return cls(xextent=param.Simulation.psf_extent[0], yextent=param.Simulation.psf_extent[1],
+                   img_shape=param.Simulation.img_size, target_roi_size=param.HyperParameter.target_roi_size,
+                   weight_mode=param.HyperParameter.weight_base,
+                   weight_power=param.HyperParameter.weight_power)
 
     def forward(self, tar_frames: torch.Tensor, tar_em: emc.EmitterSet, tar_opt) -> torch.Tensor:
         tar_frames = super().forward(tar_frames, None, None)
@@ -268,67 +268,64 @@ class SimpleWeight(WeightGenerator):
         return self._forward_return_original(weight)  # return in dimensions of input frame
 
 
-@deprecated(version="0.1.dev", reason="Not used. Write a test before reactivating.")
-class CalcCRLB(WeightGenerator):
-    def __init__(self, psf, crlb_mode):
-        """
+class FourFoldSimpleWeight(WeightGenerator):
 
-        Args:
-            psf: (psf)
-            crlb_mode: ('single', 'multi') single assumes isolated emitters
-        """
+    def __init__(self, *, xextent: tuple, yextent: tuple, img_shape: tuple, target_roi_size: int,
+                 rim: float, weight_mode='const', weight_power: float = None):
         super().__init__()
-        self.crlb_mode = crlb_mode
-        self.psf = psf
+        self.rim = rim
 
-    def forward(self, tar_frames, tar_em, tar_bg):
-        """
-        Wrapper that writes crlb values to target emitter set. Not of use outside training
+        self.ctr = SimpleWeight(xextent=xextent, yextent=yextent, img_shape=img_shape, target_roi_size=target_roi_size,
+                                weight_mode=weight_mode, weight_power=weight_power)
 
-        Args:
-            tar_frames:
-            tar_em:
-            tar_bg:
+        self.half_x = SimpleWeight(xextent=(xextent[0] + 0.5, xextent[1] + 0.5), yextent=yextent, img_shape=img_shape,
+                                   target_roi_size=target_roi_size,
+                                   weight_mode=weight_mode, weight_power=weight_power)
 
-        Returns:
+        self.half_y = SimpleWeight(xextent=xextent, yextent=(yextent[0] + 0.5, yextent[1] + 0.5), img_shape=img_shape,
+                                   target_roi_size=target_roi_size,
+                                   weight_mode=weight_mode, weight_power=weight_power)
 
-        """
-        tar_em.populate_crlb(self.psf, mode=self.crlb_mode)
-        return tar_frames, tar_em, tar_bg
+        self.half_xy = SimpleWeight(xextent=(xextent[0] + 0.5, xextent[1] + 0.5),
+                                    yextent=(yextent[0] + 0.5, yextent[1] + 0.5), img_shape=img_shape,
+                                    target_roi_size=target_roi_size,
+                                    weight_mode=weight_mode, weight_power=weight_power)
 
+    @classmethod
+    def parse(cls, param):
+        return cls(xextent=param.Simulation.psf_extent[0], yextent=param.Simulation.psf_extent[1],
+                   rim=param.HyperParameter.target_train_rim,
+                   img_shape=param.Simulation.img_size, target_roi_size=param.HyperParameter.target_roi_size,
+                   weight_mode=param.HyperParameter.weight_base,
+                   weight_power=param.HyperParameter.weight_power)
 
-@deprecated(version="0.1.dev", reason="Not used. Write a test before reactivating.")
-class GenerateWeightMaskFromCRLB(WeightGenerator):
-    def __init__(self, xextent, yextent, img_shape, roi_size, chwise_rescale=True):
-        super().__init__()
+    @staticmethod
+    def _filter_rim(*args, **kwargs):
+        import deepsmlm.neuralfitter.target_generator
 
-        self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape, None)
-        self.rep_kernel = torch.ones((1, 1, roi_size, roi_size))
+        return deepsmlm.neuralfitter.target_generator.FourFoldEmbedding._filter_rim(*args, **kwargs)
 
-        self.roi_increaser = OneHotInflator(roi_size, channels=6, overlap_mode='zero')
-        self.chwise_rescale = chwise_rescale
+    def forward(self, tar_frames: torch.Tensor, tar_em: emc.EmitterSet, tar_opt) -> torch.Tensor:
+        tar_frames = super().forward(tar_frames, None, None)
 
-    def forward(self, tar_frames, tar_em, tar_bg):
+        ctr = self.ctr.forward(tar_frames[:, :5],
+                               tar_em=tar_em[self._filter_rim(tar_em.xyz, (-0.5, -0.5), self.rim, (1., 1.))],
+                               tar_opt=None)
 
-        if tar_frames.dim() == 3:
-            tar_frames = tar_frames.unsqueeze(0)
-            squeeze_return = True
-        else:
-            squeeze_return = False
+        hx = self.ctr.forward(tar_frames[:, 5:10],
+                              tar_em=tar_em[self._filter_rim(tar_em.xyz_px, (0., -0.5), self.rim, (1., 1.))],
+                              tar_opt=None)
 
-        # The weights
-        weight = torch.zeros((tar_frames.size(0), 6, tar_frames.size(2), tar_frames.size(3)))
-        weight[:, 1] = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.phot_cr)
-        weight[:, 2] = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.xyz_cr[:, 0])
-        weight[:, 3] = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.xyz_cr[:, 1])
-        weight[:, 4] = self.weight_psf.forward(tar_em.xyz, 1 / tar_em.xyz_cr[:, 2])
+        hy = self.ctr.forward(tar_frames[:, 10:15],
+                              tar_em=tar_em[self._filter_rim(tar_em.xyz_px, (-0.5, 0.), self.rim, (1., 1.))],
+                              tar_opt=None)
 
-        weight = self.roi_increaser.forward(weight)
-        weight[:, 0] = 1.
-        weight[:, 5] = 1.
+        hxy = self.ctr.forward(tar_frames[:, 15:20],
+                               tar_em=tar_em[self._filter_rim(tar_em.xyz_px, (0., 0.), self.rim, (1., 1.))],
+                               tar_opt=None)
 
-        if squeeze_return:
-            return weight.squeeze(0)
-        else:
-            return weight
+        weight = torch.cat((ctr, hx, hy, hxy), 1)
+        if tar_frames.size(1) == 21:
+            weight = torch.cat((weight, torch.ones_like(tar_frames[:, [20]])), 1)
 
+        return self._forward_return_original(weight)  # return in dimensions of input frame
