@@ -7,13 +7,14 @@ import pandas as pd
 import torch
 
 
-def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None) -> dict:
+def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_args) -> dict:
     """
     Loads a CSV file which does provide a header.
 
     Args:
         file: path to file
         mapping: mapping dictionary with keys ('x', 'y', 'z', 'phot', 'id', 'frame_ix')
+        pd_csv_args: additional keyword arguments to be parsed to the pandas csv reader
 
     Returns:
         dict: dictionary which can readily be converted to an EmitterSet by EmitterSet(**out_dict)
@@ -21,12 +22,12 @@ def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None) -> dict:
     if mapping is None:
         mapping = {'x': 'x', 'y': 'y', 'z': 'z', 'phot': 'phot'}
 
-    chunks = pd.read_csv(file, chunksize=100000)
+    chunks = pd.read_csv(file, chunksize=100000, **pd_csv_args)
     data = pd.concat(chunks)
 
-    xyz = torch.stack((torch.from_numpy(data[mapping['x']].to_numpy()),
-                       torch.from_numpy(data[mapping['y']].to_numpy()),
-                       torch.from_numpy(data[mapping['z']].to_numpy())), 1).float()
+    xyz = torch.stack((torch.from_numpy(data[mapping['x']].to_numpy()).float(),
+                       torch.from_numpy(data[mapping['y']].to_numpy()).float(),
+                       torch.from_numpy(data[mapping['z']].to_numpy()).float()), 1)
 
     phot = torch.from_numpy(data[mapping['phot']].to_numpy()).float()
     frame_ix = torch.from_numpy(data[mapping['frame_ix']].to_numpy()).long()
@@ -92,8 +93,8 @@ def load_smap(file: (str, pathlib.Path), mapping: (dict, None) = None) -> dict:
         ], 1),
 
         'phot': torch.from_numpy(np.array(loc_dict[mapping['phot']])).squeeze(),
-        'frame_ix': torch.from_numpy(np.array(loc_dict[mapping['frame']])).squeeze(),
-        'bg': torch.from_numpy(np.array(loc_dict[mapping['bg']])).squeeze()
+        'frame_ix': torch.from_numpy(np.array(loc_dict[mapping['frame_ix']])).squeeze().long(),
+        'bg': torch.from_numpy(np.array(loc_dict[mapping['bg']])).squeeze().float()
     }
 
     emitter_dict['frame_ix'] -= 1  # MATLAB starts at 1, python and all serious languages at 0
