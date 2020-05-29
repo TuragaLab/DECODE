@@ -1,6 +1,3 @@
-import matplotlib
-matplotlib.rcParams['figure.figsize'] = (10, 8)
-matplotlib.rcParams['figure.dpi'] = 150
 import matplotlib.pyplot as plt
 import torch
 
