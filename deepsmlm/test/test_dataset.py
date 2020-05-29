@@ -34,7 +34,7 @@ class TestDataset:
         em = deepsmlm.generic.emitter.RandomEmitterSet(n * 100)
         em.frame_ix = torch.randint_like(em.frame_ix, n + 1)
 
-        dataset = can.SMLMStaticDataset(frames=torch.rand((n, 1, 32, 32)), emitter=em.split_in_frames(0, n - 1),
+        dataset = can.SMLMStaticDataset(frames=torch.rand((n, 32, 32)), emitter=em.split_in_frames(0, n - 1),
                                         frame_proc=DummyFrameProc, bg_frame_proc=None, em_proc=DummyEmProc,
                                         tar_gen=deepsmlm.neuralfitter.target_generator.UnifiedEmbeddingTarget(
                                             (-0.5, 31.5), (-0.5, 31.5), (32, 32), roi_size=1, ix_low=0, ix_high=0),
@@ -90,7 +90,7 @@ class TestInferenceDataset(TestDataset):
 
         n = 100
 
-        dataset = can.InferenceDataset(frames=torch.rand((n, 1, 32, 32)), frame_proc=DummyFrameProc,
+        dataset = can.InferenceDataset(frames=torch.rand((n, 32, 32)), frame_proc=DummyFrameProc,
                                        frame_window=request.param)
 
         return dataset
@@ -185,6 +185,60 @@ class TestSMLMLiveDataset:
         """Run"""
         ds.sample()
         sample_out = ds[ix]
+
+        """Assert"""
+        assert len(sample_out) == 4 if return_em else 3
+        if return_em:  # unpack
+            x, y_tar, weight, emitter = sample_out
+            assert emitter.frame_ix.unique().numel() <= 1
+        else:
+            x, y_tar, weight = sample_out
+
+        assert x.dim() == 3
+        assert y_tar.dim() == 3
+        assert weight.dim() == 3
+
+
+class TestLiveSampleDataset:
+    @pytest.fixture()
+    def ds(self):
+        class DummySimulation(Simulation):
+            def __init__(self):
+                pass
+
+            def sample(self):
+                em = deepsmlm.RandomEmitterSet(150)
+                em.frame_ix = torch.randint_like(em.frame_ix, -1, 2)
+                frames, bg_frames = self.forward(em)
+
+                return em, frames, bg_frames
+
+            def forward(self, em):
+                return torch.rand((3, 64, 64)), torch.rand((3, 64, 64))
+
+        class DummyTarAndWeightGen:
+            def forward(self, *args):
+                return torch.rand((6, 64, 64))
+
+        dataset = can.SMLMLiveSampleDataset(ds_len=1000, simulator=DummySimulation(), em_proc=None, frame_proc=None, bg_frame_proc=None,
+                                            tar_gen=DummyTarAndWeightGen(), weight_gen=DummyTarAndWeightGen(), frame_window=3)
+
+        return dataset
+
+    def test_len(self, ds):
+        assert len(ds) == 1000
+
+    @pytest.mark.parametrize("window", [1, 3, 5])
+    @pytest.mark.parametrize("return_em", [False, True])
+    def test_getitem(self, ds, window, return_em):
+
+        """Setup"""
+        ds.return_em = return_em
+        ds.frame_window = window
+
+        r_ix = torch.randint(0, len(ds), size=(1, )).item()
+
+        sample_out = ds[r_ix]
 
         """Assert"""
         assert len(sample_out) == 4 if return_em else 3
