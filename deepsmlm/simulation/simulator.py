@@ -1,5 +1,3 @@
-import warnings
-
 from ..generic import EmitterSet
 
 
@@ -12,7 +10,7 @@ class Simulation:
 
     Attributes:
         em (EmitterSet): Static EmitterSet
-        em_sampler: callable to sample EmitterSets from
+        em_sampler: instance with 'sample()' method to sample EmitterSets from
         frame_range (tuple of int): frame indices between which to sample
         psf (PSF): psf model with forward method
         background (Background): background implementation
@@ -37,12 +35,6 @@ class Simulation:
         self.psf = psf
         self.background = background
         self.noise = noise
-
-        if (self.background is not None) and (self.noise is None):
-            """This is temporary since I changed the interface."""
-            warnings.warn("Careful! You have not specified noise but you have specified background. "
-                          "Background is defined as something which does not depend on the actual "
-                          "signal whereas noise does.")
 
     def sample(self):
         """
