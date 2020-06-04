@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod  # abstract class
 
 import numpy as np
 import spline_psf_cuda  # CPP / CUDA implementation
-# from torchsearchsorted import searchsorted
 import torch
 
 from deepsmlm.generic import slicing as gutil
@@ -274,8 +273,6 @@ class GaussianExpect(PSF):
         xx = xx.unsqueeze(2).repeat(1, 1, num_emitters)
         yy = yy.unsqueeze(2).repeat(1, 1, num_emitters)
 
-        # print(xx.shape)
-
         gauss_x = torch.erf((xx[1:, 1:, :] - xpos) / (math.sqrt(2) * sig_x)) \
                   - torch.erf((xx[0:-1, 1:, :] - xpos) / (math.sqrt(2) * sig_x))
 
@@ -436,11 +433,13 @@ class CubicSplinePSF(PSF):
         # over 5 because 5 derivatives, over 2 because you return drv and roi
         return self.max_roi_chunk // (5 * 2)
 
-    # # define pickles
+    """Pickle"""
     def __getstate__(self):
         """
-        Returns dict without spline implementation attribute because C++ / CUDA implementation is not yet implemented
-        to be pickleable itself. However, since the implementation is only accessed by this wrapper, this is not needed.
+        Returns dict without spline implementation attribute because C++ / CUDA implementation is not (yet) implemented
+        to be pickleable itself. However, since the CUDA/C++ implementation is only accessed by this wrapper, this is
+        not strictly needed. This class becomes pickleable by excluding the spline implementation and rather re-init
+        the implementation every time it is unpickled.
 
         """
 
@@ -451,6 +450,7 @@ class CubicSplinePSF(PSF):
     def __setstate__(self, state):
         """
         Write dict and call init spline
+
         Args:
             state:
 
