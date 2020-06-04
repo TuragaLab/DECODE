@@ -1,18 +1,18 @@
 import datetime
 import os
+import shutil
 import socket
 from pathlib import Path
-import shutil
 
 import click
 import torch
 
 import deepsmlm.evaluation
-import deepsmlm.utils
 import deepsmlm.neuralfitter
 import deepsmlm.neuralfitter.utils
-from deepsmlm.neuralfitter.utils import log_train_val_progress
 import deepsmlm.simulation
+import deepsmlm.utils
+from deepsmlm.neuralfitter.utils import log_train_val_progress
 
 deepsmlm_root = Path(__file__).parent.parent.parent
 
@@ -23,8 +23,8 @@ def load_static_testset(file_emitter, file_frames, file_bg_frames):
         return em
 
     emitter = deepsmlm.generic.emitter.EmitterSet.load(file_emitter)
-    frames = torch.load(file_frames).unsqueeze(1)
-    bg_frames = torch.load(file_bg_frames).unsqueeze(1)
+    frames = torch.load(file_frames)
+    bg_frames = torch.load(file_bg_frames)
 
     # split emitter in frames
     emitter = emitter.split_in_frames(0, frames.size(0) - 1)
@@ -51,7 +51,7 @@ def setup_random_simulation(param):
         xextent=param.Simulation.psf_extent[0],
         yextent=param.Simulation.psf_extent[1],
         img_shape=native_psf_img_size,
-        cuda_kernel=True if param.Hardware.device[:4] == 'cuda' else False,
+        cuda_kernel=True if param.Hardware.device_simulation[:4] == 'cuda' else False,
         roi_size=param.Simulation.roi_size,
         roi_auto_center=param.Simulation.roi_auto_center
     )
@@ -62,7 +62,13 @@ def setup_random_simulation(param):
         yextent=param.Simulation.emitter_extent[1],
         zextent=param.Simulation.emitter_extent[2])
 
-    frame_range_train = (0, param.HyperParameter.pseudo_ds_size)
+    if param.Simulation.mode == 'acquisition':
+        frame_range_train = (0, param.HyperParameter.pseudo_ds_size)
+    elif param.Simulation.mode == 'samples':
+        frame_range_train = (
+        -((param.HyperParameter.channels_in - 1) // 2), (param.HyperParameter.channels_in - 1) // 2)
+    else:
+        raise ValueError
 
     prior_train = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame.parse(
         param, structure=prior_struct, frames=frame_range_train)
@@ -73,9 +79,9 @@ def setup_random_simulation(param):
     else:
         bg = deepsmlm.utils.processing.TransformSequence.parse(
             [deepsmlm.simulation.background.UniformBackground,
-             deepsmlm.simulation.background.PerlinBackground], param, input_slice=[[0], [0]])
+             deepsmlm.simulation.background._PerlinBackground], param, input_slice=[[0], [0]])
 
-    noise = deepsmlm.simulation.camera.Photon2Camera.parse(param, device=param.Hardware.device)
+    noise = deepsmlm.simulation.camera.Photon2Camera.parse(param, device=param.Hardware.device_simulation)
 
     simulation_train = deepsmlm.simulation.simulator.Simulation(
         psf=psf, em_sampler=prior_train, background=bg, noise=noise, frame_range=frame_range_train)
@@ -98,7 +104,6 @@ def setup_random_simulation(param):
 
 
 def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
-
     """Set model, optimiser, loss and schedulers"""
     models_ava = {
         'BGNet': deepsmlm.neuralfitter.models.model_param.BGNet,
@@ -126,8 +131,16 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     optimizer = optimizer(model.parameters(), **param.HyperParameter.opt_param)
 
     """Loss function."""
-    criterion = deepsmlm.neuralfitter.losscollection.PPXYZBLoss(chweight_stat=param.HyperParameter.ch_static_scale,
-                                                                device=param.Hardware.device)
+    if param.HyperParameter.target_mode == 'fourfold':
+        criterion = deepsmlm.neuralfitter.losscollection.FourFoldPXYZChecks(
+            components=(deepsmlm.neuralfitter.losscollection.PPXYZBLoss(device=param.Hardware.device,
+                                                                        chweight_stat=[1., 1., 1., 1., 1.],
+                                                                        forward_safety=False),) * 4
+
+        )
+    else:
+        criterion = deepsmlm.neuralfitter.losscollection.PPXYZBLoss(device=param.Hardware.device,
+                                                                    chweight_stat=param.HyperParameter.ch_static_scale)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, **param.LearningRateScheduler)
@@ -154,21 +167,57 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     em_filter = deepsmlm.neuralfitter.filter.NoEmitterFilter()
 
     # Target generator is a sequence of multiple modules
-    tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
-        [
-            deepsmlm.neuralfitter.target_generator.UnifiedEmbeddingTarget.parse(param, ix_low=0, ix_high=0),
-            deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale.parse(param)
-        ],
-        input_slice=None)
+    if param.HyperParameter.target_mode == 'fourfold':
+        tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
+            [
+                deepsmlm.neuralfitter.target_generator.FourFoldEmbedding.parse(param, ix_low=0, ix_high=0,
+                                                                               squeeze_batch_dim=True),
+                deepsmlm.neuralfitter.scale_transform.FourFoldInverseOffsetRescale.parse(param)
+            ],
+            input_slice=None)
 
-    weight_gen = deepsmlm.neuralfitter.weight_generator.SimpleWeight.parse(param)
+        weight_gen = deepsmlm.neuralfitter.weight_generator.FourFoldSimpleWeight.parse(param)
 
-    train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator_train, em_proc=None,
-                                                             frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
-                                                             tar_gen=tar_gen, weight_gen=weight_gen,
-                                                             frame_window=param.HyperParameter.channels_in,
-                                                             pad=None, return_em=False)
-    train_ds.sample(True)
+    elif param.HyperParameter.target_mode == 'rim_double':
+
+        tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
+            [
+                deepsmlm.neuralfitter.target_generator.JonasTarget.parse(param, ix_low=0, ix_high=0,
+                                                                         squeeze_batch_dim=True),
+                deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale.parse(param)
+            ],
+            input_slice=None)
+
+        weight_gen = deepsmlm.neuralfitter.weight_generator.SimpleWeight.parse(param)
+
+    else:
+        tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
+            [
+                deepsmlm.neuralfitter.target_generator.UnifiedEmbeddingTarget.parse(param, ix_low=0, ix_high=0,
+                                                                                    squeeze_batch_dim=True),
+                deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale.parse(param)
+            ],
+            input_slice=None)
+
+        weight_gen = deepsmlm.neuralfitter.weight_generator.SimpleWeight.parse(param)
+
+    if param.Simulation.mode == 'acquisition':
+        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator_train, em_proc=None,
+                                                                 frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
+                                                                 tar_gen=tar_gen, weight_gen=weight_gen,
+                                                                 frame_window=param.HyperParameter.channels_in,
+                                                                 pad=None, return_em=False)
+
+        train_ds.sample(True)
+
+    elif param.Simulation.mode == 'samples':
+        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveSampleDataset(simulator=simulator_train, em_proc=None,
+                                                                       frame_proc=frame_proc,
+                                                                       bg_frame_proc=bg_frame_proc,
+                                                                       tar_gen=tar_gen, weight_gen=weight_gen,
+                                                                       frame_window=param.HyperParameter.channels_in,
+                                                                       return_em=False,
+                                                                       ds_len=param.HyperParameter.pseudo_ds_size)
 
     if param.TestSet.mode == 'simulated':
 
@@ -186,13 +235,25 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
                                                          param.InOut.testset_frames,
                                                          param.InOut.testset_bg_frames)
 
+        if param.Camera.convert2photons:
+            frames = simulator_train.noise.backward(frames).cpu()
+
+        frame_proc_test = deepsmlm.neuralfitter.processing.TransformSequence(
+            [
+                deepsmlm.neuralfitter.scale_transform.AmplitudeRescale.parse(param),
+                deepsmlm.neuralfitter.scale_transform.SpatialInterpolation(size=param.TestSet.img_size)
+            ])
+
+        bg_frame_proc_test = deepsmlm.neuralfitter.scale_transform.SpatialInterpolation(size=param.TestSet.img_size)
+
         tar_gen_test = deepsmlm.neuralfitter.processing.TransformSequence(
             [
                 deepsmlm.neuralfitter.target_generator.UnifiedEmbeddingTarget(xextent=param.TestSet.frame_extent[0],
                                                                               yextent=param.TestSet.frame_extent[1],
                                                                               img_shape=param.TestSet.img_size,
                                                                               roi_size=param.HyperParameter.channels_in,
-                                                                              ix_low=0, ix_high=0),
+                                                                              ix_low=0, ix_high=0,
+                                                                              squeeze_batch_dim=True),
 
                 deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale.parse(param)
             ],
@@ -206,7 +267,9 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
                                                                               weight_power=param.HyperParameter.weight_power)
 
         test_ds = deepsmlm.neuralfitter.dataset.SMLMStaticDataset(frames=frames, bg_frames=bg_frames, emitter=emitter,
-                                                                  frame_proc=frame_proc, em_proc=em_filter,
+                                                                  frame_proc=frame_proc_test,
+                                                                  bg_frame_proc=bg_frame_proc_test,
+                                                                  em_proc=em_filter,
                                                                   tar_gen=tar_gen_test, weight_gen=weight_gen_test,
                                                                   frame_window=param.HyperParameter.channels_in,
                                                                   pad=None, return_em=True)
@@ -298,6 +361,10 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
     """Experiment ID"""
     if not debug:
         experiment_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
+
+        if log_comment:
+            experiment_id = experiment_id + '_' + log_comment
+
     else:
         experiment_id = 'debug'
 
@@ -306,7 +373,10 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
     if not experiment_path.parent.exists():
         experiment_path.parent.mkdir()
 
-    experiment_path.mkdir()
+    if debug:
+        experiment_path.mkdir(exist_ok=True)
+    else:
+        experiment_path.mkdir(exist_ok=False)
 
     model_out = experiment_path / Path('model.pt')
 
@@ -332,11 +402,7 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
         logger = deepsmlm.neuralfitter.utils.logger.NoLog()
 
     else:
-        if log_comment:
-            log_folder = log_folder + '/' + experiment_id + '_' + log_comment
-        else:
-            log_folder = log_folder + '/' + experiment_id
-
+        log_folder = log_folder + '/' + experiment_id
         logger = deepsmlm.neuralfitter.utils.logger.SummaryWriterSoph(log_dir=log_folder)
 
     sim_train, sim_test = setup_random_simulation(param)
@@ -351,7 +417,7 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
     for i in range(first_epoch, param.HyperParameter.epochs):
         logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
 
-        _ = deepsmlm.neuralfitter.train_val_impl.train(
+        train_loss = deepsmlm.neuralfitter.train_val_impl.train(
             model=model,
             optimizer=optimizer,
             loss=criterion,
@@ -374,13 +440,23 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
                                                      post_processor=post_processor, matcher=matcher, logger=logger,
                                                      step=i)
 
-        lr_scheduler.step(val_loss)
+        if param.HyperParameter.learning_rate_scheduler_metric == 'train_loss':
+            lr_scheduler.step(train_loss)
+            model_ls.save(model, train_loss)
+        elif param.HyperParameter.learning_rate_scheduler_metric == 'test_loss':
+            lr_scheduler.step(val_loss)
+            model_ls.save(model, val_loss)
+        else:
+            raise ValueError(f"Unsupported value ({param.HyperParameter.learning_rate_scheduler_metric}"
+                             f" for learning rate scheduler metric.")
 
-        """Save."""
-        model_ls.save(model, val_loss)
+        """Draw new samples Samples"""
+        if param.Simulation.mode == 'acquisition':
+            if param.HyperParameter.ds_lifetime is None or (i + 1) % param.HyperParameter.ds_lifetime == 0:
+                ds_train.sample(True)
 
-        """New Samples"""
-        ds_train.sample(True)
+        elif param.Simulation.mode != 'samples':
+            raise ValueError
 
 
 if __name__ == '__main__':

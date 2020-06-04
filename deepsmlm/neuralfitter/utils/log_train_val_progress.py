@@ -74,11 +74,11 @@ def log_frames(x, y_out, y_tar, weight, em_out, em_tar, tp, tp_match, logger, st
 
 def log_kpi(loss_scalar: float, loss_cmp: dict, eval_set: dict, logger, step):
 
-    logger.add_scalar('loss/test_ep', loss_scalar, step)
+    logger.add_scalar('learning/test_ep', loss_scalar, step)
 
     assert loss_cmp.dim() == 4
     for i in range(loss_cmp.size(1)):  # loop over all channels
-        logger.add_scalar('loss/test_ep_oss_ch_' + str(i), loss_cmp[:, i].mean(), step)
+        logger.add_scalar('loss_cmp/test_ep_loss_ch_' + str(i), loss_cmp[:, i].mean(), step)
 
     logger.add_scalar_dict('eval/', eval_set, step)
 
@@ -109,7 +109,7 @@ def log_train(*, loss_p_batch: (list, tuple), loss_mean: float, logger, step: in
         if i % 10 != 0:
             continue
 
-        logger.add_scalar('loss/train_batch', loss_batch, step_batch)
+        logger.add_scalar('learning/train_batch', loss_batch, step_batch)
 
 
 def post_process_log_test(*, loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_tar,

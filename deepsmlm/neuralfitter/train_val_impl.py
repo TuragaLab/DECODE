@@ -6,14 +6,16 @@ from collections import namedtuple
 
 from .utils import log_train_val_progress
 from ..generic import emitter
+from ..evaluation.utils import MetricMeter
 
 
-def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logger):
+def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logger) -> float:
 
     """Some Setup things"""
     model.train()
     tqdm_enum = tqdm(dataloader, total=len(dataloader), smoothing=0.)  # progress bar enumeration
     t0 = time.time()
+    loss_epoch = MetricMeter()
 
     """Actual Training"""
     for batch_num, (x, y_tar, weight) in enumerate(tqdm_enum):  # model input (x), target (yt), weights (w)
@@ -46,13 +48,14 @@ def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logge
         """Logging"""
         loss_mean, loss_cmp = loss.log(loss_val)  # compute individual loss components
         del loss_val
+        loss_epoch.update(loss_mean)
         tqdm_enum.set_description(f"E: {epoch} - t: {t_batch:.2} - t_dat: {t_data:.2} - L: {loss_mean:.3}")
-
-        log_train_val_progress.log_train(loss_mean, t_batch, t_data, epoch, batch_num, 10, model, logger)
 
         t0 = time.time()
 
-    return
+    log_train_val_progress.log_train(loss_p_batch=loss_epoch.vals, loss_mean=loss_epoch.mean, logger=logger, step=epoch)
+
+    return loss_epoch.mean
 
 
 _val_return = namedtuple("network_output", ["loss", "x", "y_out", "y_tar", "weight", "em_tar"])
@@ -76,10 +79,16 @@ def test(model, loss, dataloader, epoch, device):
             """Ship the data to the correct device"""
             x, y_tar, weight = x.to(device), y_tar.to(device), weight.to(device)
 
-            """Forward the data"""
-            y_out = model(x)
+            """
+            Forward the data. Do not apply non-linearity in p-channel because otherwise we log the
+            wrong values. So forward the data as in training mode, then compute the loss and than
+            apply the non-linearity in the p channel such that the prediction is okay.
+            """
+            y_out = model(x, force_no_p_nl=True)  # otherwise logging is wrong
 
             loss_val = loss(y_out, y_tar, weight)
+
+            y_out = model.apply_pnl(y_out)
 
             t_batch = time.time() - t0
 
