@@ -1,4 +1,4 @@
-name: deepsmlm_cuda
+name: deepsmlm_cuda_py38_pt14
 channels:
   - pytorch
   - conda-forge
@@ -22,7 +22,7 @@ dependencies:
   - numpy
   - pandas
   - pybind11>=2.4
-  - python=3.6
+  - python=3.8
   - pytorch=1.4.*
   - pyyaml
   - pytest
