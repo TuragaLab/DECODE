@@ -23,10 +23,7 @@ class Background(ABC):
         """
 
         Args:
-            forward_mode (str): if 'batch' a new sample is returned for every element along the batch dimension
-                where the first dimension is the batch-dimension assuming a minimum of 3 dimensions.
-                If 'const' one sample is drawn.
-            forward_return (str): determines the return of the forward function. 'like' returns a sample of the same size
+            forward_return: determines the return of the forward function. 'like' returns a sample of the same size
                 as the input, 'cum' adds the sample to the input and 'tuple' returns both the sum and the bg component
                 alone.
 
@@ -38,58 +35,67 @@ class Background(ABC):
         self.sanity_check()
 
     def sanity_check(self):
-        """Tests the sanity"""
+        """
+        Tests the sanity of the instance.
+        """
 
         if self.forward_return not in self._forward_modes:
             raise ValueError(f"Forward return mode {self.forward_return} unsupported. "
                              f"Available modes are: {self._forward_modes}")
 
     @abstractmethod
-    def sample(self, size, device=torch.device('cpu')):
+    def sample(self, size: torch.Size, device=torch.device('cpu')) -> torch.Tensor:
         """
         Samples from background implementation in the specified size.
 
         Args:
-            size:
+            size: size of the sample
             device: where to put the data
 
         Returns:
-            sample: background sample
+            background sample
 
         """
         raise NotImplementedError
 
-    def sample_like(self, x: torch.Tensor):
+    def sample_like(self, x: torch.Tensor) -> torch.Tensor:
         """
+        Samples background in the shape and on the device as the the input.
 
         Args:
-            x:
+            x: input
 
         Returns:
+            background sample
 
         """
         return self.sample(size=x.size(), device=x.device)
 
     def forward(self, x: torch.Tensor):
         """
-        Takes a batch of frames and adds the implemented background component to it.
+        Samples background in the same shape and on the same device as the input x.
+        Depending on the 'forward_return' attribute the bg is
+            - returned alone ('like')
+            - added to the input ('cum')
+            - is added and returned as tuple ('tuple')
 
         Args:
-            x (torch.Tensor): input frames. Dimension N x C x H x W
+            x: input frames. Dimension :math:`(N,C,H,W)`
 
         Returns:
-            xbg (torch.Tensor): x including background
+            (see above description)
 
         """
 
+        bg = self.sample_like(x)
+
         if self.forward_return == 'like':
-            return self.sample_like(x)
+            return bg
 
         elif self.forward_return == 'cum':
-            return self.sample_like(x) + x
+            return bg + x
 
         elif self.forward_return == 'tuple':
-            bg = self.sample_like(x)
             return self._bg_return(xbg=x + bg, bg=bg)
 
         else:
@@ -101,14 +107,16 @@ class UniformBackground(Background):
     Spatially constant background (i.e. a constant offset).
 
     """
+
     def __init__(self, bg_uniform: (float, tuple) = None, bg_sampler=None, forward_return=None):
         """
         Adds spatially constant background.
 
         Args:
-            bg_uniform (float, tuple of floats): background value or background range. If tuple (bg range) the value
+            bg_uniform (float or tuple of floats): background value or background range. If tuple (bg range) the value
                 will be sampled from a random uniform.
             bg_sampler (function): a custom bg sampler function
+
         """
         super().__init__(forward_return=forward_return)
 
@@ -136,13 +144,13 @@ class UniformBackground(Background):
 
         # unsqueeze until we have enough dimensions
         if len(size) >= 3:
-            bg = bg.view(-1, *((1, ) * (len(size) - 1)))
+            bg = bg.view(-1, *((1,) * (len(size) - 1)))
 
         return bg.to(device) * torch.ones(size, device=device)
 
 
-#ToDo: Update to modified abstract background
-class OutOfFocusEmitters(Background):
+# ToDo: Update to modified abstract background
+class _OutOfFocusEmitters(Background):
     """
     Simulate far out of focus emitters by using huge z values and a gaussian kernel.
 
@@ -174,11 +182,11 @@ class OutOfFocusEmitters(Background):
 
     @staticmethod
     def parse(param):
-        return OutOfFocusEmitters(param.Simulation.psf_extent[0],
-                                  param.Simulation.psf_extent[1],
-                                  param.Simulation.img_size,
-                                  param.Simulation.bg_oof_range,
-                                  param.Simulation.bg_num_oof_range)
+        return _OutOfFocusEmitters(param.Simulation.psf_extent[0],
+                                   param.Simulation.psf_extent[1],
+                                   param.Simulation.img_size,
+                                   param.Simulation.bg_oof_range,
+                                   param.Simulation.bg_num_oof_range)
 
     def forward(self, x):
         """Sample emitters. Place them randomly over the image."""
@@ -196,8 +204,8 @@ class OutOfFocusEmitters(Background):
         return self._bg_return(xbg=x + bg_term, bg=bg_term)
 
 
-#ToDo: Update Perlin Background to modified abstract background
-class PerlinBackground(Background):
+# ToDo: Update Perlin Background to modified abstract background
+class _PerlinBackground(Background):
     """
     Taken from https://gist.github.com/vadimkantorov/ac1b097753f217c5c11bc2ff396e0a57.
     """
@@ -235,24 +243,24 @@ class PerlinBackground(Background):
         prob_disable = param.HyperParameter.bg_perlin_prob_disable
 
         if isinstance(amplitude, list) or isinstance(amplitude, tuple):
-            return PerlinBackground.multi_scale_init(img_size=img_size,
-                                                     scales=perlin_scale,
-                                                     amps=amplitude,
-                                                     norm_amps=norm_amps,
-                                                     draw_amps=draw_amps,
-                                                     prob_disable=prob_disable)
+            return _PerlinBackground.multi_scale_init(img_size=img_size,
+                                                      scales=perlin_scale,
+                                                      amps=amplitude,
+                                                      norm_amps=norm_amps,
+                                                      draw_amps=draw_amps,
+                                                      prob_disable=prob_disable)
         else:
-            return PerlinBackground(img_size=img_size,
-                                    perlin_scale=perlin_scale,
-                                    amplitude=amplitude,
-                                    draw_amp=draw_amps)
+            return _PerlinBackground(img_size=img_size,
+                                     perlin_scale=perlin_scale,
+                                     amplitude=amplitude,
+                                     draw_amp=draw_amps)
 
     @staticmethod
     def multi_scale_init(**kwargs):
         """
         Generates a sequence of this class
         """
-        return MultiPerlin(**kwargs)
+        return _MultiPerlin(**kwargs)
 
     @staticmethod
     def fade_f(t):
@@ -282,28 +290,48 @@ class PerlinBackground(Background):
         t = self.fade_f(self.grid[:shape[0], :shape[1]])
         return math.sqrt(2) * torch.lerp(torch.lerp(n00, n10, t[..., 0]), torch.lerp(n01, n11, t[..., 0]), t[..., 1])
 
-    def forward(self, x):
-        """
-        Forwards the bg.
-        :param x:
-        :return:
-        """
-        """
-        Probabilistically disable perlin background. VW Abgastest style
-        Note: In MultiScale Perlin, this only disables one component / scale. The likelihood that all / none are
-        on / off is therefore (1-p)^num_scales, or p^(num_scales)
-        """
+    def sample(self, size: (torch.Size, tuple), device=torch.device('cpu')):
+
         if self.draw_amp:
             amp_factor = torch.rand(1)
         else:
             amp_factor = 1.
 
-        bg_term = self.amplitude * amp_factor * (self.calc_perlin(self.img_size, [self.perlin_scale,
-                                                                                  self.perlin_scale]) + 1) / 2.0
-        return self._bg_return(xbg=x + bg_term, bg=bg_term)
+        if not isinstance(size, torch.Size):
+            size = torch.Size(size)
+
+        assert len(size) == 3, f"Assuming size specification to be N x H x W (first is batch dimension)."
+        assert size[-2:] == self.img_size, "Perlin background initialised with different img_shape specification."
+
+        bg_sample = torch.empty(size)
+        for s in range(size[0]):
+            bg_sample[s] = self.amplitude * amp_factor * \
+                           (self.calc_perlin(self.img_size, [self.perlin_scale, self.perlin_scale]) + 1) / 2.0
+
+        return bg_sample.to(device)
+
+    # def forward(self, x):
+    #     """
+    #     Forwards the bg.
+    #     :param x:
+    #     :return:
+    #     """
+    #     """
+    #     Probabilistically disable perlin background. VW Abgastest style
+    #     Note: In MultiScale Perlin, this only disables one component / scale. The likelihood that all / none are
+    #     on / off is therefore (1-p)^num_scales, or p^(num_scales)
+    #     """
+    #     if self.draw_amp:
+    #         amp_factor = torch.rand(1)
+    #     else:
+    #         amp_factor = 1.
+    #
+    #     bg_term = self.amplitude * amp_factor * (self.calc_perlin(self.img_size, [self.perlin_scale,
+    #                                                                               self.perlin_scale]) + 1) / 2.0
+    #     return self._bg_return(xbg=x + bg_term, bg=bg_term)
 
 
-class MultiPerlin(Background):
+class _MultiPerlin(Background):
     def __init__(self, img_size, scales, amps, draw_amps: bool, norm_amps: bool, prob_disable=None):
         """
 
@@ -328,10 +356,10 @@ class MultiPerlin(Background):
         if self.norm_amps:
             self.amps /= self.num_freq
 
-        self.perlin_com = [PerlinBackground(self.img_size,
-                                            self.scales[i],
-                                            self.amps[i],
-                                            draw_amp=self.draw_amps) for i in range(self.num_freq)]
+        self.perlin_com = [_PerlinBackground(self.img_size,
+                                             self.scales[i],
+                                             self.amps[i],
+                                             draw_amp=self.draw_amps) for i in range(self.num_freq)]
 
     @staticmethod
     def parse(param):
@@ -340,14 +368,9 @@ class MultiPerlin(Background):
         :param param:
         :return:
         """
-        return PerlinBackground.parse(param)
+        return _PerlinBackground.parse(param)
 
     def forward(self, x):
-        """
-
-        :param x:
-        :return:
-        """
         bg_term = torch.zeros((1, *self.img_size))
         for i in range(self.num_freq):
             if (self.prob_disable is not None) and (torch.rand(1).item() <= self.prob_disable):
@@ -443,7 +466,7 @@ class BgPerEmitterFromBgFrame:
 
 
 @deprecated.deprecated("Old implementation. Maybe for future investigation.")
-class NonUniformBackground(Background):
+class _NonUniformBackground(Background):
     """
     A class to produce nonuniform background which is done by placing 5 points with 5 different values
     on somewhat random positions and then interpolate an image.
@@ -463,9 +486,9 @@ class NonUniformBackground(Background):
 
     @staticmethod
     def parse(param):
-        return NonUniformBackground(param.Simulation.bg_nonuni_intensity,
-                                    param.Simulation.img_size,
-                                    param.Simulation.bg_nonuni_dynamic)
+        return _NonUniformBackground(param.Simulation.bg_nonuni_intensity,
+                                     param.Simulation.img_size,
+                                     param.Simulation.bg_nonuni_dynamic)
 
     def forward(self, input):
         """
