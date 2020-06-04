@@ -40,20 +40,18 @@ class GreedyHungarianMatching(MatcherABC):
     """
     Matching emitters in a greedy 'hungarian' fashion, by using best first search.
 
-    Attributes:
-
     """
 
     def __init__(self, *, match_dims: int, dist_ax: float = None, dist_lat: float = None, dist_vol: float = None):
         """
-        Initialise "Greedy Hungarian Matching". Incorporates some rule-out thresholds
 
         Args:
-            match_dims (int): match in 2D or 3D
+            match_dims: match in 2D or 3D
             dist_lat: lateral tolerance radius
             dist_ax: axial tolerance threshold
             dist_vol: volumetric tolerance radius
         """
+        super().__init__()
 
         self.match_dims = match_dims
         self.dist_ax = dist_ax

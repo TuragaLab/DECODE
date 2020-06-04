@@ -15,13 +15,12 @@ from ..generic.emitter import EmitterSet
 
 class SegmentationEvaluation:
     """
-    A small wrapper class that holds segementation evaluations and accepts emittersets as input.
-    """
+    Wrapper class that holds all segementation evaluations in one place.
 
+    """
     _seg_eval_return = namedtuple("seg_eval", ["prec", "rec", "jac", "f1"])
 
     def __init__(self):
-        """Bookkeeping"""
 
         self._tp = None
         self._fp = None
@@ -49,11 +48,12 @@ class SegmentationEvaluation:
 
     def forward(self, tp: EmitterSet, fp: EmitterSet, fn: EmitterSet):
         """
+        Forward emitters through evaluation.
 
         Args:
-            tp (EmitterSet): true positives
-            fp (EmitterSet): false positives
-            fn (EmitterSet): false negatives
+            tp: true positives
+            fp: false positives
+            fn: false negatives
 
         Returns:
             prec (float): precision value
@@ -74,7 +74,7 @@ class SegmentationEvaluation:
 
 class DistanceEvaluation:
     """
-    A small wrapper calss that holds distance evaluations and accepts emittersets as inputs.
+    A small wrapper calss that holds distance evaluations and accepts sets of emitters as inputs.
     """
     _dist_eval_return = namedtuple("dist_eval", ["rmse_lat", "rmse_ax", "rmse_vol", "mad_lat", "mad_ax", "mad_vol"])
 
@@ -102,8 +102,8 @@ class DistanceEvaluation:
         """
 
         Args:
-            tp (EmitterSet): true positives
-            tp_match (EmitterSet): matching ground truths
+            tp: true positives
+            tp_match: matching ground truths
 
         Returns:
             rmse_lat: RMSE lateral
@@ -112,6 +112,7 @@ class DistanceEvaluation:
             mad_lat: MAD lateral
             mad_ax: MAD axial
             mad_vol: MAD volumetric
+
         """
 
         rmse_lat, rmse_axial, rmse_vol, mad_lat, mad_axial, mad_vol= rmse_mad_dist(tp.xyz_nm, tp_match.xyz_nm)
