@@ -1,5 +1,8 @@
+from __future__ import annotations  # otherwise 'self' annotations does not work
+
 import warnings
 from deprecated import deprecated
+from typing import Union
 
 import numpy as np
 import torch
@@ -27,30 +30,30 @@ class EmitterSet:
             px_size: Pixel size for unit conversion. If not specified, derived attributes (xyz_px and xyz_nm)
                 can not be accessed
     """
-    eq_precision = 1E-8
-    xy_units = ('px', 'nm')
+    _eq_precision = 1E-8
+    _xy_units = ('px', 'nm')
 
-    def __init__(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
-                 id: torch.Tensor = None, prob: torch.Tensor = None, bg: torch.Tensor = None,
+    def __init__(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.LongTensor,
+                 id: torch.LongTensor = None, prob: torch.Tensor = None, bg: torch.Tensor = None,
                  xyz_cr: torch.Tensor = None, phot_cr: torch.Tensor = None, bg_cr: torch.Tensor = None,
-                 sanity_check: bool = True, xy_unit=None, px_size=None):
+                 sanity_check: bool = True, xy_unit: str = None, px_size: Union[tuple, torch.Tensor] = None):
         """
-        Initialises EmitterSet of size N.
+        Initialises EmitterSet of :math:`N` emitters.
 
         Args:
-            xyz: Coordinates of size N x [2,3]. Must be tensor float type
-            phot: Photon count of size N (will be converted to float)
-            frame_ix: size N. Index on which the emitter appears. Must be tensor integer type
-            id: size N. Identity the emitter. Must be tensor integer type and the same type as frame_ix
-            prob: size N. Probability estimate of the emitter.
-            bg: size N. Background estimate of emitter.
-            xyz_cr: size N x 3. Cramer-Rao estimate of the emitters position.
-            phot_cr: size N. Cramer-Rao estimate of the emitters photon count.
-            bg_cr: size N. Cramer-Rao estimate of the emitters background value.
-            sanity_check: performs a sanity check if true.
+            xyz: Coordinates of size :math:`(N,3)`
+            phot: Photon count of size :math:`N`
+            frame_ix: Index on which the emitter appears. Must be integer type. Size :math:`N`
+            id: Identity the emitter. Must be tensor integer type and the same type as frame_ix. Size :math:`N`
+            prob: Probability estimate of the emitter. Size :math:`N`
+            bg: Background estimate of emitter. Size :math:`N`
+            xyz_cr: Cramer-Rao estimate of the emitters position. Size :math:`(N,3)`
+            phot_cr: Cramer-Rao estimate of the emitters photon count. Size :math:`N`
+            bg_cr: Cramer-Rao estimate of the emitters background value. Size :math:`N`
+            sanity_check: performs a sanity check.
             xy_unit: Unit of the x and y coordinate.
             px_size: Pixel size for unit conversion. If not specified, derived attributes (xyz_px and xyz_nm)
-                can not be accessed
+                may not be accessed because one can not convert units without pixel size.
         """
 
         self.xyz = None
@@ -162,7 +165,17 @@ class EmitterSet:
 
         return em_dict
 
-    def save(self, file: (str, Path)):
+    def save(self, file: Union[str, Path]):
+        """
+        Pickle save's the dictionary of this instance. No legacy guarantees given.
+        Should only be used for short-term storage.
+
+        Args:
+            file: path where to save
+
+        Returns:
+
+        """
 
         if not isinstance(file, Path):
             file = Path(file)
@@ -171,14 +184,20 @@ class EmitterSet:
         torch.save(em_dict, file)
 
     @staticmethod
-    def load(file: (str, Path)):
+    def load(file: Union[str, Path]):
+        """
+        Loads the set of emitters which was saved by the 'save' method.
+
+        Args:
+            file: path to the emitterset
+
+        Returns:
+            EmitterSet
+
+        """
 
         em_dict = torch.load(file)
         return EmitterSet(**em_dict)
-
-    @property
-    def num_emitter(self):
-        raise DeprecationWarning
 
     @property
     def xyz_px(self):
@@ -276,7 +295,7 @@ class EmitterSet:
             if self.xy_unit is None:
                 warnings.warn("No xyz unit specified. No guarantees given ...")
             else:
-                if self.xy_unit not in self.xy_units:
+                if self.xy_unit not in self._xy_units:
                     raise ValueError("XY unit not supported.")
 
         # check uniqueness of identity (ID)
@@ -324,16 +343,16 @@ class EmitterSet:
         Returns:
             (bool) true if as stated above.
         """
-        if not tutil.tens_almeq(self.xyz, other.xyz, self.eq_precision):
+        if not tutil.tens_almeq(self.xyz, other.xyz, self._eq_precision):
             return False
 
-        if not tutil.tens_almeq(self.frame_ix, other.frame_ix, self.eq_precision):
+        if not tutil.tens_almeq(self.frame_ix, other.frame_ix, self._eq_precision):
             return False
 
-        if not tutil.tens_almeq(self.phot, other.phot, self.eq_precision):
+        if not tutil.tens_almeq(self.phot, other.phot, self._eq_precision):
             return False
 
-        if not tutil.tens_almeq(self.prob, other.prob, self.eq_precision):
+        if not tutil.tens_almeq(self.prob, other.prob, self._eq_precision):
             return False
 
         if not self.xy_unit == other.xy_unit:
@@ -343,28 +362,28 @@ class EmitterSet:
             if not torch.isnan(other.bg).all():
                 return False
         else:
-            if not tutil.tens_almeq(self.bg, other.bg, self.eq_precision):
+            if not tutil.tens_almeq(self.bg, other.bg, self._eq_precision):
                 return False
 
         if torch.isnan(self.xyz_cr).all():
             if not torch.isnan(other.xyz_cr).all():
                 return False
         else:
-            if not tutil.tens_almeq(self.bg, other.bg, self.eq_precision):
+            if not tutil.tens_almeq(self.bg, other.bg, self._eq_precision):
                 return False
 
         if torch.isnan(self.phot_cr).all():
             if not torch.isnan(other.phot_cr).all():
                 return False
         else:
-            if not tutil.tens_almeq(self.bg, other.bg, self.eq_precision):
+            if not tutil.tens_almeq(self.bg, other.bg, self._eq_precision):
                 return False
 
         if torch.isnan(self.bg_cr).all():
             if not torch.isnan(other.bg_cr).all():
                 return False
         else:
-            if not tutil.tens_almeq(self.bg, other.bg, self.eq_precision):
+            if not tutil.tens_almeq(self.bg, other.bg, self._eq_precision):
                 return False
 
         self.eq_attr(other)
@@ -718,13 +737,9 @@ class RandomEmitterSet(EmitterSet):
     A helper calss when we only want to provide a number of emitters.
     """
 
-    def __init__(self, num_emitters, extent=32, xy_unit='px'):
-        """
-
-        :param num_emitters:
-        """
+    def __init__(self, num_emitters: int, extent: float = 32, xy_unit: str = 'px'):
         xyz = torch.rand((num_emitters, 3)) * extent
-        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).int(), xy_unit=xy_unit)
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).long(), xy_unit=xy_unit)
 
     def _inplace_replace(self, em):
         super().__init__(xyz=em.xyz,
@@ -747,7 +762,7 @@ class CoordinateOnlyEmitter(EmitterSet):
     Useful for testing. Photons will be tensor of 1, frame_ix tensor of 0.
     """
 
-    def __init__(self, xyz, xy_unit=None, px_size=None):
+    def __init__(self, xyz: torch.Tensor, xy_unit: str = None, px_size=None):
         """
 
         :param xyz: (torch.tensor) N x 2, N x 3
