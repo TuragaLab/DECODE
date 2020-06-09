@@ -119,6 +119,35 @@ class TestDeltaPSF:
                                    yextent=(-0.5, 31.5),
                                    img_shape=(64, 64))
 
+    def test_px_search(self, delta_1px):
+
+        """Setup"""
+        xyz = torch.tensor([[-0.6, -0.5, 0.],  # outside
+                            [-0.5, -0.5, 0.],  # just inside
+                            [20., 30., 500.],  # inside
+                            [31.4, 31.49, 0],  # just inside
+                            [31.5, 31.49, 0.],  # just outisde (open interval to the right)
+                            [50., 60., 0.]])  # clearly outside
+
+        xtar = torch.tensor([0, 20, 31])  # elmnts 1 2 3
+        ytar = torch.tensor([0, 30, 31])
+
+        """Run"""
+        with pytest.raises(ValueError):
+            delta_1px.search_bin_index(xyz[:2])
+        with pytest.raises(ValueError):
+            delta_1px.search_bin_index(xyz[-3:-1])
+        with pytest.raises(ValueError):
+            delta_1px.search_bin_index(xyz[[-3, -1]])
+
+        x, y = delta_1px.search_bin_index(xyz[1:4])
+
+        """Assert"""
+        assert isinstance(x, torch.LongTensor)
+        assert isinstance(y, torch.LongTensor)
+        assert (x == xtar).all()
+        assert (y == ytar).all()
+
     def test_forward(self, delta_1px, delta_05px):
         """
         Tests the implementation
@@ -291,7 +320,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         Returns:
 
         """
-        import spline_psf_cuda
+        import spline as spline_psf_cuda
 
         """Test implementation state before"""
         assert isinstance(psf._spline_impl, spline_psf_cuda.PSFWrapperCPU)

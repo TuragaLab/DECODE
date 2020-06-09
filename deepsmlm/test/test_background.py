@@ -113,7 +113,7 @@ class TestOofEmitterBackground(BackgroundAbstractTest):
     def bgf(self):
         extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
         img_shape = (64, 64)
-        return background.OutOfFocusEmitters(extent[0], extent[1], img_shape, ampl=(1., 1.), num_oof_rg=(1, 1))
+        return background._OutOfFocusEmitters(extent[0], extent[1], img_shape, ampl=(1., 1.), num_oof_rg=(1, 1))
 
     def test_gauss_psf(self, bgf):
         """Tests whether the correct attribute for the gaussian psf is used."""
@@ -132,7 +132,7 @@ class TestPerlinBg(BackgroundAbstractTest):
     @pytest.fixture(scope='class')
     def bgf(self):
         img_size = (64, 64)
-        return background.PerlinBackground(img_size, 2, 20)
+        return background._PerlinBackground(img_size, 2, 20)
 
     def test_bypass(self, bgf):
         """
@@ -157,9 +157,9 @@ class TestMultiPerlin(BackgroundAbstractTest):
 
     @pytest.fixture(scope='class')
     def bgf(self):
-        return background.MultiPerlin((64, 64), [64, 32, 16, 8], [1, 1, 1, 1],
-                                      norm_amps=False,
-                                      draw_amps=True)
+        return background._MultiPerlin((64, 64), [64, 32, 16, 8], [1, 1, 1, 1],
+                                       norm_amps=False,
+                                       draw_amps=True)
 
     @pytest.mark.plot
     def test_multiscale(self, bgf):
