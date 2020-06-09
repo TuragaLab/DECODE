@@ -1,4 +1,5 @@
 name: deepsmlm_cuda_py38_pt14
+
 channels:
   - pytorch
   - conda-forge
@@ -13,6 +14,7 @@ dependencies:
   - deprecated
   - dotmap
   - h5py
+  - hyperopt
   - intel-openmp
   - jupyter_contrib_nbextensions
   - jupyterlab
@@ -27,8 +29,10 @@ dependencies:
   - pyyaml
   - pytest
   - pytest-repeat
+  - pyspark
   - requests
   - scikit-image
+  - scikit-optimize
   - scipy
   - seaborn
   - setuptools

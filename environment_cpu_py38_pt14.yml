@@ -29,6 +29,7 @@ dependencies:
   - pytest-repeat
   - requests
   - scikit-image
+  - scikit-optimize
   - scipy
   - seaborn
   - setuptools
