@@ -1,12 +1,11 @@
 # from abc import ABC
-import torch
+import warnings
+from collections import namedtuple
+
+import matplotlib.pyplot as plt
 import scipy.stats
 import seaborn as sns
-import matplotlib.pyplot as plt
-import warnings
-
-from collections import namedtuple
-from deprecated import deprecated
+import torch
 
 from deepsmlm.evaluation.metric_library import precision_recall_jaccard, rmse_mad_dist, efficiency
 from ..generic import emitter as emitter
@@ -21,7 +20,6 @@ class SegmentationEvaluation:
     _seg_eval_return = namedtuple("seg_eval", ["prec", "rec", "jac", "f1"])
 
     def __init__(self):
-
         self._tp = None
         self._fp = None
         self._fn = None
@@ -79,7 +77,6 @@ class DistanceEvaluation:
     _dist_eval_return = namedtuple("dist_eval", ["rmse_lat", "rmse_ax", "rmse_vol", "mad_lat", "mad_ax", "mad_vol"])
 
     def __init__(self):
-
         self._rmse_lat = None
         self._rmse_ax = None
         self._rmse_vol = None
@@ -115,7 +112,7 @@ class DistanceEvaluation:
 
         """
 
-        rmse_lat, rmse_axial, rmse_vol, mad_lat, mad_axial, mad_vol= rmse_mad_dist(tp.xyz_nm, tp_match.xyz_nm)
+        rmse_lat, rmse_axial, rmse_vol, mad_lat, mad_axial, mad_vol = rmse_mad_dist(tp.xyz_nm, tp_match.xyz_nm)
 
         """Store in cache"""
         self._rmse_lat, self._rmse_ax, self._rmse_vol = rmse_lat, rmse_axial, rmse_vol
@@ -132,6 +129,7 @@ class WeightedErrors:
     _modes_all = ('phot', 'crlb')
     _reduction_all = ('mstd', 'gaussian')
     _return = namedtuple("weighted_err", ["dxyz_red", "dphot_red", "dbg_red", "dxyz_w", "dphot_w", "dbg_w"])
+
     def __init__(self, mode, reduction):
 
         self.mode = mode
@@ -218,7 +216,6 @@ class WeightedErrors:
         if len(dxyz[:, 0]) != len(dphot) or len(dphot) != len(dbg):
             raise ValueError("Inconsistent number of elements.")
 
-
         sns.distplot(dxyz[:, 0].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[0])
         sns.distplot(dxyz[:, 1].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[1])
         sns.distplot(dxyz[:, 2].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[2])
@@ -276,7 +273,7 @@ class WeightedErrors:
 
 class EvalSet:
     """
-    Just a dummy wrapper class to combine things into one.
+    Just a wrapper class to combine things into one.
     """
     alpha_lat = 1  # nm
     alpha_ax = 0.5  # nm
@@ -305,15 +302,6 @@ class EvalSet:
         self.mad_vol = None
         self.mad_lat = None
         self.mad_ax = None
-
-        # self.dx_red_mu = None
-        # self.dx_red_sig = None
-        # self.dy_red_mu = None
-        # self.dy_red_sig = None
-        # self.dz_red_mu = None
-        # self.dz_red_sig = None
-        # self.dphot_red_mu = None
-        # self.dphot_red_sig = None
 
     @property
     def effcy_lat(self):
@@ -346,7 +334,34 @@ class EvalSet:
         return str
 
     def forward(self, tp, fp, fn, p_ref) -> _return:
+        """
+        Evaluate sets of emitters by all available metrics.
 
+        Args:
+            tp: true positives
+            fp: false positives
+            fn: false negatives
+            p_ref: true positive references (i.e. the ground truth that has been matched to tp)
+
+        Returns:
+            namedtuple: A namedtuple of floats containing
+
+                - **prec** (*float*): Precision
+                - **rec** (*float*): Recall
+                - **jac** (*float*): Jaccard
+                - **f1** (*float*): F1-Score
+                - **effcy_lat** (*float*): Efficiency lateral
+                - **effcy_ax** (*float*): Efficiency axial
+                - **effcy_vol** (*float*): Efficiency volumetric
+                - **rmse_lat** (*float*): RMSE lateral
+                - **rmse_ax** (*float*): RMSE axial
+                - **rmse_vol** (*float*): RMSE volumetric
+                - **mad_lat** (*float*): MAD lateral
+                - **mad_ax** (*float*): MAD axial
+                - **mad_vol** (*float*): MAD volumetric
+
+
+        """
         seg_out = self.seg_eval.forward(tp, fp, fn)
         dist_out = self.dist_eval.forward(tp, p_ref)
         weight_out = self.weighted_eval.forward(tp, p_ref, plot=False)
