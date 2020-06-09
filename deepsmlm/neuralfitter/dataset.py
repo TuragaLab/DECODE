@@ -1,14 +1,34 @@
 import time
+from deprecated import deprecated
 
 import torch
 from torch.utils.data import Dataset
 
 
 class SMLMDataset(Dataset):
+    """
+    SMLM base dataset.
+
+
+    """
     _pad_modes = (None, 'same')
 
     def __init__(self, *, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen,
                  frame_window: int, pad: str = None, return_em: bool):
+        """
+        Init new dataset.
+
+        Args:
+            em_proc: Emitter processing
+            frame_proc: Frame processing
+            bg_frame_proc: Background frame processing
+            tar_gen: Target generator
+            weight_gen: Weight generator
+            frame_window: number of frames per sample / size of frame window
+            pad: pad mode, applicable for first few, last few frames (relevant when frame window is used)
+            return_em: return target emitter
+
+        """
         super().__init__()
 
         self._frames = None
@@ -35,6 +55,10 @@ class SMLMDataset(Dataset):
             return self._frames.size(0)
 
     def sanity_check(self):
+        """
+        Checks the sanity of the dataset, if fails, errors are raised.
+
+        """
 
         if self.pad not in self._pad_modes:
             raise ValueError(f"Pad mode {self.pad} not available. Available pad modes are {self._pad_modes}.")
@@ -178,6 +202,10 @@ class InferenceDataset(SMLMStaticDataset):
 
 
 class SMLMLiveDataset(SMLMStaticDataset):
+    """
+    A SMLM dataset where new datasets is sampleable via the sample() method.
+
+    """
 
     def __init__(self, *, simulator, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, pad,
                  return_em=False):
@@ -196,7 +224,14 @@ class SMLMLiveDataset(SMLMStaticDataset):
         if self._emitter is not None and not isinstance(self._emitter, (list, tuple)):
             raise TypeError("EmitterSet shall be stored in list format, where each list item is one target emitter.")
 
-    def sample(self, verbose=False):
+    def sample(self, verbose: bool = False):
+        """
+        Sample new acquisition, i.e. a whole dataset.
+
+        Args:
+            verbose: print performance / verification information
+
+        """
 
         def set_frame_ix(em):  # helper function
             em.frame_ix = torch.zeros_like(em.frame_ix)
@@ -218,6 +253,10 @@ class SMLMLiveDataset(SMLMStaticDataset):
 
 
 class SMLMLiveSampleDataset(SMLMDataset):
+    """
+    A SMLM dataset where a new sample is drawn per (training) sample.
+
+    """
 
     def __init__(self, *, simulator, ds_len, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, return_em=False):
         super().__init__(em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
@@ -245,6 +284,7 @@ class SMLMLiveSampleDataset(SMLMDataset):
         return self._return_sample(frames, target, weight, tar_emitter)
 
 
+@deprecated(reason="Not needed anymore.")
 class SMLMSampleStreamEngineDataset(SMLMDataset):
     """
     A dataset to use in conjunction with the training engine. It serves the purpose to load the data from the engine.
@@ -332,6 +372,7 @@ class SMLMSampleStreamEngineDataset(SMLMDataset):
         return self._return_sample(x_in, tar_frame, weight, tar_em)
 
 
+@deprecated(reason="Not needed anymore.")
 class SMLMDatasetEngineDataset(SMLMSampleStreamEngineDataset):
 
     def __init__(self, *, engine, em_proc, frame_proc, tar_gen, weight_gen, frame_window, pad=None, return_em=False):

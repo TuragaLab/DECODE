@@ -1,5 +1,5 @@
 import deepsmlm.simulation.background
-import deepsmlm.simulation.noise
+import deepsmlm.simulation.noise_distributions
 import deepsmlm.simulation.camera
 import deepsmlm.simulation.emitter_generator
 import deepsmlm.simulation.psf_kernel
