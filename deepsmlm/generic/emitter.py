@@ -103,12 +103,12 @@ class EmitterSet:
             f_type = xyz.dtype
 
         if frame_ix.dtype not in (torch.int16, torch.int32, torch.int64):
-            raise ValueError(f"Frame index must be integer type and not {frame_ix.dtype}")
+            raise ValueError(f"Frame index must be integer type and not {frame_ix.dtype}.")
 
-        if id is not None and (id.dtype not in (torch.int16, torch.int32, torch.int64) or id.dtype != frame_ix.dtype):
-            raise ValueError(f"ID must be None or integer type and the same as frame_ix dtype and not {id.dtype}")
-        else:
-            i_type = frame_ix.dtype
+        if id is not None and (id.dtype not in (torch.int16, torch.int32, torch.int64)):
+            raise ValueError(f"ID must be None or integer type not {id.dtype}.")
+
+        i_type = torch.int64
 
         xyz = xyz if xyz.shape[1] == 3 else torch.cat((xyz, torch.zeros_like(xyz[:, [0]])), 1)
 
@@ -118,7 +118,7 @@ class EmitterSet:
         if num_input != 0:
             self.xyz = xyz
             self.phot = phot.type(f_type)
-            self.frame_ix = frame_ix
+            self.frame_ix = frame_ix.type(i_type)
 
             # Optionals
             self.id = id if id is not None else -torch.ones_like(frame_ix)
