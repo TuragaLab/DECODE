@@ -5,6 +5,7 @@ import torch
 from deepsmlm.evaluation import predict_dist
 from deepsmlm.generic import EmitterSet
 from deepsmlm.simulation.psf_kernel import DeltaPSF
+from deepsmlm.generic import process
 
 
 class TargetGenerator(ABC):
@@ -80,6 +81,7 @@ class UnifiedEmbeddingTarget(TargetGenerator):
             (torch.arange(-(self._roi_size - 1) // 2, (self._roi_size - 1) // 2 + 1),) * 2)
 
         self._delta_psf = DeltaPSF(xextent=xextent, yextent=yextent, img_shape=img_shape)
+        self._em_filter = process.RemoveOutOfFOV(xextent=xextent, yextent=yextent, zextent=None, xy_unit='px')
         self._bin_ctr_x = (0.5 * (self._delta_psf._bin_x[1] + self._delta_psf._bin_x[0]) - self._delta_psf._bin_x[
             0] + self._delta_psf._bin_x)[:-1]
         self._bin_ctr_y = (0.5 * (self._delta_psf._bin_y[1] + self._delta_psf._bin_y[0]) - self._delta_psf._bin_y[
@@ -101,35 +103,53 @@ class UnifiedEmbeddingTarget(TargetGenerator):
                    roi_size=param.HyperParameter.target_roi_size,
                    **kwargs)
 
-    def _get_central_px(self, xyz, batch_ix):
-        """Filter first"""
-        mask = self._delta_psf._fov_filter.clean_emitter(xyz)
-        return mask, self._delta_psf.px_search(xyz[mask], batch_ix[mask])
-
     def _get_roi_px(self, batch_ix, x_ix, y_ix):
+        """
+        For each pixel index (aka bin), get the pixel around the center (i.e. the ROI)
+
+        Args:
+            batch_ix:
+            x_ix:
+            y_ix:
+
+        Returns:
+
+        """
+
+        """Pixel pointer relative to the ROI pixels"""
         xx = self.mesh_x.flatten().to(batch_ix.device)
         yy = self.mesh_y.flatten().to(batch_ix.device)
         n_roi = xx.size(0)
 
-        batch_ix_roi = batch_ix.repeat(n_roi)
-        x_ix_roi = (x_ix.view(-1, 1).repeat(1, n_roi) + xx.unsqueeze(0)).flatten()
-        y_ix_roi = (y_ix.view(-1, 1).repeat(1, n_roi) + yy.unsqueeze(0)).flatten()
+        """
+        Repeat the indices and add an ID for bookkeeping. 
+        The idea here is that for the ix we do 'repeat_interleave' and for the offsets we do repeat, such that they 
+        overlap correctly. E.g.
+        5  5  5  9  9  9 (indices)
+        +1 0  -1 +1 0  -1 (offset)
+        6  5  4  10 9  8 (final indices)
+        """
+        batch_ix_roi = batch_ix.repeat_interleave(n_roi)
+        x_ix_roi = x_ix.repeat_interleave(n_roi)
+        y_ix_roi = y_ix.repeat_interleave(n_roi)
+        id = torch.arange(x_ix.size(0)).repeat_interleave(n_roi)
 
-        offset_x = (torch.zeros_like(x_ix).view(-1, 1).repeat(1, n_roi) + xx.unsqueeze(0)).flatten()
-        offset_y = (torch.zeros_like(y_ix).view(-1, 1).repeat(1, n_roi) + yy.unsqueeze(0)).flatten()
-
-        belongingness = (torch.arange(y_ix.size(0)).to(batch_ix.device).view(-1, 1).repeat(1, n_roi)).flatten()
+        """Repeat offsets accordingly and add"""
+        offset_x = xx.repeat(x_ix.size(0))
+        offset_y = yy.repeat(y_ix.size(0))
+        x_ix_roi = x_ix_roi + offset_x
+        y_ix_roi = y_ix_roi + offset_y
 
         """Limit ROIs by frame dimension"""
         mask = (x_ix_roi >= 0) * (x_ix_roi < self.img_shape[0]) * \
                (y_ix_roi >= 0) * (y_ix_roi < self.img_shape[1])
 
-        batch_ix_roi, x_ix_roi, y_ix_roi, offset_x, offset_y, belongingness = batch_ix_roi[mask], x_ix_roi[mask], \
+        batch_ix_roi, x_ix_roi, y_ix_roi, offset_x, offset_y, id = batch_ix_roi[mask], x_ix_roi[mask], \
                                                                               y_ix_roi[mask], \
                                                                               offset_x[mask], offset_y[mask], \
-                                                                              belongingness[mask]
+                                                                              id[mask]
 
-        return batch_ix_roi, x_ix_roi, y_ix_roi, offset_x, offset_y, belongingness
+        return batch_ix_roi, x_ix_roi, y_ix_roi, offset_x, offset_y, id
 
     def single_px_target(self, batch_ix, x_ix, y_ix, batch_size):
         p_tar = torch.zeros((batch_size, *self.img_shape)).to(batch_ix.device)
@@ -150,23 +170,36 @@ class UnifiedEmbeddingTarget(TargetGenerator):
 
         return xy_tar
 
-    def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.Tensor,
+    def _filter_forward(self, em: EmitterSet, ix_low: (int, None), ix_high: (int, None)):
+        """
+        Filter as in abstract class, plus kick out emitters that are outside the frame
+
+        Args:
+            em:
+            ix_low:
+            ix_high:
+
+        """
+        em, ix_low, ix_high = super()._filter_forward(em, ix_low, ix_high)
+        em = self._em_filter.forward(em)  # kick outside of frame out
+
+        return em, ix_low, ix_high
+
+    def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.LongTensor,
                  ix_low: int, ix_high: int) -> torch.Tensor:
-        """Get index of central bin for each emitter, throw out emitters that are out of the frame."""
-        mask, ix = self._get_central_px(xyz, frame_ix)
-        xyz, phot, frame_ix = xyz[mask], phot[mask], frame_ix[mask]
 
-        # unpack and convert
-        batch_ix, x_ix, y_ix = ix
-        batch_ix, x_ix, y_ix = batch_ix.long(), x_ix.long(), y_ix.long()
+        """Get index of central bin for each emitter."""
+        x_ix, y_ix = self._delta_psf.search_bin_index(xyz)
 
-        """Get the indices of the ROIs"""
-        batch_ix_roi, x_ix_roi, y_ix_roi, offset_x, offset_y, id = self._get_roi_px(batch_ix, x_ix, y_ix)
+        assert isinstance(frame_ix, torch.LongTensor)
+
+        """Get the indices of the ROIs around the ctrl pixel"""
+        batch_ix_roi, x_ix_roi, y_ix_roi, offset_x, offset_y, id = self._get_roi_px(frame_ix, x_ix, y_ix)
 
         batch_size = ix_high - ix_low + 1
 
         target = torch.zeros((batch_size, 5, *self.img_shape))
-        target[:, 0] = self.single_px_target(batch_ix, x_ix, y_ix, batch_size)
+        target[:, 0] = self.single_px_target(frame_ix, x_ix, y_ix, batch_size)
         target[:, 1] = self.const_roi_target(batch_ix_roi, x_ix_roi, y_ix_roi, phot, id, batch_size)
         target[:, 2:4] = self.xy_target(batch_ix_roi, x_ix_roi, y_ix_roi, xyz[:, :2], id, batch_size)
         target[:, 4] = self.const_roi_target(batch_ix_roi, x_ix_roi, y_ix_roi, xyz[:, 2], id, batch_size)
@@ -174,7 +207,7 @@ class UnifiedEmbeddingTarget(TargetGenerator):
         return target
 
     def forward(self, em: EmitterSet, bg: torch.Tensor = None, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
-        em, ix_low, ix_high = self._filter_forward(em, ix_low, ix_high)
+        em, ix_low, ix_high = self._filter_forward(em, ix_low, ix_high)  # filter em that are out of view
         target = self.forward_(xyz=em.xyz_px, phot=em.phot, frame_ix=em.frame_ix, ix_low=ix_low, ix_high=ix_high)
 
         if bg is not None:

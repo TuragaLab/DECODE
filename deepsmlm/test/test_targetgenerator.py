@@ -1,5 +1,6 @@
 import pytest
 import torch
+import matplotlib.pyplot as plt
 
 import deepsmlm.simulation.psf_kernel as psf_kernel
 from deepsmlm.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet, test_utils as tutil
@@ -87,18 +88,17 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
 
         return em
 
-    def test_eq_centralpx_delta(self, targ, random_emitter):
-        """Check whether central pixels agree with delta function"""
+    def test_central_px(self, targ, random_emitter):
+        """
+        Check whether central pixels agree with delta function are correct.
+        """
 
         """Run"""
-        mask, ix = targ._get_central_px(random_emitter.xyz, random_emitter.frame_ix)
-        mask_delta = targ._delta_psf._fov_filter.clean_emitter(random_emitter.xyz)
-        ix_delta = targ._delta_psf.px_search(random_emitter.xyz[mask], random_emitter.frame_ix[mask])
+        x_ix, y_ix = targ._delta_psf.search_bin_index(random_emitter.xyz)
 
         """Assert"""
-        assert (mask == mask_delta).all()
-        for ix_el, ix_el_delta in zip(ix, ix_delta):
-            assert (ix_el == ix_el_delta).all()
+        assert (x_ix == random_emitter.xyz[:, 0].round().long()).all()
+        assert (y_ix == random_emitter.xyz[:, 1].round().long()).all()
 
     @pytest.mark.parametrize("roi_size", torch.tensor([1, 3, 5, 7]))
     def test_roi_px(self, targ, random_emitter, roi_size):
@@ -107,11 +107,12 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
                       roi_size=roi_size, ix_low=targ.ix_low, ix_high=targ.ix_high)
 
         """Run"""
-        mask, ix = targ._get_central_px(random_emitter.xyz, random_emitter.frame_ix)
-        batch_ix, x_ix, y_ix, off_x, off_y, id = targ._get_roi_px(*ix)
+        # mask, ix = targ._get_central_px(random_emitter.xyz, random_emitter.frame_ix)
+        x_ix, y_ix = targ._delta_psf.search_bin_index(random_emitter.xyz_px)
+        batch_ix = random_emitter.frame_ix
+        batch_ix, x_ix, y_ix, off_x, off_y, id = targ._get_roi_px(batch_ix, x_ix, y_ix)
 
         """Assert"""
-        assert (batch_ix.unique() == ix[0].unique()).all()
         assert (x_ix >= 0).all()
         assert (y_ix >= 0).all()
         assert (x_ix <= 63).all()
@@ -124,7 +125,7 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
         assert (off_x.unique() == expct_vals).all()
         assert (off_y.unique() == expct_vals).all()
 
-    def test_forward(self, targ):
+    def test_forward_handcrafted(self, targ):
         """Test a couple of handcrafted cases"""
 
         # one emitter outside fov the other one inside
@@ -135,6 +136,61 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
         assert tutil.tens_almeq(out[:, 15, 20], torch.tensor([1., 4., 0.1, -0.4, 250.]), 1e-5)
         assert tutil.tens_almeq(out[:, 16, 20], torch.tensor([0., 4., -0.9, -0.4, 250.]), 1e-5)
         assert tutil.tens_almeq(out[:, 15, 21], torch.tensor([0., 4., 0.1, -1.4, 250.]), 1e-5)
+
+    def test_forward_statistical(self, targ):
+
+        """Setup"""
+        n = 1000
+
+        xyz = torch.zeros((n, 3))
+        xyz[:, 0] = torch.linspace(-10, 78., n)
+        xyz[:, 1] = 30.
+
+        frame_ix = torch.arange(n)
+
+        em = EmitterSet(xyz, torch.ones_like(xyz[:, 0]), frame_ix, xy_unit='px')
+
+        """Run"""
+        out = targ.forward(em, None, 0, n - 1)
+
+        """Assert"""
+        assert (out[:, 0, :, 29] == 0).all()
+        assert (out[:, 0, :, 31] == 0).all()
+        assert (out[(xyz[:, 0] < -0.5) * (xyz[:, 0] >= 63.5)] == 0).all()
+        assert (out.nonzero()[:, 0].unique() == frame_ix[(xyz[:, 0] >= -0.5) * (xyz[:, 0] < 63.5)]).all()
+
+    def test_forward_different_impl(self, targ):
+        """
+        Test the implementation with a slow for loop
+
+        Args:
+            targ:
+
+        Returns:
+
+        """
+
+        """Setup"""
+        n = 50000
+        xyz = torch.rand(n, 3) * 100
+        phot = torch.rand_like(xyz[:, 0])
+        frame_ix = torch.arange(n)
+
+        em = EmitterSet(xyz, phot, frame_ix, xy_unit='px')
+
+        """Run"""
+        out = targ.forward(em, None, 0, n - 1)
+
+        """Assert"""
+        non_zero_detect = out[:, [0]].nonzero()
+
+        for i in range(non_zero_detect.size(0)):
+            for x in range(-(targ._roi_size - 1) // 2, (targ._roi_size - 1) // 2 + 1):
+                for y in range(-(targ._roi_size - 1) // 2, (targ._roi_size - 1) // 2 + 1):
+                    ix_n = non_zero_detect[i, 0]
+                    ix_x = torch.clamp(non_zero_detect[i, -2] + x, 0, 63)
+                    ix_y = torch.clamp(non_zero_detect[i, -1] + y, 0, 63)
+                    assert out[ix_n, 2, ix_x, ix_y] != 0  # would only fail if either x or y are exactly % 1 == 0
 
 
 class TestJonasTarget(TestUnifiedEmbeddingTarget):
