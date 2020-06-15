@@ -1,9 +1,9 @@
 import math
 import warnings
-from abc import ABC, abstractmethod  # abstract class
+from abc import ABC, abstractmethod
 
 import numpy as np
-import spline_psf_cuda  # CPP / CUDA implementation
+import spline  # cubic spline implementation
 import torch
 
 from deepsmlm.generic import slicing as gutil
