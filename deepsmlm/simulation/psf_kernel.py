@@ -134,30 +134,27 @@ class DeltaPSF(PSF):
         self._bin_x = torch.linspace(*xextent, steps=img_shape[0] + 1)
         self._bin_y = torch.linspace(*yextent, steps=img_shape[1] + 1)
 
-    def px_search(self, xyz: torch.Tensor, batch_ix: torch.LongTensor):
+    def search_bin_index(self, xy: torch.Tensor, raise_outside: bool = True):
         """
-        Returns the index of the bin in question, i.e. batch ix, x ix and y ix.
-        Make sure items are actually fit in the bins (i.e. filter outside ones before).
+        Returns the index of the bin in question, x ix and y ix.
+        Make sure items are actually fit in the bins (i.e. filter outside ones before) or handle those items later on.
 
         Args:
-            xyz:
-            batch_ix:
-            batch_size:
-
-        Returns:
+            xy: xy coordinates
+            raise_outside: raise error if anything is outside of the specified bins; otherwise those coordinate's
+                indices are -1 and len(bin) which means outside of the bin's range.
 
         """
 
-        assert isinstance(batch_ix.cpu(), (torch.IntTensor, torch.LongTensor, torch.ShortTensor))
+        x_ix = np.searchsorted(self._bin_x, xy[:, 0], side='right') - 1
+        y_ix = np.searchsorted(self._bin_y, xy[:, 1], side='right') - 1
 
-        # if xyz.is_cuda:
-        #     x_ix = searchsorted(self._bin_x.cuda().unsqueeze(0).contiguous(), xyz[:, [0]].contiguous(), side='right')[:, 0] - 1
-        #     y_ix = searchsorted(self._bin_y.cuda().unsqueeze(0).contiguous(), xyz[:, [1]].contiguous(), side='right')[:, 0] - 1
-        # else:
-        x_ix = np.searchsorted(self._bin_x, xyz[:, 0], side='right') - 1
-        y_ix = np.searchsorted(self._bin_y, xyz[:, 1], side='right') - 1
+        if raise_outside:
+            if (~((x_ix >= self._bin_x[0]) * (x_ix < self._bin_x[-1]) *
+                  (y_ix >= self._bin_y[0]) * (y_ix < self._bin_y[-1]))).any():
+                raise ValueError("At least one value outside of the specified bin ranges.")
 
-        return batch_ix, x_ix, y_ix
+        return x_ix, y_ix
 
     def forward(self, xyz: torch.Tensor, weight: torch.Tensor = None, frame_ix: torch.Tensor = None,
                 ix_low=None, ix_high=None):
@@ -179,10 +176,11 @@ class DeltaPSF(PSF):
 
         xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
 
-        """Remove Emitters that are out of FOV"""
+        """Remove Emitters that are out of the frame"""
         mask = self._fov_filter.clean_emitter(xyz)
 
-        n_ix, x_ix, y_ix = self.px_search(xyz[mask], frame_ix[mask].long())
+        x_ix, y_ix = self.search_bin_index(xyz[mask], raise_outside=True)
+        n_ix = frame_ix[mask].long()
 
         """Generate frames"""
         frames = torch.zeros((ix_high - ix_low + 1, *self.img_shape))
@@ -434,6 +432,7 @@ class CubicSplinePSF(PSF):
         return self.max_roi_chunk // (5 * 2)
 
     """Pickle"""
+
     def __getstate__(self):
         """
         Returns dict without spline implementation attribute because C++ / CUDA implementation is not (yet) implemented
