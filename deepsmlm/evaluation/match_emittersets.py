@@ -10,7 +10,7 @@ from deepsmlm.generic import emitter as emitter
 
 class MatcherABC(ABC):
     """
-    Abstract match class.
+    Abstract emitter matching class.
     """
 
     _return_match = namedtuple('MatchResult', ['tp', 'fp', 'fn', 'tp_match'])  # return-type as namedtuple
@@ -21,17 +21,21 @@ class MatcherABC(ABC):
     @abstractmethod
     def forward(self, output: emitter.EmitterSet, target: emitter.EmitterSet) -> _return_match:
         """
-        All implementations must implement forward method.
+        All implementations shall implement this forward method which takes output and reference set of emitters
+        and outputs true positives, false positives, false negatives and matching ground truth (matched to the true positives).
 
         Args:
-            output:
-            target:
+            output: output set of emitters
+            target: reference set of emitters
 
         Returns:
-            tp: true positives
-            fp: false positives
-            fn: false negatives
-            tp_match: ground truths that have been matched to the true positives
+            (emitter.EmitterSet, emitter.EmitterSet, emitter.EmitterSet, emitter.EmitterSet)
+
+                - **tp**: true positives
+                - **fp**: false positives
+                - **fn**: false negatives
+                - **tp_match**: ground truths that have been matched to the true positives
+
         """
         raise NotImplementedError
 
@@ -185,19 +189,7 @@ class GreedyHungarianMatching(MatcherABC):
         return tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool
 
     def forward(self, output, target):
-        """
 
-        Args:
-            output:
-            target:
-
-        Returns:
-            tp (emitter.EmitterSet): true positives
-            fp (emitter.EmitterSet): false positives
-            fn (emitter.EmitterSet): false negatives
-            tp_match (emitter.EmitterSet): ground truth that was matched to true positives
-
-        """
         """Setup split in frames. Determine the frame range automatically so as to cover everything."""
         if len(output) >= 1 and len(target) >= 1:
             frame_low = output.frame_ix.min() if output.frame_ix.min() < target.frame_ix.min() else target.frame_ix.min()
