@@ -1,5 +1,6 @@
 name: deepsmlm_cpu
 channels:
+  - haydnspass
   - pytorch
   - conda-forge
   - comet_ml
@@ -34,6 +35,7 @@ dependencies:
   - seaborn
   - setuptools
   - scikit-learn
+  - spline
   - sqlite
   - tensorboard
   - tifffile

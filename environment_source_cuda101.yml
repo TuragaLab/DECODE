@@ -1,10 +1,10 @@
 name: deepsmlm_source
 channels:
+  - haydnspass
   - pytorch
   - conda-forge
   - anaconda
   - anaconda-fusion
-  - comet_ml
   - pyviz
   - defaults
 
@@ -38,6 +38,7 @@ dependencies:
   - mkl
   - mkl-include
   - setuptools
+  - spline
   - cffi
   - magma-cuda101
 
@@ -50,6 +51,7 @@ dependencies:
   - setuptools
   - scikit-learn
   - snakeviz
+  - spline
   - sqlite
   - tensorflow
   - tensorboard>=1.14

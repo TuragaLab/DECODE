@@ -320,15 +320,15 @@ class TestCubicSplinePSF(AbstractPSFTest):
         Returns:
 
         """
-        import spline as spline_psf_cuda
+        import spline
 
         """Test implementation state before"""
-        assert isinstance(psf._spline_impl, spline_psf_cuda.PSFWrapperCPU)
-        assert isinstance(psf_cuda._spline_impl, spline_psf_cuda.PSFWrapperCUDA)
+        assert isinstance(psf._spline_impl, spline.PSFWrapperCPU)
+        assert isinstance(psf_cuda._spline_impl, spline.PSFWrapperCUDA)
 
         """Test implementation state after"""
-        assert isinstance(psf.cuda()._spline_impl, spline_psf_cuda.PSFWrapperCUDA)
-        assert isinstance(psf_cuda.cpu()._spline_impl, spline_psf_cuda.PSFWrapperCPU)
+        assert isinstance(psf.cuda()._spline_impl, spline.PSFWrapperCUDA)
+        assert isinstance(psf_cuda.cpu()._spline_impl, spline.PSFWrapperCPU)
 
     def test_pickleability_cpu(self, psf):
         """

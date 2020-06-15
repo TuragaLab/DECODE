@@ -1,9 +1,9 @@
 name: deepsmlm_cuda_py38_pt14
 
 channels:
+  - haydnspass
   - pytorch
   - conda-forge
-  - comet_ml
   - defaults
 
 dependencies:
@@ -38,6 +38,7 @@ dependencies:
   - setuptools
   - scikit-learn
   - sqlite
+  - spline
   - tensorboard
   - tifffile
   - torchvision

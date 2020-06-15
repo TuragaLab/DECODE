@@ -376,15 +376,15 @@ class CubicSplinePSF(PSF):
 
         """
         if self._cuda:
-            self._spline_impl = spline_psf_cuda.PSFWrapperCUDA(self._coeff.shape[0], self._coeff.shape[1],
-                                                               self._coeff.shape[2],
-                                                               self.roi_size_px[0], self.roi_size_px[1],
-                                                               self._coeff.numpy())
+            self._spline_impl = spline.PSFWrapperCUDA(self._coeff.shape[0], self._coeff.shape[1],
+                                                      self._coeff.shape[2],
+                                                      self.roi_size_px[0], self.roi_size_px[1],
+                                                      self._coeff.numpy())
         else:
-            self._spline_impl = spline_psf_cuda.PSFWrapperCPU(self._coeff.shape[0], self._coeff.shape[1],
-                                                              self._coeff.shape[2],
-                                                              self.roi_size_px[0], self.roi_size_px[1],
-                                                              self._coeff.numpy())
+            self._spline_impl = spline.PSFWrapperCPU(self._coeff.shape[0], self._coeff.shape[1],
+                                                     self._coeff.shape[2],
+                                                     self.roi_size_px[0], self.roi_size_px[1],
+                                                     self._coeff.numpy())
 
     def sanity_check(self):
         """
@@ -419,7 +419,7 @@ class CubicSplinePSF(PSF):
         Returns:
 
         """
-        return spline_psf_cuda.PSFWrapperCPU(1, 1, 1, 1, 1, torch.zeros((1, 64)).numpy()).cuda_is_available
+        return spline.PSFWrapperCPU(1, 1, 1, 1, 1, torch.zeros((1, 64)).numpy()).cuda_is_available
 
     @property
     def _roi_size_nm(self):
