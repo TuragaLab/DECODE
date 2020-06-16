@@ -1,5 +1,3 @@
-from __future__ import annotations  # otherwise 'self' annotations does not work
-
 import warnings
 from deprecated import deprecated
 from typing import Union

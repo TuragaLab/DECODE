@@ -18,8 +18,28 @@ challenge_import = {
     'frame_ix_shift': -1
 }
 
+challenge_export = {
+    'desc': 'Framework data transformation to match the challenge.',
+    'xy_unit': 'nm',
+    'px_size': (100., 100.),
+    'xyz_axis': (1, 0, 2),
+    'xyz_nm_factor': (1., 1., -1.),
+    'xyz_nm_shift': (50., 150., 0.),
+    'xyz_px_factor': None,
+    'xyz_px_shift': None,
+    'frame_ix_shift': +1
+}
+
 
 def transform_emitter(em: emitter.EmitterSet, trafo: dict) -> emitter.EmitterSet:
+    """
+    Transform a set of emitters specified by a transformation dictionary. Returns transformed emitterset.
+
+    Args:
+        em: emitterset to be transformed
+        trafo: transformation specs
+
+    """
 
     mod_em = em.clone()
 
