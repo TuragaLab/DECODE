@@ -71,7 +71,7 @@ class SimpleSMLMNet(unet_param.UNet2d):
         :param optimizer:
         :return: weight, channelwise loss, channelwise weighted loss
         """
-        return lyd.rescale_last_layer_grad(self.mt_heads, loss, optimizer)
+        return lyd.weight_by_gradient(self.mt_heads, loss, optimizer)
 
     def apply_pnl(self, o):
         """
@@ -194,7 +194,7 @@ class DoubleMUnet(nn.Module):
                                             skip_gn_level=skip_gn_level)
 
         assert ch_in in (1, 3)
-        assert ch_out in (5, 6)
+        # assert ch_out in (5, 6)
         self.ch_in = ch_in
         self.ch_out = ch_out
         self.mt_heads = nn.ModuleList(
@@ -207,10 +207,10 @@ class DoubleMUnet(nn.Module):
         self.xyz_nl = torch.tanh
         self.bg_nl = torch.sigmoid
 
-    @staticmethod
-    def parse(param):
+    @classmethod
+    def parse(cls, param, **kwargs):
         activation = eval(param['HyperParameter']['arch_param']['activation'])
-        return DoubleMUnet(
+        return cls(
             ch_in=param['HyperParameter']['channels_in'],
             ch_out=param['HyperParameter']['channels_out'],
             ext_features=0,
@@ -224,7 +224,8 @@ class DoubleMUnet(nn.Module):
             norm_head=param['HyperParameter']['arch_param']['norm_head'],
             norm_head_groups=param['HyperParameter']['arch_param']['norm_head_groups'],
             pool_mode=param['HyperParameter']['arch_param']['pool_mode'],
-            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
+            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level,
+            **kwargs
         )
 
     def rescale_last_layer_grad(self, loss, optimizer):
@@ -234,7 +235,7 @@ class DoubleMUnet(nn.Module):
         :param optimizer:
         :return: weight, channelwise loss, channelwise weighted loss
         """
-        return lyd.rescale_last_layer_grad(self.mt_heads, loss, optimizer)
+        return lyd.weight_by_gradient(self.mt_heads, loss, optimizer)
 
     def apply_pnl(self, o):
         """
@@ -309,6 +310,7 @@ class DoubleMUnet(nn.Module):
         """Apply the final non-linearities"""
         if not self.training and not force_no_p_nl:
             o[:, [0]] = self.p_nl(o[:, [0]])
+
         if self._use_last_nl:
             o = self.apply_nonlin(o)
 
