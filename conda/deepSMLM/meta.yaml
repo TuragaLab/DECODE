@@ -6,22 +6,16 @@ source:
      - path: ../..
 
 build:
-  number: 22
+  number: 25
 
 requirements:
   build:
-    - {{ compiler('c') }}
-    - {{ compiler('cxx') }}
     - python {{ python }}
-    - cmake >=3.14
-    - ninja
     - setuptools
 
   host:
     - python {{ python }}
     - numpy {{ numpy }}
-    - pybind11 >=2.4
-    - cudatoolkit-dev # [linux]
 
   run:
     - {{ pin_compatible('python', max_pin='x.x') }}
@@ -42,7 +36,9 @@ requirements:
     - requests
     - scipy
     - seaborn
+    - scikit-image
     - scikit-learn
+    - spline
     - tensorboard
     - tifffile
     - tqdm
@@ -60,5 +56,5 @@ about:
     # license: GPL-3.0
     # license_family: GPL
     # license_file: {{ SRC_DIR }}/LICENSE
-    summary: "bla"
-    description: "bla"
+    summary: "High-Density 3D Single-Molecule Localisation Microscopy using Convolutional Neural Networks."
+    description: "Experimental. Windows and macOS are CPU only, Linux assumes a CUDA capable GPU. Installation must (!) add the proper channels for the PyTorch dependencies: ```conda install -c haydnspass -c pytorch -c conda-forge deepsmlm```"
