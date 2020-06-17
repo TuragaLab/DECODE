@@ -1,5 +1,5 @@
 import deepsmlm.neuralfitter.dataset
-import deepsmlm.neuralfitter.filter
+import deepsmlm.neuralfitter.em_filter
 import deepsmlm.neuralfitter.losscollection
 import deepsmlm.neuralfitter.models
 import deepsmlm.neuralfitter.post_processing
