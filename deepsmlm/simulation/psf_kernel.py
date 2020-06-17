@@ -150,8 +150,8 @@ class DeltaPSF(PSF):
         y_ix = np.searchsorted(self._bin_y, xy[:, 1], side='right') - 1
 
         if raise_outside:
-            if (~((x_ix >= self._bin_x[0]) * (x_ix < self._bin_x[-1]) *
-                  (y_ix >= self._bin_y[0]) * (y_ix < self._bin_y[-1]))).any():
+            if (~((x_ix >= 0) * (x_ix <= len(self._bin_x) - 2) *
+                  (y_ix >= 0) * (y_ix <= len(self._bin_y) - 2))).any():
                 raise ValueError("At least one value outside of the specified bin ranges.")
 
         return x_ix, y_ix
