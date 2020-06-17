@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 
 import torch
 
@@ -59,13 +59,39 @@ class TargetGenerator(ABC):
 
         return em, ix_low, ix_high
 
-    def _postprocess_output(self, target: torch.Tensor) -> torch.Tensor:
-        """Do some simple post-processual steps before return"""
+    def _postprocess_output(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Some simple post-processual steps before return.
+
+        Args:
+            x: input of size :math:`(N,C,H,W)`
+
+        """
 
         if self.squeeze_batch_dim:
-            return target.squeeze(0)
+            if x.size(0) != 1:
+                raise ValueError("First, batch dimension, not singular.")
 
-        return target
+            return x.squeeze(0)
+
+        return x
+
+    @abstractmethod
+    def forward(self, em: EmitterSet, bg: torch.Tensor = None, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
+        """
+        Forward calculate target as by the emitters and background. Overwrite the default frame ix boundaries.
+
+        Args:
+            em: set of emitters
+            bg: background frame
+            ix_low: lower frame index
+            ix_high: upper frame index
+
+        Returns:
+            target frames
+
+        """
+        raise NotImplementedError
 
 
 class UnifiedEmbeddingTarget(TargetGenerator):

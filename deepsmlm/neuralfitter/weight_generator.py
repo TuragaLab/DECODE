@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+from typing import Union
 
 import torch
 import torch.nn
 
 import deepsmlm.generic.emitter as emc
 import deepsmlm.simulation.psf_kernel as psf_kernel
+from . import target_generator
 
 
 class OneHotInflator:
@@ -92,21 +94,20 @@ class OneHotInflator:
         return xrep
 
 
-class WeightGenerator(ABC):
+class WeightGenerator(target_generator.TargetGenerator):
     """
     Abstract weight generator. A weight is something that is to be multiplied by the (non-reduced) loss, i.e. as
 
     """
 
-    def __init__(self):
-        super().__init__()
-        self._squeeze_return = None
+    def __init__(self, ix_low: int = None, ix_high: int = None, squeeze_batch_dim: bool = False):
+        super().__init__(xy_unit=None, ix_low=ix_low, ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
 
-    @staticmethod
-    def parse(param):
+    @classmethod
+    def parse(cls, param):
         """
         Constructs WeightGenerator by parameter variable which will be likely be a namedtuple, dotmap or similiar.
-        
+
         Args:
             param:
 
@@ -116,66 +117,129 @@ class WeightGenerator(ABC):
         """
         raise NotImplementedError
 
-    def _forward_batched(self, x: torch.Tensor) -> torch.Tensor:
+    def check_forward_sanity(self, tar_em: emc.EmitterSet, tar_frames: torch.Tensor):
         """
-        Returns x  in batched version if not already has batch dimension
+        Check sanity of forward arguments, raise error otherwise.
 
         Args:
-            x (torch.Tensor):
-
-        Returns:
-            torch.Tensor
+            tar_em:
+            tar_frames:
 
         """
-
-        if x.dim() == 3:
-            x = x.unsqueeze(0)
-            self._squeeze_return = True
-        elif x.dim() == 4:
-            self._squeeze_return = False
-        else:
-            raise ValueError("Unsupported shape.")
-        return x
-
-    def _forward_return_original(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Returns x in shape of what has been input to forward method
-
-        Args:
-            x (torch.Tensor):
-
-        Returns:
-            torch.Tensor
-
-        """
-        if self._squeeze_return:
-            if x.size(0) != 1:
-                raise ValueError("First, batch dimension, not singular.")
-            return x.squeeze(0)
-        else:
-            return x
-
-    @abstractmethod
-    def forward(self, tar_frames: torch.Tensor, tar_em: emc.EmitterSet, tar_opt) -> torch.Tensor:
-        """
-        Forward frames, emitters and optional arguments through the weight generator.
-
-        Args:
-            tar_frames (torch.Tensor): frames of size :math:`((N,),C,H,W)`
-            tar_em (EmitterSet): target EmitterSet
-            tar_opt (optional): optional other arguments
-
-        Returns:
-            torch.Tensor: Weight mask of size :math:`((N,),D,H,W)` where likely :math:`C=D` but not necessarily.
-
-        """
-        if tar_frames.dim() not in (3, 4):
+        if tar_frames.dim() == 4:
             raise ValueError("Unsupported shape of input.")
 
-        return self._forward_batched(tar_frames)
+        if self.squeeze_batch_dim:
+            if tar_frames.size(0) != 1:
+                raise ValueError("Squeezing batch dim is only allowed if it is singular.")
+
+    @abstractmethod
+    def forward(self, tar_em: emc.EmitterSet, tar_frames: torch.Tensor, ix_low: int, ix_high: int) -> torch.Tensor:
+        """
+        Calculate weight map based on target frames and target emitters.
+
+        Args:
+            tar_em (EmitterSet): target EmitterSet
+            tar_frames (torch.Tensor): frames of size :math:`((N,),C,H,W)`
+
+        Returns:
+            torch.Tensor: Weight mask of size :math:`((N,),D,H,W)` where likely :math:`C=D`
+
+        """
+        raise NotImplementedError
 
 
 class SimpleWeight(WeightGenerator):
+
+    _weight_bases_all = ('const', 'phot')
+
+    def __init__(self, *, xextent: tuple, yextent: tuple, img_shape: tuple, roi_size: int,
+                 weight_mode='const', weight_power: float = None, forward_safety: bool = True,
+                 ix_low: Union[int, None], ix_high: Union[int, None], squeeze_batch_dim: bool = False):
+        """
+
+        Args:
+            xextent (tuple): extent in x
+            yextent (tuple): extent in y
+            img_shape: image shape
+            roi_size (int): roi size of the target
+            weight_mode (str): constant or phot
+            weight_power (float): power factor of the weight
+            forward_safety: check sanity of forward arguments
+        """
+        super().__init__(ix_low=ix_low, ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
+
+        self.roi_size = roi_size
+        self.target_equivalent = target_generator.UnifiedEmbeddingTarget(xextent=xextent, yextent=yextent,
+                                                                         img_shape=img_shape, roi_size=roi_size,
+                                                                         ix_low=ix_low, ix_high=ix_high)
+        self.weight_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape)
+
+        self.weight_mode = weight_mode
+        self.weight_power = weight_power if weight_power is not None else 1.0
+        self._forward_safety = forward_safety
+
+        self.check_sanity()
+
+    def check_sanity(self):
+
+        """Sanity checks"""
+        if self.weight_mode not in self._weight_bases_all:
+            raise ValueError(f"Weight base must be in {self._weight_bases_all}.")
+
+        if self.weight_mode == 'const' and self.weight_power != 1.:
+            raise ValueError(f"Weight power of {self.weight_power} != 1."
+                             f" which does not have an effect for constant weight mode")
+
+    def check_forward_sanity(self, tar_em: emc.EmitterSet, tar_frames: torch.Tensor):
+        super().check_forward_sanity(tar_em, tar_frames)
+
+        if tar_frames.size(1) != 6:
+            raise ValueError(f"Unsupported channel dimension.")
+
+        if self.weight_mode != 'const':
+            raise NotImplementedError
+
+    def forward(self, tar_em: emc.EmitterSet, tar_frames: torch.Tensor,
+                ix_low: Union[int, None], ix_high: Union[int, None]) -> torch.Tensor:
+
+        if self._forward_safety:
+            self.check_forward_sanity(tar_em, tar_frames)
+
+        tar_em = self.target_equivalent._filter_forward(tar_em, ix_low, ix_high)
+
+        """Set Detection and Background to 1."""
+        weight_frames = torch.zeros_like(tar_frames)
+        weight_frames[:, [0, -1]] = 1.
+
+        """Get ROI px set them to the specified weight and rm overlap regions but preserve central px"""
+        xyz = tar_em.xyz_px
+        ix_batch = tar_em.frame_ix
+        weight = torch.ones_like(tar_em.phot)
+
+        batch_size = ix_high - ix_low + 1
+        ix_x, ix_y = self.weight_psf.search_bin_index(xyz[:, :2])
+        ix_batch_roi, ix_x_roi, ix_y_roi, _, _, id = self.target_equivalent._get_roi_px(ix_batch, ix_x, ix_y)
+
+        """Set ROI"""
+        roi_frames = self.target_equivalent.const_roi_target(ix_batch_roi, ix_x_roi, ix_y_roi, weight,
+                                                                         id, batch_size)
+
+        """RM overlap but preserve central pixels"""
+        ix_roi_unique, roi_count = torch.stack((ix_batch_roi, ix_x_roi, ix_y_roi), 1).unique(dim=0, return_counts=True)
+        ix_overlap = roi_count >= 2
+
+        roi_frames[ix_roi_unique[ix_overlap, 0], ix_roi_unique[ix_overlap, 1], ix_roi_unique[ix_overlap, 2]] = 0
+
+        """Preserve central pixels"""
+        roi_frames[ix_batch, ix_x, ix_y] = weight
+
+        weight_frames[:, 1:-1] = roi_frames
+
+        return weight_frames
+
+
+class _SimpleWeight(WeightGenerator):
     """
     Weight mask that is 1 in the detection and background channel everywhere and in the ROIs of the other detection
     channels. Assumes the following channel order prob (0), phot (1), x (2), y (3), z (4), bg (5).

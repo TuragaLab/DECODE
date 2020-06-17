@@ -1,54 +1,50 @@
 import pytest
 import torch
+from abc import ABC
 
 from deepsmlm.generic import emitter, test_utils
 from deepsmlm.neuralfitter import weight_generator
 
 
-class TestOneHot2ROI:
+class TestAbstractWeightGenerator(ABC):
 
-    @pytest.fixture(params=['zero', 'mean'])
-    def cand(self, request):
-        return weight_generator.OneHotInflator(roi_size=3, channels=1, overlap_mode=request.param)
+    def test_check_forward_sanity(self, waiter):
 
-    def test_sanity(self, cand):
+        with pytest.raises(ValueError) as err_info:
+            waiter.check_forward_sanity(emitter.EmptyEmitterSet, torch.rand((2, 2)))
+            assert err_info == "Unsupported shape of input."
 
-        with pytest.raises(NotImplementedError):
-            cand.__init__(roi_size=3, channels=1, overlap_mode='median')  # wrong overlap mode
 
-        with pytest.raises(NotImplementedError):
-            cand.__init__(roi_size=5, channels=1, overlap_mode='zero')  # not implemented roi size
+def test_is_overlap(cand):
+    """
 
-    def test_is_overlap(self, cand):
-        """
+    Args:
+        cand: fixture
 
-        Args:
-            cand: fixture
+    """
 
-        """
+    """Setup"""
+    x = torch.zeros((2, 1, 32, 32))
+    x[0, 0, 2, 2] = 1.  # isolated
+    x[1, 0, 10, 10] = 1.  # close by and overlapped
+    x[1, 0, 11, 11] = 1.
 
-        """Setup"""
-        x = torch.zeros((2, 1, 32, 32))
-        x[0, 0, 2, 2] = 1.  # isolated
-        x[1, 0, 10, 10] = 1.  # close by and overlapped
-        x[1, 0, 11, 11] = 1.
+    """Run"""
+    is_overlap, count = cand._is_overlap(x)
 
-        """Run"""
-        is_overlap, count = cand._is_overlap(x)
+    """Assertions"""
+    assert is_overlap.dtype is torch.bool
+    assert count.dtype in (torch.int16, torch.int32, torch.int64)
 
-        """Assertions"""
-        assert is_overlap.dtype is torch.bool
-        assert count.dtype in (torch.int16, torch.int32, torch.int64)
+    assert x.size() == is_overlap.size()
+    assert is_overlap.size() == count.size()
 
-        assert x.size() == is_overlap.size()
-        assert is_overlap.size() == count.size()
+    assert (count[0].unique() == torch.tensor([0, 1])).all()
+    assert (count[1].unique() == torch.tensor([0, 1, 2])).all()
 
-        assert (count[0].unique() == torch.tensor([0, 1])).all()
-        assert (count[1].unique() == torch.tensor([0, 1, 2])).all()
-
-        assert not is_overlap[0, 0, 2, 2]
-        assert count[0, 0, 2, 2] == 1
-        assert (count[1, 0, [10, 11], [10, 11]] == 2).all()
+    assert not is_overlap[0, 0, 2, 2]
+    assert count[0, 0, 2, 2] == 1
+    assert (count[1, 0, [10, 11], [10, 11]] == 2).all()
 
     def test_forward(self, cand):
 
