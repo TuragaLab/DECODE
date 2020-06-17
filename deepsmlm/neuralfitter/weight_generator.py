@@ -107,6 +107,13 @@ class SimpleWeight(WeightGenerator):
             raise ValueError(f"Weight power of {self.weight_power} != 1."
                              f" which does not have an effect for constant weight mode")
 
+    @classmethod
+    def parse(cls, param, **kwargs):
+        return cls(xextent=param.Simulation.psf_extent[0], yextent=param.Simulation.psf_extent[1],
+                   img_shape=param.Simulation.img_size, roi_size=param.HyperParameter.target_roi_size,
+                   weight_mode=param.HyperParameter.weight_base,
+                   weight_power=param.HyperParameter.weight_power, **kwargs)
+
     def check_forward_sanity(self, tar_em: emc.EmitterSet, tar_frames: torch.Tensor, ix_low: int, ix_high: int):
         super().check_forward_sanity(tar_em, tar_frames, ix_low, ix_high)
 
@@ -122,6 +129,9 @@ class SimpleWeight(WeightGenerator):
 
     def forward(self, tar_em: emc.EmitterSet, tar_frames: torch.Tensor,
                 ix_low: Union[int, None] = None, ix_high: Union[int, None] = None) -> torch.Tensor:
+
+        if self.squeeze_batch_dim and tar_frames.dim() == 3:
+            tar_frames = tar_frames.unsqueeze(0)
 
         if self._forward_safety:
             self.check_forward_sanity(tar_em, tar_frames, ix_low, ix_high)

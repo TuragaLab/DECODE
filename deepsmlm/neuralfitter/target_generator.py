@@ -215,7 +215,7 @@ class UnifiedEmbeddingTarget(TargetGenerator):
                  ix_low: int, ix_high: int) -> torch.Tensor:
 
         """Get index of central bin for each emitter."""
-        x_ix, y_ix = self._delta_psf.search_bin_index(xyz)
+        x_ix, y_ix = self._delta_psf.search_bin_index(xyz[:, :2])
 
         assert isinstance(frame_ix, torch.LongTensor)
 

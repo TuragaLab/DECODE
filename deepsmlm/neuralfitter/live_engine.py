@@ -199,7 +199,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
             ],
             input_slice=None)
 
-        weight_gen = deepsmlm.neuralfitter.weight_generator.SimpleWeight.parse(param)
+        weight_gen = deepsmlm.neuralfitter.weight_generator.SimpleWeight.parse(param, ix_low=0, ix_high=0,
+                                                                               squeeze_batch_dim=True)
 
     if param.Simulation.mode == 'acquisition':
         train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator_train, em_proc=None,
@@ -262,7 +263,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
         weight_gen_test = deepsmlm.neuralfitter.weight_generator.SimpleWeight(xextent=param.TestSet.frame_extent[0],
                                                                               yextent=param.TestSet.frame_extent[1],
                                                                               img_shape=param.TestSet.img_size,
-                                                                              target_roi_size=param.HyperParameter.target_roi_size,
+                                                                              roi_size=param.HyperParameter.target_roi_size,
                                                                               weight_mode=param.HyperParameter.weight_base,
                                                                               weight_power=param.HyperParameter.weight_power)
 

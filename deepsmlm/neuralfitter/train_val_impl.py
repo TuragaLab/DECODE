@@ -30,13 +30,13 @@ def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logge
         y_out = model(x)
 
         """Reset the optimiser, compute the loss and backprop it"""
-        optimizer.zero_grad()
         loss_val = loss(y_out, y_tar, weight)
 
         if grad_rescale:  # rescale gradients so that they are in the same order for the last layer
             weight, _, _ = model.rescale_last_layer_grad(loss_val, optimizer)
             loss_val = loss_val * weight
 
+        optimizer.zero_grad()
         loss_val.mean().backward()
 
         """Update model parameters"""
@@ -113,4 +113,3 @@ def test(model, loss, dataloader, epoch, device):
 
     return loss_cmp_ep.mean(), _val_return(loss=loss_cmp_ep,
                                            x=x_ep, y_out=y_out_ep, y_tar=y_tar_ep, weight=weight_ep, em_tar=em_tar_ep)
-
