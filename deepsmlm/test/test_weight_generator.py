@@ -6,89 +6,13 @@ from deepsmlm.generic import emitter, test_utils
 from deepsmlm.neuralfitter import weight_generator
 
 
-class TestAbstractWeightGenerator(ABC):
+class AbstractWeightGeneratorVerification(ABC):
 
     def test_check_forward_sanity(self, waiter):
 
         with pytest.raises(ValueError) as err_info:
-            waiter.check_forward_sanity(emitter.EmptyEmitterSet, torch.rand((2, 2)))
+            waiter.check_forward_sanity(emitter.EmptyEmitterSet, torch.rand((2, 2)), 0, 0)
             assert err_info == "Unsupported shape of input."
-
-
-def test_is_overlap(cand):
-    """
-
-    Args:
-        cand: fixture
-
-    """
-
-    """Setup"""
-    x = torch.zeros((2, 1, 32, 32))
-    x[0, 0, 2, 2] = 1.  # isolated
-    x[1, 0, 10, 10] = 1.  # close by and overlapped
-    x[1, 0, 11, 11] = 1.
-
-    """Run"""
-    is_overlap, count = cand._is_overlap(x)
-
-    """Assertions"""
-    assert is_overlap.dtype is torch.bool
-    assert count.dtype in (torch.int16, torch.int32, torch.int64)
-
-    assert x.size() == is_overlap.size()
-    assert is_overlap.size() == count.size()
-
-    assert (count[0].unique() == torch.tensor([0, 1])).all()
-    assert (count[1].unique() == torch.tensor([0, 1, 2])).all()
-
-    assert not is_overlap[0, 0, 2, 2]
-    assert count[0, 0, 2, 2] == 1
-    assert (count[1, 0, [10, 11], [10, 11]] == 2).all()
-
-    def test_forward(self, cand):
-
-        """Setup"""
-        x = torch.zeros((2, 1, 32, 32))
-        x[0, 0, 2, 2] = 1.  # isolated
-        x[1, 0, 10, 10] = 1.  # close by and overlapped
-        x[1, 0, 11, 11] = 1.
-
-        """Run"""
-        xrep = cand.forward(x)
-
-        """Assertions"""
-        assert xrep.size() == x.size()
-
-        # Centres
-        assert x[0, 0, 2, 2] == xrep[0, 0, 2, 2]
-        assert x[1, 0, 10, 10] == xrep[1, 0, 10, 10]
-        assert x[1, 0, 11, 11] == xrep[1, 0, 11, 11]
-
-        # non-overlapping parts
-        assert (xrep[0, 0, 1:3, 1:3] == 1.).all()
-        assert (xrep[1, 0, 9:12, 9] == 1.).all()
-        assert (xrep[1, 0, 9, 9:12] == 1.).all()
-
-        # overlapping parts
-        if cand.overlap_mode == 'zero':
-            assert (xrep[1, 0, [10, 11], [11, 10]] == 0).all()
-        elif cand.overlap_mode == 'mean':
-            assert (xrep[1, 0, [10, 11], [11, 10]] == 1.).all()
-        else:
-            raise ValueError
-
-
-class TestWeightGenerator:
-
-    @pytest.fixture()
-    def waiter(self):  # a pun
-        class WeightGeneratorMock(weight_generator.WeightGenerator):
-            def forward(self, x, y, z):
-                x = super().forward(x, y, z)
-                return self._forward_return_original(torch.ones_like(x))
-
-        return WeightGeneratorMock()
 
     def test_shape(self, waiter):
         """
@@ -100,11 +24,11 @@ class TestWeightGenerator:
 
         """Setup"""
         x = torch.rand((3, 6, 5, 5))
-        em = emitter.EmptyEmitterSet()
+        em = emitter.EmptyEmitterSet(xy_unit='px')
         opt = torch.rand_like(x[:, [0]])
 
         """Run"""
-        out = waiter.forward(x, em, opt)
+        out = waiter.forward(em, x, 0, 2)
 
         """Assertions"""
         # Check shape. Note that the channel dimensions might different.
@@ -120,30 +44,30 @@ class TestWeightGenerator:
 
         """
         """Setup"""
-        x = torch.rand((6, 5, 5))
-        em = emitter.EmptyEmitterSet()
+        x = torch.rand((1, 6, 5, 5))
+        em = emitter.EmptyEmitterSet(xy_unit='px')
 
         """Run"""
-        out = waiter.forward(x, em, None)
+        out = waiter.forward(em, x, 0, 0)
 
         """Assertions"""
         assert out.dim() == x.dim()
 
         with pytest.raises(ValueError):
-            _ = waiter.forward(torch.rand((5, 5)), None, None)
+            _ = waiter.forward(em, torch.rand((5, 5)), 0, 0)
 
         with pytest.raises(ValueError):
-            _ = waiter.forward(torch.rand((2, 3, 2, 5, 5)), None, None)
+            _ = waiter.forward(em, torch.rand((2, 3, 2, 5, 5)), 0, 0)
 
 
-class TestSimpleWeight(TestWeightGenerator):
+class TestSimpleWeight(AbstractWeightGeneratorVerification):
 
-    @pytest.fixture(scope='class', params=[('const', None), ('phot', 2.3)])
+    @pytest.fixture(scope='class', params=[('const', None)])  #, ('phot', 2.3)])
     def waiter(self, request):
         return weight_generator.SimpleWeight(xextent=(-0.5, 4.5),
                                              yextent=(-0.5, 4.5),
                                              img_shape=(5, 5),
-                                             target_roi_size=3,
+                                             roi_size=3,
                                              weight_mode=request.param[0],
                                              weight_power=request.param[1])
 
@@ -152,27 +76,27 @@ class TestSimpleWeight(TestWeightGenerator):
         """Test init sanity"""
         with pytest.raises(ValueError):  # const and weight power != 1
             weight_generator.SimpleWeight(xextent=(-0.5, 4.5), yextent=(-0.5, 4.5), img_shape=(5, 5),
-                                          target_roi_size=3, weight_mode='const', weight_power=2.3)
+                                          roi_size=3, weight_mode='const', weight_power=2.3)
 
         with pytest.raises(ValueError):
             weight_generator.SimpleWeight(xextent=(-0.5, 4.5), yextent=(-0.5, 4.5), img_shape=(5, 5),
-                                          target_roi_size=3, weight_mode='a', weight_power=None)
+                                          roi_size=3, weight_mode='a', weight_power=None)
 
         """Test forward sanity"""
         with pytest.raises(ValueError):  # wrong spatial dim
-            waiter.forward(torch.zeros((1, 6, 6, 6)), emitter.EmptyEmitterSet(), None)
+            waiter.forward(emitter.EmptyEmitterSet(), torch.zeros((1, 6, 6, 6)), 0, 0)
 
         with pytest.raises(ValueError):  # wrong channel count
-            waiter.forward(torch.zeros((1, 3, 5, 5)), emitter.EmptyEmitterSet(), None)
+            waiter.forward(emitter.EmptyEmitterSet(), torch.zeros((1, 3, 5, 5)), 0, 0)
 
-        with pytest.raises(ValueError):  # negative photon count
-            em = emitter.RandomEmitterSet(32)
-            em.phot[5] = -0.1
-            waiter.forward(torch.rand((1, 6, 5, 5)), em, None)
-
-        if waiter.weight_mode == 'phot':
-            with pytest.raises(ValueError):  # bg has zero values
-                waiter.forward(torch.zeros((1, 6, 5, 5)), emitter.EmptyEmitterSet(), None)
+        # with pytest.raises(ValueError):  # negative photon count
+        #     em = emitter.RandomEmitterSet(32)
+        #     em.phot[5] = -0.1
+        #     waiter.forward(em, torch.rand((1, 6, 5, 5)), 0, 0)
+        #
+        # if waiter.weight_mode == 'phot':
+        #     with pytest.raises(ValueError):  # bg has zero values
+        #         waiter.forward(emitter.EmptyEmitterSet(), torch.zeros((1, 6, 5, 5)))
 
     def test_weight_hard(self, waiter):
         """
@@ -188,10 +112,10 @@ class TestSimpleWeight(TestWeightGenerator):
         tar_frames[:, 5] = torch.rand_like(tar_frames[:, 5])  # let bg be non-zero
 
         em = emitter.EmitterSet(xyz=torch.tensor([[1., 1., 0], [3., 3., 0.]]), phot=torch.Tensor([1., 5.]),
-                                frame_ix=torch.tensor([0, 1]))
+                                frame_ix=torch.tensor([0, 0]), xy_unit='px')
 
         """Run"""
-        mask = waiter.forward(tar_frames, em, None)
+        mask = waiter.forward(em, tar_frames, 0, 0)
 
         """Assertions"""
         assert (mask[:, 0] == 1.).all(), "p channel must be weight 1"
@@ -213,14 +137,13 @@ class TestSimpleWeight(TestWeightGenerator):
             assert test_utils.tens_almeq(mask[:, 5], 1 / tar_frames[:, 5] ** 2.3, 1e-5), "BG CRLB estimate"
 
 
-class TestFourFoldWeight(TestWeightGenerator):
+class TestFourFoldWeight(AbstractWeightGeneratorVerification):
 
     @pytest.fixture()
     def waiter(self):
         return weight_generator.FourFoldSimpleWeight(
-            xextent=(-0.5, 63.5), yextent=(-0.5, 63.5), img_shape=(64, 64), target_roi_size=3,
-            rim=0.125
-        )
+            xextent=(-0.5, 63.5), yextent=(-0.5, 63.5), img_shape=(64, 64), roi_size=3,
+            rim=0.125)
 
     def test_forward(self, waiter):
 
@@ -229,7 +152,7 @@ class TestFourFoldWeight(TestWeightGenerator):
         tar_em = emitter.CoordinateOnlyEmitter(torch.tensor([[0., 0., 0.], [0.49, 0., 0.]]), 'px')
 
         """Run"""
-        weight_out = waiter.forward(tar_frames, tar_em, None)
+        weight_out = waiter.forward(tar_em, tar_frames, 0, 1)
 
         """Assertions"""
         assert weight_out.size(1) == 21

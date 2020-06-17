@@ -99,7 +99,7 @@ class SMLMDataset(Dataset):
             target = None
 
         if self.weight_gen is not None:
-            weight = self.weight_gen.forward(target, tar_emitter, bg_frame)
+            weight = self.weight_gen.forward(tar_emitter, target)
         else:
             weight = None
 

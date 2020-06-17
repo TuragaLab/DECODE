@@ -164,7 +164,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     bg_frame_proc = deepsmlm.neuralfitter.scale_transform.SpatialInterpolation(size=param.Simulation.img_size)
 
     # em_filter = deepsmlm.neuralfitter.filter.TarEmitterFilter()
-    em_filter = deepsmlm.neuralfitter.filter.NoEmitterFilter()
+    em_filter = deepsmlm.neuralfitter.em_filter.NoEmitterFilter()
 
     # Target generator is a sequence of multiple modules
     if param.HyperParameter.target_mode == 'fourfold':
