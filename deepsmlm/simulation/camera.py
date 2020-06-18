@@ -107,7 +107,7 @@ class Photon2Camera(Camera):
         camera = torch.max(camera, torch.tensor([0.]).to(camera.device))
 
         if self.photon_units:
-            return self.backward(camera)
+            return self.backward(camera, device)
 
         return camera
 
@@ -127,11 +127,6 @@ class Photon2Camera(Camera):
             x = x.to(device)
         elif self.device is not None:
             x = x.to(self.device)
-
-        if self.photon_units:
-            warnings.warn(
-                UserWarning("You try to convert from ADU (camera units) back to photons although this camera simulator"
-                            "already outputs photon units. Make sure you know what you are doing."))
 
         out = (x - self.baseline) * self.e_per_adu
         if self._em_gain is not None:
