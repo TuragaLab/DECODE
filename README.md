@@ -1,6 +1,10 @@
 # DEEPsmlm
 [![Build Status](https://travis-ci.com/Haydnspass/DeepSMLM.svg?token=qb4PpCab8Gb7CDLAuNTY&branch=master)](https://travis-ci.com/Haydnspass/DeepSMLM)
-[![Build Status](https://travis-ci.com/Haydnspass/DeepSMLM.svg?token=qb4PpCab8Gb7CDLAuNTY&branch=dev_training_engine)](https://travis-ci.com/Haydnspass/DeepSMLM)
+
+### Notes
+Simulation heavily relies on the Cubic Spline PSF Implementation (Li, Y. et al. Real-time 3D single-molecule localization using experimental point spread functions. Nature Methods 15, 367–369 (2018)).
+It has been factored out in a seperate Repo to make life easier (see https://github.com/Haydnspass/SplinePSF).
+
 
 ## Installation for Users
 The easiest way to get it, is by using conda. If you don't have conda (chances are you have it when you have used python)
