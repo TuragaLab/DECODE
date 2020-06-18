@@ -9,7 +9,7 @@ you may download it from https://anaconda.org.
 In the following we will make a conda environment and install deepsmlm. If you are familiar with using
 ```conda``` in your terminal of choice that's great! Just type:
 
-        conda create -n deepsmlm_env -c haydnspass -c conda-forge deepsmlm
+        conda create -n deepsmlm_env -c haydnspass -c pytorch -c conda-forge deepsmlm python=3.8  # python >=3.6 supported
         conda activate deepsmlm_env
         
 This will create a new environment and install this framework. 
@@ -19,13 +19,14 @@ If everything worked until here you are good and can skip the next step.
 navigator and install the package there. Installing the package without creating a new environment 
 (or in a fresh environment) is possible as
 
-        conda install -c haydnspass deepsmlm
+        conda install -c haydnspass -c pytorch deepsmlm
         
 In python you can now import this package as simple as ```import deepsmlm```
 
 ## Setup for Developers
 0. Clone the repository
 1. Install conda environment from file and activate it. Use the respective environment depending on whether you have a CUDA GPU or not.
+The cubic spline psf is pre-compiled in a different repo / as a separate package and will be installed automatically.
 
         # CUDA
         conda env create -f deepsmlm_cuda101_py38_pt14.yml
@@ -34,26 +35,8 @@ In python you can now import this package as simple as ```import deepsmlm```
         # CPU / macOS
         conda env create -f deepsmlm_cpu_py38_pt14.yml
         conda activate deepsmlm_cpu
-
-3. Install necessary libraries or install as package.
-    - **(option A)** Build libraries.
-    If you have a CUDA GPU and all the CUDA stuff you need to compile something, make sure CMake can find the compiler.
-    You can provide help by doing something like ```export CUDACXX=/usr/local/cuda/bin/nvcc``` but it is optional.
-    If CMake does not find a working CUDA compiler it will fall back to the CPU only version.
-    
-            # go to cpp_src, assuming you are in the repository folder
-            cd deepsmlm/cpp_src
-            mkdir build
-            cmake -GNinja ..
-            ninja
-    
-    - **(option B)** Install the package. 
-    This makes sure that all necessary libraries are built and installed in the right place.
-    It also puts the source code in the ```.../site-packages``` folder where python expects them.
-
-            python setup.py install
             
-4. Test whether everything works as expected
+3. Test whether everything works as expected
 
             # assuming you are in the repo folder
             pytest deepsmlm/test
@@ -62,6 +45,6 @@ In python you can now import this package as simple as ```import deepsmlm```
             # you might need to close popping up matplot figures
             pytest deepsmlm/test --plot  
     
-5. The package can be used in python as
+4. The package can be used in python as
 
     ```import deepsmlm```
