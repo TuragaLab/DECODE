@@ -1,8 +1,8 @@
 import math
 import warnings
 from abc import ABC, abstractmethod  # abstract class
-import scipy
 
+import scipy
 import torch
 from joblib import Parallel, delayed
 from sklearn.cluster import AgglomerativeClustering
@@ -581,11 +581,11 @@ class Offset2Coordinate:
         y_coord = self._y_mesh.repeat(batch_size, 1, 1).to(y_offset.device) + y_offset
         return x_coord, y_coord
 
-    @staticmethod
-    def parse(param):
-        return Offset2Coordinate(param.TestSet.frame_extent[0],
-                                 param.TestSet.frame_extent[1],
-                                 param.TestSet.img_size)
+    @classmethod
+    def parse(cls, param):
+        return cls(param.TestSet.frame_extent[0],
+                   param.TestSet.frame_extent[1],
+                   param.TestSet.img_size)
 
     def forward(self, x: torch.Tensor):
         """
