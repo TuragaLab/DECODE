@@ -1,5 +1,4 @@
 import time
-from deprecated import deprecated
 
 import torch
 from torch.utils.data import Dataset
@@ -258,7 +257,8 @@ class SMLMLiveSampleDataset(SMLMDataset):
 
     """
 
-    def __init__(self, *, simulator, ds_len, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, return_em=False):
+    def __init__(self, *, simulator, ds_len, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window,
+                 return_em=False):
         super().__init__(em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
                          tar_gen=tar_gen, weight_gen=weight_gen,
                          frame_window=frame_window, pad=None, return_em=return_em)
@@ -270,7 +270,6 @@ class SMLMLiveSampleDataset(SMLMDataset):
         return self.ds_len
 
     def __getitem__(self, ix):
-
         """Sample"""
         emitter, frames, bg_frames = self.simulator.sample()
 
@@ -282,145 +281,3 @@ class SMLMLiveSampleDataset(SMLMDataset):
         frames, target, weight, tar_emitter = self._process_sample(frames, tar_emitter, bg_frames)
 
         return self._return_sample(frames, target, weight, tar_emitter)
-
-
-@deprecated(reason="Not needed anymore.")
-class SMLMSampleStreamEngineDataset(SMLMDataset):
-    """
-    A dataset to use in conjunction with the training engine. It serves the purpose to load the data from the engine.
-
-    Attributes:
-
-    tar_gen: target generator function
-    frame_proc: frame processing function
-    em_proc: emitter processing / filter function
-    weight_gen: weight generator function
-
-    return_em (bool): return EmitterSet in getitem method.
-
-    """
-
-    def __init__(self, *, engine, em_proc, frame_proc, tar_gen, weight_gen, return_em=False):
-        """
-
-        Args:
-            engine: (SMLMTrainingEngine)
-            em_proc: (callable) that filters the emitters as provided by the simulation engine
-            frame_proc: (callable) that prepares the input data for the network (e.g. rescaling)
-            tar_gen: (callable) that generates the training data
-            weight_gen: (callable) that generates a weight mask corresponding to the target / output data
-            return_em: (bool) return target emitters in the form of an emitter set. use for test set
-
-        """
-        super().__init__(em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=None,
-                         tar_gen=tar_gen, weight_gen=weight_gen, frame_window=None,
-                         pad=None, return_em=return_em)
-
-        self._engine = engine
-        self._x_in = None  # camera frames
-        self._tar_em = None  # emitter target
-        self._aux = None  # auxiliary things
-
-    def load_from_engine(self):
-        """
-        Gets the data from the engine makes basic transformations
-
-        Returns:
-            None
-
-        """
-
-        self._tar_em = None
-        self._x_in = None
-        self._aux = None
-
-        data = self._engine.load_and_touch()
-        self._tar_em = data[0]
-        self._x_in = data[1]
-        if len(data) >= 3:  # auxiliary stuff is appended at the end
-            self._aux = data[2:]
-        else:
-            self._aux = [None] * self._x_in.size(0)
-
-    def __len__(self):
-        return self._x_in.size(0)
-
-    def __getitem__(self, ix):
-        """
-
-        Args:
-            ix: (int) item index
-
-        Returns:
-            x_in: (torch.Tensor) input frame
-            tar_frame: (torch.Tensor) target frame
-            tar_em: (EmitterSet, optional) target emitter
-
-        """
-
-        """Get a single sample from the list."""
-        x_in = self._x_in[ix]
-        tar_em = self._tar_em[ix]
-        aux = [a[ix] for a in self._aux]
-
-        """Preparation on input, emitter filtering, target generation"""
-        x_in = self.frame_proc.forward(x_in)
-        tar_em = self.em_proc.forward(tar_em)
-        tar_frame = self.tar_gen.forward(tar_em, *aux)
-        weight = self.weight_gen.forward(tar_frame, tar_em, *aux)
-
-        return self._return_sample(x_in, tar_frame, weight, tar_em)
-
-
-@deprecated(reason="Not needed anymore.")
-class SMLMDatasetEngineDataset(SMLMSampleStreamEngineDataset):
-
-    def __init__(self, *, engine, em_proc, frame_proc, tar_gen, weight_gen, frame_window, pad=None, return_em=False):
-        super().__init__(engine=engine, em_proc=em_proc, frame_proc=frame_proc, tar_gen=tar_gen, weight_gen=weight_gen,
-                         return_em=return_em)
-
-        self.frame_window = frame_window
-        self.pad = pad
-
-    def __len__(self):
-        if self.pad is None:  # loosing samples at the border
-            return self._x_in.size(0) - self.frame_window + 1
-        elif self.pad == 'same':
-            return self._x_in.size(0)
-
-    def load_from_engine(self):
-        def set_frame_ix(em):
-            em.frame_ix = torch.zeros_like(em.frame_ix)
-            return em
-
-        super().load_from_engine()
-
-        """
-        It's more efficient to write an entire frame set to binary instead of a list of emittersets (per frame).
-        However, getting a subset of the frameset each time is expensive, since search starts over and over.
-        Therefore, split the EmitterSet after loading and move the indices to 0 (since the target emitters per
-        example are expected to be 0).
-        """
-        if not isinstance(self._tar_em, (list, tuple)):
-            self._tar_em = self._tar_em.split_in_frames(0, self._x_in.size(0) - 1)
-            self._tar_em = [set_frame_ix(em) for em in self._tar_em]
-
-    def __getitem__(self, index):
-
-        index = self._pad_index(index)
-
-        x_in = self._get_frames(self._x_in, index)
-        tar_em = self._tar_em[index]
-        aux = [a[index] for a in self._aux]
-
-        """Give Frames and BG a channel dimension"""
-        assert len(aux) == 1, "Auxiliary input can only be background."
-        aux[0].unsqueeze_(0)
-
-        """Preparation on input, emitter filtering, target generation"""
-        x_in = self.frame_proc.forward(x_in)
-        tar_em = self.em_proc.forward(tar_em)
-        tar_frame = self.tar_gen.forward(tar_em, *aux) if self.tar_gen is not None else None
-        weight = self.weight_gen.forward(tar_frame, tar_em, *aux) if self.weight_gen is not None else None
-
-        return self._return_sample(x_in, tar_frame, weight, tar_em)
