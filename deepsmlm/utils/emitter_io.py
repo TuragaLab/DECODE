@@ -20,7 +20,7 @@ def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_a
         dict: dictionary which can readily be converted to an EmitterSet by EmitterSet(**out_dict)
     """
     if mapping is None:
-        mapping = {'x': 'x', 'y': 'y', 'z': 'z', 'phot': 'phot'}
+        mapping = {'x': 'x', 'y': 'y', 'z': 'z', 'phot': 'phot', 'frame_ix': 'frame_ix'}
 
     chunks = pd.read_csv(file, chunksize=100000, **pd_csv_args)
     data = pd.concat(chunks)
