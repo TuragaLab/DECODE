@@ -4,6 +4,7 @@ import torch
 
 from deepsmlm.evaluation import predict_dist
 from deepsmlm.generic import EmitterSet
+from deepsmlm.generic.process import RemoveOutOfFOV
 from deepsmlm.simulation.psf_kernel import DeltaPSF
 from deepsmlm.generic import process
 
@@ -108,10 +109,8 @@ class UnifiedEmbeddingTarget(TargetGenerator):
 
         self._delta_psf = DeltaPSF(xextent=xextent, yextent=yextent, img_shape=img_shape)
         self._em_filter = process.RemoveOutOfFOV(xextent=xextent, yextent=yextent, zextent=None, xy_unit='px')
-        self._bin_ctr_x = (0.5 * (self._delta_psf._bin_x[1] + self._delta_psf._bin_x[0]) - self._delta_psf._bin_x[
-            0] + self._delta_psf._bin_x)[:-1]
-        self._bin_ctr_y = (0.5 * (self._delta_psf._bin_y[1] + self._delta_psf._bin_y[0]) - self._delta_psf._bin_y[
-            0] + self._delta_psf._bin_y)[:-1]
+        self._bin_ctr_x = self._delta_psf.bin_ctr_x
+        self._bin_ctr_y = self._delta_psf.bin_ctr_y
 
     @property
     def xextent(self):
@@ -242,7 +241,52 @@ class UnifiedEmbeddingTarget(TargetGenerator):
         return self._postprocess_output(target)
 
 
-class JonasTarget(UnifiedEmbeddingTarget):
+class ParameterListTarget(TargetGenerator):
+    def __init__(self, n_max: int, xextent: tuple, yextent: tuple, ix_low=None, ix_high=None, xy_unit: str = 'px',
+                 squeeze_batch_dim: bool = False):
+
+        super().__init__(xy_unit=xy_unit, ix_low=ix_low, ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
+        self.n_max = n_max
+        self.xextent = xextent
+        self.yextent = yextent
+
+        self._fov_filter = RemoveOutOfFOV(xextent=xextent, yextent=yextent, xy_unit=xy_unit)
+
+    def _filter_forward(self, em: EmitterSet, ix_low: (int, None), ix_high: (int, None)):
+        em, ix_low, ix_high = super()._filter_forward(em, ix_low, ix_high)
+        em = self._fov_filter.forward(em)
+
+        return em, ix_low, ix_high
+
+    def forward(self, em: EmitterSet, bg: torch.Tensor = None, ix_low: int = None, ix_high: int = None):
+        em, ix_low, ix_high = self._filter_forward(em, ix_low, ix_high)
+
+        n_frames = ix_high - ix_low + 1
+
+        """Setup and compute parameter target (i.e. a matrix / tensor in which all params are concatenated)."""
+        param_tar = float('nan') * torch.ones((n_frames, self.n_max, 4))
+        mask_tar = torch.zeros((n_frames, self.n_max)).bool()
+
+        if self.xy_unit == 'px':
+            xyz = em.xyz_px
+        elif self.xy_unit == 'nm':
+            xyz = em.xyz_nm
+        else:
+            raise NotImplementedError
+
+        """Set number of active elements per frame"""
+        for i in range(n_frames):
+            n_emitter = len(em.get_subset_frame(i, i))
+            mask_tar[i, :n_emitter] = 1
+
+            ix = em.frame_ix == i
+            param_tar[i, :n_emitter, 0] = em[ix].phot
+            param_tar[i, :n_emitter, 1:] = xyz[ix]
+
+        return self._postprocess_output(param_tar), self._postprocess_output(mask_tar), bg
+
+
+class OverlappingDetectionTarget(UnifiedEmbeddingTarget):
 
     def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, roi_size: int, rim_max, ix_low=None,
                  ix_high=None, squeeze_batch_dim: bool = False):

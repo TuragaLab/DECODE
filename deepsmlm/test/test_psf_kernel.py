@@ -119,6 +119,15 @@ class TestDeltaPSF:
                                    yextent=(-0.5, 31.5),
                                    img_shape=(64, 64))
 
+    def test_bin_ctr(self, delta_1px, delta_05px):
+
+        """Assert"""
+        assert (delta_1px._bin_ctr_x == torch.arange(32).float()).all()
+        assert (delta_1px._bin_ctr_y == torch.arange(32).float()).all()
+
+        assert (delta_05px._bin_ctr_x == torch.arange(64).float() / 2 - 0.25).all()
+        assert (delta_05px._bin_ctr_y == torch.arange(64).float() / 2 - 0.25).all()
+
     def test_px_search(self, delta_05px):
 
         """Setup"""
