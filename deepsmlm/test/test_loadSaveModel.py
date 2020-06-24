@@ -2,7 +2,8 @@ import os
 import time
 
 import pytest
-import deepsmlm.neuralfitter.models.model as model
+import torch
+
 import deepsmlm.utils.model_io as io_model
 
 deepsmlm_root = os.path.abspath(
@@ -13,7 +14,9 @@ deepsmlm_root = os.path.abspath(
 @pytest.fixture
 def unet():
     """Inits an arbitrary UNet."""
-    return model.UNet(3, 5)
+    model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
+                           in_channels=3, out_channels=1, init_features=32, pretrained=False)
+    return model
 
 
 @pytest.fixture
@@ -42,5 +45,3 @@ def test_save(model_interface, unet):
 
 def test_load_init(model_interface):
     model_interface.load_init(deepsmlm_root + 'deepsmlm/test/assets/test_load_save_0.pt')
-
-
