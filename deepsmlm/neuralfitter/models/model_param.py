@@ -144,24 +144,24 @@ class SMLMNetBG(SimpleSMLMNet):
                                                                      norm_groups=norm_bg_groups,
                                                                      activation=activation)
 
-    @staticmethod
-    def parse(param):
-        activation = eval(param['HyperParameter']['arch_param']['activation'])
-        return SMLMNetBG(
-            ch_in=param['HyperParameter']['channels_in'],
-            ch_out=param['HyperParameter']['channels_out'],
-            depth=param['HyperParameter']['arch_param']['depth'],
-            initial_features=param['HyperParameter']['arch_param']['initial_features'],
-            inter_features=param['HyperParameter']['arch_param']['inter_features'],
-            p_dropout=param['HyperParameter']['arch_param']['p_dropout'],
-            pool_mode=param['HyperParameter']['arch_param']['pool_mode'],
+    @classmethod
+    def parse(cls, param):
+        activation = eval(param.HyperParameter.arch_param.activation)
+        return cls(
+            ch_in=param.HyperParameter.channels_in,
+            ch_out=param.HyperParameter.channels_out,
+            depth=param.HyperParameter.arch_param.depth,
+            initial_features=param.HyperParameter.arch_param.initial_features,
+            inter_features=param.HyperParameter.arch_param.inter_features,
+            p_dropout=param.HyperParameter.arch_param.p_dropout,
+            pool_mode=param.HyperParameter.arch_param.pool_mode,
             activation=activation,
-            use_last_nl=param['HyperParameter']['arch_param']['use_last_nl'],
-            norm=param['HyperParameter']['arch_param']['norm'],
-            norm_groups=param['HyperParameter']['arch_param']['norm_groups'],
-            norm_bg=param['HyperParameter']['arch_param']['norm_bg'],
-            norm_bg_groups=param['HyperParameter']['arch_param']['norm_bg_groups'],
-            detach_bg=param['HyperParameter']['arch_param']['detach_bg'],
+            use_last_nl=param.HyperParameter.arch_param.use_last_nl,
+            norm=param.HyperParameter.arch_param.norm,
+            norm_groups=param.HyperParameter.arch_param.norm_groups,
+            norm_bg=param.HyperParameter.arch_param.norm_bg,
+            norm_bg_groups=param.HyperParameter.arch_param.norm_bg_groups,
+            detach_bg=param.HyperParameter.arch_param.detach_bg,
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
         )
 
@@ -177,17 +177,18 @@ class SMLMNetBG(SimpleSMLMNet):
 
 
 class DoubleMUnet(nn.Module):
-    def __init__(self, ch_in, ch_out, ext_features=0, depth=3, initial_features=64, inter_features=64,
+    def __init__(self, ch_in, ch_out, ext_features=0, depth_shared=3, depth_union=3, initial_features=64, inter_features=64,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
                  norm_head_groups=None, pool_mode='Conv2d', skip_gn_level=None):
         super().__init__()
 
-        self.unet_shared = unet_param.UNet2d(1 + ext_features, inter_features, depth=depth, pad_convs=True,
+        self.unet_shared = unet_param.UNet2d(1 + ext_features, inter_features, depth=depth_shared, pad_convs=True,
                                              initial_features=initial_features,
                                              activation=activation, norm=norm, norm_groups=norm_groups,
                                              pool_mode=pool_mode,
                                              skip_gn_level=skip_gn_level)
-        self.unet_union = unet_param.UNet2d(ch_in * inter_features, inter_features, depth=depth, pad_convs=True,
+
+        self.unet_union = unet_param.UNet2d(ch_in * inter_features, inter_features, depth=depth_union, pad_convs=True,
                                             initial_features=initial_features,
                                             activation=activation, norm=norm, norm_groups=norm_groups,
                                             pool_mode=pool_mode,
@@ -209,49 +210,59 @@ class DoubleMUnet(nn.Module):
 
     @classmethod
     def parse(cls, param, **kwargs):
-        activation = eval(param['HyperParameter']['arch_param']['activation'])
+        activation = eval(param.HyperParameter.arch_param.activation)
         return cls(
-            ch_in=param['HyperParameter']['channels_in'],
-            ch_out=param['HyperParameter']['channels_out'],
+            ch_in=param.HyperParameter.channels_in,
+            ch_out=param.HyperParameter.channels_out,
             ext_features=0,
-            depth=param['HyperParameter']['arch_param']['depth'],
-            initial_features=param['HyperParameter']['arch_param']['initial_features'],
-            inter_features=param['HyperParameter']['arch_param']['inter_features'],
+            depth_shared=param.HyperParameter.arch_param.depth_shared,
+            depth_union=param.HyperParameter.arch_param.depth_union,
+            initial_features=param.HyperParameter.arch_param.initial_features,
+            inter_features=param.HyperParameter.arch_param.inter_features,
             activation=activation,
-            use_last_nl=param['HyperParameter']['arch_param']['use_last_nl'],
-            norm=param['HyperParameter']['arch_param']['norm'],
-            norm_groups=param['HyperParameter']['arch_param']['norm_groups'],
-            norm_head=param['HyperParameter']['arch_param']['norm_head'],
-            norm_head_groups=param['HyperParameter']['arch_param']['norm_head_groups'],
-            pool_mode=param['HyperParameter']['arch_param']['pool_mode'],
+            use_last_nl=param.HyperParameter.arch_param.use_last_nl,
+            norm=param.HyperParameter.arch_param.norm,
+            norm_groups=param.HyperParameter.arch_param.norm_groups,
+            norm_head=param.HyperParameter.arch_param.norm_head,
+            norm_head_groups=param.HyperParameter.arch_param.norm_head_groups,
+            pool_mode=param.HyperParameter.arch_param.pool_mode,
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level,
             **kwargs
         )
 
     def rescale_last_layer_grad(self, loss, optimizer):
         """
+        Rescales the weight as by the last layer's gradient
 
-        :param loss: non-reduced loss of size N x C x H x W
-        :param optimizer:
-        :return: weight, channelwise loss, channelwise weighted loss
+        Args:
+            loss:
+            optimizer:
+
+        Returns:
+            weight, channelwise loss, channelwise weighted loss
+
         """
         return lyd.weight_by_gradient(self.mt_heads, loss, optimizer)
 
-    def apply_pnl(self, o):
+    def apply_detection_nonlin(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Apply nonlinearity (sigmoid) to p channel. This is combined during training in the loss function.
-        Only use when not training
-        :param o:
-        :return:
-        """
-        o[:, [0]] = self.p_nl(o[:, [0]])
-        return o
+        Apply detection non-linearity. Useful for non-training situations. When BCEWithLogits loss is used, do not use this
+         during training (because it's already included in the loss).
 
-    def apply_nonlin(self, o):
+        Args:
+            o: model output
+
         """
-        Apply non linearity in all the other channels
-        :param o:
-        :return:
+        x[:, [0]] = self.p_nl(x[:, [0]])
+        return x
+
+    def apply_nonlin(self, o: torch.Tensor) -> torch.Tensor:
+        """
+        Apply non-linearity to all but the detection channel.
+
+        Args:
+            o:
+
         """
         # Apply for phot, xyz
         p = o[:, [0]]  # leave unused
@@ -375,25 +386,25 @@ class DoubleMUNetSeperateBG(SimpleSMLMNet):
         self.bg_nl = torch.tanh
         self.bg_recpt = recpt_bg
 
-    @staticmethod
-    def parse(param):
-        activation = eval(param['HyperParameter']['arch_param']['activation'])
-        return DoubleMUNetSeperateBG(
-            ch_in=param['HyperParameter']['channels_in'],
-            ch_out=param['HyperParameter']['channels_out'],
-            depth=param['HyperParameter']['arch_param']['depth'],
-            initial_features=param['HyperParameter']['arch_param']['initial_features'],
-            recpt_bg=param['HyperParameter']['arch_param']['recpt_bg'],
-            depth_bg=param['HyperParameter']['arch_param']['depth_bg'],
-            initial_features_bg=param['HyperParameter']['arch_param']['initial_features_bg'],
-            inter_features=param['HyperParameter']['arch_param']['inter_features'],
+    @classmethod
+    def parse(cls, param):
+        activation = eval(param.HyperParameter.arch_param.activation)
+        return cls(
+            ch_in=param.HyperParameter.channels_in,
+            ch_out=param.HyperParameter.channels_out,
+            depth=param.HyperParameter.arch_param.depth,
+            initial_features=param.HyperParameter.arch_param.initial_features,
+            recpt_bg=param.HyperParameter.arch_param.recpt_bg,
+            depth_bg=param.HyperParameter.arch_param.depth_bg,
+            initial_features_bg=param.HyperParameter.arch_param.initial_features_bg,
+            inter_features=param.HyperParameter.arch_param.inter_features,
             activation=activation,
-            use_last_nl=param['HyperParameter']['arch_param']['use_last_nl'],
-            norm=param['HyperParameter']['arch_param']['norm'],
-            norm_groups=param['HyperParameter']['arch_param']['norm_groups'],
-            norm_bg=param['HyperParameter']['arch_param']['norm_bg'],
-            norm_bg_groups=param['HyperParameter']['arch_param']['norm_bg_groups'],
-            pool_mode=param['HyperParameter']['arch_param']['pool_mode'],
+            use_last_nl=param.HyperParameter.arch_param.use_last_nl,
+            norm=param.HyperParameter.arch_param.norm,
+            norm_groups=param.HyperParameter.arch_param.norm_groups,
+            norm_bg=param.HyperParameter.arch_param.norm_bg,
+            norm_bg_groups=param.HyperParameter.arch_param.norm_bg_groups,
+            pool_mode=param.HyperParameter.arch_param.pool_mode,
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
         )
 
@@ -441,10 +452,10 @@ class BGNet(nn.Module):
                                      pool_mode=pool_mode,
                                      skip_gn_level=skip_gn_level)
 
-    @staticmethod
-    def parse(param):
-        activation = eval(param['HyperParameter']['arch_param']['activation'])
-        return BGNet(
+    @classmethod
+    def parse(cls, param):
+        activation = eval(param.HyperParameter.arch_param.activation)
+        return cls(
             ch_in=param.HyperParameter.channels_in,
             ch_out=param.HyperParameter.channels_out,
             depth_bg=param.HyperParameter.arch_param.depth_bg,

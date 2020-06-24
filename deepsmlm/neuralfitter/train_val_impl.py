@@ -88,7 +88,7 @@ def test(model, loss, dataloader, epoch, device):
 
             loss_val = loss(y_out, y_tar, weight)
 
-            y_out = model.apply_pnl(y_out)
+            y_out = model.apply_detection_nonlin(y_out)
 
             t_batch = time.time() - t0
 
