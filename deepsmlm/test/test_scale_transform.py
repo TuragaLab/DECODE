@@ -112,4 +112,23 @@ class TestTargetRescale:
         assert t_util.tens_almeq(x, x_hat, 1e-6)
 
 
+class TestScaleTransform:
 
+    @pytest.fixture()
+    def rescaler(self):
+        return scf.ParameterListRescale(10000., 100., 200.)
+
+    def test_forward(self, rescaler):
+
+        """Assertions"""
+        with pytest.raises(ValueError) as err_info:
+            rescaler.forward(torch.rand((2, 3, 5)), torch.rand(32, 32))
+            assert err_info == f"Unsupported shape of input {torch.rand((2, 3, 5)).size()}"
+
+        """Test unmodifiedness"""
+        x = torch.rand((2, 32, 4))
+        x_deep = x.clone()
+
+        _ = rescaler.forward(x, torch.rand((32, 32)))
+
+        assert (x == x_deep).all()

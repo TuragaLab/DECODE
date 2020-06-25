@@ -132,7 +132,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
 
     """Loss function."""
     if param.HyperParameter.target_mode == 'fourfold':
-        criterion = deepsmlm.neuralfitter.losscollection.FourFoldPXYZChecks(
+        criterion = deepsmlm.neuralfitter.losscollection.FourFoldPPXYZ(
             components=(deepsmlm.neuralfitter.losscollection.PPXYZBLoss(device=param.Hardware.device,
                                                                         chweight_stat=[1., 1., 1., 1., 1.],
                                                                         forward_safety=False),) * 4
@@ -182,8 +182,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
 
         tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
             [
-                deepsmlm.neuralfitter.target_generator.JonasTarget.parse(param, ix_low=0, ix_high=0,
-                                                                         squeeze_batch_dim=True),
+                deepsmlm.neuralfitter.target_generator.OverlappingDetectionTarget.parse(param, ix_low=0, ix_high=0,
+                                                                                        squeeze_batch_dim=True),
                 deepsmlm.neuralfitter.scale_transform.InverseOffsetRescale.parse(param)
             ],
             input_slice=None)

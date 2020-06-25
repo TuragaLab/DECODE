@@ -1,5 +1,5 @@
 import functools
-
+from typing import Tuple
 import torch
 
 
@@ -262,3 +262,23 @@ class FourFoldInverseOffsetRescale(InverseOffsetRescale):
         bg = (x[..., [20], :, :] - self.mu_sig_bg[0]) / (self.mu_sig_bg[1] * self.buffer) ** self.power
 
         return torch.cat([x_no_bg, bg], 1 if x.dim() == 4 else 0)
+
+
+class ParameterListRescale:
+
+    def __init__(self, phot_max, z_max, bg_max):
+        self.phot_max = phot_max
+        self.z_max = z_max
+        self.bg_max = bg_max
+
+    def forward(self, x: torch.Tensor, bg: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        if x.dim() != 3 or x.size(2) != 4:
+            raise ValueError(f"Unsupported shape of input {x.size()}")
+
+        x = x.clone()
+        x[:, 0] = x[:, 0] / self.phot_max
+        x[:, 3] = x[:, 3] / self.z_max
+        bg = bg / self.bg_max
+
+        return x, bg

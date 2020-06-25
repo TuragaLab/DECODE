@@ -128,10 +128,41 @@ class TestFourFoldLoss(TestLossAbstract):
 
     @pytest.fixture()
     def loss_impl(self):
-        return loss.FourFoldPXYZChecks(components=(loss.PPXYZBLoss(device=torch.device('cpu'),
-                                                                   chweight_stat=[1., 1., 1., 1., 1.],
-                                                                   forward_safety=False),) * 4)
+        return loss.FourFoldPPXYZ(components=(loss.PPXYZBLoss(device=torch.device('cpu'),
+                                                              chweight_stat=[1., 1., 1., 1., 1.],
+                                                              forward_safety=False),) * 4)
 
     def test_forward(self, loss_impl):
 
         loss_impl.forward(torch.rand((2, 21, 32, 32)), torch.rand((2, 21, 32, 32)), torch.rand((2, 21, 32, 32)))
+
+
+class TestGaussianMixtureModelLoss:
+
+    @pytest.fixture()
+    def loss_impl(self):
+        return loss.GaussianMMLoss((-0.5, 31.5), (-0.5, 31.5), (32, 32))
+
+    def test_gmm_loss(self, loss_impl):
+
+        """Setup"""
+        p = torch.zeros((2, 32, 32)) + 1E-8
+        pxyz_mu = torch.zeros((2, 4, 32, 32))
+        pxyz_sig = torch.zeros_like(pxyz_mu) + 100
+
+        p[[0, 1], [2, 5], [4, 10]] = 0.9
+        pxyz_mu[0, :, 2, 4] = torch.tensor([0.76, 0.3, -0.7, 0.8])
+        pxyz_mu[1, :, 5, 10] = torch.tensor([0.8, 0.2, 0.4, 0.1])
+
+        pxyz_sig[0, :, 2, 4] = torch.tensor([3., 1., 0.5, 0.2])
+        pxyz_sig[1, :, 5, 10] = torch.tensor([.1, 2., 3., 4.])
+
+        pxyz_tar = torch.zeros((2, 3, 4))
+        pxyz_tar[0, 0, :] = torch.tensor([0.8, 2.2, 3.9, 0.7])
+        pxyz_tar[1, 0, :] = torch.tensor([0.8, 4.1, 10.2, 0.05])
+
+        mask = torch.zeros((2, 3)).long()
+        mask[[0, 1], 0] = 1
+
+        """Run"""
+        loss_impl._compute_gmm_loss(p, pxyz_mu, pxyz_sig, pxyz_tar, mask)

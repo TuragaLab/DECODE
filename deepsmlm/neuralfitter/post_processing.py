@@ -570,8 +570,8 @@ class Offset2Coordinate:
         Convert subpixel pointers to absolute coordinates. Actual implementation
 
         Args:
-            x_offset:
-            y_offset:
+            x_offset: N x H x W
+            y_offset: N x H x W
 
         Returns:
 

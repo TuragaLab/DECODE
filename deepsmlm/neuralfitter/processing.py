@@ -74,7 +74,8 @@ class TransformSequence:
 class ParallelTransformSequence(TransformSequence):
     """
     Simple processing class that forwards data through all of it's components parallelly (not in a hardware sense) and
-    returns a list of the output or combines them if a merger is specified.
+    returns a list of the output or combines them if a merging function is specified. A merging function needs to
+    accept a list as an argument.
     """
 
     def __init__(self, components, input_slice, merger=None):

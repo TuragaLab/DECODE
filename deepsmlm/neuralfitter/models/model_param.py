@@ -177,7 +177,8 @@ class SMLMNetBG(SimpleSMLMNet):
 
 
 class DoubleMUnet(nn.Module):
-    def __init__(self, ch_in, ch_out, ext_features=0, depth_shared=3, depth_union=3, initial_features=64, inter_features=64,
+    def __init__(self, ch_in, ch_out, ext_features=0, depth_shared=3, depth_union=3, initial_features=64,
+                 inter_features=64,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
                  norm_head_groups=None, pool_mode='Conv2d', skip_gn_level=None):
         super().__init__()
@@ -293,6 +294,23 @@ class DoubleMUnet(nn.Module):
         Returns:
 
         """
+        o = self._forward_core(external, x)
+
+        o_head = []
+        for i in range(self.ch_out):
+            o_head.append(self.mt_heads[i].forward(o))
+        o = torch.cat(o_head, 1)
+
+        """Apply the final non-linearities"""
+        if not self.training and not force_no_p_nl:
+            o[:, [0]] = self.p_nl(o[:, [0]])
+
+        if self._use_last_nl:
+            o = self.apply_nonlin(o)
+
+        return o
+
+    def _forward_core(self, external, x) -> torch.Tensor:
         if self.ch_in == 3:
             x0 = x[:, [0]]
             x1 = x[:, [1]]
@@ -310,26 +328,14 @@ class DoubleMUnet(nn.Module):
 
         elif self.ch_in == 1:
             o = self.unet_shared.forward(x)
-
         o = self.unet_union.forward(o)
-
-        o_head = []
-        for i in range(self.ch_out):
-            o_head.append(self.mt_heads[i].forward(o))
-        o = torch.cat(o_head, 1)
-
-        """Apply the final non-linearities"""
-        if not self.training and not force_no_p_nl:
-            o[:, [0]] = self.p_nl(o[:, [0]])
-
-        if self._use_last_nl:
-            o = self.apply_nonlin(o)
 
         return o
 
 
 class MLTHeads(nn.Module):
-    def __init__(self, in_channels, activation=nn.ReLU(), last_kernel=1, norm=None, norm_groups=None, padding=True):
+    def __init__(self, in_channels, out_channels=1, last_kernel=1, norm=None, norm_groups=None, padding=True,
+                 activation=nn.ReLU()):
         super().__init__()
         self.norm = norm
         self.norm_groups = norm_groups
@@ -343,7 +349,7 @@ class MLTHeads(nn.Module):
         padding = padding
 
         self.core = self._make_core(in_channels, groups_1, groups_2, activation, padding, self.norm)
-        self.out_conv = nn.Conv2d(in_channels, 1, kernel_size=last_kernel, padding=False)
+        self.out_conv = nn.Conv2d(in_channels, out_channels, kernel_size=last_kernel, padding=False)
 
     def forward(self, x):
         o = self.core.forward(x)

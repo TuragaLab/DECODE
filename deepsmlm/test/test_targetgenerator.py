@@ -37,7 +37,7 @@ class TestTargetGenerator:
         img_shape = (64, 64)
         return DummyTarget(xextent, yextent, img_shape)
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture()
     def fem(self):
         return EmitterSet(xyz=torch.tensor([[0., 0., 0.]]), phot=torch.Tensor([1.]), frame_ix=torch.tensor([0]),
                           xy_unit='px')
@@ -201,7 +201,7 @@ class TestJonasTarget(TestUnifiedEmbeddingTarget):
         yextent = (-0.5, 63.5)
         img_shape = (64, 64)
 
-        return target_generator.JonasTarget(xextent, yextent, img_shape, roi_size=5, rim_max=0.6, ix_low=0, ix_high=5)
+        return target_generator.OverlappingDetectionTarget(xextent, yextent, img_shape, roi_size=5, rim_max=0.6, ix_low=0, ix_high=5)
 
 
 class Test4FoldTarget(TestTargetGenerator):
@@ -274,3 +274,48 @@ class Test4FoldTarget(TestTargetGenerator):
             assert (tar_outs[:, 10, 0, 0] == (pos_space >= .125) * (pos_space < .875)).all()
         elif axis == 'diag':
             assert (tar_outs[:, 15, 0, 0] == (pos_space >= .125) * (pos_space < .875)).all()
+
+
+class TestParameterListTarget(TestTargetGenerator):
+
+    @pytest.fixture()
+    def targ(self):
+        return target_generator.ParameterListTarget(n_max=100,
+                                                    xextent=(-.5, 63.5), yextent=(-.5, 63.5),
+                                                    xy_unit='px', ix_low=0, ix_high=1)
+
+    @pytest.fixture()
+    def fem(self):
+        return EmitterSet(xyz=torch.tensor([[1., 2., 3.], [4., 5., 6.]]), phot=torch.Tensor([3., 2.]),
+                          frame_ix=torch.tensor([0, 1]), xy_unit='px')
+
+    def test_default_range(self):
+        pass
+
+    def test_shape(self, targ, fem):
+
+        """Setup"""
+        n_frames_tar = fem.frame_ix.unique().size(0)
+
+        """Run"""
+        param_tar, activation_tar, bg = targ.forward(fem)
+
+        """Test"""
+        assert param_tar.size() == torch.Size((n_frames_tar, targ.n_max, 4)), "Wrong size of param target."
+        assert activation_tar.size() == torch.Size((n_frames_tar, targ.n_max)), "Wrong size of activation target."
+
+    def test_forward(self, targ, fem):
+
+        """Setup"""
+        n_frames_tar = fem.frame_ix.unique().size(0)
+
+        """Run"""
+        param_tar, activation_tar, bg = targ.forward(fem)
+
+        assert (activation_tar == 1).sum() == len(fem), "Number of activations wrong."
+        assert activation_tar[:1, 0] == 1
+        assert torch.isnan(activation_tar[2:]).all()
+
+        assert (param_tar[[0, 1], 0, 0] == fem.phot).all()
+        assert (param_tar[[0, 1], 0, 1:] == fem.xyz_px).all()
+        assert torch.isnan(param_tar[2:]).all()
