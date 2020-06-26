@@ -17,11 +17,8 @@ install:
   # Replace dep1 dep2 ... with your dependencies
   # - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION pytest
   - conda config --set channel_priority strict
-  - conda env create -q -f environment_cpu_py38_pt14.yml
+  - conda env create -q -f environment_cpu_py38_torch15.yml
   - conda activate deepsmlm_cpu
-
-  # build the C and C++ libraries
-  - python setup.py install
 
 script:
   - pytest deepsmlm/test

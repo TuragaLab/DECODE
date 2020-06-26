@@ -1,4 +1,4 @@
-name: deepsmlm_cuda_py38_pt14
+name: deepsmlm_cuda_py38_pt15
 
 channels:
   - haydnspass
@@ -9,8 +9,7 @@ channels:
 dependencies:
   - click
   - cmake=3.15
-  - comet_ml
-  - cudatoolkit=10.1
+  - cudatoolkit=10.2
   - deprecated
   - dotmap
   - h5py
@@ -25,11 +24,10 @@ dependencies:
   - pandas
   - pybind11>=2.4
   - python=3.8
-  - pytorch=1.4.*
+  - pytorch>=1.5.1
   - pyyaml
   - pytest
   - pytest-repeat
-  - pyspark
   - requests
   - scikit-image
   - scikit-optimize

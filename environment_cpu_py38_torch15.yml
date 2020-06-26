@@ -3,13 +3,11 @@ channels:
   - haydnspass
   - pytorch
   - conda-forge
-  - comet_ml
   - defaults
 
 dependencies:
   - click
   - cmake=3.15
-  - comet_ml
   - deprecated
   - dotmap
   - h5py
@@ -24,7 +22,7 @@ dependencies:
   - pandas
   - pybind11>=2.4
   - python=3.8
-  - pytorch=1.4.*
+  - pytorch>=1.5.1
   - pyyaml
   - pytest
   - pytest-repeat
