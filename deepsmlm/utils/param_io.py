@@ -82,7 +82,7 @@ class ParamHandling:
     @staticmethod
     def convert_param_debug(param):
         param.HyperParameter.pseudo_ds_size = 1024
-        param.HyperParameter.test_size = 128
+        param.TestSet.test_size = 128
         param.InOut.model_out = 'network/debug.pt'
 
 
