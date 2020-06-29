@@ -208,7 +208,7 @@ class GreedyHungarianMatching(MatcherABC):
 
         tpl, fpl, fnl, tpml = [], [], [], []  # true positive list, false positive list, false neg. ...
 
-        """Assign the emitters framewise"""
+        """Match the emitters framewise"""
         for out_f, tar_f in zip(out_pframe, tar_pframe):
             filter_mask = self.filter(out_f.xyz_nm, tar_f.xyz_nm)  # batch implemented
             tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool = self._match_kernel(out_f.xyz_nm, tar_f.xyz_nm,

@@ -318,4 +318,4 @@ class TestParameterListTarget(TestTargetGenerator):
 
         assert (param_tar[[0, 1], 0, 0] == fem.phot).all()
         assert (param_tar[[0, 1], 0, 1:] == fem.xyz_px).all()
-        assert torch.isnan(param_tar[2:]).all()
+        assert (param_tar[2:] == 0.).all()

@@ -1,5 +1,6 @@
 import torch
 from torch._six import int_classes, string_classes, container_abcs
+import warnings
 
 import deepsmlm.generic
 
@@ -29,5 +30,8 @@ def smlm_collate(batch):
         return [smlm_collate(samples) for samples in transposed]
     elif isinstance(batch[0], deepsmlm.generic.emitter.EmitterSet):
         return [em for em in batch]
+    elif batch[0] is None:
+        # warnings.warn("Encountered 'None' variable returned from dataset.")
+        return None
     else:
         raise TypeError((error_msg.format(type(batch[0]))))

@@ -264,7 +264,7 @@ class ParameterListTarget(TargetGenerator):
         n_frames = ix_high - ix_low + 1
 
         """Setup and compute parameter target (i.e. a matrix / tensor in which all params are concatenated)."""
-        param_tar = float('nan') * torch.ones((n_frames, self.n_max, 4))
+        param_tar = torch.zeros((n_frames, self.n_max, 4))
         mask_tar = torch.zeros((n_frames, self.n_max)).bool()
 
         if self.xy_unit == 'px':

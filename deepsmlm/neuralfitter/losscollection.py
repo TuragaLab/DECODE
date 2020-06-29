@@ -2,10 +2,13 @@ from abc import ABC, abstractmethod  # abstract class
 from typing import Union, Tuple
 
 import torch
+from torch import distributions
+from torch.nn import functional
 from deprecated import deprecated
 
-from . import MixtureSameFamily as mixture
+# from . import MixtureSameFamily as mixture
 from . import post_processing
+from ..simulation import psf_kernel
 
 
 class Loss(ABC):
@@ -176,15 +179,16 @@ class GaussianMMLoss(Loss):
     Model output is a mean and sigma value which forms a gaussian mixture model.
     """
 
-    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple):
+    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, forward_safety: bool = True):
         super().__init__()
 
         self._bg_loss = torch.nn.MSELoss(reduction='none')
-        # self._offset2coord = psf_kernel.DeltaPSF(xextent=xextent, yextent=yextent, img_shape=img_shape)
-        self._offset2coord = post_processing.Offset2Coordinate(xextent=xextent, yextent=yextent, img_shape=img_shape)
+        self._offset2coord = psf_kernel.DeltaPSF(xextent=xextent, yextent=yextent, img_shape=img_shape)
+        # self._offset2coord = post_processing.Offset2Coordinate(xextent=xextent, yextent=yextent, img_shape=img_shape)
+        self.forward_safety = forward_safety
 
     def log(self, loss_val):
-        pass
+        return loss_val.mean(), {'loss', loss_val}
 
     @staticmethod
     def _format_model_output(output: torch.Tensor) -> tuple:
@@ -206,7 +210,7 @@ class GaussianMMLoss(Loss):
         pxyz_sig = output[:, 5:-1]
         bg = output[:, -1]
 
-        return p, pxyz_mu, pxyz_sig
+        return p, pxyz_mu, pxyz_sig, bg
 
     def _compute_gmm_loss(self, p, pxyz_mu, pxyz_sig, pxyz_tar, mask) -> torch.Tensor:
         """
@@ -229,41 +233,45 @@ class GaussianMMLoss(Loss):
 
         p_mean = p.sum(-1).sum(-1)
         p_var = (p - p ** 2).sum(-1).sum(-1)  # var estimate of bernoulli
-        p_gauss = mixture.D.Normal(p_mean, torch.sqrt(p_var))
+        p_gauss = distributions.Normal(p_mean, torch.sqrt(p_var))
 
-        log_prob += p_gauss.log_prob(mask.sum(-1)) * mask.sum(-1)
+        log_prob = log_prob + p_gauss.log_prob(mask.sum(-1)) * mask.sum(-1)
 
-        prob_normed = p / (p.sum(-1).sum(-1)[:, None, None])
-
-        """Convert px shifts to absolute coordinates"""
-        pxyz_mu[:, 1], pxyz_mu[:, 2] = self._offset2coord._subpx_to_absolute(pxyz_mu[:, 1], pxyz_mu[:, 2])
-        # pxyz_mu[:, 1] += self._offset2coord.bin_ctr_x[p_inds[1]]
-        # pxyz_mu[:, 2] += self._offset2coord.bin_ctr_y[p_inds[2]]
+        prob_normed = p / p.sum(-1).sum(-1).view(-1, 1, 1)
 
         """Hacky way to get all prob indices"""
         p_inds = tuple((p + 1).nonzero().transpose(1, 0))
         pxyz_mu = pxyz_mu[p_inds[0], :, p_inds[1], p_inds[2]]
+
+        """Convert px shifts to absolute coordinates"""
+        pxyz_mu[:, 1] += self._offset2coord.bin_ctr_x[p_inds[1]].to(pxyz_mu.device)
+        pxyz_mu[:, 2] += self._offset2coord.bin_ctr_y[p_inds[2]].to(pxyz_mu.device)
 
         """Flatten img dimension --> N x (HxW) x 4"""
         pxyz_mu = pxyz_mu.reshape(batch_size, -1, 4)
         pxyz_sig = pxyz_sig[p_inds[0], :, p_inds[1], p_inds[2]].reshape(batch_size, -1, 4)
 
         """Set up mixture family"""
-        mix = mixture.D.Categorical(prob_normed[p_inds].reshape(batch_size, -1))
-        comp = mixture.D.Independent(mixture.D.Normal(pxyz_mu, pxyz_sig), 1)
-        gmm = mixture.MixtureSameFamily(mix, comp)
+        mix = distributions.Categorical(prob_normed[p_inds].reshape(batch_size, -1))
+        comp = distributions.Independent(distributions.Normal(pxyz_mu, pxyz_sig), 1)
+        gmm = distributions.mixture_same_family.MixtureSameFamily(mix, comp)
 
         """Calc log probs if there is anything there"""
         if mask.sum():
             gmm_log = gmm.log_prob(pxyz_tar.transpose(0, 1)).transpose(0, 1)
             gmm_log = (gmm_log * mask).sum(-1)
-            log_prob += gmm_log
+            log_prob = log_prob + gmm_log
 
         # log_prob = log_prob.reshape(batch_size, 1)  # need?
 
-        return -log_prob
+        loss = log_prob * (-1)
 
-    def _forward_checks(self, output: torch.Tensor, target: tuple):
+        return loss
+
+    def _forward_checks(self, output: torch.Tensor, target: tuple, weight: None):
+
+        if weight is not None:
+            raise NotImplementedError(f"Weight must be None for this loss implementation.")
 
         if output.dim() != 4:
             raise ValueError(f"Output must have 4 dimensions (N,C,H,W).")
@@ -274,18 +282,20 @@ class GaussianMMLoss(Loss):
         if len(target) != 3:
             raise ValueError(f"Wrong length of target.")
 
-    def forward(self, output: torch.Tensor, target: Tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+    def forward(self, output: torch.Tensor, target: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], weight: None) -> torch.Tensor:
 
         if self.forward_safety:
-            self._forward_checks(output, target)
+            self._forward_checks(output, target, weight)
 
         tar_param, tar_mask, tar_bg = target
         p, pxyz_mu, pxyz_sig, bg = self._format_model_output(output)
 
-        bg_loss = self._bg_loss(bg.unsqueeze(1), tar_bg).sum(-1).sum(-1)  # ToDo: Check dim
+        bg_loss = self._bg_loss(bg, tar_bg).sum(-1).sum(-1)  # ToDo: Check dim
         gmm_loss = self._compute_gmm_loss(p, pxyz_mu, pxyz_sig, tar_param, tar_mask)
 
-        return torch.mean(bg_loss + gmm_loss)
+        loss = torch.mean(bg_loss + gmm_loss).unsqueeze(0)
+
+        return loss
 
 
 @deprecated("Draft, not ready.")

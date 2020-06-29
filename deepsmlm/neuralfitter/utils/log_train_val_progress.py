@@ -124,11 +124,11 @@ def post_process_log_test(*, loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_
 
     """Log"""
     # raw frames
-    log_frames(x=x, y_out=y_out, y_tar=y_tar, weight=weight, em_out=em_out, em_tar=em_tar, tp=tp, tp_match=tp_match,
-               logger=logger, step=step)
+    # log_frames(x=x, y_out=y_out, y_tar=y_tar, weight=weight, em_out=em_out, em_tar=em_tar, tp=tp, tp_match=tp_match,
+    #            logger=logger, step=step)
 
     # KPIs
-    log_kpi(loss_scalar=loss_scalar, loss_cmp=loss_cmp, eval_set=result._asdict(), logger=logger, step=step)
+    # log_kpi(loss_scalar=loss_scalar, loss_cmp=loss_cmp, eval_set=result._asdict(), logger=logger, step=step)
 
     # distributions
     log_dists(tp=tp, tp_match=tp_match, px_border=px_border, px_size=px_size, logger=logger, step=step)

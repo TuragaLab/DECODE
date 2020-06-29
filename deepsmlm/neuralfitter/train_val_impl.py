@@ -1,5 +1,6 @@
 import torch
 import time
+from typing import Union
 
 from tqdm import tqdm
 from collections import namedtuple
@@ -24,9 +25,10 @@ def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logge
         t_data = time.time() - t0
 
         """Ship the data to the correct device"""
-        x, y_tar, weight = x.to(device), y_tar.to(device), weight.to(device)
-
+        x, y_tar, weight = ship_device([x, y_tar, weight], device)
+        
         """Forward the data"""
+        torch.autograd.set_detect_anomaly(True)
         y_out = model(x)
 
         """Reset the optimiser, compute the loss and backprop it"""
@@ -77,18 +79,19 @@ def test(model, loss, dataloader, epoch, device):
         for batch_num, (x, y_tar, weight, em_tar) in enumerate(tqdm_enum):
 
             """Ship the data to the correct device"""
-            x, y_tar, weight = x.to(device), y_tar.to(device), weight.to(device)
+            x, y_tar, weight = ship_device([x, y_tar, weight], device)
 
             """
             Forward the data. Do not apply non-linearity in p-channel because otherwise we log the
             wrong values. So forward the data as in training mode, then compute the loss and than
             apply the non-linearity in the p channel such that the prediction is okay.
             """
-            y_out = model(x, force_no_p_nl=True)  # otherwise logging is wrong
+            # y_out = model(x, force_no_p_nl=True)  # otherwise logging is wrong
+            y_out = model(x)
 
             loss_val = loss(y_out, y_tar, weight)
 
-            y_out = model.apply_detection_nonlin(y_out)
+            # y_out = model.apply_detection_nonlin(y_out)
 
             t_batch = time.time() - t0
 
@@ -98,8 +101,8 @@ def test(model, loss, dataloader, epoch, device):
             loss_cmp_ep.append(loss_val.detach().cpu())
             x_ep.append(x.cpu())
             y_out_ep.append(y_out.detach().cpu())
-            y_tar_ep.append(y_tar.detach().cpu())
-            weight_ep.append(weight.detach().cpu())
+            # y_tar_ep.append(y_tar.detach().cpu())
+            # weight_ep.append(weight.detach().cpu())
             # because the training samples are all on frame 0
             em_tar_ep.append(emitter.EmitterSet.cat(em_tar, step_frame_ix=1))
 
@@ -108,8 +111,34 @@ def test(model, loss, dataloader, epoch, device):
     x_ep = torch.cat(x_ep, 0)
     y_out_ep = torch.cat(y_out_ep, 0)
     em_tar_ep = emitter.EmitterSet.cat(em_tar_ep, step_frame_ix=dataloader.batch_size)
-    y_tar_ep = torch.cat(y_tar_ep, 0)
-    weight_ep = torch.cat(weight_ep, 0)
+    y_tar_ep = None  # torch.cat(y_tar_ep, 0)
+    weight_ep = None  # torch.cat(weight_ep, 0)
 
     return loss_cmp_ep.mean(), _val_return(loss=loss_cmp_ep,
                                            x=x_ep, y_out=y_out_ep, y_tar=y_tar_ep, weight=weight_ep, em_tar=em_tar_ep)
+
+
+def ship_device(x, device: Union[str, torch.device]):
+    """
+    Ships the input to CUDA device
+
+    Args:
+        x:
+        device:
+
+    Returns:
+        x
+
+    """
+    if x is None:
+        return x
+
+    elif isinstance(x, torch.Tensor):
+        return x.to(device)
+
+    elif isinstance(x, (tuple, list)):
+        x = [ship_device(x_el, device) for x_el in x]
+        return x
+
+    elif device != 'cpu':
+        raise NotImplementedError(f"Unsupported data type for shipping from host to CUDA device.")

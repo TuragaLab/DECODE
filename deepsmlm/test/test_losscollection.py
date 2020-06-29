@@ -9,7 +9,6 @@ class TestLossAbstract:
 
     @pytest.fixture()
     def loss_impl(self):
-
         class MockLoss(loss.Loss):
             """Mock loss. Assumes 2 channels."""
 
@@ -111,7 +110,6 @@ class TestPPXYZBLoss(TestLossAbstract):
         super().test_forward_cuda(loss_impl, random_cuda)
 
     def test_forward_quant(self, loss_impl):
-
         """Run and Assert"""
         # all zero
         assert (torch.zeros((2, 6, 32, 32)) == loss_impl.forward(*([torch.zeros((2, 6, 32, 32))] * 3))).all()
@@ -133,7 +131,6 @@ class TestFourFoldLoss(TestLossAbstract):
                                                               forward_safety=False),) * 4)
 
     def test_forward(self, loss_impl):
-
         loss_impl.forward(torch.rand((2, 21, 32, 32)), torch.rand((2, 21, 32, 32)), torch.rand((2, 21, 32, 32)))
 
 
@@ -143,9 +140,9 @@ class TestGaussianMixtureModelLoss:
     def loss_impl(self):
         return loss.GaussianMMLoss((-0.5, 31.5), (-0.5, 31.5), (32, 32))
 
-    def test_gmm_loss(self, loss_impl):
+    @pytest.fixture()
+    def data_handcrafted(self):
 
-        """Setup"""
         p = torch.zeros((2, 32, 32)) + 1E-8
         pxyz_mu = torch.zeros((2, 4, 32, 32))
         pxyz_sig = torch.zeros_like(pxyz_mu) + 100
@@ -153,7 +150,6 @@ class TestGaussianMixtureModelLoss:
         p[[0, 1], [2, 5], [4, 10]] = 0.9
         pxyz_mu[0, :, 2, 4] = torch.tensor([0.76, 0.3, -0.7, 0.8])
         pxyz_mu[1, :, 5, 10] = torch.tensor([0.8, 0.2, 0.4, 0.1])
-
         pxyz_sig[0, :, 2, 4] = torch.tensor([3., 1., 0.5, 0.2])
         pxyz_sig[1, :, 5, 10] = torch.tensor([.1, 2., 3., 4.])
 
@@ -164,5 +160,26 @@ class TestGaussianMixtureModelLoss:
         mask = torch.zeros((2, 3)).long()
         mask[[0, 1], 0] = 1
 
+        return mask, p, pxyz_mu, pxyz_sig, pxyz_tar
+
+    def test_gmm_loss(self, loss_impl, data_handcrafted):
+        mask, p, pxyz_mu, pxyz_sig, pxyz_tar = data_handcrafted
+
         """Run"""
-        loss_impl._compute_gmm_loss(p, pxyz_mu, pxyz_sig, pxyz_tar, mask)
+        out = loss_impl._compute_gmm_loss(p, pxyz_mu.requires_grad_(True), pxyz_sig, pxyz_tar, mask)
+        out.sum().backward()
+
+    def test_loss_forward_backward(self, loss_impl, data_handcrafted):
+
+        """Setup"""
+        mask, p, pxyz_mu, pxyz_sig, pxyz_tar = data_handcrafted
+        bg_tar = torch.rand((2, 32, 32))
+
+        model_out = torch.cat((p.unsqueeze(1), pxyz_mu, pxyz_sig, torch.rand((2, 1, 32, 32))), 1)
+        model_out = model_out.clone().requires_grad_(True)
+
+        """Run"""
+        loss_val = loss_impl.forward(model_out, (pxyz_tar, mask, bg_tar), None)
+
+        loss_val.backward()
+

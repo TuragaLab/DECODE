@@ -106,10 +106,10 @@ def setup_random_simulation(param):
 def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     """Set model, optimiser, loss and schedulers"""
     models_ava = {
-        'BGNet': deepsmlm.neuralfitter.models.model_param.BGNet,
+        'SigmaMUNet': deepsmlm.neuralfitter.models.SigmaMUNet,
         'DoubleMUnet': deepsmlm.neuralfitter.models.model_param.DoubleMUnet,
         'SimpleSMLMNet': deepsmlm.neuralfitter.models.model_param.SimpleSMLMNet,
-        'SMLMNetBG': deepsmlm.neuralfitter.models.model_param.SMLMNetBG
+
     }
     model = models_ava[param.HyperParameter.architecture]
     model = model.parse(param)
@@ -131,13 +131,19 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     optimizer = optimizer(model.parameters(), **param.HyperParameter.opt_param)
 
     """Loss function."""
-    if param.HyperParameter.target_mode == 'fourfold':
+    if param.HyperParameter.loss_impl == 'fourfold':
         criterion = deepsmlm.neuralfitter.losscollection.FourFoldPPXYZ(
             components=(deepsmlm.neuralfitter.losscollection.PPXYZBLoss(device=param.Hardware.device,
                                                                         chweight_stat=[1., 1., 1., 1., 1.],
                                                                         forward_safety=False),) * 4
 
         )
+
+    elif param.HyperParameter.loss_impl == 'MixtureModel':
+        criterion = deepsmlm.neuralfitter.losscollection.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
+                                                                        yextent=param.Simulation.psf_extent[1],
+                                                                        img_shape=param.Simulation.img_size)
+
     else:
         criterion = deepsmlm.neuralfitter.losscollection.PPXYZBLoss(device=param.Hardware.device,
                                                                     chweight_stat=param.HyperParameter.ch_static_scale)
@@ -189,6 +195,22 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
             input_slice=None)
 
         weight_gen = deepsmlm.neuralfitter.weight_generator.SimpleWeight.parse(param)
+
+    elif param.HyperParameter.target_mode == 'ParamListTarget':
+
+        tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
+            [
+                deepsmlm.neuralfitter.target_generator.ParameterListTarget(n_max=100,
+                                                                             xextent=param.Simulation.psf_extent[0],
+                                                                             yextent=param.Simulation.psf_extent[1],
+                                                                             ix_low=0, ix_high=0,
+                                                                             squeeze_batch_dim=True),
+
+                deepsmlm.neuralfitter.scale_transform.ParameterListRescale(phot_max=param.Scaling.in_count_max,
+                                                                           z_max=param.Simulation.emitter_extent[2][-1],
+                                                                           bg_max=100)
+                ])
+        weight_gen = None
 
     else:
         tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
