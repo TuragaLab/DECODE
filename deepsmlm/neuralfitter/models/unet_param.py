@@ -268,19 +268,3 @@ class UNet2d(UNetBase):
 
     def _out_conv(self, in_channels, out_channels):
         return nn.Conv2d(in_channels, out_channels, 1)
-
-
-if __name__ == '__main__':
-
-    model = UNet2d(3, 6, depth=2, activation=nn.ELU(), norm='GroupNorm')
-    x = torch.rand((10, 3, 64, 64))
-    y = torch.rand((10, 6, 64, 64))
-    optimiser = torch.optim.Adam(model.parameters(), lr=0.0001)
-    criterion = torch.nn.MSELoss(reduction='none')
-    out = model.forward(x)
-    loss = criterion(out, y)
-
-    w, lch, lwch = model.rescale_last_layer_grad(loss, optimiser)
-    lwch.backward()
-
-    print('Done')

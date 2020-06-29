@@ -10,7 +10,7 @@ from ..generic import emitter
 from ..evaluation.utils import MetricMeter
 
 
-def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logger) -> float:
+def train(model, optimizer, loss, dataloader, grad_rescale, grad_mod, epoch, device, logger) -> float:
 
     """Some Setup things"""
     model.train()
@@ -40,6 +40,10 @@ def train(model, optimizer, loss, dataloader, grad_rescale, epoch, device, logge
 
         optimizer.zero_grad()
         loss_val.mean().backward()
+
+        """Gradient Modification"""
+        if grad_mod is not None:
+            grad_mod(model.parameters())
 
         """Update model parameters"""
         optimizer.step()
