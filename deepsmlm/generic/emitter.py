@@ -954,7 +954,7 @@ class LooseEmitterSet:
         """
 
         xyz_, phot_, frame_ix_, id_ = self._distribute_framewise()
-        return EmitterSet(xyz_, phot_, frame_ix_.int(), id_.int(), xy_unit=self.xy_unit, px_size=self.px_size)
+        return EmitterSet(xyz_, phot_, frame_ix_.long(), id_.long(), xy_unit=self.xy_unit, px_size=self.px_size)
 
 
 def at_least_one_dim(*args):
