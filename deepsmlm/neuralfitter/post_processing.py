@@ -112,10 +112,21 @@ class NoPostProcessing(PostProcessing):
 
 class LookUpPostProcessing(PostProcessing):
 
-    def __init__(self, raw_th: float, xy_unit: str, px_size=None):
+    def __init__(self, raw_th: float, xy_unit: str, px_size=None, pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1]):
+        """
+
+        Args:
+            raw_th: initial raw threshold
+            xy_unit: xy unit unit
+            px_size: pixel size
+            pphotxyzbg_mapping: channel index mapping of detection (p), photon, x, y, z, bg
+        """
         super().__init__(xy_unit=xy_unit, px_size=px_size, return_format='batch-set')
 
         self.raw_th = raw_th
+        self.pphotxyzbg_mapping = pphotxyzbg_mapping
+
+        assert len(self.pphotxyzbg_mapping) == 6
 
     def _filter(self, detection) -> torch.BoolTensor:
         """
@@ -162,6 +173,8 @@ class LookUpPostProcessing(PostProcessing):
             EmitterSet
 
         """
+        """Reorder features channel-wise."""
+        x = x[:, self.pphotxyzbg_mapping]
 
         """Filter"""
         active_px = self._filter(x[:, 0])  # 0th ch. is detection channel
@@ -249,11 +262,11 @@ class ConsistencyPostprocessing(PostProcessing):
             ConsistencyPostProcessing
 
         """
-        return cls(raw_th=param.PostProcessing.single_val_th, em_th=param.PostProcessing.total_th,
+        return cls(raw_th=param.PostProcessingParam.single_val_th, em_th=param.PostProcessingParam.total_th,
                    xy_unit='px', px_size=param.Camera.px_size,
                    img_shape=param.TestSet.img_size,
-                   ax_th=param.PostProcessing.ax_th, vol_th=param.PostProcessing.vol_th,
-                   lat_th=param.PostProcessing.lat_th, match_dims=param.PostProcessing.match_dims,
+                   ax_th=param.PostProcessingParam.ax_th, vol_th=param.PostProcessingParam.vol_th,
+                   lat_th=param.PostProcessingParam.lat_th, match_dims=param.PostProcessingParam.match_dims,
                    return_format='batch-set', **kwargs)
 
     def sanity_check(self):
@@ -587,14 +600,13 @@ class Offset2Coordinate:
                    param.TestSet.frame_extent[1],
                    param.TestSet.img_size)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward frames through post-processor.
 
         Args:
-            x (torch.Tensor): features to be converted; expected shape :math:`(N, C, H, W)`
-
-        Returns:
+            x (torch.Tensor): features to be converted. Expecting x/y coordinates in channel index 2, 3.
+             expected shape :math:`(N, C, H, W)`
 
         """
 
