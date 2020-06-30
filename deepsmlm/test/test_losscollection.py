@@ -181,5 +181,5 @@ class TestGaussianMixtureModelLoss:
         """Run"""
         loss_val = loss_impl.forward(model_out, (pxyz_tar, mask, bg_tar), None)
 
-        loss_val.backward()
+        loss_val.mean().backward()
 

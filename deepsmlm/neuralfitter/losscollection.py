@@ -188,7 +188,8 @@ class GaussianMMLoss(Loss):
         self.forward_safety = forward_safety
 
     def log(self, loss_val):
-        return loss_val.mean(), {'loss', loss_val}
+        return loss_val.mean().item(), {'gmm': loss_val[:, 0].mean().item(),
+                                        'bg': loss_val[:, 1].mean().item()}
 
     @staticmethod
     def _format_model_output(output: torch.Tensor) -> tuple:
@@ -290,10 +291,12 @@ class GaussianMMLoss(Loss):
         tar_param, tar_mask, tar_bg = target
         p, pxyz_mu, pxyz_sig, bg = self._format_model_output(output)
 
-        bg_loss = self._bg_loss(bg, tar_bg).sum(-1).sum(-1)  # ToDo: Check dim
+        bg_loss = self._bg_loss(bg, tar_bg).sum(-1).sum(-1)
         gmm_loss = self._compute_gmm_loss(p, pxyz_mu, pxyz_sig, tar_param, tar_mask)
 
-        loss = torch.mean(bg_loss + gmm_loss).unsqueeze(0)
+        """Stack in 2 channels. 
+        Factor 2 because original impl. adds the two terms, but this way it's better for logging."""
+        loss = 2 * torch.stack((bg_loss,  gmm_loss), 1)
 
         return loss
 
