@@ -60,7 +60,9 @@ def save_csv(file: (str, pathlib.Path), data: dict):
         return data_one_dim
 
     """Change torch to numpy and convert 2D elements to 1D"""
-    data = change_to_one_dim(convert_dict_torch_numpy(copy.deepcopy(data)))
+    data = copy.deepcopy(data)
+    data.pop('px_size')
+    data = change_to_one_dim(convert_dict_torch_numpy(data))
 
     df = pd.DataFrame.from_dict(data)
     df.to_csv(file, index=False)

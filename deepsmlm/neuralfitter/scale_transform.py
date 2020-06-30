@@ -283,6 +283,12 @@ class ParameterListRescale:
 
         return x, mask, bg
 
+    @classmethod
+    def parse(cls, param):
+        return cls(phot_max=param.Scaling.phot_max,
+                   z_max=param.Scaling.z_max,
+                   bg_max=param.Scaling.bg_max)
+
 
 class InverseParamListRescale(ParameterListRescale):
 
