@@ -107,7 +107,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     criterion = deepsmlm.neuralfitter.losscollection.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
                                                                     yextent=param.Simulation.psf_extent[1],
                                                                     img_shape=param.Simulation.img_size,
-                                                                    device=param.Hardware.device)
+                                                                    device=param.Hardware.device,
+                                                                    chweight_stat=param.HyperParameter.chweight_stat)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler_available = {
