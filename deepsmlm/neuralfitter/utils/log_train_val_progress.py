@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import torch
+import seaborn as sns
 
 import deepsmlm.generic.emitter
 from deepsmlm.evaluation.evaluation import WeightedErrors
@@ -85,7 +86,7 @@ def log_kpi(loss_scalar: float, loss_cmp: dict, eval_set: dict, logger, step):
     logger.add_scalar_dict('eval/', eval_set, step)
 
 
-def log_dists(tp, tp_match, px_border, px_size, logger, step):
+def log_dists(tp, tp_match, pred, px_border, px_size, logger, step):
 
     """Log z vs z_gt"""
     f_x, ax_x = plt.subplots()
@@ -100,6 +101,11 @@ def log_dists(tp, tp_match, px_border, px_size, logger, step):
     logger.add_figure('dist/y_offset', f_y, step)
     logger.add_figure('residuals/z_gt_pred', f_z, step)
     logger.add_figure('residuals/phot_gt_pred', f_phot, step)
+
+    """Log prob dist"""
+    f_prob, ax_prob = plt.subplots()
+    sns.distplot(pred.prob, bins=50, norm_hist=True, ax=ax_prob, kde=False)
+    logger.add_figure('dist/prob')
 
 
 def log_train(*, loss_p_batch: (list, tuple), loss_mean: float, logger, step: int):

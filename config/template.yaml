@@ -17,7 +17,7 @@ Evaluation:
 Hardware:
   device: cuda
   device_ix: 0
-  device_simulation: cuda
+  device_simulation: cpu
   num_worker_train: 8
   torch_threads: 8
   unix_niceness: 0
@@ -43,15 +43,15 @@ HyperParameter:
     up_mode: upsample
     use_last_nl:
   architecture: SigmaMUNet
-  batch_size: 64
+  batch_size: 10
   channels_in: 3
   channels_out: 6
   chweight_stat:
     - 1.0
-    - 0.0
+    - 1.0
   ds_lifetime:
   epoch_0:
-  epochs: 1000
+  epochs: 10000
   fgbg_factor:
   grad_mod: true
   loss_impl: MixtureModel
@@ -65,7 +65,7 @@ HyperParameter:
     weight_decay: 0.1
   optimizer: AdamW
   photon_threshold:
-  pseudo_ds_size: 65536
+  pseudo_ds_size: 1000
   suppress_post_processing: true
 InOut:
   calibration_file: data/Calibration/SMLM_Challenge_Beads/Coefficients_Big_ROI/AS-Exp_100nm_3dcal.mat  # cubic spline coefficients
@@ -106,7 +106,7 @@ Simulation:
   - 1000.0
   intensity_th:
   lifetime_avg: 2.0
-  mode: acquisition
+  mode: samples
   photon_range:
   psf_extent:
   - - -0.5

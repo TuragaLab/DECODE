@@ -39,6 +39,7 @@ def px_pointer_dist(pointer, px_border: float, px_size: float):
 
 
 def emitter_deviations(tp, tp_match, px_border: float, px_size: float, axes, residuals=False, kde=True):
+    """Plot within px distribution"""
     assert len(axes) == 4
 
     """XY within px"""

@@ -28,7 +28,6 @@ def train(model, optimizer, loss, dataloader, grad_rescale, grad_mod, epoch, dev
         x, y_tar, weight = ship_device([x, y_tar, weight], device)
         
         """Forward the data"""
-        torch.autograd.set_detect_anomaly(True)
         y_out = model(x)
 
         """Reset the optimiser, compute the loss and backprop it"""
