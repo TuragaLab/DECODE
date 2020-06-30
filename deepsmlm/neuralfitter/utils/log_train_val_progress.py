@@ -105,7 +105,7 @@ def log_dists(tp, tp_match, pred, px_border, px_size, logger, step):
     """Log prob dist"""
     f_prob, ax_prob = plt.subplots()
     sns.distplot(pred.prob, bins=50, norm_hist=True, ax=ax_prob, kde=False)
-    logger.add_figure('dist/prob')
+    logger.add_figure('dist/prob', f_prob, step)
 
 
 def log_train(*, loss_p_batch: (list, tuple), loss_mean: float, logger, step: int):
@@ -139,6 +139,6 @@ def post_process_log_test(*, loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_
     log_kpi(loss_scalar=loss_scalar, loss_cmp=loss_cmp, eval_set=result._asdict(), logger=logger, step=step)
 
     # distributions
-    log_dists(tp=tp, tp_match=tp_match, px_border=px_border, px_size=px_size, logger=logger, step=step)
+    log_dists(tp=tp, tp_match=tp_match, pred=em_out, px_border=px_border, px_size=px_size, logger=logger, step=step)
 
     return
