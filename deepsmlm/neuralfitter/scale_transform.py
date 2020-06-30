@@ -282,3 +282,27 @@ class ParameterListRescale:
         bg = bg / self.bg_max
 
         return x, mask, bg
+
+
+class InverseParamListRescale(ParameterListRescale):
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+
+        Args:
+            x: model output
+
+        Returns:
+            torch.Tensor (rescaled model output)
+
+        """
+
+        if x.dim() != 4 or x.size(1) != 10:
+            raise ValueError(f"Unsupported size of input {x.size()}")
+
+        x = x.clone()
+        x[:, 1] *= self.phot_max
+        x[:, 4] *= self.z_max
+        x[:, -1] *= self.bg_max
+
+        return x
