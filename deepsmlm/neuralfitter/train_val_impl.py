@@ -105,8 +105,6 @@ def test(model, loss, dataloader, epoch, device):
             loss_cmp_ep.append(loss_val.detach().cpu())
             x_ep.append(x.cpu())
             y_out_ep.append(y_out.detach().cpu())
-            # y_tar_ep.append(y_tar.detach().cpu())
-            # weight_ep.append(weight.detach().cpu())
             # because the training samples are all on frame 0
             em_tar_ep.append(emitter.EmitterSet.cat(em_tar, step_frame_ix=1))
 

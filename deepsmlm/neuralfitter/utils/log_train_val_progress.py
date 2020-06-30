@@ -17,8 +17,8 @@ def log_frames(x, y_out, y_tar, weight, em_out, em_tar, tp, tp_match, logger, st
     # rm batch dimension, i.e. select one sample
     x = x[r_ix]
     y_out = y_out[r_ix]
-    y_tar = y_tar[r_ix]
-    weight = weight[r_ix]
+    y_tar = y_tar[r_ix] if y_tar is not None else None
+    weight = weight[r_ix] if weight is not None else None
 
     assert isinstance(em_tar, deepsmlm.generic.emitter.EmitterSet)
     em_tar = em_tar.get_subset_frame(r_ix, r_ix)
@@ -60,24 +60,26 @@ def log_frames(x, y_out, y_tar, weight, em_out, em_tar, tp, tp_match, logger, st
     logger.add_figure('em_out/em_match_3d', f_match_3d, step)
 
     # loop over all target channels
-    for i, yct in enumerate(y_tar):
-        f_tar = plt.figure()
-        frame_coord.PlotFrameCoord(yct, plot_colorbar_frame=colorbar).plot()
-        logger.add_figure('target/target_ch_' + str(i), f_tar, step)
+    if y_tar is not None:
+        for i, yct in enumerate(y_tar):
+            f_tar = plt.figure()
+            frame_coord.PlotFrameCoord(yct, plot_colorbar_frame=colorbar).plot()
+            logger.add_figure('target/target_ch_' + str(i), f_tar, step)
 
     # loop over all weight channels
-    for i, w in enumerate(weight):
-        f_w = plt.figure()
-        frame_coord.PlotFrameCoord(w, plot_colorbar_frame=colorbar).plot()
-        logger.add_figure('weight/weight_ch_' + str(i), f_w, step)
+    if weight is not None:
+        for i, w in enumerate(weight):
+            f_w = plt.figure()
+            frame_coord.PlotFrameCoord(w, plot_colorbar_frame=colorbar).plot()
+            logger.add_figure('weight/weight_ch_' + str(i), f_w, step)
 
 
 def log_kpi(loss_scalar: float, loss_cmp: dict, eval_set: dict, logger, step):
 
     logger.add_scalar('learning/test_ep', loss_scalar, step)
 
-    assert loss_cmp.dim() == 4
-    for i in range(loss_cmp.size(1)):  # loop over all channels
+    assert loss_cmp.dim() >= 2
+    for i in range(loss_cmp.size(1)):  # channel-wise mean
         logger.add_scalar('loss_cmp/test_ep_loss_ch_' + str(i), loss_cmp[:, i].mean(), step)
 
     logger.add_scalar_dict('eval/', eval_set, step)
@@ -124,11 +126,11 @@ def post_process_log_test(*, loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_
 
     """Log"""
     # raw frames
-    # log_frames(x=x, y_out=y_out, y_tar=y_tar, weight=weight, em_out=em_out, em_tar=em_tar, tp=tp, tp_match=tp_match,
-    #            logger=logger, step=step)
+    log_frames(x=x, y_out=y_out, y_tar=y_tar, weight=weight, em_out=em_out, em_tar=em_tar, tp=tp, tp_match=tp_match,
+               logger=logger, step=step)
 
     # KPIs
-    # log_kpi(loss_scalar=loss_scalar, loss_cmp=loss_cmp, eval_set=result._asdict(), logger=logger, step=step)
+    log_kpi(loss_scalar=loss_scalar, loss_cmp=loss_cmp, eval_set=result._asdict(), logger=logger, step=step)
 
     # distributions
     log_dists(tp=tp, tp_match=tp_match, px_border=px_border, px_size=px_size, logger=logger, step=step)

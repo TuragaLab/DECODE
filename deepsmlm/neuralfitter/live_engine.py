@@ -15,24 +15,6 @@ import deepsmlm.simulation
 import deepsmlm.utils
 from deepsmlm.neuralfitter.utils import log_train_val_progress
 
-deepsmlm_root = Path(__file__).parent.parent.parent
-
-
-def load_static_testset(file_emitter, file_frames, file_bg_frames):
-    def set_frame_ix(em):
-        em.frame_ix = torch.zeros_like(em.frame_ix)
-        return em
-
-    emitter = deepsmlm.generic.emitter.EmitterSet.load(file_emitter)
-    frames = torch.load(file_frames)
-    bg_frames = torch.load(file_bg_frames)
-
-    # split emitter in frames
-    emitter = emitter.split_in_frames(0, frames.size(0) - 1)
-    emitter = [set_frame_ix(em) for em in emitter]
-
-    return emitter, frames, bg_frames
-
 
 def setup_random_simulation(param):
     """
@@ -124,7 +106,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     """Loss function."""
     criterion = deepsmlm.neuralfitter.losscollection.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
                                                                     yextent=param.Simulation.psf_extent[1],
-                                                                    img_shape=param.Simulation.img_size)
+                                                                    img_shape=param.Simulation.img_size,
+                                                                    device=param.Hardware.device)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler_available = {
@@ -133,7 +116,6 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     }
     lr_scheduler = lr_scheduler_available[param.HyperParameter.learning_rate_scheduler]
     lr_scheduler = lr_scheduler(optimizer, **param.HyperParameter.learning_rate_scheduler_param)
-
 
     """Setup gradient modification"""
     if param.HyperParameter.grad_mod:
@@ -162,9 +144,9 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
                                                                        ix_low=0, ix_high=0,
                                                                        squeeze_batch_dim=True),
 
-            deepsmlm.neuralfitter.scale_transform.ParameterListRescale(phot_max=param.Scaling.in_count_max,
-                                                                       z_max=param.Simulation.emitter_extent[2][-1],
-                                                                       bg_max=100)
+            deepsmlm.neuralfitter.scale_transform.ParameterListRescale(phot_max=param.Scaling.phot_max,
+                                                                       z_max=param.Scaling.z_max,
+                                                                       bg_max=param.Scaling.bg_max)
         ])
 
     weight_gen = None
@@ -196,20 +178,31 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     test_ds.sample(True)
 
     """Set up post processor"""
-    if not param.HyperParameter.suppress_post_processing:
-        post_processor = deepsmlm.neuralfitter.processing.TransformSequence.parse(
-            [
-                deepsmlm.neuralfitter.scale_transform.OffsetRescale,
-                deepsmlm.neuralfitter.post_processing.Offset2Coordinate,
-                deepsmlm.neuralfitter.post_processing.ConsistencyPostprocessing
-            ],
-            param)
+    if param.PostProcessing is None:
+        post_processor = deepsmlm.neuralfitter.post_processing.NoPostProcessing(xy_unit='px',
+                                                                                px_size=param.Camera.px_size)
 
-        post_processor.com[-1].skip_th = param.PostProcessing.skip_if_p_rel
+    elif param.PostProcessing == 'LookUp':
+        post_processor = deepsmlm.neuralfitter.processing.TransformSequence([
+
+            deepsmlm.neuralfitter.scale_transform.InverseParamListRescale(phot_max=param.Scaling.phot_max,
+                                                                          z_max=param.Scaling.z_max,
+                                                                          bg_max=param.Scaling.bg_max),
+
+            deepsmlm.neuralfitter.post_processing.Offset2Coordinate.parse(param),
+
+            deepsmlm.neuralfitter.post_processing.LookUpPostProcessing(raw_th=param.PostProcessingParam.raw_th,
+                                                                       pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
+                                                                       xy_unit='px',
+                                                                       px_size=param.Camera.px_size)
+        ])
+
+    elif param.PostProcessing == 'Consistency':
+        raise NotImplementedError
 
     else:
-        post_processor = deepsmlm.neuralfitter.post_processing.NoPostProcessing(
-            xy_unit='px', px_size=param.Camera.px_size)
+        raise ValueError
+
 
     """Evaluation Specification"""
     matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
