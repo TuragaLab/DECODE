@@ -359,7 +359,11 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
                                                      post_processor=post_processor, matcher=matcher, logger=logger,
                                                      step=i)
 
-        lr_scheduler.step(val_loss)
+        if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            lr_scheduler.step(val_loss)
+        else:
+            lr_scheduler.step()
+
         model_ls.save(model, val_loss)
 
         """Draw new samples Samples"""
