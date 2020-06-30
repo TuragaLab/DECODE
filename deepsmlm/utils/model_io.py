@@ -60,8 +60,8 @@ class LoadSaveModel:
         model = self.model
         print('Model instantiated.')
         if self.warmstart_file is None:
-            # model.weight_init()
-            print('Model initialised randomly as specified in the constructor.')
+            print('Model initialised as specified in the constructor.')
+            
         else:
             hashv = hash_model(self.warmstart_file)
             print(f'Model SHA-1 hash: {hashv}')

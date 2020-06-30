@@ -21,7 +21,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
 
     def __init__(self, ch_in: int, *, depth_shared: int, depth_union: int, initial_features: int, inter_features: int,
                  norm=None, norm_groups=None, norm_head=None, norm_head_groups=None, pool_mode='StrideConv',
-                 skip_gn_level: Union[None, bool] = None, activation=nn.ReLU()):
+                 skip_gn_level: Union[None, bool] = None, activation=nn.ReLU(), kaiming_normal=True):
         super().__init__(ch_in=ch_in, ch_out=self.ch_out, depth_shared=depth_shared, depth_union=depth_union,
                          initial_features=initial_features, inter_features=inter_features,
                          norm=norm, norm_groups=norm_groups, norm_head=norm_head,
@@ -34,6 +34,9 @@ class SigmaMUNet(model_param.DoubleMUnet):
                                   norm=norm_head, norm_groups=norm_head_groups)
              for ch_out in self.out_channels_heads]
         )
+
+        if kaiming_normal:
+            self.apply(self.weight_init)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self._forward_core(external=None, x=x)
@@ -74,3 +77,15 @@ class SigmaMUNet(model_param.DoubleMUnet):
             pool_mode=param.HyperParameter.arch_param.pool_mode,
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
         )
+
+    @staticmethod
+    def weight_init(m):
+        """
+        Apply Kaiming normal init. Call this recursively by model.apply(model.weight_init)
+
+        Args:
+            m: model
+
+        """
+        if isinstance(m, torch.nn.Conv2d):
+            torch.nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
