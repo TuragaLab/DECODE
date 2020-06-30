@@ -2,12 +2,10 @@ from abc import ABC, abstractmethod  # abstract class
 from typing import Union, Tuple
 
 import torch
-from torch import distributions
-from torch.nn import functional
 from deprecated import deprecated
+from torch import distributions
 
 # from . import MixtureSameFamily as mixture
-from . import post_processing
 from ..simulation import psf_kernel
 
 
@@ -79,7 +77,7 @@ class PPXYZBLoss(Loss):
         5: background
     """
 
-    def __init__(self, device: Union[str, torch.device], chweight_stat: Union[tuple, list, torch.Tensor] = None,
+    def __init__(self, device: Union[str, torch.device], chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
                  p_fg_weight: float = 1., forward_safety: bool = True):
         """
 
@@ -179,12 +177,29 @@ class GaussianMMLoss(Loss):
     Model output is a mean and sigma value which forms a gaussian mixture model.
     """
 
-    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, forward_safety: bool = True):
+    def __init__(self, *, xextent: tuple, yextent: tuple, img_shape: tuple, device: Union[str, torch.device],
+                 chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
+                 forward_safety: bool = True):
+        """
+
+        Args:
+            xextent: extent in x
+            yextent: extent in y
+            img_shape: image size
+            device: device used in training (cuda / cpu)
+            chweight_stat: static channel weight, mainly to disable background prediction
+            forward_safety: check inputs to the forward method
+        """
         super().__init__()
+
+        if chweight_stat is not None:
+            self._ch_weight = chweight_stat if isinstance(chweight_stat, torch.Tensor) else torch.Tensor(chweight_stat)
+        else:
+            self._ch_weight = torch.ones(2)
+        self._ch_weight = self._ch_weight.reshape(1, 2).to(device)
 
         self._bg_loss = torch.nn.MSELoss(reduction='none')
         self._offset2coord = psf_kernel.DeltaPSF(xextent=xextent, yextent=yextent, img_shape=img_shape)
-        # self._offset2coord = post_processing.Offset2Coordinate(xextent=xextent, yextent=yextent, img_shape=img_shape)
         self.forward_safety = forward_safety
 
     def log(self, loss_val):
@@ -283,7 +298,8 @@ class GaussianMMLoss(Loss):
         if len(target) != 3:
             raise ValueError(f"Wrong length of target.")
 
-    def forward(self, output: torch.Tensor, target: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], weight: None) -> torch.Tensor:
+    def forward(self, output: torch.Tensor, target: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+                weight: None) -> torch.Tensor:
 
         if self.forward_safety:
             self._forward_checks(output, target, weight)
@@ -296,7 +312,7 @@ class GaussianMMLoss(Loss):
 
         """Stack in 2 channels. 
         Factor 2 because original impl. adds the two terms, but this way it's better for logging."""
-        loss = 2 * torch.stack((bg_loss,  gmm_loss), 1)
+        loss = 2 * torch.stack((bg_loss, gmm_loss), 1) * self._ch_weight
 
         return loss
 
