@@ -7,3 +7,6 @@ import deepsmlm.neuralfitter.processing
 import deepsmlm.neuralfitter.scale_transform
 import deepsmlm.neuralfitter.weight_generator
 import deepsmlm.neuralfitter.train_val_impl
+import deepsmlm.neuralfitter.inference
+
+from deepsmlm.neuralfitter.inference.inference import Infer

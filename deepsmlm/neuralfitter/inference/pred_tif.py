@@ -1,5 +1,6 @@
 import csv
 from abc import ABC, abstractmethod  # abstract class
+from deprecated import deprecated
 
 import torch
 import torch.utils
@@ -10,6 +11,7 @@ from deepsmlm.neuralfitter.dataset import InferenceDataset
 from deepsmlm.neuralfitter.utils.collate import smlm_collate
 
 
+@deprecated(reason="Depr. in favour of inference.Infer", version="0.1.dev")
 class PredictEval(ABC):
     @abstractmethod
     def __init__(self, model, post_processor, evaluator, batch_size, device='cuda'):
@@ -108,6 +110,7 @@ class PredictEval(ABC):
         self.evaluator.forward(self.prediction, self.gt)
 
 
+@deprecated(reason="Depr. in favour of inference.Infer", version="0.1.dev")
 class PredictEvalSimulation(PredictEval):
     def __init__(self, eval_size, prior, simulator, model, post_processor, evaluator=None, param=None,
                  device='cuda', batch_size=32, input_preparation=None, multi_frame=True, dataset=None,
@@ -151,6 +154,7 @@ class PredictEvalSimulation(PredictEval):
         self.gt = self.dataset.get_gt_emitter('cat')
 
 
+@deprecated(reason="Depr. in favour of inference.Infer", version="0.1.dev")
 class PredictEvalTif(PredictEval):
     def __init__(self, tif_stack, activations, model, post_processor, frame_proc, evaluator=None, device='cuda',
                  batch_size=32, frame_window: int = 3):
