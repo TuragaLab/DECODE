@@ -7,6 +7,14 @@ import pandas as pd
 import torch
 
 
+challenge_mapping = {'x': 'xnano',
+                     'y': 'ynano',
+                     'z': 'znano',
+                     'frame_ix': 'frame',
+                     'phot': 'intensity ',  # this is really odd, there is a space after intensity
+                     'id': 'Ground-truth'}
+
+
 def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_args) -> dict:
     """
     Loads a CSV file which does provide a header.
