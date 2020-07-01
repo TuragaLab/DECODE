@@ -34,6 +34,7 @@ class EmitterSet:
     def __init__(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.LongTensor,
                  id: torch.LongTensor = None, prob: torch.Tensor = None, bg: torch.Tensor = None,
                  xyz_cr: torch.Tensor = None, phot_cr: torch.Tensor = None, bg_cr: torch.Tensor = None,
+                 xyz_sig: torch.Tensor = None, phot_sig: torch.Tensor = None, bg_sig: torch.Tensor = None,
                  sanity_check: bool = True, xy_unit: str = None, px_size: Union[tuple, torch.Tensor] = None):
         """
         Initialises EmitterSet of :math:`N` emitters.
@@ -48,6 +49,9 @@ class EmitterSet:
             xyz_cr: Cramer-Rao estimate of the emitters position. Size :math:`(N,3)`
             phot_cr: Cramer-Rao estimate of the emitters photon count. Size :math:`N`
             bg_cr: Cramer-Rao estimate of the emitters background value. Size :math:`N`
+            xyz_sig: Error estimate of the emitters position. Size :math:`(N,3)`
+            phot_sig: Error estimate of the photon count. Size :math:`N`
+            bg_sig: Error estimate of the background value. Size :math:`N`
             sanity_check: performs a sanity check.
             xy_unit: Unit of the x and y coordinate.
             px_size: Pixel size for unit conversion. If not specified, derived attributes (xyz_px and xyz_nm)
@@ -66,8 +70,14 @@ class EmitterSet:
         self.phot_cr = None
         self.bg_cr = None
 
+        # Error estimates
+        self.xyz_sig = None
+        self.phot_sig = None
+        self.bg_sig = None
+
         self._set_typed(xyz=xyz, phot=phot, frame_ix=frame_ix, id=id, prob=prob, bg=bg,
-                        xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr)
+                        xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr,
+                        xyz_sig=xyz_sig, phot_sig=phot_sig, bg_sig=bg_sig)
 
         self._sorted = False
         # get at least one_dim tensors
@@ -90,7 +100,7 @@ class EmitterSet:
         if sanity_check:
             self._sanity_check()
 
-    def _set_typed(self, xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr):
+    def _set_typed(self, xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr, xyz_sig, phot_sig, bg_sig):
         """
         Sets the attributes in the correct type and with default argument if None
         """
@@ -120,11 +130,16 @@ class EmitterSet:
 
             # Optionals
             self.id = id if id is not None else -torch.ones_like(frame_ix)
-            self.prob = prob if prob is not None else torch.ones_like(frame_ix).type(f_type)
-            self.bg = bg if bg is not None else float('nan') * torch.ones_like(frame_ix).type(f_type)
-            self.xyz_cr = xyz_cr if xyz_cr is not None else float('nan') * torch.ones_like(self.xyz)
-            self.phot_cr = phot_cr if phot_cr is not None else float('nan') * torch.ones_like(self.phot)
-            self.bg_cr = bg_cr if bg_cr is not None else float('nan') * torch.ones_like(self.bg)
+            self.prob = prob.type(f_type) if prob is not None else torch.ones_like(frame_ix).type(f_type)
+            self.bg = bg.type(f_type) if bg is not None else float('nan') * torch.ones_like(frame_ix).type(f_type)
+
+            self.xyz_cr = xyz_cr.type(f_type) if xyz_cr is not None else float('nan') * torch.ones_like(self.xyz)
+            self.phot_cr = phot_cr.type(f_type) if phot_cr is not None else float('nan') * torch.ones_like(self.phot)
+            self.bg_cr = bg_cr.type(f_type) if bg_cr is not None else float('nan') * torch.ones_like(self.bg)
+
+            self.xyz_sig = xyz_sig.type(f_type) if xyz_sig is not None else float('nan') * torch.ones_like(self.xyz)
+            self.phot_sig = phot_sig.type(f_type) if phot_sig is not None else float('nan') * torch.ones_like(self.phot)
+            self.bg_sig = bg_sig.type(f_type) if bg_sig is not None else float('nan') * torch.ones_like(self.bg)
 
         else:
             self.xyz = torch.zeros((0, 3)).type(f_type)
@@ -135,9 +150,14 @@ class EmitterSet:
             self.id = -torch.ones((0,)).type(i_type)
             self.prob = torch.ones((0,)).type(f_type)
             self.bg = float('nan') * torch.ones_like(self.prob)
+
             self.xyz_cr = float('nan') * torch.ones((0, 3)).type(f_type)
             self.phot_cr = float('nan') * torch.ones_like(self.prob)
-            self.bg_cr = float('nan') * torch.ones_like(self.prob)
+            self.bg_cr = float('nan') * torch.ones_like(self.bg)
+
+            self.xyz_sig = float('nan') * torch.ones((0, 3)).type(f_type)
+            self.phot_sig = float('nan') * torch.ones_like(self.prob)
+            self.bg_sig = float('nan') * torch.ones_like(self.bg)
 
     def to_dict(self):
         """
@@ -157,6 +177,9 @@ class EmitterSet:
             'xyz_cr': self.xyz_cr,
             'phot_cr': self.phot_cr,
             'bg_cr': self.bg_cr,
+            'xyz_sig': self.xyz_sig,
+            'phot_sig': self.phot_sig,
+            'bg_sig': self.bg_sig,
             'xy_unit': self.xy_unit,
             'px_size': self.px_size
         }
@@ -249,6 +272,14 @@ class EmitterSet:
     def bg_scr(self):  # sqrt cramer-rao of bg count
         return self.bg_cr.sqrt()
 
+    @property
+    def xyz_sig_px(self):
+        return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='px')
+
+    @property
+    def xyz_sig_nm(self):
+        return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='nm')
+
     def _inplace_replace(self, em):
         """
         Inplace replacement of this self instance. Does not work for inherited methods ...
@@ -267,6 +298,9 @@ class EmitterSet:
                       xyz_cr=em.xyz_cr,
                       phot_cr=em.phot_cr,
                       bg_cr=em.bg_cr,
+                      xyz_sig=em.xyz_sig,
+                      phot_sig=em.phot_sig,
+                      bg_sig=em.bg_sig,
                       sanity_check=True,
                       xy_unit=em.xy_unit,
                       px_size=em.px_size)
@@ -322,11 +356,9 @@ class EmitterSet:
         print_str = f"EmitterSet" \
                     f"\n::num emitters: {len(self)}"
 
-        if len(self) == 0:
-            print_str += "\n::frame range: n.a." \
-                         "\n::spanned volume: n.a."
-        else:
+        if len(self) >= 1:
             print_str += f"\n::xy unit: {self.xy_unit}"
+            print_str += f"\n::px size: {self.px_size}"
             print_str += f"\n::frame range: {self.frame_ix.min().item()} - {self.frame_ix.max().item()}" \
                          f"\n::spanned volume: {self.xyz.min(0)[0].numpy()} - {self.xyz.max(0)[0].numpy()}"
         return print_str
@@ -434,15 +466,18 @@ class EmitterSet:
         Returns:
             (EmitterSet)
         """
-        return EmitterSet(self.xyz.clone(),
-                          self.phot.clone(),
-                          self.frame_ix.clone(),
-                          self.id.clone(),
-                          self.prob.clone(),
-                          self.bg.clone(),
-                          self.xyz_cr.clone(),
-                          self.phot_cr.clone(),
-                          self.bg_cr.clone(),
+        return EmitterSet(xyz=self.xyz.clone(),
+                          phot=self.phot.clone(),
+                          frame_ix=self.frame_ix.clone(),
+                          id=self.id.clone(),
+                          prob=self.prob.clone(),
+                          bg=self.bg.clone(),
+                          xyz_cr=self.xyz_cr.clone(),
+                          phot_cr=self.phot_cr.clone(),
+                          bg_cr=self.bg_cr.clone(),
+                          xyz_sig=self.xyz_sig.clone(),
+                          phot_sig=self.phot_sig.clone(),
+                          bg_sig=self.bg_sig.clone(),
                           sanity_check=False,
                           xy_unit=self.xy_unit,
                           px_size=self.px_size)
@@ -483,9 +518,14 @@ class EmitterSet:
         id = torch.cat([emittersets[i].id for i in range(num_emittersets)], 0)
         prob = torch.cat([emittersets[i].prob for i in range(num_emittersets)], 0)
         bg = torch.cat([emittersets[i].bg for i in range(num_emittersets)], 0)
+
         xyz_cr = torch.cat([emittersets[i].xyz_cr for i in range(num_emittersets)], 0)
         phot_cr = torch.cat([emittersets[i].phot_cr for i in range(num_emittersets)], 0)
         bg_cr = torch.cat([emittersets[i].bg_cr for i in range(num_emittersets)], 0)
+
+        xyz_sig = torch.cat([emittersets[i].xyz_sig for i in range(num_emittersets)], 0)
+        phot_sig = torch.cat([emittersets[i].phot_sig for i in range(num_emittersets)], 0)
+        bg_sig = torch.cat([emittersets[i].bg_sig for i in range(num_emittersets)], 0)
 
         # px_size and xy unit is taken from the first element that is not None
         xy_unit = None
@@ -499,38 +539,31 @@ class EmitterSet:
                 px_size = emittersets[i].px_size
                 break
 
-        return EmitterSet(xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr, sanity_check=True,
+        return EmitterSet(xyz, phot, frame_ix, id, prob, bg,
+                          xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr,
+                          xyz_sig=xyz_sig, phot_sig=phot_sig, bg_sig=bg_sig,
+                          sanity_check=True,
                           xy_unit=xy_unit, px_size=px_size)
 
     def sort_by_frame_(self):
         """
         Inplace sort this emitterset by its frame index.
 
-        Returns:
-
         """
-        self.frame_ix, ix = self.frame_ix.sort()
-        self.xyz = self.xyz[ix, :]
-        self.phot = self.phot[ix]
-        self.id = self.id[ix]
-        self.prob = self.prob[ix]
-        self.bg = self.bg[ix]
-        self.xyz_cr = self.xyz_cr[ix]
-        self.phot_cr = self.phot_cr[ix]
-        self.bg_cr = self.bg_cr[ix]
-
-        self._sorted = True
+        em = self.sort_by_frame()
+        self._inplace_replace(em)
 
     def sort_by_frame(self):
         """
         Sort a deepcopy of this emitterset and return it.
 
         Returns:
-            (emitterset) Sorted copy of this emitterset.
+            Sorted copy of this emitterset
 
         """
-        em = self.clone()
-        em.sort_by_frame_()
+        _, ix = self.frame_ix.sort()
+        em = self[ix]
+        em._sorted = True
 
         return em
 
