@@ -121,6 +121,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     """Setup gradient modification"""
     if param.HyperParameter.grad_mod:
         grad_mod = partial(torch.nn.utils.clip_grad_norm_, max_norm=0.03, norm_type=2)
+    else:
+        grad_mod = None
 
     """Log the model"""
     try:

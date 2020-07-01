@@ -78,11 +78,9 @@ class UNetBase(nn.Module):
     norms = ('BatchNorm', 'GroupNorm')
     pool_modules = ('MaxPool', 'StrideConv')
 
-    def __init__(self, in_channels, out_channels, depth=4,
-                 initial_features=64, gain=2, pad_convs=False,
-                 norm=None, norm_groups=None, p_dropout=None,
-                 final_activation=None, activation=nn.ReLU(),
-                 pool_mode='MaxPool', skip_gn_level=None):
+    def __init__(self, in_channels, out_channels, depth=4, initial_features=64, gain=2, pad_convs=False, norm=None,
+                 norm_groups=None, p_dropout=None, final_activation=None, activation=nn.ReLU(), pool_mode='MaxPool',
+                 skip_gn_level=None, upsample_mode='bilinear'):
         super().__init__()
 
         self.depth = depth
@@ -124,7 +122,8 @@ class UNetBase(nn.Module):
         # the upsampling layers
         self.upsamplers = nn.ModuleList([self._upsampler(n_features[level],
                                                          n_features[level + 1],
-                                                         self.depth - level - 1)
+                                                         self.depth - level - 1,
+                                                         mode=upsample_mode)
                                          for level in range(self.depth)])
         # output conv and activation
         # the output conv is not followed by a non-linearity, because we apply
@@ -138,6 +137,7 @@ class UNetBase(nn.Module):
         # get the difference between the shapes
         shape_diff = tuple((ish - csh) // 2
                            for ish, csh in zip(input_shape, shape_to_crop))
+        # if input_.size() == shape_to_crop:
         if all(sd == 0 for sd in shape_diff):
             return input_
         # calculate the crop
@@ -252,11 +252,11 @@ class UNet2d(UNetBase):
         return sequence
 
     # upsampling via transposed 2d convolutions
-    def _upsampler(self, in_channels, out_channels, level):
+    def _upsampler(self, in_channels, out_channels, level, mode):
         # use bilinear upsampling + 1x1 convolutions
         return Upsample(in_channels=in_channels,
                         out_channels=out_channels,
-                        scale_factor=2, mode='bilinear', ndim=2)
+                        scale_factor=2, mode=mode, ndim=2)
 
     # pooling via maxpool2d
     def _pooler(self, level):

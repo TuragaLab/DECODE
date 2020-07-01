@@ -21,11 +21,14 @@ class SigmaMUNet(model_param.DoubleMUnet):
 
     def __init__(self, ch_in: int, *, depth_shared: int, depth_union: int, initial_features: int, inter_features: int,
                  norm=None, norm_groups=None, norm_head=None, norm_head_groups=None, pool_mode='StrideConv',
-                 skip_gn_level: Union[None, bool] = None, activation=nn.ReLU(), kaiming_normal=True):
+                 upsample_mode='bilinear', skip_gn_level: Union[None, bool] = None,
+                 activation=nn.ReLU(), kaiming_normal=True):
+
         super().__init__(ch_in=ch_in, ch_out=self.ch_out, depth_shared=depth_shared, depth_union=depth_union,
                          initial_features=initial_features, inter_features=inter_features,
                          norm=norm, norm_groups=norm_groups, norm_head=norm_head,
                          norm_head_groups=norm_head_groups, pool_mode=pool_mode,
+                         upsample_mode=upsample_mode,
                          skip_gn_level=skip_gn_level, activation=activation,
                          use_last_nl=False)
 
@@ -38,6 +41,11 @@ class SigmaMUNet(model_param.DoubleMUnet):
         if kaiming_normal:
             self.apply(self.weight_init)
 
+            # custom
+            torch.nn.init.kaiming_normal_(self.mt_heads[0].core[0].weight, mode='fan_in', nonlinearity='relu')
+            torch.nn.init.kaiming_normal_(self.mt_heads[0].out_conv.weight, mode='fan_in', nonlinearity='linear')
+            torch.nn.init.constant_(self.mt_heads[0].out_conv.bias, -6.)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self._forward_core(external=None, x=x)
 
@@ -45,11 +53,14 @@ class SigmaMUNet(model_param.DoubleMUnet):
         x_heads = [mt_head.forward(x) for mt_head in self.mt_heads]
         x = torch.cat(x_heads, dim=1)
 
+        """Clamp prob before sigmoid"""
+        x[:, [0]] = torch.clamp(x[:, [0]], min=-8., max=8.)
+
         """Apply non linearities"""
         x[:, self.sigmoid_ch_ix] = torch.sigmoid(x[:, self.sigmoid_ch_ix])
         x[:, self.tanh_ch_ix] = torch.tanh(x[:, self.tanh_ch_ix])
 
-        # add epsilon to sigmas and rescale
+        """Add epsilon to sigmas and rescale"""
         x[:, self.pxyz_sig_ch_ix] = x[:, self.pxyz_sig_ch_ix] * 3 + self.sigma_eps
 
         return x
@@ -75,6 +86,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
             norm_head=param.HyperParameter.arch_param.norm_head,
             norm_head_groups=param.HyperParameter.arch_param.norm_head_groups,
             pool_mode=param.HyperParameter.arch_param.pool_mode,
+            upsample_mode=param.HyperParameter.arch_param.upsample_mode,
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
         )
 

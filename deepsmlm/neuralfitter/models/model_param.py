@@ -9,7 +9,7 @@ class SimpleSMLMNet(unet_param.UNet2d):
 
     def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, p_dropout=0.,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
-                 norm_head_groups=None, pool_mode='StrideConv', skip_gn_level=None):
+                 norm_head_groups=None, pool_mode='StrideConv', upsample_mode='bilinear', skip_gn_level=None):
         super().__init__(in_channels=ch_in,
                          out_channels=inter_features,
                          depth=depth,
@@ -45,6 +45,7 @@ class SimpleSMLMNet(unet_param.UNet2d):
             inter_features=param.HyperParameter.arch_param.inter_features,
             p_dropout=param.HyperParameter.arch_param.p_dropout,
             pool_mode=param.HyperParameter.arch_param.pool_mode,
+            upsample_mode=param.HyperParameter.arch_param.upsample_mode,
             activation=activation,
             use_last_nl=param.HyperParameter.arch_param.use_last_nl,
             norm=param.HyperParameter.arch_param.norm,
@@ -128,14 +129,13 @@ class SimpleSMLMNet(unet_param.UNet2d):
 class SMLMNetBG(SimpleSMLMNet):
     def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, p_dropout=0.,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_bg=None,
-                 norm_bg_groups=None, norm_head=None, norm_head_groups=None, pool_mode='MaxPool', detach_bg=False,
-                 skip_gn_level=None):
+                 norm_bg_groups=None, norm_head=None, norm_head_groups=None, pool_mode='MaxPool',
+                 upsample_mode='bilinear', detach_bg=False, skip_gn_level=None):
 
         super().__init__(ch_in + 1, ch_out - 1, depth, initial_features, inter_features, p_dropout, activation,
-                         use_last_nl,
-                         norm, norm_groups,
-                         pool_mode=pool_mode,
+                         use_last_nl, norm, norm_groups, pool_mode=pool_mode, upsample_mode=upsample_mode,
                          skip_gn_level=skip_gn_level)
+
         assert ch_out == 6
         self.total_ch_out = ch_out
         self.detach_bg = detach_bg
@@ -180,19 +180,19 @@ class DoubleMUnet(nn.Module):
     def __init__(self, ch_in, ch_out, ext_features=0, depth_shared=3, depth_union=3, initial_features=64,
                  inter_features=64,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
-                 norm_head_groups=None, pool_mode='Conv2d', skip_gn_level=None):
+                 norm_head_groups=None, pool_mode='Conv2d', upsample_mode='bilinear', skip_gn_level=None):
         super().__init__()
 
         self.unet_shared = unet_param.UNet2d(1 + ext_features, inter_features, depth=depth_shared, pad_convs=True,
                                              initial_features=initial_features,
                                              activation=activation, norm=norm, norm_groups=norm_groups,
-                                             pool_mode=pool_mode,
+                                             pool_mode=pool_mode, upsample_mode=upsample_mode,
                                              skip_gn_level=skip_gn_level)
 
         self.unet_union = unet_param.UNet2d(ch_in * inter_features, inter_features, depth=depth_union, pad_convs=True,
                                             initial_features=initial_features,
                                             activation=activation, norm=norm, norm_groups=norm_groups,
-                                            pool_mode=pool_mode,
+                                            pool_mode=pool_mode, upsample_mode=upsample_mode,
                                             skip_gn_level=skip_gn_level)
 
         assert ch_in in (1, 3)
@@ -227,6 +227,7 @@ class DoubleMUnet(nn.Module):
             norm_head=param.HyperParameter.arch_param.norm_head,
             norm_head_groups=param.HyperParameter.arch_param.norm_head_groups,
             pool_mode=param.HyperParameter.arch_param.pool_mode,
+            upsample_mode=param.HyperParameter.arch_param.upsample_mode,
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level,
             **kwargs
         )
@@ -372,146 +373,3 @@ class MLTHeads(nn.Module):
                                  activation)
         else:
             raise NotImplementedError
-
-
-class DoubleMUNetSeperateBG(SimpleSMLMNet):
-    def __init__(self, ch_in, ch_out, depth=3, initial_features=64, recpt_bg=16, inter_features=64, depth_bg=2,
-                 initial_features_bg=16, activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None,
-                 norm_bg=None, norm_bg_groups=None, pool_mode='Conv2d', skip_gn_level=None):
-        super().__init__(ch_in=ch_in, ch_out=5, depth=depth, initial_features=initial_features,
-                         inter_features=inter_features, activation=activation,
-                         use_last_nl=use_last_nl, norm=norm, norm_groups=norm_groups, pool_mode=pool_mode,
-                         skip_gn_level=skip_gn_level)
-
-        self.bg_net = unet_param.UNet2d(ch_in, 1, depth=depth_bg, pad_convs=True,
-                                        initial_features=initial_features_bg,
-                                        activation=activation, norm=norm_bg,
-                                        norm_groups=norm_bg_groups, pool_mode=pool_mode,
-                                        skip_gn_level=skip_gn_level)
-
-        self.bg_nl = torch.tanh
-        self.bg_recpt = recpt_bg
-
-    @classmethod
-    def parse(cls, param):
-        activation = eval(param.HyperParameter.arch_param.activation)
-        return cls(
-            ch_in=param.HyperParameter.channels_in,
-            ch_out=param.HyperParameter.channels_out,
-            depth=param.HyperParameter.arch_param.depth,
-            initial_features=param.HyperParameter.arch_param.initial_features,
-            recpt_bg=param.HyperParameter.arch_param.recpt_bg,
-            depth_bg=param.HyperParameter.arch_param.depth_bg,
-            initial_features_bg=param.HyperParameter.arch_param.initial_features_bg,
-            inter_features=param.HyperParameter.arch_param.inter_features,
-            activation=activation,
-            use_last_nl=param.HyperParameter.arch_param.use_last_nl,
-            norm=param.HyperParameter.arch_param.norm,
-            norm_groups=param.HyperParameter.arch_param.norm_groups,
-            norm_bg=param.HyperParameter.arch_param.norm_bg,
-            norm_bg_groups=param.HyperParameter.arch_param.norm_bg_groups,
-            pool_mode=param.HyperParameter.arch_param.pool_mode,
-            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
-        )
-
-    def forward(self, x, force_no_p_nl=False):
-        """
-
-        :param x:
-        :return:
-        """
-        """
-        During training, limit the 
-        """
-        if self.training:
-            bg_out = torch.zeros_like(x[:, [0]])
-            assert x.size(-1) % self.bg_recpt == 0
-            assert x.size(-2) % self.bg_recpt == 0
-            n_x = x.size(-2) // self.bg_recpt
-            n_y = x.size(-1) // self.bg_recpt
-            for i in range(n_x):
-                for j in range(n_y):
-                    ii = slice(i * self.bg_recpt, (i + 1) * self.bg_recpt)
-                    jj = slice(j * self.bg_recpt, (j + 1) * self.bg_recpt)
-                    bg_out[:, :, ii, jj] = self.bg_net.forward(x[:, :, ii, jj])
-        else:
-            bg_out = self.bg_net.forward(x)
-
-        out = super().forward(x, bg_out.detach(), force_no_p_nl=force_no_p_nl)
-        return torch.cat((out, bg_out), 1)
-
-
-class BGNet(nn.Module):
-    def __init__(self, ch_in, ch_out, depth_bg=2, initial_features_bg=16, recpt_field=None, activation=nn.ReLU(),
-                 norm=None, norm_groups=None, pool_mode='MaxPool', skip_gn_level=None):
-        super().__init__()
-        self.ch_out = ch_out  # pseudo channels for easier trainig
-        self.recpt_field = recpt_field
-        self.net = unet_param.UNet2d(in_channels=ch_in,
-                                     out_channels=1,
-                                     depth=depth_bg,
-                                     initial_features=initial_features_bg,
-                                     pad_convs=True,
-                                     activation=activation,
-                                     norm=norm,
-                                     norm_groups=norm_groups,
-                                     pool_mode=pool_mode,
-                                     skip_gn_level=skip_gn_level)
-
-    @classmethod
-    def parse(cls, param):
-        activation = eval(param.HyperParameter.arch_param.activation)
-        return cls(
-            ch_in=param.HyperParameter.channels_in,
-            ch_out=param.HyperParameter.channels_out,
-            depth_bg=param.HyperParameter.arch_param.depth_bg,
-            initial_features_bg=param.HyperParameter.arch_param.initial_features_bg,
-            recpt_field=param.HyperParameter.arch_param.recpt_bg,
-            activation=activation,
-            norm=param.HyperParameter.arch_param.norm_bg,
-            norm_groups=param.HyperParameter.arch_param.norm_bg_groups,
-            pool_mode=param.HyperParameter.arch_param.pool_mode,
-            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
-        )
-
-    @staticmethod
-    def apply_pnl(x):
-        """
-        Dummy method.
-        :param x:
-        :return:
-        """
-        return x
-
-    def forward_recpt(self, x):
-        """
-        Forward data in limited receptieve field.
-        Data dimensions must be multiples of recpt field.
-        :param x:
-        :return:
-        """
-        hs = x.size(-2)
-        ws = x.size(-1)
-
-        assert hs % self.recpt_field == 0
-        assert ws % self.recpt_field == 0
-
-        n_x, n_y = hs // self.recpt_field, ws // self.recpt_field
-        o = torch.zeros_like(x[:, [0]])
-        for i in range(n_x):
-            ii = slice(i * self.recpt_field, (i + 1) * self.recpt_field)
-            for j in range(n_y):
-                jj = slice(j * self.recpt_field, (j + 1) * self.recpt_field)
-                o[:, :, ii, jj] = self.net.forward(x[:, :, ii, jj])
-        return o
-
-    def forward(self, x):
-        if self.recpt_field is not None and self.training:
-            o = self.forward_recpt(x)
-        else:
-            o = self.net.forward(x)
-
-        if self.ch_out >= 2:
-            o = torch.cat((torch.zeros((o.size(0), self.ch_out - 1, o.size(-2), o.size(-1))).to(o.device), o), 1)
-
-        return o

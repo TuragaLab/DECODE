@@ -24,6 +24,7 @@ Hardware:
 HyperParameter:
   arch_param:
     activation: nn.ELU()
+    depth: 3
     depth_shared: 2
     depth_union: 1
     depth_bg:
@@ -38,11 +39,12 @@ HyperParameter:
     norm_head_groups:
     p_dropout:
     pool_mode: StrideConv
+    upsample_mode: bilinear
     recpt_bg:
     skip_gn_level:
     up_mode: upsample
     use_last_nl:
-  architecture: SigmaMUNet
+  architecture: SimpleSMLMNet
   batch_size: 10
   channels_in: 3
   channels_out: 6
