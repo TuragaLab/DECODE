@@ -201,11 +201,12 @@ class ConsistencyPostprocessing(PostProcessing):
     _xy_unit = 'nm'
 
     def __init__(self, *, raw_th, em_th, xy_unit: str, img_shape, ax_th=None, vol_th=None, lat_th=None,
-                 p_aggregation='pbinom_cdf', px_size=None, match_dims=2, diag=0, num_workers=0,
-                 skip_th: (None, float) = None, return_format='batch-set', sanity_check=True):
+                 p_aggregation='pbinom_cdf', px_size=None, match_dims=2, diag=0, pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
+                 num_workers=0, skip_th: (None, float) = None, return_format='batch-set', sanity_check=True):
         """
 
         Args:
+            pphotxyzbg_mapping:
             raw_th:
             em_th:
             xy_unit:
@@ -232,6 +233,8 @@ class ConsistencyPostprocessing(PostProcessing):
         self.match_dims = match_dims
         self.num_workers = num_workers
         self.skip_th = skip_th
+
+        self.pphotxyzbg_mapping = pphotxyzbg_mapping
 
         self._filter = match_emittersets.GreedyHungarianMatching(match_dims=match_dims, dist_lat=lat_th,
                                                                  dist_ax=ax_th, dist_vol=vol_th).filter
@@ -280,6 +283,9 @@ class ConsistencyPostprocessing(PostProcessing):
 
         if self.p_aggregation not in self._p_aggregations:
             raise ValueError("Unsupported probability aggregation type.")
+
+        if len(self.pphotxyzbg_mapping) != 6:
+            raise ValueError(f"Wrong channel mapping length.")
 
     def skip_if(self, x):
         if x.dim() != 4:
@@ -534,6 +540,8 @@ class ConsistencyPostprocessing(PostProcessing):
 
         if self.skip_if(features):
             return EmptyEmitterSet(xy_unit=self.xy_unit, px_size=self.px_size)
+
+        features = features[:, self.pphotxyzbg_mapping]  # change channel order if needed
 
         if features.dim() != 4:
             raise ValueError("Wrong dimensionality. Needs to be N x C x H x W.")

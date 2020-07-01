@@ -33,7 +33,7 @@ if __name__ == '__main__':
     model = OffSetUNetBGBranch(3, 6)
     model = LoadSaveModel(model,
                           output_file=None,
-                          input_file=file).load_init(False)
+                          input_file=file).load_init('cpu')
     traced_mod = trace_offset_model(model)
     print("This is PyTorch version: {}".format(torch.__version__))
     torch.jit.save(traced_mod, traced_file)
