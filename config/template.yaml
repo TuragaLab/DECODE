@@ -28,6 +28,7 @@ HyperParameter:
     depth_shared: 2
     depth_union: 1
     depth_bg:
+    init_custom: false
     initial_features: 48
     initial_features_bg:
     inter_features: 48

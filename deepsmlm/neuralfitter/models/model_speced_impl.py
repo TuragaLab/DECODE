@@ -87,7 +87,8 @@ class SigmaMUNet(model_param.DoubleMUnet):
             norm_head_groups=param.HyperParameter.arch_param.norm_head_groups,
             pool_mode=param.HyperParameter.arch_param.pool_mode,
             upsample_mode=param.HyperParameter.arch_param.upsample_mode,
-            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
+            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level,
+            kaiming_normal=param.HyperParameter.arch_param.init_custom
         )
 
     @staticmethod
