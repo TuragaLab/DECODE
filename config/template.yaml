@@ -28,7 +28,7 @@ HyperParameter:
     depth_shared: 2
     depth_union: 1
     depth_bg:
-    init_custom: false
+    init_custom: true
     initial_features: 48
     initial_features_bg:
     inter_features: 48
@@ -40,18 +40,18 @@ HyperParameter:
     norm_head_groups:
     p_dropout:
     pool_mode: StrideConv
-    upsample_mode: bilinear
+    upsample_mode: nearest
     recpt_bg:
     skip_gn_level:
     up_mode: upsample
     use_last_nl:
-  architecture: SimpleSMLMNet
+  architecture: SigmaMUNet
   batch_size: 10
   channels_in: 3
-  channels_out: 6
+  channels_out:
   chweight_stat:
     - 1.0
-    - 1.0
+    - 0.0
   ds_lifetime:
   epoch_0:
   epochs: 10000
@@ -93,17 +93,17 @@ Simulation:
   - 60.0
   - 120.0
   density:
-  emitter_av: 40
+  emitter_av: 20
   emitter_extent:
   - - -0.5
-    - 31.5
+    - 39.5
   - - -0.5
-    - 31.5
+    - 39.5
   - - -750
     - 750
   img_size:
-  - 32
-  - 32
+  - 40
+  - 40
   intensity_mu_sig:
   - 10000.0
   - 1000.0
@@ -113,9 +113,9 @@ Simulation:
   photon_range:
   psf_extent:
   - - -0.5
-    - 31.5
+    - 39.5
   - - -0.5
-    - 31.5
+    - 39.5
   -
   roi_size:
   roi_auto_center: false
@@ -125,11 +125,11 @@ TestSet:
   test_size: 512
   frame_extent:
   - - -0.5
-    - 31.5
+    - 39.5
   - - -0.5
-    - 31.5
+    - 39.5
   - null
   img_size:
-    - 32
-    - 32
+    - 40
+    - 40
 

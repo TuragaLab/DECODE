@@ -41,8 +41,8 @@ def train(model, optimizer, loss, dataloader, grad_rescale, grad_mod, epoch, dev
         loss_val.mean().backward()
 
         """Gradient Modification"""
-        if grad_mod is not None:
-            grad_mod(model.parameters())
+        if grad_mod:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.03, norm_type=2)
 
         """Update model parameters"""
         optimizer.step()
