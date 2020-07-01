@@ -1,8 +1,10 @@
-import math
-import time
-import torch
 import hashlib
+import math
 import pathlib
+import time
+from typing import Union
+
+import torch
 
 
 def hash_model(modelfile):
@@ -21,7 +23,8 @@ def hash_model(modelfile):
 
 
 class LoadSaveModel:
-    def __init__(self, model_instance, output_file: (str, pathlib.Path), input_file=None, name_time_interval=(60*60), better_th=1e-6,
+    def __init__(self, model_instance, output_file: (str, pathlib.Path), input_file=None, name_time_interval=(60 * 60),
+                 better_th=1e-6,
                  max_files=3):
         """
 
@@ -39,7 +42,7 @@ class LoadSaveModel:
         self.name_time_interval = name_time_interval
 
         self._last_saved = 0  # timestamp when it was saved last
-        self._new_name_time = 0   # timestamp when the name changed last
+        self._new_name_time = 0  # timestamp when the name changed last
         self._best_metric_val = math.inf
         self.better_th = better_th
         self.max_files = max_files if ((max_files is not None) or (max_files != -1)) else float('inf')
@@ -56,21 +59,30 @@ class LoadSaveModel:
             raise FileNotFoundError("I will only create the last folder for model saving. But the path you specified "
                                     "lacks more folders or is completely wrong.")
 
-    def load_init(self, cuda=torch.cuda.is_available()):
+    def load_init(self, device: Union[str, torch.device, None] = None):
+        """
+        Init and warmstart model (if possible) and ship to specified device
+
+        Args:
+            device:
+
+        Returns:
+
+        """
+        if device is None:
+            device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+
         model = self.model
         print('Model instantiated.')
         if self.warmstart_file is None:
             print('Model initialised as specified in the constructor.')
-            
+
         else:
             hashv = hash_model(self.warmstart_file)
             print(f'Model SHA-1 hash: {hashv}')
             model.hash = hashv
 
-            if cuda:
-                model.load_state_dict(torch.load(self.warmstart_file))
-            else:
-                model.load_state_dict(torch.load(self.warmstart_file, map_location='cpu'))
+            model.load_state_dict(torch.load(self.warmstart_file, map_location=device))
 
             print('Loaded pretrained model: {}'.format(self.warmstart_file))
 
@@ -109,4 +121,3 @@ class LoadSaveModel:
         print('Saved model to file: {}'.format(fname))
 
         self._last_saved = time.time()
-
