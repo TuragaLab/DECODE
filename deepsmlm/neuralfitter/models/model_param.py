@@ -24,8 +24,10 @@ class SimpleSMLMNet(unet_param.UNet2d):
 
         assert ch_out in (5, 6)
         self.ch_out = ch_out
-        self.mt_heads = nn.ModuleList(
-            [MLTHeads(inter_features, norm=norm_head, norm_groups=norm_head_groups) for _ in range(self.ch_out)])
+        self.mt_heads = nn.ModuleList([
+            MLTHeads(inter_features, norm=norm_head, norm_groups=norm_head_groups, padding=True, activation=activation)
+            for _ in range(self.ch_out)
+        ])
 
         self._use_last_nl = use_last_nl
 
@@ -200,7 +202,9 @@ class DoubleMUnet(nn.Module):
         self.ch_in = ch_in
         self.ch_out = ch_out
         self.mt_heads = nn.ModuleList(
-            [MLTHeads(inter_features, norm=norm_head, norm_groups=norm_head_groups) for _ in range(self.ch_out)])
+            [MLTHeads(inter_features, out_channels=1, last_kernel=1,
+                      norm=norm_head, norm_groups=norm_head_groups,
+                      padding=True, activation=activation) for _ in range(self.ch_out)])
 
         self._use_last_nl = use_last_nl
 
@@ -335,8 +339,7 @@ class DoubleMUnet(nn.Module):
 
 
 class MLTHeads(nn.Module):
-    def __init__(self, in_channels, out_channels=1, last_kernel=1, norm=None, norm_groups=None, padding=True,
-                 activation=nn.ReLU()):
+    def __init__(self, in_channels, out_channels, last_kernel, norm, norm_groups, padding, activation):
         super().__init__()
         self.norm = norm
         self.norm_groups = norm_groups

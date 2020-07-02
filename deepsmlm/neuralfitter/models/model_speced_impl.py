@@ -34,6 +34,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
 
         self.mt_heads = torch.nn.ModuleList(
             [model_param.MLTHeads(in_channels=inter_features, out_channels=ch_out,
+                                  activation=activation, last_kernel=1, padding=True,
                                   norm=norm_head, norm_groups=norm_head_groups)
              for ch_out in self.out_channels_heads]
         )
