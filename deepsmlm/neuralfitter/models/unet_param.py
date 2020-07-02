@@ -106,7 +106,8 @@ class UNetBase(nn.Module):
                                       for level in range(self.depth)])
 
         # the base convolution block
-        self.base = self._conv_block(n_features[-1], gain * n_features[-1], part='base', level=depth)
+        self.base = self._conv_block(n_features[-1], gain * n_features[-1],
+                                     part='base', level=depth, activation=activation)
 
         # modules of the decoder path
         n_features = [initial_features * gain ** level
