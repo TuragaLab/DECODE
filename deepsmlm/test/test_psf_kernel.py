@@ -297,13 +297,15 @@ class TestCubicSplinePSF(AbstractPSFTest):
     def test_recentre_roi(self, psf):
         with pytest.raises(ValueError) as err:  # even roi size --> no center
             psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
-                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(24, 24), roi_auto_center=True)
+                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(24, 24), roi_auto_center=True,
+                         cuda_kernel=False)
 
             assert err == 'PSF reference can not be centered when the roi_size is even.'
 
         with pytest.raises(ValueError) as err:  # even roi size --> no center
             psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
-                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), ref_re=(5, 5, 100), roi_auto_center=True)
+                         coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), ref_re=(5, 5, 100),
+                         roi_auto_center=True, cuda_kernel=False)
 
             assert err == 'PSF reference can not be automatically centered when you specify a custom center at the same time.'
 
@@ -417,7 +419,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
                   f"Reference: {psf.ref0}")
         plt.show()
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available, strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_roi_drv_cuda_cpu(self, psf, psf_cuda, onek_rois):
         """
@@ -502,7 +504,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
         assert tutil.tens_almeq(roi_0[:, 5:10, 5:10], roi_shift[:, 4:9, 3:8])
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF._cuda_compiled(), strict=True,
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available, strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_frame_cuda_cpu(self, psf, psf_cuda):
         """
@@ -591,7 +593,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert tutil.tens_almeq(roi_chunk, roi)
 
     @pytest.mark.slow
-    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF._cuda_compiled(),
+    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available,
                         reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_many_em_forward(self, psf_cuda):
         """Setup"""
@@ -609,7 +611,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert frames.size() == torch.Size([n_frames + 1, 64, 64])
 
     @pytest.mark.slow
-    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF._cuda_compiled(),
+    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available,
                         reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_many_drv_roi_forward(self, psf_cuda):
         """Setup"""
@@ -704,37 +706,3 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert tutil.tens_almeq(diff_inv[:, 4], torch.zeros_like(diff_inv[:, 4]), 1e-3)
 
         assert rois.size() == torch.Size([n, *psf.roi_size_px]), "Wrong dimension of ROIs."
-
-    # @pytest.mark.skipif(not torch.cuda.is_available(),
-    #                     reason="Does only makes sense when CUDA device is available.")
-    # @pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
-    # def test_device_return(self, psf, device):
-    #
-    #     """Setup"""
-    #     device = torch.rand((5, 5)).to(device).device  # otherwise a CUDA index might be missing and then assertions fail
-    #     psf.return_device = device
-    #
-    #     xyz, phot, frame_ix, bg = torch.rand((10000, 3)), torch.ones(10000), torch.randint(-5, 5, size=(10000, )), torch.ones(10000)
-    #
-    #     """Run and Assert"""
-    #     roi = psf.forward_rois(xyz, phot)
-    #     assert roi.device == device, "Wrong output device."
-    #
-    #     frames = psf.forward(xyz, phot, frame_ix)
-    #     assert frames.device == device, "Wrong output device."
-    #
-    #     drv, roi = psf.derivative(xyz, phot, bg)
-    #     assert drv.device == device, "Wrong output device."
-    #     assert roi.device == device, "Wrong output device."
-    #
-    #     fisher, roi = psf.fisher(xyz, phot, bg)
-    #     assert fisher.device == device, "Wrong output device."
-    #     assert roi.device == device, "Wrong output device."
-    #
-    #     crlb, roi = psf.crlb(xyz, phot, bg)
-    #     assert crlb.device == device, "Wrong output device."
-    #     assert roi.device == device, "Wrong output device."
-    #
-    #     crlb_sq, roi = psf.crlb_sq(xyz, phot, bg)
-    #     assert crlb_sq.device == device, "Wrong output device."
-    #     assert roi.device == device, "Wrong output device."
