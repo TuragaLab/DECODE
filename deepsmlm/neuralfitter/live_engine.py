@@ -134,7 +134,10 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     frame_proc = deepsmlm.neuralfitter.scale_transform.AmplitudeRescale.parse(param)
     bg_frame_proc = None
 
-    em_filter = deepsmlm.neuralfitter.em_filter.NoEmitterFilter()
+    if param.HyperParameter.emitter_label_photon_min is not None:
+        em_filter = deepsmlm.neuralfitter.em_filter.PhotonFilter(param.HyperParameter.emitter_label_photon_min)
+    else:
+        em_filter = deepsmlm.neuralfitter.em_filter.NoEmitterFilter()
 
     tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
         [
