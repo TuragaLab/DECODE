@@ -57,6 +57,7 @@ HyperParameter:
   epochs: 10000
   fgbg_factor:
   grad_mod: true
+  emitter_label_photon_min: 100.0
   loss_impl: MixtureModel
   learning_rate_scheduler: StepLR
   learning_rate_scheduler_param:

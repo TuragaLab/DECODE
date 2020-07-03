@@ -331,7 +331,7 @@ class EmitterSet:
                          f"\n::spanned volume: {self.xyz.min(0)[0].numpy()} - {self.xyz.max(0)[0].numpy()}"
         return print_str
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         """
         Implements equalness check. Returns true if all attributes are the same and in the same order. The identy
         does not have to be the same, but the values of the attributes have to.
@@ -341,69 +341,42 @@ class EmitterSet:
         Returns:
             (bool) true if as stated above.
         """
-        if not tutil.tens_almeq(self.xyz, other.xyz, self._eq_precision):
+        def check_em_dict_equality(em_a: dict, em_b: dict) -> bool:
+
+            for k in em_a.keys():
+                 if not tutil.tens_almeq(em_a[k], em_b[k], nan=True):
+                     return False
+
+            return True
+
+        if not self.eq_attr(other):
             return False
 
-        if not tutil.tens_almeq(self.frame_ix, other.frame_ix, self._eq_precision):
+        self_dict = self.to_dict()
+        self_dict.pop('xy_unit')
+        self_dict.pop('px_size')
+
+        other_dict = other.to_dict()
+        other_dict.pop('xy_unit')
+        other_dict.pop('px_size')
+
+        if not check_em_dict_equality(self_dict, other_dict):
             return False
 
-        if not tutil.tens_almeq(self.phot, other.phot, self._eq_precision):
-            return False
-
-        if not tutil.tens_almeq(self.prob, other.prob, self._eq_precision):
-            return False
-
-        if not self.xy_unit == other.xy_unit:
-            return False
-
-        if torch.isnan(self.bg).all():
-            if not torch.isnan(other.bg).all():
-                return False
-        else:
-            if not tutil.tens_almeq(self.bg, other.bg, self._eq_precision):
-                return False
-
-        if torch.isnan(self.xyz_cr).all():
-            if not torch.isnan(other.xyz_cr).all():
-                return False
-        else:
-            if not tutil.tens_almeq(self.bg, other.bg, self._eq_precision):
-                return False
-
-        if torch.isnan(self.phot_cr).all():
-            if not torch.isnan(other.phot_cr).all():
-                return False
-        else:
-            if not tutil.tens_almeq(self.bg, other.bg, self._eq_precision):
-                return False
-
-        if torch.isnan(self.bg_cr).all():
-            if not torch.isnan(other.bg_cr).all():
-                return False
-        else:
-            if not tutil.tens_almeq(self.bg, other.bg, self._eq_precision):
-                return False
-
-        self.eq_attr(other)
         return True
 
-    def eq_attr(self, other):
+    def eq_attr(self, other) -> bool:
         """
-        Tests whether the meta data attributes are the same
+        Tests whether the meta attributes (xy_unit and px size) are the same
 
         Args:
             other: EmitterSet
-
-        Returns:
-            (bool)
         """
         if self.px_size is None:
-            if other.px_size is None:
-                return True
-            else:
+            if other.px_size is not None:
                 return False
 
-        if not (self.px_size == other.px_size).all():
+        elif not (self.px_size == other.px_size).all():
             return False
 
         if not self.xy_unit == other.xy_unit:

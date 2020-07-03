@@ -1,18 +1,18 @@
 import os
-
 from pathlib import Path
-import pytest
+
 import numpy as np
+import pytest
 import torch
 
 import deepsmlm.generic.emitter as emitter
-from deepsmlm.generic.emitter import EmitterSet, RandomEmitterSet, EmptyEmitterSet
 from deepsmlm.generic import test_utils
+from deepsmlm.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet
 from deepsmlm.test.asset_handler import RMAfterTest
 
 deepsmlm_root = os.path.abspath(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         os.pardir, os.pardir)) + '/'
+    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 os.pardir, os.pardir)) + '/'
 
 
 class TestEmitterSet:
@@ -67,8 +67,10 @@ class TestEmitterSet:
         (torch.tensor([[25., 25., 5.]]), None, None, "err", "err"),
         (torch.tensor([[25., 25., 5.]]), 'px', None, torch.tensor([[25., 25., 5.]]), "err"),
         (torch.tensor([[25., 25., 5.]]), 'nm', None, "err", torch.tensor([[25., 25., 5.]])),
-        (torch.tensor([[.25, .25, 5.]]), 'px', (50., 100.), torch.tensor([[.25, .25, 5.]]), torch.tensor([[12.5, 25., 5.]])),
-        (torch.tensor([[25., 25., 5.]]), 'nm', (50., 100.), torch.tensor([[.5, .25, 5.]]), torch.tensor([[25., 25., 5.]]))
+        (torch.tensor([[.25, .25, 5.]]), 'px', (50., 100.), torch.tensor([[.25, .25, 5.]]),
+         torch.tensor([[12.5, 25., 5.]])),
+        (torch.tensor([[25., 25., 5.]]), 'nm', (50., 100.), torch.tensor([[.5, .25, 5.]]),
+         torch.tensor([[25., 25., 5.]]))
     ]
 
     @pytest.mark.parametrize("xyz_input,xy_unit,px_size,expct_px,expct_nm", xyz_conversion_data)
@@ -234,7 +236,6 @@ class TestEmitterSet:
         :return:
         """
 
-
         random_em = RandomEmitterSet(1000)
         fname = deepsmlm_root + 'deepsmlm/test/assets/dummy_csv.txt'
         random_em.write_to_csv(fname)
@@ -255,11 +256,22 @@ class TestEmitterSet:
         assert os.path.isfile(fname)
         os.remove(fname)
 
-    def test_eq(self):
-        em = RandomEmitterSet(1000)
-        em2 = em.clone()
+    @pytest.mark.parametrize("em_a,em_b,expct", [(CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
+                                                  CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
+                                                  True),
+                                                 (CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]]), xy_unit='px'),
+                                                  CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]]), xy_unit='nm'),
+                                                  False),
+                                                 (CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]]), xy_unit='px'),
+                                                  CoordinateOnlyEmitter(torch.tensor([[0., 1.1, 2.]]), xy_unit='px'),
+                                                  False)
+                                                 ])
+    def test_eq(self, em_a, em_b, expct):
 
-        assert em == em2
+        if expct:
+            assert em_a == em_b
+        else:
+            assert not (em_a == em_b)
 
 
 def test_empty_emitterset():
@@ -270,15 +282,15 @@ def test_empty_emitterset():
 class TestLooseEmitterSet:
 
     def test_sanity(self):
-
         with pytest.raises(ValueError) as err:  # wrong xyz dimension
             _ = emitter.LooseEmitterSet(xyz=torch.rand((20, 1)), intensity=torch.ones(20),
-                                         ontime=torch.ones(20), t0=torch.rand(20), id=None, xy_unit='px', px_size=None)
+                                        ontime=torch.ones(20), t0=torch.rand(20), id=None, xy_unit='px', px_size=None)
         assert str(err.value) == "Wrong xyz dimension."
 
         with pytest.raises(ValueError) as err:  # non unique IDs
             _ = emitter.LooseEmitterSet(xyz=torch.rand((20, 3)), intensity=torch.ones(20),
-                                        ontime=torch.ones(20), t0=torch.rand(20), id=torch.ones(20), xy_unit='px', px_size=None)
+                                        ontime=torch.ones(20), t0=torch.rand(20), id=torch.ones(20), xy_unit='px',
+                                        px_size=None)
         assert str(err.value) == "IDs are not unique."
 
         with pytest.raises(ValueError) as err:  # negative intensity
@@ -292,9 +304,9 @@ class TestLooseEmitterSet:
         assert str(err.value) == "Negative ontime encountered."
 
     def test_frame_distribution(self):
-
         em = emitter.LooseEmitterSet(xyz=torch.Tensor([[1., 2., 3.], [7., 8., 9.]]), intensity=torch.Tensor([1., 2.]),
-                                     t0=torch.Tensor([-0.5, 3.2]), ontime=torch.Tensor([0.4, 2.]), id=torch.tensor([0, 1]),
+                                     t0=torch.Tensor([-0.5, 3.2]), ontime=torch.Tensor([0.4, 2.]),
+                                     id=torch.tensor([0, 1]),
                                      sanity_check=True, xy_unit='px', px_size=None)
 
         """Distribute"""

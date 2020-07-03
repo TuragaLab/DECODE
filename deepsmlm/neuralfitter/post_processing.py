@@ -1,6 +1,7 @@
 import math
 import warnings
 from abc import ABC, abstractmethod  # abstract class
+from deprecated import deprecated
 
 import scipy
 import torch
@@ -372,6 +373,7 @@ class ConsistencyPostprocessing(PostProcessing):
 
         return p_out.reshape(p.size()), feat_out.reshape(features.size())
 
+    @deprecated(reason="Does not work.")
     def _cluster_mp(self, p: torch.Tensor, features: torch.Tensor):
         """
         Processes a batch in a multiprocessing fashion by splitting the batch into multiple smaller ones and forwards
