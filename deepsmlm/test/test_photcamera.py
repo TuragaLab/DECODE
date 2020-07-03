@@ -42,6 +42,7 @@ class TestPhotons2Camera:
                == exp_device
 
 
+@pytest.mark.skip(reason="Implementation not ready.")
 class TestSCMOS(TestPhotons2Camera):
 
     @pytest.fixture()

@@ -276,6 +276,7 @@ class GaussianMMLoss(Loss):
         if mask.sum():
             gmm_log = gmm.log_prob(pxyz_tar.transpose(0, 1)).transpose(0, 1)
             gmm_log = (gmm_log * mask).sum(-1)
+            # print(f"LogProb: {log_prob.mean()}, GMM_log: {gmm_log.mean()}")
             log_prob = log_prob + gmm_log
 
         # log_prob = log_prob.reshape(batch_size, 1)  # need?
@@ -312,7 +313,7 @@ class GaussianMMLoss(Loss):
 
         """Stack in 2 channels. 
         Factor 2 because original impl. adds the two terms, but this way it's better for logging."""
-        loss = 2 * torch.stack((bg_loss, gmm_loss), 1) * self._ch_weight
+        loss = 2 * torch.stack((gmm_loss, bg_loss), 1) * self._ch_weight
 
         return loss
 

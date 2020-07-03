@@ -14,7 +14,7 @@ class TestInfer:
                                in_channels=3, out_channels=1, init_features=32, pretrained=False)
 
         return inference.Infer(model=model, ch_in=3, frame_proc=None, post_proc=post_processing.NoPostProcessing(),
-                               device='cuda')
+                               device='cuda' if torch.cuda.is_available() else 'cpu')
 
     def test_forward(self, infer):
         """

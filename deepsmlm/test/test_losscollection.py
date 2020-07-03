@@ -138,7 +138,7 @@ class TestGaussianMixtureModelLoss:
 
     @pytest.fixture()
     def loss_impl(self):
-        return loss.GaussianMMLoss((-0.5, 31.5), (-0.5, 31.5), (32, 32))
+        return loss.GaussianMMLoss(xextent=(-0.5, 31.5), yextent=(-0.5, 31.5), img_shape=(32, 32), device='cpu')
 
     @pytest.fixture()
     def data_handcrafted(self):
@@ -182,4 +182,44 @@ class TestGaussianMixtureModelLoss:
         loss_val = loss_impl.forward(model_out, (pxyz_tar, mask, bg_tar), None)
 
         loss_val.mean().backward()
+
+    def test_ch_static_weight(self, loss_impl, data_handcrafted):
+
+        """Setup"""
+        mask, p, _, _, pxyz_tar = data_handcrafted
+        x = torch.rand((2, 9, 32, 32))
+        bg_tar = torch.zeros((2, 32, 32))
+        bg_out = torch.rand_like(bg_tar).unsqueeze(1)
+
+        model_out = torch.cat((x, bg_out), 1).requires_grad_(True)
+
+        """Run and Assert"""
+        # all ch on
+        loss_impl._ch_weight = torch.tensor([1., 1.])
+        loss_val = loss_impl.forward(model_out, (pxyz_tar, mask, bg_tar), None)
+        _, log_out = loss_impl.log(loss_val)
+
+        assert (loss_val != 0.).all()
+        assert log_out['gmm'] != 0.
+        assert log_out['bg'] != 0.
+
+        # bg ch off
+        loss_impl._ch_weight = torch.tensor([1., 0.])
+        loss_val = loss_impl.forward(model_out, (pxyz_tar, mask, bg_tar), None)
+        _, log_out = loss_impl.log(loss_val)
+
+        assert (loss_val[:, 0] != 0.).all()
+        assert (loss_val[:, 1] == 0.).all()
+        assert log_out['gmm'] != 0.
+        assert log_out['bg'] == 0.
+
+        # gmm ch off
+        loss_impl._ch_weight = torch.tensor([0., 1.])
+        loss_val = loss_impl.forward(model_out, (pxyz_tar, mask, bg_tar), None)
+        _, log_out = loss_impl.log(loss_val)
+
+        assert (loss_val[:, 1] != 0.).all()
+        assert (loss_val[:, 0] == 0.).all()
+        assert log_out['gmm'] == 0.
+        assert log_out['bg'] != 0.
 

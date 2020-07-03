@@ -96,36 +96,6 @@ class TestInferenceDataset(TestDataset):
         return dataset
 
 
-class TestDatasetEngineDataset:
-
-    @pytest.fixture(scope='class', params=[1, 3, 5])
-    def ds(self, request):
-        dataset = can.SMLMDatasetEngineDataset(engine=None, em_proc=Identity(), frame_proc=Identity(), tar_gen=None,
-                                               weight_gen=None,
-                                               frame_window=request.param, pad=None, return_em=True)
-        dataset._x_in = torch.rand((2048, 64, 64))
-
-        em = deepsmlm.RandomEmitterSet(20000)
-        em.frame_ix = torch.randint_like(em.frame_ix, low=0, high=2048)
-        dataset._tar_em = em
-
-        dataset._aux = [torch.rand_like(dataset._x_in)]
-        return dataset
-
-    def test_len(self, ds):
-        ds.pad = None
-        assert len(ds) == ds._x_in.size(0) - ds.frame_window + 1
-
-        ds.pad = 'same'
-        assert len(ds) == ds._x_in.size(0)
-
-    def test_get_samples(self, ds):
-        x, y, w, em = ds.__getitem__(500)  # frames, target, weight, emitters
-
-        assert x.size(0) == ds.frame_window
-        assert em.frame_ix.unique().numel() == 1
-
-
 class TestSMLMLiveDataset:
 
     @pytest.fixture()
