@@ -309,6 +309,9 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
     torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
     os.nice(param.Hardware.unix_niceness)
 
+    if param.Hardware.torch_multiprocessing_sharing_strategy is not None:
+        torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
+
     torch.set_num_threads(param.Hardware.torch_threads)
 
     """Setup Log System"""

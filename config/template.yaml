@@ -21,12 +21,13 @@ Hardware:
   num_worker_train: 8
   torch_threads: 8
   unix_niceness: 0
+  torch_multiprocessing_sharing_strategy: file_system # if you get multiprocessing errors, increase ulimit or set to 'file_system'
 HyperParameter:
   arch_param:
     activation: nn.ELU()
-    depth: 3
+    depth:
     depth_shared: 2
-    depth_union: 1
+    depth_union: 2
     depth_bg:
     init_custom: true
     initial_features: 48
@@ -85,15 +86,13 @@ PostProcessingParam:
   raw_th: 0.1
   total_th: 0.6
 Scaling:
-  input_scale: 10000  # formerly in_count_max
-  input_offset: 0.0
+  input_scale: 200  # formerly in_count_max
+  input_offset: 125.0
   bg_max: 100.0
   phot_max: 20000.0
-  z_max: 750.0
+  z_max: 800.0
 Simulation:
-  bg_uniform:
-  - 60.0
-  - 120.0
+  bg_uniform: 90.0
   density:
   emitter_av: 20
   emitter_extent:
@@ -108,7 +107,7 @@ Simulation:
   - 40
   intensity_mu_sig:
   - 10000.0
-  - 1000.0
+  - 3000.0
   intensity_th:
   lifetime_avg: 2.0
   mode: samples
