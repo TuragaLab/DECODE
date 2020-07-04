@@ -85,8 +85,9 @@ PostProcessingParam:
   raw_th: 0.1
   total_th: 0.6
 Scaling:
-  in_count_max: 10000.0
-  bg_max: 125.0
+  input_scale: 10000  # formerly in_count_max
+  input_offset: 0.0
+  bg_max: 100.0
   phot_max: 20000.0
   z_max: 750.0
 Simulation:
