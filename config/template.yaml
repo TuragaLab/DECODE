@@ -73,7 +73,7 @@ HyperParameter:
   pseudo_ds_size: 1000
   suppress_post_processing: true
 InOut:
-  calibration_file: data/Calibration/SMLM_Challenge_Beads/Coefficients_Big_ROI/AS-Exp_100nm_3dcal.mat  # cubic spline coefficients
+  calibration_file: data/Calibration/Paper/deepSTORM_Ref_AS-Exp_100nm_3dcal.mat  # cubic spline coefficients
   experiment_out: network/2020-06-26  # main output dir
   model_init:
 PostProcessing: LookUp
