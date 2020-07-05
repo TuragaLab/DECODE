@@ -67,10 +67,10 @@ class RandomStructure(StructurePrior):
                                    self.zextent[0]])
 
     @property
-    def area(self):
+    def area(self) -> float:
         return (self.xextent[1] - self.xextent[0]) * (self.yextent[1] - self.yextent[0])
 
-    def sample(self, n: int):
+    def sample(self, n: int) -> torch.Tensor:
         xyz = torch.rand((n, 3)) * self.scale + self.shift
         return xyz
 
