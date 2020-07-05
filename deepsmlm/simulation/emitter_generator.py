@@ -59,7 +59,7 @@ class EmitterPopperSingle(EmitterPopperABC):
         """
         n = np.random.poisson(lam=self._emitter_av)
 
-        xyz = self.structure.pop(n, 3)
+        xyz = self.structure.sample(n)
         phot = torch.randint(*self.photon_range, (n,))
         frame_ix = torch.zeros_like(phot)
 
@@ -196,7 +196,7 @@ class EmitterPopperMultiFrame(EmitterPopperSingle):
         """
 
         n = np.random.poisson(lam=num_em)
-        xyz = self.structure.pop(n, 3)
+        xyz = self.structure.sample(n)
 
         """Draw from intensity distribution but clamp the value so as not to fall below 0."""
         intensity = torch.clamp(self.intensity_dist.sample((n,)), self.intensity_th)
