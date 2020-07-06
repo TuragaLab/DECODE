@@ -97,6 +97,36 @@ class TestLookUpPostProcessing(TestPostProcessingAbstract):
         assert (emitter_out.frame_ix == 0).all()
         assert (emitter_out.phot.unique() == torch.tensor([1., 3.])).all()
 
+    def test_forward_sigma(self, post):
+
+        post.photxyz_sigma_mapping = [5, 6, 7, 8]
+
+        detection = torch.tensor([[0.1, 0.0], [0.6, 0.05]]).unsqueeze(0).unsqueeze(0)
+        features = torch.tensor([[1., 2.], [3., 4.]]).unsqueeze(0).unsqueeze(0).repeat(1, 4, 1, 1)
+        features = features * torch.tensor([1., 2., 3., 4.]).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+        sigma = torch.ones((1, 4, 2, 2))
+        sigma *= torch.arange(1, 5).view(1, -1, 1, 1)
+        sigma /= detection
+
+        pseudo_net_ouput = torch.cat((detection, features, sigma, torch.rand_like(detection)), 1)
+
+        """Run"""
+        emitter_out = post.forward(pseudo_net_ouput)
+
+        """Assert"""
+        assert isinstance(emitter_out, emitter.EmitterSet), "Output should be an emitter."
+        assert (emitter_out.frame_ix == 0).all()
+        assert (emitter_out.phot.unique() == torch.tensor([1., 3.])).all()
+
+        assert not torch.isnan(emitter_out.xyz_sig).any(), "Sigma values for xyz should not be nan."
+        assert not torch.isnan(emitter_out.phot_sig).any(), "Sigma values for phot should not be nan."
+        assert torch.isnan(emitter_out.bg_sig).all()
+
+        assert test_utils.tens_almeq(emitter_out.xyz_sig,
+                                     torch.tensor([[20., 30., 40.], [2 / 0.6, 3 / 0.6, 4 / 0.6]]))
+
+        assert test_utils.tens_almeq(emitter_out.phot_sig, torch.tensor([10., 1/0.6]))
+        
 
 class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
@@ -112,15 +142,12 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
         Tests the sanity checks and forward expected exceptions
 
         """
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Not supported return type."):
             post.__init__(raw_th=0.1, em_th=0.6, xy_unit='px', img_shape=(32, 32), lat_th=0.,
                           return_format=return_format)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(IndexError):
             post.forward(torch.rand((1, 2, 32, 32)))
-
-        with pytest.raises(ValueError):
-            post.forward(torch.rand((1, 7, 32, 32)))
 
     @pytest.mark.xfail(condition=not torch.cuda.is_available(), reason="CUDA not available on this machine.")
     def test_forward_cuda(self, post):

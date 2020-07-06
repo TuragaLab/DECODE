@@ -294,6 +294,9 @@ class ParameterListRescale:
 
 
 class InverseParamListRescale(ParameterListRescale):
+    """
+    Rescale network output trained with GMM Loss.
+    """
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -310,8 +313,12 @@ class InverseParamListRescale(ParameterListRescale):
             raise ValueError(f"Unsupported size of input {x.size()}")
 
         x = x.clone()
+
         x[:, 1] *= self.phot_max
+        x[:, 5] *= self.phot_max  # sigma rescaling
+
         x[:, 4] *= self.z_max
+        x[:, 8] *= self.z_max
         x[:, -1] *= self.bg_max
 
         return x
