@@ -100,6 +100,128 @@ class EmitterSet:
         if sanity_check:
             self._sanity_check()
 
+    @property
+    def xyz_px(self) -> torch.Tensor:
+        """
+        Returns xyz in pixel coordinates and performs respective transformations if needed.
+
+        """
+        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='px')
+
+    @xyz_px.setter
+    def xyz_px(self, xyz):
+        self.xyz = xyz
+        self.xy_unit = 'px'
+
+    @property
+    def xyz_nm(self) -> torch.Tensor:
+        """
+        Returns xyz in nanometres and performs respective transformations if needed.
+        """
+        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='nm')
+
+    @xyz_nm.setter
+    def xyz_nm(self, xyz):  # xyz in nanometres
+        self.xyz = xyz
+        self.xy_unit = 'nm'
+
+    @property
+    def xyz_scr(self) -> torch.Tensor:  # sqrt cramer-rao of xyz
+        return self.xyz_cr.sqrt()
+
+    @property
+    def xyz_cr_px(self) -> torch.Tensor:
+        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='px', power=2)
+
+    @property
+    def xyz_scr_px(self) -> torch.Tensor:
+        return self.xyz_cr_px.sqrt()
+
+    @property
+    def xyz_cr_nm(self) -> torch.Tensor:
+        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='nm', power=2)
+
+    @property
+    def xyz_scr_nm(self) -> torch.Tensor:
+        return self.xyz_cr_nm.sqrt()
+
+    @property
+    def phot_scr(self) -> torch.Tensor:  # sqrt cramer-rao of photon count
+        return self.phot_cr.sqrt()
+
+    @property
+    def bg_scr(self) -> torch.Tensor:  # sqrt cramer-rao of bg count
+        return self.bg_cr.sqrt()
+
+    @property
+    def xyz_sig_px(self) -> torch.Tensor:
+        return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='px')
+
+    @property
+    def xyz_sig_nm(self) -> torch.Tensor:
+        return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='nm')
+
+    def to_dict(self) -> dict:
+        """
+        Returns dictionary representation of this EmitterSet so that the keys and variables correspond to what an
+        EmitterSet would be initialised.
+
+        Example:
+            >>> em_dict = em.to_dict()  # any emitterset instance
+            >>> em_clone = EmitterSet(**em_dict)  # returns a clone of the emitterset
+
+        """
+        em_dict = {
+            'xyz': self.xyz,
+            'phot': self.phot,
+            'frame_ix': self.frame_ix,
+            'id': self.id,
+            'prob': self.prob,
+            'bg': self.bg,
+            'xyz_cr': self.xyz_cr,
+            'phot_cr': self.phot_cr,
+            'bg_cr': self.bg_cr,
+            'xyz_sig': self.xyz_sig,
+            'phot_sig': self.phot_sig,
+            'bg_sig': self.bg_sig,
+            'xy_unit': self.xy_unit,
+            'px_size': self.px_size
+        }
+
+        return em_dict
+
+    def save(self, file: Union[str, Path]):
+        """
+        Pickle save's the dictionary of this instance. No legacy guarantees given.
+        Should only be used for short-term storage.
+
+        Args:
+            file: path where to save
+
+        """
+
+        if not isinstance(file, Path):
+            file = Path(file)
+
+        em_dict = self.to_dict()
+        torch.save(em_dict, file)
+
+    @staticmethod
+    def load(file: Union[str, Path]):
+        """
+        Loads the set of emitters which was saved by the 'save' method.
+
+        Args:
+            file: path to the emitterset
+
+        Returns:
+            EmitterSet
+
+        """
+
+        em_dict = torch.load(file)
+        return EmitterSet(**em_dict)
+
     def _set_typed(self, xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr, xyz_sig, phot_sig, bg_sig):
         """
         Sets the attributes in the correct type and with default argument if None
@@ -159,135 +281,13 @@ class EmitterSet:
             self.phot_sig = float('nan') * torch.ones_like(self.prob)
             self.bg_sig = float('nan') * torch.ones_like(self.bg)
 
-    def to_dict(self):
-        """
-        Returns dictionary representation of this EmitterSet so that the keys and variables correspond to what an
-        EmitterSet would be initialised.
-
-        Returns:
-            (dict)
-        """
-        em_dict = {
-            'xyz': self.xyz,
-            'phot': self.phot,
-            'frame_ix': self.frame_ix,
-            'id': self.id,
-            'prob': self.prob,
-            'bg': self.bg,
-            'xyz_cr': self.xyz_cr,
-            'phot_cr': self.phot_cr,
-            'bg_cr': self.bg_cr,
-            'xyz_sig': self.xyz_sig,
-            'phot_sig': self.phot_sig,
-            'bg_sig': self.bg_sig,
-            'xy_unit': self.xy_unit,
-            'px_size': self.px_size
-        }
-
-        return em_dict
-
-    def save(self, file: Union[str, Path]):
-        """
-        Pickle save's the dictionary of this instance. No legacy guarantees given.
-        Should only be used for short-term storage.
-
-        Args:
-            file: path where to save
-
-        Returns:
-
-        """
-
-        if not isinstance(file, Path):
-            file = Path(file)
-
-        em_dict = self.to_dict()
-        torch.save(em_dict, file)
-
-    @staticmethod
-    def load(file: Union[str, Path]):
-        """
-        Loads the set of emitters which was saved by the 'save' method.
-
-        Args:
-            file: path to the emitterset
-
-        Returns:
-            EmitterSet
-
-        """
-
-        em_dict = torch.load(file)
-        return EmitterSet(**em_dict)
-
-    @property
-    def xyz_px(self):
-        """
-        Returns xyz in pixel coordinates and performs respective transformations if needed.
-        """
-        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='px')
-
-    @xyz_px.setter
-    def xyz_px(self, xyz):
-        self.xyz = xyz
-        self.xy_unit = 'px'
-
-    @property
-    def xyz_nm(self):
-        """
-        Returns xyz in nanometres and performs respective transformations if needed.
-        """
-        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='nm')
-
-    @xyz_nm.setter
-    def xyz_nm(self, xyz):  # xyz in nanometres
-        self.xyz = xyz
-        self.xy_unit = 'nm'
-
-    @property
-    def xyz_scr(self):  # sqrt cramer-rao of xyz
-        return self.xyz_cr.sqrt()
-
-    @property
-    def xyz_cr_px(self):
-        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='px', power=2)
-
-    @property
-    def xyz_scr_px(self):
-        return self.xyz_cr_px.sqrt()
-
-    @property
-    def xyz_cr_nm(self):
-        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='nm', power=2)
-
-    @property
-    def xyz_scr_nm(self):
-        return self.xyz_cr_nm.sqrt()
-
-    @property
-    def phot_scr(self):  # sqrt cramer-rao of photon count
-        return self.phot_cr.sqrt()
-
-    @property
-    def bg_scr(self):  # sqrt cramer-rao of bg count
-        return self.bg_cr.sqrt()
-
-    @property
-    def xyz_sig_px(self):
-        return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='px')
-
-    @property
-    def xyz_sig_nm(self):
-        return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='nm')
-
     def _inplace_replace(self, em):
         """
         Inplace replacement of this self instance. Does not work for inherited methods ...
         Args:
-            em: (EmitterSet) that should replace self
+            em: other EmitterSet instance that should replace self
 
-        Returns:
-            (None)
+
         """
         self.__init__(xyz=em.xyz,
                       phot=em.phot,
@@ -343,6 +343,7 @@ class EmitterSet:
 
         Returns:
             (int) length of EmitterSet
+
         """
         return int(self.xyz.shape[0]) if self.xyz.shape[0] != 0 else 0
 
@@ -352,6 +353,7 @@ class EmitterSet:
 
         Returns:
             (string) representation of this class
+
         """
         print_str = f"EmitterSet" \
                     f"\n::num emitters: {len(self)}"
@@ -365,13 +367,15 @@ class EmitterSet:
 
     def __eq__(self, other) -> bool:
         """
-        Implements equalness check. Returns true if all attributes are the same and in the same order. The identy
-        does not have to be the same, but the values of the attributes have to.
+        Implements equalness check. Returns true if all attributes are the same and in the same order.
+        If it fails, you may want to sort by the ID first and then check again.
+
         Args:
             other: (emitterset)
 
         Returns:
-            (bool) true if as stated above.
+            true if as stated above.
+
         """
         def check_em_dict_equality(em_a: dict, em_b: dict) -> bool:
 
@@ -402,7 +406,8 @@ class EmitterSet:
         Tests whether the meta attributes (xy_unit and px size) are the same
 
         Args:
-            other: EmitterSet
+            other: the EmitterSet to compare to
+
         """
         if self.px_size is None:
             if other.px_size is not None:
@@ -422,6 +427,7 @@ class EmitterSet:
 
         Returns:
             (self)
+
         """
         self.n = 0
         return self
@@ -436,7 +442,7 @@ class EmitterSet:
         """
         if self.n <= len(self) - 1:
             self.n += 1
-            return self.get_subset(self.n - 1)
+            return self._get_subset(self.n - 1)
         else:
             raise StopIteration
 
@@ -448,13 +454,14 @@ class EmitterSet:
             item: (int), or indexing
 
         Returns:
-            (EmitterSet)
+            EmitterSet
+
         """
 
         if isinstance(item, int) and item >= len(self):
             raise IndexError(f"Index {item} out of bounds of EmitterSet of size {len(self)}")
 
-        return self.get_subset(item)
+        return self._get_subset(item)
 
     def __setitem__(self, key, value):
         raise NotImplementedError
@@ -464,7 +471,8 @@ class EmitterSet:
         Returns a deep copy of this EmitterSet.
 
         Returns:
-            (EmitterSet)
+            EmitterSet
+
         """
         return EmitterSet(xyz=self.xyz.clone(),
                           phot=self.phot.clone(),
@@ -483,19 +491,20 @@ class EmitterSet:
                           px_size=self.px_size)
 
     @staticmethod
-    def cat(emittersets, remap_frame_ix=None, step_frame_ix: int = None):
+    def cat(emittersets: list, remap_frame_ix: Union[None, torch.Tensor] = None, step_frame_ix: int = None):
         """
         Concatenate multiple emittersets into one emitterset which is returned. Optionally modify the frame indices by
         the arguments.
 
         Args:
-            emittersets: (list of emittersets) emittersets to be concatenated
-            remap_frame_ix: (torch.Tensor, optional) index of 0th frame to map the corresponding emitterset to.
-            Length must correspond to length of list in first argument.
-            step_frame_ix: (int, optional) step size of 0th frame between emittersets.
+            emittersets: emittersets to be concatenated
+            remap_frame_ix: optional index of 0th frame to map the corresponding emitterset to. Length must
+            correspond to length of list in first argument.
+            step_frame_ix: optional step size of 0th frame between emittersets.
 
         Returns:
-            (emitterset) concatenated emitterset
+            EmitterSet concatenated emitterset
+
         """
         num_emittersets = len(emittersets)
 
@@ -567,7 +576,7 @@ class EmitterSet:
 
         return em
 
-    def get_subset(self, ix):
+    def _get_subset(self, ix):
         """
         Returns subset of emitterset. Implementation of __getitem__ and __next__ methods.
         Args:
@@ -615,12 +624,13 @@ class EmitterSet:
         return em
 
     @property
-    def single_frame(self):
+    def single_frame(self) -> bool:
         """
-        Check if all emitters belong to the same frame.
+        Check if all emitters are on the same frame.
 
         Returns:
-            (bool)
+            bool
+
         """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
@@ -645,7 +655,7 @@ class EmitterSet:
 
         return chunky(self, n)
 
-    def split_in_frames(self, ix_low: int = 0, ix_up: int = None):
+    def split_in_frames(self, ix_low: int = 0, ix_up: int = None) -> list:
         """
         Splits a set of emitters in a list of emittersets based on their respective frame index.
 
@@ -654,6 +664,7 @@ class EmitterSet:
             ix_up: (int, None) upper bound
 
         Returns:
+            list
 
         """
 
