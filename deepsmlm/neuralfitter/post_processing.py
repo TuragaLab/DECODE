@@ -2,6 +2,7 @@ import math
 import warnings
 from abc import ABC, abstractmethod  # abstract class
 from deprecated import deprecated
+from typing import Union
 
 import scipy
 import torch
@@ -74,7 +75,7 @@ class PostProcessing(ABC):
             raise ValueError
 
     @abstractmethod
-    def forward(self, x) -> (EmitterSet, list):
+    def forward(self, x: torch.Tensor) -> (EmitterSet, list):
         """
         Forward anything through the post-processing and return an EmitterSet
 
@@ -90,7 +91,8 @@ class PostProcessing(ABC):
 
 class NoPostProcessing(PostProcessing):
     """
-    The 'No' Post-Processing. Just a helper.
+    The 'No' Post-Processing post-processing. Will always return an empty EmitterSet.
+
     """
 
     def __init__(self, xy_unit=None, px_size=None, return_format='batch-set'):
@@ -112,8 +114,15 @@ class NoPostProcessing(PostProcessing):
 
 
 class LookUpPostProcessing(PostProcessing):
+    """
+    Simple post-processing in which we threshold the probability output (raw threshold) and then look-up the features
+    in the respective channels.
 
-    def __init__(self, raw_th: float, xy_unit: str, px_size=None, pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1]):
+    """
+
+    def __init__(self, raw_th: float, xy_unit: str, px_size=None,
+                 pphotxyzbg_mapping: Union[list, tuple] = [0, 1, 2, 3, 4, -1],
+                 photxyz_sigma_mapping: Union[list, tuple, None] = None):
         """
 
         Args:
@@ -126,8 +135,11 @@ class LookUpPostProcessing(PostProcessing):
 
         self.raw_th = raw_th
         self.pphotxyzbg_mapping = pphotxyzbg_mapping
+        self.photxyz_sigma_mapping = photxyz_sigma_mapping
 
-        assert len(self.pphotxyzbg_mapping) == 6
+        assert len(self.pphotxyzbg_mapping) == 6, "Wrong length of mapping."
+        if self.photxyz_sigma_mapping is not None:
+            assert len(self.photxyz_sigma_mapping) == 4, "Wrong length of sigma mapping."
 
     def _filter(self, detection) -> torch.BoolTensor:
         """
@@ -166,28 +178,42 @@ class LookUpPostProcessing(PostProcessing):
 
     def forward(self, x: torch.Tensor) -> EmitterSet:
         """
+        Forward model output tensor through post-processing and return EmitterSet. Will include sigma values in
+        EmitterSet if mapping was provided initially.
 
         Args:
-            x:
+            x: model output
 
         Returns:
             EmitterSet
 
         """
         """Reorder features channel-wise."""
-        x = x[:, self.pphotxyzbg_mapping]
+        x_mapped = x[:, self.pphotxyzbg_mapping]
 
         """Filter"""
-        active_px = self._filter(x[:, 0])  # 0th ch. is detection channel
-        prob = x[:, 0][active_px]
+        active_px = self._filter(x_mapped[:, 0])  # 0th ch. is detection channel
+        prob = x_mapped[:, 0][active_px]
 
         """Look-Up in channels"""
-        frame_ix, features = self._lookup_features(x[:, 1:], active_px)
+        frame_ix, features = self._lookup_features(x_mapped[:, 1:], active_px)
 
         """Return EmitterSet"""
-        xyz = torch.stack([features[1, :], features[2, :], features[3, :]], 1)
+        xyz = features[1:4].transpose(0, 1)
+
+        """If sigma mapping is present, get those values as well."""
+        if self.photxyz_sigma_mapping is not None:
+            sigma = x[:, self.photxyz_sigma_mapping]
+            _, features_sigma = self._lookup_features(sigma, active_px)
+
+            xyz_sigma = features_sigma[1:4].transpose(0, 1).cpu()
+            phot_sigma = features_sigma[0].cpu()
+        else:
+            xyz_sigma = None
+            phot_sigma = None
 
         return EmitterSet(xyz=xyz.cpu(), frame_ix=frame_ix.cpu(), phot=features[0, :].cpu(),
+                          xyz_sig=xyz_sigma, phot_sig=phot_sigma, bg_sig=None,
                           bg=features[4, :].cpu() if features.size(0) == 5 else None,
                           prob=prob.cpu(), xy_unit=self.xy_unit, px_size=self.px_size)
 
@@ -543,13 +569,10 @@ class ConsistencyPostprocessing(PostProcessing):
         if self.skip_if(features):
             return EmptyEmitterSet(xy_unit=self.xy_unit, px_size=self.px_size)
 
-        features = features[:, self.pphotxyzbg_mapping]  # change channel order if needed
-
         if features.dim() != 4:
             raise ValueError("Wrong dimensionality. Needs to be N x C x H x W.")
 
-        if features.size(1) not in (5, 6):
-            raise ValueError("Unsupported channel dimension.")
+        features = features[:, self.pphotxyzbg_mapping]  # change channel order if needed
 
         p = features[:, [0], :, :]
         features = features[:, 1:, :, :]  # phot, x, y, z, bg
