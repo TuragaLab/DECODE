@@ -57,13 +57,21 @@ def save_csv(file: (str, pathlib.Path), data: dict):
         return data
 
     def change_to_one_dim(data: dict) -> dict:
-        """Change xyz tensors to be one-dimensional."""
+        """
+        Change xyz tensors to be one-dimensional.
+
+        Args:
+            data: emitterset as dictionary
+
+        """
         xyz = data.pop('xyz')
         xyz_cr = data.pop('xyz_cr')
+        xyz_sig = data.pop('xyz_sig')
 
         data_one_dim = {'x': xyz[:, 0], 'y': xyz[:, 1], 'z': xyz[:, 2]}
         data_one_dim.update(data)
         data_one_dim.update({'x_cr': xyz_cr[:, 0], 'y_cr': xyz_cr[:, 1], 'z_cr': xyz_cr[:, 2]})
+        data_one_dim.update({'x_sig': xyz_sig[:, 0], 'y_sig': xyz_sig[:, 1], 'z_sig': xyz_sig[:, 2]})
 
         return data_one_dim
 
