@@ -75,17 +75,20 @@ class AmplitudeRescale:
         norm-value (float): Value to which to norm the data.
     """
 
-    def __init__(self, norm_value: float):
+    def __init__(self, scale: float = 1., offset: float = 0.):
         """
 
         Args:
-            norm_value (float): reference value
+            offset:
+            scale (float): reference value
         """
-        self.norm_value = norm_value
+        self.scale = scale if scale is not None else 1.
+        self.offset = offset if offset is not None else 0.
 
     @staticmethod
     def parse(param):
-        return AmplitudeRescale(norm_value=param.Scaling.in_count_max)
+        return AmplitudeRescale(scale=param.Scaling.input_scale,
+                                offset=param.Scaling.input_offset)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -98,7 +101,7 @@ class AmplitudeRescale:
             x_ (torch.Tensor): rescaled tensor
 
         """
-        return x / self.norm_value
+        return (x - self.offset) / self.scale
 
 
 class OffsetRescale:

@@ -42,8 +42,7 @@ class Upsample(nn.Module):
             self.conv = None
 
     def forward(self, input):
-        x = F.interpolate(input, scale_factor=self.scale_factor,
-                          mode=self.mode, align_corners=self.align_corners)
+        x = F.interpolate(input, scale_factor=self.scale_factor, mode=self.mode, align_corners=self.align_corners)
         if self.conv is not None:
             return self.conv(x)
         else:
@@ -107,7 +106,8 @@ class UNetBase(nn.Module):
                                       for level in range(self.depth)])
 
         # the base convolution block
-        self.base = self._conv_block(n_features[-1], gain * n_features[-1], part='base', level=depth)
+        self.base = self._conv_block(n_features[-1], gain * n_features[-1],
+                                     part='base', level=depth, activation=activation)
 
         # modules of the decoder path
         n_features = [initial_features * gain ** level
@@ -256,7 +256,8 @@ class UNet2d(UNetBase):
         # use bilinear upsampling + 1x1 convolutions
         return Upsample(in_channels=in_channels,
                         out_channels=out_channels,
-                        scale_factor=2, mode=mode, ndim=2)
+                        scale_factor=2, mode=mode, ndim=2,
+                        align_corners=False if mode == 'bilinear' else None)
 
     # pooling via maxpool2d
     def _pooler(self, level):

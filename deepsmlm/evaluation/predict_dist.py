@@ -1,10 +1,11 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
+import torch
 
 from . import utils
 
 
-def deviation_dist(x, x_gt, residuals=False, kde=True, ax=None):
+def deviation_dist(x: torch.Tensor, x_gt: torch.Tensor, residuals=False, kde=True, ax=None, nan_okay=True):
     """Log z vs z_gt"""
     if ax is None:
         ax = plt.gca()
@@ -16,10 +17,15 @@ def deviation_dist(x, x_gt, residuals=False, kde=True, ax=None):
     if residuals:
         x = x - x_gt
 
-    if kde:
-        utils.kde_sorted(x_gt, x, True, ax, sub_sample=10000)
+    if not torch.isnan(x).any():
+        if kde:
+            utils.kde_sorted(x_gt, x, True, ax, sub_sample=10000)
+        else:
+            ax.plot(x_gt, x, 'x')
+
     else:
-        ax.plot(x_gt, x, 'x')
+        if not nan_okay:
+            raise ValueError(f"Some of the values are NaN.")
 
     if residuals:
         ax.plot([x_gt.min(), x_gt.max()], [0, 0], 'green')

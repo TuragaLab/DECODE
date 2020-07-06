@@ -1,6 +1,7 @@
 import warnings
 from abc import ABC, abstractmethod  # abstract class
 from typing import Union
+from deprecated import deprecated
 
 import torch
 
@@ -137,6 +138,7 @@ class Photon2Camera(Camera):
         return out
 
 
+@deprecated(reason="Not yet ready implementation. Needs thorough testing and validation.")
 class SCMOS(Photon2Camera):
     """
     Models a sCMOS camera. You need provide a pixel-wise sigma map of the readout noise of the camera.

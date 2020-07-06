@@ -1,43 +1,58 @@
 import torch
 
 from abc import ABC, abstractmethod
+from typing import Tuple
+
 
 class StructurePrior(ABC):
+    """
+    Abstract structure which can be sampled from. All implementation / childs must define a 'pop' method and an area
+    property that describes the area the structure occupies.
 
-    @abstractmethod
-    def __init__(self):
-        """
-        Describe the probabilistic model of the structure here.
-        """
-        pass
+    """
 
     @property
     @abstractmethod
-    def area(self):
+    def area(self) -> float:
         """
         Calculate the area which is occupied by the structure. This is useful to later calculate the density,
         and the effective number of emitters). This is the 2D projection. Not the volume.
 
-        Returns:
-            area (float):
         """
         raise NotImplementedError
 
     @abstractmethod
-    def pop(self, n, dim=3):
+    def sample(self, n: int) -> torch.Tensor:
         """
-        Draw n sample positions from structure
+        Sample n samples from structure.
 
-        :param n: (int) number of samples
-        :param dim: (int) 3 for xyz, 2 for xyz with z=0
-        :return: (torch.tensor) corodinates
+        Args:
+            n: number of samples
+
         """
-        pass
+        raise NotImplementedError
 
 
 class RandomStructure(StructurePrior):
+    """
+    Random uniform 3D / 2D structure. As the name suggests, sampling from this structure gives samples from a 3D / 2D
+    volume that origin from a uniform distribution.
 
-    def __init__(self, xextent, yextent, zextent):
+    """
+
+    def __init__(self, xextent: Tuple[float, float], yextent: Tuple[float, float], zextent: Tuple[float, float]):
+        """
+
+        Args:
+            xextent: extent in x
+            yextent: extent in y
+            zextent: extent in z, set (0., 0.) for a 2D structure
+
+        Example:
+            The following initialises this class in a range of 32 x 32 px in x and y and +/- 750nm in z.
+            >>> prior_struct = RandomStructure(xextent=(-0.5, 31.5), yextent=(-0.5, 31.5), zextent=(-750., 750.))
+
+        """
         super().__init__()
         self.xextent = xextent
         self.yextent = yextent
@@ -52,45 +67,15 @@ class RandomStructure(StructurePrior):
                                    self.zextent[0]])
 
     @property
-    def area(self):
+    def area(self) -> float:
         return (self.xextent[1] - self.xextent[0]) * (self.yextent[1] - self.yextent[0])
+
+    def sample(self, n: int) -> torch.Tensor:
+        xyz = torch.rand((n, 3)) * self.scale + self.shift
+        return xyz
 
     @classmethod
     def parse(cls, param):
         return cls(xextent=param.Simulation.emitter_extent[0],
                    yextent=param.Simulation.emitter_extent[1],
                    zextent=param.Simulation.emitter_extent[2])
-
-    def pop(self, n, dim=3):
-        xyz = torch.rand((n, 3)) * self.scale + self.shift
-        if dim == 2:
-            xyz[:, 2] = 0.
-        return xyz
-
-
-class DiscreteZStructure(StructurePrior):
-
-    def __init__(self, xy_pos, z_abs_max, eps=10):
-        """
-        Read abstractmethod.
-
-        :param xy_pos: (torch.tensor, 2 elements). x,y, position
-        :param z_abs_max: (float) max abs z value
-        :param eps: how much wiggling around the z peaks.
-        """
-        super().__init__()
-        self.xy_pos = xy_pos
-        self.z_abs_max = z_abs_max
-        self.eps = eps
-
-    @property
-    def area(self):
-        return None
-
-    def pop(self, n, dim=3):
-        xyz = torch.ones((n, dim)) * torch.cat((self.xy_pos, torch.tensor([0.])), 0)
-        z_ix = torch.randint(-1, 1+1, (n,), dtype=torch.float)
-        z_value = z_ix * self.z_abs_max + torch.randn_like(z_ix) * self.eps
-        xyz[:, 2] = z_value
-
-        return xyz

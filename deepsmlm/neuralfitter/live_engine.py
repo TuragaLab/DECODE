@@ -54,7 +54,7 @@ def setup_random_simulation(param):
     else:
         raise ValueError
 
-    prior_train = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame.parse(
+    prior_train = deepsmlm.simulation.emitter_generator.EmitterSamplerBlinking.parse(
         param, structure=prior_struct, frames=frame_range_train)
 
     """Define our background and noise model."""
@@ -67,7 +67,7 @@ def setup_random_simulation(param):
 
     frame_range_test = (0, param.TestSet.test_size)
 
-    prior_test = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame.parse(
+    prior_test = deepsmlm.simulation.emitter_generator.EmitterSamplerBlinking.parse(
         param, structure=prior_struct, frames=frame_range_test)
 
     simulation_test = deepsmlm.simulation.simulator.Simulation(
@@ -119,16 +119,13 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     lr_scheduler = lr_scheduler(optimizer, **param.HyperParameter.learning_rate_scheduler_param)
 
     """Setup gradient modification"""
-    if param.HyperParameter.grad_mod:
-        grad_mod = partial(torch.nn.utils.clip_grad_norm_, max_norm=0.03, norm_type=2)
-    else:
-        grad_mod = None
+    grad_mod = param.HyperParameter.grad_mod
 
     """Log the model"""
     try:
         dummy = torch.rand((2, param.HyperParameter.channels_in,
-                            *param.Simulation.img_size), requires_grad=True).to(next(model.parameters()).device)
-        logger.add_graph(model, dummy, False)
+                            *param.Simulation.img_size), requires_grad=True).to(torch.device(param.Hardware.device))
+        logger.add_graph(model, dummy)
 
     except:
         raise RuntimeError("Your dummy input is wrong. Please update it.")
@@ -137,7 +134,10 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     frame_proc = deepsmlm.neuralfitter.scale_transform.AmplitudeRescale.parse(param)
     bg_frame_proc = None
 
-    em_filter = deepsmlm.neuralfitter.em_filter.NoEmitterFilter()
+    if param.HyperParameter.emitter_label_photon_min is not None:
+        em_filter = deepsmlm.neuralfitter.em_filter.PhotonFilter(param.HyperParameter.emitter_label_photon_min)
+    else:
+        em_filter = deepsmlm.neuralfitter.em_filter.NoEmitterFilter()
 
     tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
         [
@@ -309,6 +309,9 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
     torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
     os.nice(param.Hardware.unix_niceness)
 
+    if param.Hardware.torch_multiprocessing_sharing_strategy is not None:
+        torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
+
     torch.set_num_threads(param.Hardware.torch_threads)
 
     """Setup Log System"""
@@ -331,17 +334,19 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
     for i in range(first_epoch, param.HyperParameter.epochs):
         logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
 
-        train_loss = deepsmlm.neuralfitter.train_val_impl.train(
-            model=model,
-            optimizer=optimizer,
-            loss=criterion,
-            dataloader=dl_train,
-            grad_rescale=param.HyperParameter.moeller_gradient_rescale,
-            grad_mod=grad_mod,
-            epoch=i,
-            device=torch.device(param.Hardware.device),
-            logger=logger
-        )
+        if i >= 1:
+
+            train_loss = deepsmlm.neuralfitter.train_val_impl.train(
+                model=model,
+                optimizer=optimizer,
+                loss=criterion,
+                dataloader=dl_train,
+                grad_rescale=param.HyperParameter.moeller_gradient_rescale,
+                grad_mod=grad_mod,
+                epoch=i,
+                device=torch.device(param.Hardware.device),
+                logger=logger
+            )
 
         val_loss, test_out = deepsmlm.neuralfitter.train_val_impl.test(model=model, loss=criterion, dataloader=dl_test,
                                                                        epoch=i,

@@ -7,3 +7,4 @@ import deepsmlm.simulation.simulator
 import deepsmlm.simulation.structure_prior
 
 from deepsmlm.simulation.simulator import Simulation
+from deepsmlm.simulation.structure_prior import RandomStructure

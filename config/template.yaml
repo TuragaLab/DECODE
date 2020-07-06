@@ -21,14 +21,15 @@ Hardware:
   num_worker_train: 8
   torch_threads: 8
   unix_niceness: 0
+  torch_multiprocessing_sharing_strategy: file_system # if you get multiprocessing errors, increase ulimit or set to 'file_system'
 HyperParameter:
   arch_param:
     activation: nn.ELU()
-    depth: 3
+    depth:
     depth_shared: 2
-    depth_union: 1
+    depth_union: 2
     depth_bg:
-    init_custom: false
+    init_custom: true
     initial_features: 48
     initial_features_bg:
     inter_features: 48
@@ -40,23 +41,24 @@ HyperParameter:
     norm_head_groups:
     p_dropout:
     pool_mode: StrideConv
-    upsample_mode: bilinear
+    upsample_mode: nearest
     recpt_bg:
     skip_gn_level:
     up_mode: upsample
     use_last_nl:
-  architecture: SimpleSMLMNet
+  architecture: SigmaMUNet
   batch_size: 10
   channels_in: 3
-  channels_out: 6
+  channels_out:
   chweight_stat:
     - 1.0
-    - 1.0
+    - 0.0
   ds_lifetime:
   epoch_0:
   epochs: 10000
   fgbg_factor:
   grad_mod: true
+  emitter_label_photon_min: 100.0
   loss_impl: MixtureModel
   learning_rate_scheduler: StepLR
   learning_rate_scheduler_param:
@@ -71,7 +73,7 @@ HyperParameter:
   pseudo_ds_size: 1000
   suppress_post_processing: true
 InOut:
-  calibration_file: data/Calibration/SMLM_Challenge_Beads/Coefficients_Big_ROI/AS-Exp_100nm_3dcal.mat  # cubic spline coefficients
+  calibration_file: data/Calibration/Paper/deepSTORM_Ref_AS-Exp_100nm_3dcal.mat  # cubic spline coefficients
   experiment_out: network/2020-06-26  # main output dir
   model_init:
 PostProcessing: LookUp
@@ -84,38 +86,37 @@ PostProcessingParam:
   raw_th: 0.1
   total_th: 0.6
 Scaling:
-  in_count_max: 10000.0
-  bg_max: 125.0
+  input_scale: 200  # formerly in_count_max
+  input_offset: 125.0
+  bg_max: 100.0
   phot_max: 20000.0
-  z_max: 750.0
+  z_max: 800.0
 Simulation:
-  bg_uniform:
-  - 60.0
-  - 120.0
+  bg_uniform: 90.0
   density:
-  emitter_av: 40
+  emitter_av: 20
   emitter_extent:
   - - -0.5
-    - 31.5
+    - 39.5
   - - -0.5
-    - 31.5
+    - 39.5
   - - -750
     - 750
   img_size:
-  - 32
-  - 32
+  - 40
+  - 40
   intensity_mu_sig:
   - 10000.0
-  - 1000.0
+  - 3000.0
   intensity_th:
   lifetime_avg: 2.0
   mode: samples
   photon_range:
   psf_extent:
   - - -0.5
-    - 31.5
+    - 39.5
   - - -0.5
-    - 31.5
+    - 39.5
   -
   roi_size:
   roi_auto_center: false
@@ -125,11 +126,11 @@ TestSet:
   test_size: 512
   frame_extent:
   - - -0.5
-    - 31.5
+    - 39.5
   - - -0.5
-    - 31.5
+    - 39.5
   - null
   img_size:
-    - 32
-    - 32
+    - 40
+    - 40
 

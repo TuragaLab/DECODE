@@ -741,9 +741,10 @@ class RandomEmitterSet(EmitterSet):
     A helper calss when we only want to provide a number of emitters.
     """
 
-    def __init__(self, num_emitters: int, extent: float = 32, xy_unit: str = 'px'):
+    def __init__(self, num_emitters: int, extent: float = 32, xy_unit: str = 'px', px_size: tuple = None):
         xyz = torch.rand((num_emitters, 3)) * extent
-        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).long(), xy_unit=xy_unit)
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).long(),
+                         xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
         super().__init__(xyz=em.xyz,

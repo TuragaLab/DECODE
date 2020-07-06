@@ -49,12 +49,28 @@ class TestAmplitudeRescale:
 
     @pytest.fixture()
     def amp_rescale(self):
-        return scf.AmplitudeRescale(norm_value=1000)
+        return scf.AmplitudeRescale(scale=1000, offset=5.)
+
+    def test_rescale_noop(self):
+        """
+        Tests whether the implementation defaults to no-op when no arguments are specified.
+
+        """
+
+        """Setup"""
+        rescaler = scf.AmplitudeRescale()
+        x = torch.rand((2, 3, 64, 64))
+
+        """Run"""
+        x_out = rescaler.forward(x.clone())
+
+        """Assert"""
+        t_util.tens_almeq(x, x_out)
 
     def test_rescale(self, amp_rescale):
         x = torch.rand((2, 3, 4, 5))
 
-        assert t_util.tens_almeq(amp_rescale.forward(x), x / 1000.)
+        assert t_util.tens_almeq(amp_rescale.forward(x.clone()), (x - 5.) / 1000.)
 
 
 class TestTargetRescale:
