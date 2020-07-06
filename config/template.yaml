@@ -70,13 +70,12 @@ HyperParameter:
     weight_decay: 0.1
   optimizer: AdamW
   photon_threshold:
-  pseudo_ds_size: 1000
-  suppress_post_processing: true
+  pseudo_ds_size: 10000
 InOut:
   calibration_file: data/Calibration/Paper/deepSTORM_Ref_AS-Exp_100nm_3dcal.mat  # cubic spline coefficients
-  experiment_out: network/2020-06-26  # main output dir
+  experiment_out: network/2020-07-06  # main output dir
   model_init:
-PostProcessing: LookUp
+PostProcessing: LookUp  # (blank) for no post-processing or LookUp, Consistency
 PostProcessingParam:
   raw_th: 0.5
 Scaling:

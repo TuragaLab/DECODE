@@ -208,13 +208,13 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
                                                         xy_unit=self.xy_unit, px_size=self.px_size)
 
     @classmethod
-    def parse(cls, param, structure, frames: (int, tuple)):
+    def parse(cls, param, structure, frames: tuple):
         return cls(structure=structure,
                    intensity_mu_sig=param.Simulation.intensity_mu_sig,
                    lifetime=param.Simulation.lifetime_avg,
                    xy_unit=param.Simulation.xy_unit,
                    px_size=param.Camera.px_size,
-                   frames=frames,
+                   frame_range=frames,
                    density=param.Simulation.density,
                    emitter_av=param.Simulation.emitter_av,
                    intensity_th=param.Simulation.intensity_th)

@@ -411,6 +411,7 @@ class BatchEvaluation:
 def kde_sorted(x, y, plot=False, ax=None, band_with=None, sub_sample: (None, int) = None):
     """
     Gives a density estimates useful for plotting many datapoints
+
     """
 
     if sub_sample:

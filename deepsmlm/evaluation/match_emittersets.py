@@ -8,7 +8,7 @@ import torch
 from deepsmlm.generic import emitter as emitter
 
 
-class MatcherABC(ABC):
+class EmitterMatcher(ABC):
     """
     Abstract emitter matching class.
     """
@@ -40,7 +40,7 @@ class MatcherABC(ABC):
         raise NotImplementedError
 
 
-class GreedyHungarianMatching(MatcherABC):
+class GreedyHungarianMatching(EmitterMatcher):
     """
     Matching emitters in a greedy 'hungarian' fashion, by using best first search.
 

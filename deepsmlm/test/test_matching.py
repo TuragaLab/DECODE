@@ -17,7 +17,7 @@ class TestMatcherABC:
 
     @pytest.fixture()
     def matcher(self):
-        class MockMatch(deepsmlm.evaluation.match_emittersets.MatcherABC):
+        class MockMatch(deepsmlm.evaluation.match_emittersets.EmitterMatcher):
             def forward(self, output, target):
                 """Randomly assign tp and tp_match"""
                 ix_tp = torch.randint(2, size=(len(output),)).bool()  # assign output randomly as tp / fp

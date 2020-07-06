@@ -29,12 +29,17 @@ class ParamHandling:
 
         return extension
 
-    def load_params(self, filename):
+    def load_params(self, filename: str) -> dotmap.DotMap:
         """
-        Loads parameters from .json or .yml
-        :param filename:
-        :return:
+        Load parameters from file
+
+        Args:
+            filename:
+
+        Returns:
+
         """
+
         extension = self._check_return_extension(filename)
         if extension == '.json':
             with open(filename) as json_file:
@@ -71,11 +76,9 @@ class ParamHandling:
 
     def convert_param_file(self, file_in, file_out):
         """
-        Simple Wrapper to change yml to json or the other way around.
-        :param file_in:
-        :param file_out:
-        :return:
+        Simple wrapper to convert file from and to json / yaml
         """
+
         params = self.load_params(file_in)
         self.write_params(file_out, params)
 
