@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from copy import deepcopy
 
 import numpy as np
 import pytest
@@ -185,10 +186,7 @@ class TestEmitterSet:
         assert (em_split[0].frame_ix == 1).all()
 
     def test_cat_emittersets(self):
-        """
-        Test the concatenation of two emittersets.
-        :return:
-        """
+
         sets = [RandomEmitterSet(50), RandomEmitterSet(20)]
         cat_sets = EmitterSet.cat(sets, None, 1)
         assert 70 == len(cat_sets)
@@ -200,6 +198,27 @@ class TestEmitterSet:
         assert 70 == len(cat_sets)
         assert 5 == cat_sets.frame_ix[0]
         assert 50 == cat_sets.frame_ix[50]
+
+    def test_split_cat(self):
+        """
+        Tests whether split and cat (and sort by ID) returns the same result as the original starting.
+
+        """
+
+        em = RandomEmitterSet(10000)
+        em.id = torch.arange(len(em))
+        em.frame_ix = torch.randint_like(em.frame_ix, 100000)
+
+        """Run"""
+        em_split = em.split_in_frames(0,  99999)
+        em_re_merged = EmitterSet.cat(em_split)
+
+        """Assertions"""
+        # sort both by id
+        ix = torch.argsort(em.id)
+        ix_re = torch.argsort(em_re_merged.id)
+
+        assert em[ix] == em_re_merged[ix_re]
 
     def test_sanity_check(self):
         """Test correct shape of 1D tensors in EmitterSet"""
@@ -228,33 +247,6 @@ class TestEmitterSet:
             assert file.exists(), "File does not exist."
             random_em_load = EmitterSet.load(file)
             assert random_em == random_em_load, "Reloaded emitterset is not equivalent to inital one."
-
-    @pytest.mark.skip("Function deprecated and will be moved.")
-    def test_write_to_csv(self):
-        """
-        Test to write to csv file.
-        :return:
-        """
-
-        random_em = RandomEmitterSet(1000)
-        fname = deepsmlm_root + 'deepsmlm/test/assets/dummy_csv.txt'
-        random_em.write_to_csv(fname)
-        assert os.path.isfile(fname)
-        os.remove(fname)
-
-    @pytest.mark.skip("Function deprecated and will be moved.")
-    def test_write_to_SMAP(self):
-        deepsmlm_root = os.path.abspath(
-            os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         os.pardir, os.pardir)) + '/'
-
-        random_em = RandomEmitterSet(1000, 6400)
-        random_em.px_size = torch.tensor([100., 100.])
-        random_em.xy_unit = 'nm'
-        fname = deepsmlm_root + 'deepsmlm/test/assets/dummy_csv.txt'
-        random_em.write_to_csv_format(fname, lud_name='challenge')
-        assert os.path.isfile(fname)
-        os.remove(fname)
 
     @pytest.mark.parametrize("em_a,em_b,expct", [(CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
                                                   CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
