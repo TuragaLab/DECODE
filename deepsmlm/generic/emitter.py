@@ -357,8 +357,8 @@ class EmitterSet:
         self_dict.pop('px_size')
 
         other_dict = other.to_dict()
-        other_dict.pop('xy_unit')
-        other_dict.pop('px_size')
+        other_dict.sample('xy_unit')
+        other_dict.sample('px_size')
 
         if not check_em_dict_equality(self_dict, other_dict):
             return False

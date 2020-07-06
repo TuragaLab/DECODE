@@ -54,7 +54,7 @@ def setup_random_simulation(param):
     else:
         raise ValueError
 
-    prior_train = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame.parse(
+    prior_train = deepsmlm.simulation.emitter_generator.EmitterSamplerBlinking.parse(
         param, structure=prior_struct, frames=frame_range_train)
 
     """Define our background and noise model."""
@@ -67,7 +67,7 @@ def setup_random_simulation(param):
 
     frame_range_test = (0, param.TestSet.test_size)
 
-    prior_test = deepsmlm.simulation.emitter_generator.EmitterPopperMultiFrame.parse(
+    prior_test = deepsmlm.simulation.emitter_generator.EmitterSamplerBlinking.parse(
         param, structure=prior_struct, frames=frame_range_test)
 
     simulation_test = deepsmlm.simulation.simulator.Simulation(
