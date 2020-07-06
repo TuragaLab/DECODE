@@ -43,8 +43,7 @@ def transform_emitter(em: emitter.EmitterSet, trafo: dict) -> emitter.EmitterSet
 
     mod_em = em.clone()
 
-    """Modify 'Meta'"""
-    mod_em.xy_unit = trafo['xy_unit'] if trafo['xy_unit'] is not None else mod_em.xy_unit
+    """Set Px Size"""
     mod_em.px_size = torch.tensor(trafo['px_size']) if trafo['px_size'] is not None else mod_em.px_size
 
     """Modify proper attributes"""
@@ -65,5 +64,14 @@ def transform_emitter(em: emitter.EmitterSet, trafo: dict) -> emitter.EmitterSet
 
     if trafo['frame_ix_shift'] is not None:
         mod_em.frame_ix += torch.tensor(trafo['frame_ix_shift'])
+
+    """Modify unit in which emitter is stored and possibly set px size'"""
+    if trafo['xy_unit'] is not None:
+        if trafo['xy_unit'] == 'nm':
+            mod_em.xyz_nm = mod_em.xyz_nm
+        elif trafo['xy_unit'] == 'px':
+            mod_em.xyz_px = mod_em.xyz_px
+        else:
+            raise ValueError(f"Unsupported unit ({trafo['xy_unit']}).")
 
     return mod_em
