@@ -276,7 +276,7 @@ class SMLMLiveSampleDataset(SMLMDataset):
         assert frames.size(0) % 2 == 1
         frames = self._get_frames(frames, (frames.size(0) - 1) // 2)
         tar_emitter = emitter.get_subset_frame(0, 0)  # target emitters are the zero ones
-        bg_frames = bg_frames[1]
+        bg_frames = bg_frames[(self.frame_window - 1) // 2]  # ToDo: Beautify this
 
         frames, target, weight, tar_emitter = self._process_sample(frames, tar_emitter, bg_frames)
 
