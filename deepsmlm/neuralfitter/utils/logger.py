@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import torch.utils.tensorboard
 
 
-class SummaryWriterSoph(torch.utils.tensorboard.SummaryWriter):
+class SummaryWriter(torch.utils.tensorboard.SummaryWriter):
 
     def add_scalar_dict(self, prefix: str, scalar_dict: dict, global_step=None, walltime=None):
         """
@@ -15,7 +15,7 @@ class SummaryWriterSoph(torch.utils.tensorboard.SummaryWriter):
             self.add_scalar(prefix + name, value, global_step=global_step, walltime=walltime)
 
 
-class NoLog(SummaryWriterSoph):
+class NoLog(SummaryWriter):
     """The hardcoded No-Op of the tensorboard SummaryWriter."""
 
     def __init__(self, *args, **kwargs):

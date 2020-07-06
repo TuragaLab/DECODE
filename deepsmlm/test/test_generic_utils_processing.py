@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from deepsmlm.neuralfitter import processing
+from deepsmlm.neuralfitter.utils import processing
 
 
 class TestTransformSequence:

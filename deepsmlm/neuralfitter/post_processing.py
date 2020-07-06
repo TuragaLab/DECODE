@@ -13,6 +13,7 @@ import deepsmlm.simulation.background
 from deepsmlm.evaluation import match_emittersets
 from deepsmlm.generic.emitter import EmitterSet, EmptyEmitterSet
 from deepsmlm.neuralfitter.target_generator import UnifiedEmbeddingTarget
+from deepsmlm.neuralfitter.utils.probability import binom_pdiverse
 
 
 class PostProcessing(ABC):
@@ -53,6 +54,7 @@ class PostProcessing(ABC):
         """
         return False
 
+    @deprecated(reason="Not of interest for the post-processing.", version="0.1.dev")
     def _return_as_type(self, em, ix_low, ix_high):
         """
         Returns in the type specified in constructor
@@ -109,8 +111,7 @@ class NoPostProcessing(PostProcessing):
 
         """
 
-        em = EmptyEmitterSet(xy_unit=self.xy_unit, px_size=self.px_size)
-        return self._return_as_type(em, ix_low=0, ix_high=x.size(0))
+        return EmptyEmitterSet(xy_unit=self.xy_unit, px_size=self.px_size)
 
 
 class LookUpPostProcessing(PostProcessing):
@@ -582,11 +583,9 @@ class ConsistencyPostprocessing(PostProcessing):
         feature_list, prob_final, frame_ix = self._frame2emitter(p_out, feat_out)
         frame_ix = frame_ix.squeeze()
 
-        em = EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix,
+        return EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix,
                         prob=prob_final, bg=feature_list[:, 4],
                         xy_unit=self.xy_unit, px_size=self.px_size)
-
-        return self._return_as_type(em, ix_low=0, ix_high=features.size(0))
 
 
 class Offset2Coordinate:
@@ -656,21 +655,3 @@ class Offset2Coordinate:
         return output_converted
 
 
-def binom_pdiverse(p):
-    """
-    binomial probability but unequal probabilities
-    Args:
-        p: (torch.Tensor) of probabilities
-
-    Returns:
-        z: (torch.Tensor) vector of probabilities with length p.size() + 1
-
-    """
-    n = p.size(0) + 1
-    z = torch.zeros((n,))
-    z[0] = 1
-
-    for u in p:
-        z = (1 - u) * z + u * torch.cat((torch.zeros((1,)), z[:-1]))
-
-    return z

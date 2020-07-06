@@ -10,10 +10,10 @@ Camera:
   read_sigma: 74.4
   spur_noise: 0.002
 Evaluation:
-  dist_ax:
-  dist_lat: 150.0
+  dist_ax: 500.0
+  dist_lat: 250.0
   dist_vol:
-  match_dims: 2
+  match_dims: 3
 Hardware:
   device: cuda
   device_ix: 0
@@ -78,13 +78,7 @@ InOut:
   model_init:
 PostProcessing: LookUp
 PostProcessingParam:
-  ax_th: 200.0
-  lat_th: 0.3
-  vol_th:
-  match_dims: 2
-  skip_if_p_rel: 0.1
-  raw_th: 0.1
-  total_th: 0.6
+  raw_th: 0.5
 Scaling:
   input_scale: 200  # formerly in_count_max
   input_offset: 125.0

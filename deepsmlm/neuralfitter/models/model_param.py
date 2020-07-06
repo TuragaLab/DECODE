@@ -128,56 +128,6 @@ class SimpleSMLMNet(unet_param.UNet2d):
         return o
 
 
-class SMLMNetBG(SimpleSMLMNet):
-    def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, p_dropout=0.,
-                 activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_bg=None,
-                 norm_bg_groups=None, norm_head=None, norm_head_groups=None, pool_mode='MaxPool',
-                 upsample_mode='bilinear', detach_bg=False, skip_gn_level=None):
-
-        super().__init__(ch_in + 1, ch_out - 1, depth, initial_features, inter_features, p_dropout, activation,
-                         use_last_nl, norm, norm_groups, pool_mode=pool_mode, upsample_mode=upsample_mode,
-                         skip_gn_level=skip_gn_level)
-
-        assert ch_out == 6
-        self.total_ch_out = ch_out
-        self.detach_bg = detach_bg
-
-        self.bg_net = deepsmlm.neuralfitter.models.unet_param.UNet2d(1, 1, 2, 48, pad_convs=True, norm=norm_bg,
-                                                                     norm_groups=norm_bg_groups,
-                                                                     activation=activation)
-
-    @classmethod
-    def parse(cls, param):
-        activation = eval(param.HyperParameter.arch_param.activation)
-        return cls(
-            ch_in=param.HyperParameter.channels_in,
-            ch_out=param.HyperParameter.channels_out,
-            depth=param.HyperParameter.arch_param.depth,
-            initial_features=param.HyperParameter.arch_param.initial_features,
-            inter_features=param.HyperParameter.arch_param.inter_features,
-            p_dropout=param.HyperParameter.arch_param.p_dropout,
-            pool_mode=param.HyperParameter.arch_param.pool_mode,
-            activation=activation,
-            use_last_nl=param.HyperParameter.arch_param.use_last_nl,
-            norm=param.HyperParameter.arch_param.norm,
-            norm_groups=param.HyperParameter.arch_param.norm_groups,
-            norm_bg=param.HyperParameter.arch_param.norm_bg,
-            norm_bg_groups=param.HyperParameter.arch_param.norm_bg_groups,
-            detach_bg=param.HyperParameter.arch_param.detach_bg,
-            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
-        )
-
-    def forward(self, x):
-        bg = self.bg_net.forward(x)
-        if self.detach_bg:
-            xbg = torch.cat((x, bg.detach()), 1)
-        else:
-            xbg = torch.cat((x, bg), 1)
-
-        x = super().forward(xbg)
-        return x
-
-
 class DoubleMUnet(nn.Module):
     def __init__(self, ch_in, ch_out, ext_features=0, depth_shared=3, depth_union=3, initial_features=64,
                  inter_features=64,

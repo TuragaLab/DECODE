@@ -15,6 +15,7 @@ class TransformSequence:
             means that the first component get's the 0th and 1st element which are input to this instances forward
             method, the 1st component will get the 0th output of the 0th component. Input slice is ignored when the
             potential input is not a tuple anyways
+
         """
         self.com = components
         self._input_slice = input_slice
@@ -53,10 +54,13 @@ class TransformSequence:
 
         Returns:
             Any: Output of the last component
+
         """
 
         for i, com in enumerate(self.com):
+
             if isinstance(x, tuple):
+
                 if self._input_slice is not None:
                     com_in = itemgetter(*self._input_slice[i])(x)  # get specific outputs as input for next com
                     if len(self._input_slice[i]) >= 2:
@@ -76,6 +80,7 @@ class ParallelTransformSequence(TransformSequence):
     Simple processing class that forwards data through all of it's components parallelly (not in a hardware sense) and
     returns a list of the output or combines them if a merging function is specified. A merging function needs to
     accept a list as an argument.
+
     """
 
     def __init__(self, components, input_slice, merger=None):
@@ -100,17 +105,3 @@ class ParallelTransformSequence(TransformSequence):
             return self.merger(out_cache)
         else:
             return out_cache
-
-
-class Identity:
-    """Return what came in."""
-
-    @staticmethod
-    def parse(param):
-        return Identity()
-
-    @staticmethod
-    def forward(*x):
-        if len(x) == 1:
-            return x[0]
-        return x

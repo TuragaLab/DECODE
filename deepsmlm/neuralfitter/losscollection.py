@@ -316,25 +316,3 @@ class GaussianMMLoss(Loss):
         loss = 2 * torch.stack((gmm_loss, bg_loss), 1) * self._ch_weight
 
         return loss
-
-
-@deprecated("Draft, not ready.")
-class PPXYZBSigmaLoss(PPXYZBLoss):
-    """
-    Draft implementation. Not yet ready
-    """
-
-    def log(self, loss_val) -> (float, dict):
-        return loss_val.item(), {}
-
-    def forward(self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor,
-                sigma: torch.Tensor) -> torch.Tensor:
-        assert sigma.dim() == 1
-        assert sigma.size(0) == output.size(1)
-
-        loss = super().forward(output, target, weight)
-        loss /= sigma.view(1, -1, 1, 1)  # expand to nchw format
-
-        loss = loss.mean() + torch.log(sigma.prod())
-
-        return loss

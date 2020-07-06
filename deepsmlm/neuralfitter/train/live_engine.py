@@ -3,7 +3,6 @@ import os
 import shutil
 import socket
 from pathlib import Path
-from functools import partial
 
 import click
 import torch
@@ -139,7 +138,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     else:
         em_filter = deepsmlm.neuralfitter.em_filter.NoEmitterFilter()
 
-    tar_gen = deepsmlm.neuralfitter.processing.TransformSequence(
+    tar_gen = deepsmlm.neuralfitter.utils.processing.TransformSequence(
         [
             deepsmlm.neuralfitter.target_generator.ParameterListTarget(n_max=100,
                                                                        xextent=param.Simulation.psf_extent[0],
@@ -186,7 +185,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
                                                                                 px_size=param.Camera.px_size)
 
     elif param.PostProcessing == 'LookUp':
-        post_processor = deepsmlm.neuralfitter.processing.TransformSequence([
+        post_processor = deepsmlm.neuralfitter.utils.processing.TransformSequence([
 
             deepsmlm.neuralfitter.scale_transform.InverseParamListRescale(phot_max=param.Scaling.phot_max,
                                                                           z_max=param.Scaling.z_max,
@@ -320,7 +319,7 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
 
     else:
         log_folder = log_folder + '/' + experiment_id
-        logger = deepsmlm.neuralfitter.utils.logger.SummaryWriterSoph(log_dir=log_folder)
+        logger = deepsmlm.neuralfitter.utils.logger.SummaryWriter(log_dir=log_folder)
 
     sim_train, sim_test = setup_random_simulation(param)
     ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher = \
