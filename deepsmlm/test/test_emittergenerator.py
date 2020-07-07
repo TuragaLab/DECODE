@@ -46,7 +46,7 @@ class TestEmitterPopper(TestEmitterPopperABC):
                                                     xy_unit='px',
                                                     px_size=(1., 1.),
                                                     density=dens,
-                                                    emitter_av=em_av)
+                                                    em_avg=em_av)
 
         return cand
 
@@ -74,7 +74,7 @@ class TestEmitterPopper(TestEmitterPopperABC):
         em_av_out = torch.tensor(em_av_out).float().mean()
 
         """Assert"""
-        assert em_av_out == pytest.approx(em_pop._emitter_av, em_pop._emitter_av / 10), \
+        assert em_av_out == pytest.approx(em_pop._em_avg, em_pop._em_avg / 10), \
             "Emitter average seems to be off."
 
     def test_frame_ix(self, em_pop):
@@ -98,7 +98,7 @@ class TestEmitterPopperMultiframe(TestEmitterPopper):
                                             px_size=(1., 1.),
                                             lifetime=2.,
                                             density=dens,
-                                            emitter_av=em_av)
+                                            em_avg=em_av)
 
         return cand
 
@@ -115,7 +115,7 @@ class TestEmitterPopperMultiframe(TestEmitterPopper):
                                                  xy_unit='px',
                                                  px_size=(1., 1.),
                                                  lifetime=2.,
-                                                 emitter_av=100,
+                                                 em_avg=100,
                                                  frame_range=(-100, 100))
 
         generator.sample()
@@ -133,7 +133,7 @@ class TestEmitterPopperMultiframe(TestEmitterPopper):
                                               px_size=(1., 1.),
                                               lifetime=2.,
                                               density=None,
-                                              emitter_av=10000,
+                                              em_avg=10000,
                                               frame_range=(0, 1000))
 
         """Run"""

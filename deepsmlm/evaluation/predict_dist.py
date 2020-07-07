@@ -19,7 +19,7 @@ def deviation_dist(x: torch.Tensor, x_gt: torch.Tensor, residuals=False, kde=Tru
 
     if not torch.isnan(x).any():
         if kde:
-            utils.kde_sorted(x_gt, x, True, ax, sub_sample=10000)
+            utils.kde_sorted(x_gt, x, True, ax, sub_sample=10000, nan_inf_ignore=True)
         else:
             ax.plot(x_gt, x, 'x')
 

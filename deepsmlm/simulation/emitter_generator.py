@@ -38,14 +38,14 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
     """
 
     def __init__(self, *, structure: structure_prior.StructurePrior, photon_range: tuple,
-                 density: float = None, emitter_av: float = None, xy_unit: str, px_size: tuple):
+                 density: float = None, em_avg: float = None, xy_unit: str, px_size: tuple):
         """
         
         Args:
             structure: structure to sample from
             photon_range: range of photon value to sample from (uniformly)
-            density: target emitter density (exactly only when emitter_av is None)
-            emitter_av: target emitter average (exactly only when density is None)
+            density: target emitter density (exactly only when em_avg is None)
+            em_avg: target emitter average (exactly only when density is None)
             xy_unit: emitter xy unit
             px_size: emitter pixel size
 
@@ -60,15 +60,15 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
         Sanity Checks.
         U shall not pa(rse)! (Emitter Average and Density at the same time!
         """
-        if (density is None and emitter_av is None) or (density is not None and emitter_av is not None):
+        if (density is None and em_avg is None) or (density is not None and em_avg is not None):
             raise ValueError("You must XOR parse either density or emitter average. Not both or none.")
 
         self.area = self.structure.area
 
-        if emitter_av is not None:
-            self._emitter_av = emitter_av
+        if em_avg is not None:
+            self._em_avg = em_avg
         else:
-            self._emitter_av = self._density * self.area
+            self._em_avg = self._density * self.area
 
     def sample(self) -> deepsmlm.generic.emitter.EmitterSet:
         """
@@ -78,7 +78,7 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
             EmitterSet:
 
         """
-        n = np.random.poisson(lam=self._emitter_av)
+        n = np.random.poisson(lam=self._em_avg)
 
         return self.sample_n(n=n)
 
@@ -106,7 +106,7 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
 
 class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
     def __init__(self, *, structure: structure_prior.StructurePrior, intensity_mu_sig: tuple, lifetime: float,
-                 frame_range: tuple, xy_unit: str, px_size: tuple, density=None, emitter_av=None, intensity_th=None):
+                 frame_range: tuple, xy_unit: str, px_size: tuple, density=None, em_avg=None, intensity_th=None):
         """
 
         Args:
@@ -117,7 +117,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
             px_size:
             frame_range: specifies the frame range
             density:
-            emitter_av:
+            em_avg:
             intensity_th:
         """
         super().__init__(structure=structure,
@@ -125,7 +125,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
                          xy_unit=xy_unit,
                          px_size=px_size,
                          density=density,
-                         emitter_av=emitter_av)
+                         em_avg=em_avg)
 
         self.frame_range = frame_range
         self.intensity_mu_sig = intensity_mu_sig
@@ -140,7 +140,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         """
         Determine the total number of emitters. Depends on lifetime and num_frames. 
         Search for the actual value of total emitters on the extended frame range so that on the 0th frame we have
-        as many as we have specified in self.emitter_av
+        as many as we have specified in self.em_avg
         """
         self._emitter_av_total = None
         self._emitter_av_total = self._total_emitter_average_search()
@@ -249,7 +249,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         """
 
         out = self._test_actual_number(n)
-        return n / out * self._emitter_av
+        return n / out * self._em_avg
 
 
 @deprecated(reason="Deprecated in favour of EmitterSamplerFrameIndependent.", version="0.1.dev")

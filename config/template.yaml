@@ -24,7 +24,7 @@ Hardware:
   torch_multiprocessing_sharing_strategy: file_system # if you get multiprocessing errors, increase ulimit or set to 'file_system'
 HyperParameter:
   arch_param:
-    activation: nn.ELU()
+    activation: ReLU
     depth:
     depth_shared: 2
     depth_union: 2
