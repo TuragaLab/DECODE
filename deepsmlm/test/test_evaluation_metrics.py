@@ -2,7 +2,7 @@ import pytest
 import math
 import torch
 
-import deepsmlm.evaluation.metric_library as test_cand
+import deepsmlm.evaluation.metric as test_cand
 
 
 class TestRootMeanAbsoluteDist:

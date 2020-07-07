@@ -10,7 +10,8 @@ from deepsmlm.generic import emitter as emitter
 
 class EmitterMatcher(ABC):
     """
-    Abstract emitter matching class.
+    Abstract emitter matcher class.
+
     """
 
     _return_match = namedtuple('MatchResult', ['tp', 'fp', 'fn', 'tp_match'])  # return-type as namedtuple
