@@ -238,18 +238,17 @@ class DoubleMUnet(nn.Module):
             o = torch.cat((p, phot, xyz, bg), 1)
             return o
 
-    def forward(self, x, external=None, force_no_p_nl=False):
+    def forward(self, x, force_no_p_nl=False):
         """
 
         Args:
             x:
-            external:
             force_no_p_nl:
 
         Returns:
 
         """
-        o = self._forward_core(external, x)
+        o = self._forward_core(x)
 
         o_head = []
         for i in range(self.ch_out):
@@ -265,15 +264,11 @@ class DoubleMUnet(nn.Module):
 
         return o
 
-    def _forward_core(self, external, x) -> torch.Tensor:
+    def _forward_core(self, x) -> torch.Tensor:
         if self.ch_in == 3:
             x0 = x[:, [0]]
             x1 = x[:, [1]]
             x2 = x[:, [2]]
-            if external is not None:
-                x0 = torch.cat((x0, external), 1)
-                x1 = torch.cat((x1, external), 1)
-                x2 = torch.cat((x2, external), 1)
 
             o0 = self.unet_shared.forward(x0)
             o1 = self.unet_shared.forward(x1)
@@ -283,6 +278,7 @@ class DoubleMUnet(nn.Module):
 
         elif self.ch_in == 1:
             o = self.unet_shared.forward(x)
+
         o = self.unet_union.forward(o)
 
         return o

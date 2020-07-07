@@ -74,7 +74,9 @@ class SigmaMUNet(model_param.DoubleMUnet):
 
     @classmethod
     def parse(cls, param, **kwargs):
-        activation = eval(param.HyperParameter.arch_param.activation)
+
+        activation = getattr(torch.nn, param.HyperParameter.arch_param.activation)
+        activation = activation()
         return cls(
             ch_in=param.HyperParameter.channels_in,
             depth_shared=param.HyperParameter.arch_param.depth_shared,
