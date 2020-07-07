@@ -49,3 +49,21 @@ class TestSimulator:
 
         """Assertions"""
         assert isinstance(em, emitter.EmitterSet)
+
+    @pytest.mark.parametrize("ix_low,ix_high,n", [(None, None, 6),
+                                                  (0, None, 4),
+                                                  (None, 0, 3),
+                                                  (-5, 5, 11)])
+    def test_forward(self, sim, ix_low, ix_high, n):
+        """Tests the output length of forward method of simulation."""
+
+        """Setup"""
+        sim.frame_range = (None, None)
+        em = emitter.RandomEmitterSet(2)
+        em.frame_ix = torch.tensor([-2, 3]).long()
+
+        """Run"""
+        frames, bg_frames = sim.forward(em, ix_low=ix_low, ix_high=ix_high)
+
+        """Assert"""
+        assert len(frames) == n, "Wrong number of frames."
