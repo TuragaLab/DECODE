@@ -1,4 +1,8 @@
 import torch
+import pathlib
+import hashlib
+
+from typing import Union
 
 
 def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8, nan: bool = False) -> bool:
@@ -28,3 +32,22 @@ def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8, nan: bool =
             return True
 
     return torch.all(torch.lt(torch.abs(torch.add(a, -b)), prec)).item()
+
+
+def open_n_hash(file: Union[str, pathlib.Path]) -> str:
+    """
+    Check SHA 256 hash of file
+
+    Args:
+        file:
+
+    Returns:
+        str
+
+    """
+
+    if not isinstance(file, pathlib.Path):
+        file = pathlib.Path(file)
+    hash_str = hashlib.sha256(file.read_bytes()).hexdigest()
+
+    return hash_str
