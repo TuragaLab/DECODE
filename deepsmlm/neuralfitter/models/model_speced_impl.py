@@ -48,7 +48,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
             torch.nn.init.constant_(self.mt_heads[0].out_conv.bias, -6.)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self._forward_core(external=None, x=x)
+        x = self._forward_core(x)
 
         """Forward through the respective heads"""
         x_heads = [mt_head.forward(x) for mt_head in self.mt_heads]
