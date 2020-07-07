@@ -216,7 +216,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
                    px_size=param.Camera.px_size,
                    frame_range=frames,
                    density=param.Simulation.density,
-                   emitter_av=param.Simulation.emitter_av,
+                   em_avg=param.Simulation.emitter_av,
                    intensity_th=param.Simulation.intensity_th)
 
     def _test_actual_number(self, num_em) -> int:
