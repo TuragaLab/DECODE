@@ -1,5 +1,6 @@
 import datetime
 import os
+import resource
 import shutil
 import socket
 from pathlib import Path
@@ -13,9 +14,6 @@ import deepsmlm.neuralfitter.utils
 import deepsmlm.simulation
 import deepsmlm.utils
 from deepsmlm.neuralfitter.utils import log_train_val_progress
-
-import resource
-
 
 
 def setup_random_simulation(param):
@@ -208,7 +206,6 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     else:
         raise ValueError
 
-
     """Evaluation Specification"""
     matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
 
@@ -341,7 +338,6 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
         logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
 
         if i >= 1:
-
             train_loss = deepsmlm.neuralfitter.train_val_impl.train(
                 model=model,
                 optimizer=optimizer,

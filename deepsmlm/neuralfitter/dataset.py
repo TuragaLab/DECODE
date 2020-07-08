@@ -127,7 +127,8 @@ class SMLMStaticDataset(SMLMDataset):
         return_em (bool): return EmitterSet in getitem method.
     """
 
-    def __init__(self, *, frames, emitter: (None, list, tuple), frame_proc, bg_frame_proc, em_proc, tar_gen,
+    def __init__(self, *, frames, emitter: (None, list, tuple),
+                 frame_proc=None, bg_frame_proc=None, em_proc=None, tar_gen=None,
                  bg_frames=None, weight_gen=None, frame_window=3, pad: (str, None) = None, return_em=True):
         """
 
@@ -152,6 +153,9 @@ class SMLMStaticDataset(SMLMDataset):
 
         if self._frames is not None and self._frames.dim() != 3:
             raise ValueError("Frames must be 3 dimensional, i.e. N x H x W.")
+
+        if self._emitter is not None and not isinstance(self._emitter, (list, tuple)):
+            raise TypeError("Please split emitters in list of emitters by their frame index first.")
 
     def __getitem__(self, ix):
         """
