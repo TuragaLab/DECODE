@@ -157,7 +157,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     weight_gen = None
 
     if param.Simulation.mode == 'acquisition':
-        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator_train, em_proc=None,
+        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator_train, em_proc=em_filter,
                                                                  frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
                                                                  tar_gen=tar_gen, weight_gen=weight_gen,
                                                                  frame_window=param.HyperParameter.channels_in,
@@ -166,7 +166,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
         train_ds.sample(True)
 
     elif param.Simulation.mode == 'samples':
-        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveSampleDataset(simulator=simulator_train, em_proc=None,
+        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveSampleDataset(simulator=simulator_train, em_proc=em_filter,
                                                                        frame_proc=frame_proc,
                                                                        bg_frame_proc=bg_frame_proc,
                                                                        tar_gen=tar_gen, weight_gen=weight_gen,

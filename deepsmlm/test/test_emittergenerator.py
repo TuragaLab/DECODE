@@ -131,16 +131,5 @@ class TestEmitterPopperMultiframe(TestEmitterPopper):
         assert test_utils.tens_almeq(bin_count, torch.ones_like(bin_count) * 10000, 2000)  # plus minus 1000
         assert bin_count.float().mean() == pytest.approx(10000, rel=0.05)
 
-    def test_max_number(self, em_pop):
-
-        """Setup"""
-        em_pop._em_avg = 100
-        em_pop.em_max = 120
-        em_pop._emitter_av_total = em_pop._total_emitter_average_search()
-
-        """Run and Assert"""
-        for _ in range(100):
-            assert len(em_pop.sample()) <= 120
-
     def test_sample_n(self, em_pop):
         return

@@ -106,12 +106,10 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
 
 class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
     def __init__(self, *, structure: structure_prior.StructurePrior, intensity_mu_sig: tuple, lifetime: float,
-                 frame_range: tuple, xy_unit: str, px_size: tuple, density=None, em_avg=None, intensity_th=None,
-                 em_max: int = None):
+                 frame_range: tuple, xy_unit: str, px_size: tuple, density=None, em_avg=None, intensity_th=None):
         """
 
         Args:
-            em_max:
             structure:
             intensity_mu_sig:
             lifetime:
@@ -121,7 +119,6 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
             density:
             em_avg:
             intensity_th:
-            em_max: max number of emitters
 
         """
         super().__init__(structure=structure,
@@ -140,7 +137,6 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         self.lifetime_dist = Exponential(1 / self.lifetime_avg)  # parse the rate not the scale ...
 
         self.t0_dist = torch.distributions.uniform.Uniform(*self._frame_range_plus)
-        self.em_max = em_max
 
         """
         Determine the total number of emitters. Depends on lifetime and num_frames. 
@@ -185,9 +181,6 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         em = loose_em.return_emitterset()
         em = em.get_subset_frame(*self.frame_range)  # because the simulated frame range is larger
 
-        if self.em_max is not None:
-            em = em[:self.em_max]
-
         return em
 
     def sample_n(self, *args, **kwargs):
@@ -227,7 +220,6 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
                    frame_range=frames,
                    density=param.Simulation.density,
                    em_avg=param.Simulation.emitter_av,
-                   em_max=param.HyperParameter.max_number_targets,
                    intensity_th=param.Simulation.intensity_th)
 
     def _test_actual_number(self, num_em) -> int:

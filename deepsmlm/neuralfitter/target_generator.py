@@ -277,6 +277,10 @@ class ParameterListTarget(TargetGenerator):
         """Set number of active elements per frame"""
         for i in range(n_frames):
             n_emitter = len(em.get_subset_frame(i, i))
+
+            if n_emitter > self.n_max:
+                raise ValueError("Number of actual emitters exceeds number of max. emitters.")
+
             mask_tar[i, :n_emitter] = 1
 
             ix = em.frame_ix == i
