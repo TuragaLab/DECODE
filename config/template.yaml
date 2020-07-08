@@ -64,6 +64,7 @@ HyperParameter:
   learning_rate_scheduler_param:
     step_size: 10
     gamma: 0.9
+  max_number_targets: 250
   moeller_gradient_rescale: false
   opt_param:
     lr: 0.0006

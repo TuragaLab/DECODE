@@ -14,6 +14,9 @@ import deepsmlm.simulation
 import deepsmlm.utils
 from deepsmlm.neuralfitter.utils import log_train_val_progress
 
+import resource
+
+
 
 def setup_random_simulation(param):
     """
@@ -140,7 +143,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
 
     tar_gen = deepsmlm.neuralfitter.utils.processing.TransformSequence(
         [
-            deepsmlm.neuralfitter.target_generator.ParameterListTarget(n_max=100,
+            deepsmlm.neuralfitter.target_generator.ParameterListTarget(n_max=param.HyperParameter.max_number_targets,
                                                                        xextent=param.Simulation.psf_extent[0],
                                                                        yextent=param.Simulation.psf_extent[1],
                                                                        ix_low=0, ix_high=0,
@@ -308,7 +311,11 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
     torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
     os.nice(param.Hardware.unix_niceness)
 
-    if param.Hardware.torch_multiprocessing_sharing_strategy is not None:
+    if param.Hardware.torch_multiprocessing_sharing_strategy is None:
+        rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+
+    else:
         torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
 
     torch.set_num_threads(param.Hardware.torch_threads)

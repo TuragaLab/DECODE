@@ -91,13 +91,8 @@ class TestEmitterPopperMultiframe(TestEmitterPopper):
     @pytest.fixture(params=[[None, 10.], [2., None]], ids=["em_av", "dens"])
     def em_pop(self, request, structure):
         dens, em_av = request.param  # unpack arguments
-        cand = emgen.EmitterSamplerBlinking(structure=structure,
-                                            intensity_mu_sig=(100, 2000),
-                                            frame_range=(-1, 1),
-                                            xy_unit='px',
-                                            px_size=(1., 1.),
-                                            lifetime=2.,
-                                            density=dens,
+        cand = emgen.EmitterSamplerBlinking(structure=structure, intensity_mu_sig=(100, 2000), lifetime=2.,
+                                            frame_range=(-1, 1), xy_unit='px', px_size=(1., 1.), density=dens,
                                             em_avg=em_av)
 
         return cand
@@ -110,13 +105,8 @@ class TestEmitterPopperMultiframe(TestEmitterPopper):
 
     def test_frame_specification(self, structure):
 
-        generator = emgen.EmitterSamplerBlinking(structure=structure,
-                                                 intensity_mu_sig=(100, 2000),
-                                                 xy_unit='px',
-                                                 px_size=(1., 1.),
-                                                 lifetime=2.,
-                                                 em_avg=100,
-                                                 frame_range=(-100, 100))
+        generator = emgen.EmitterSamplerBlinking(structure=structure, intensity_mu_sig=(100, 2000), lifetime=2.,
+                                                 frame_range=(-100, 100), xy_unit='px', px_size=(1., 1.), em_avg=100)
 
         generator.sample()
 
@@ -127,14 +117,9 @@ class TestEmitterPopperMultiframe(TestEmitterPopper):
         """
 
         """Setup"""
-        em_gen = emgen.EmitterSamplerBlinking(structure=structure,
-                                              intensity_mu_sig=(100, 2000),
-                                              xy_unit='px',
-                                              px_size=(1., 1.),
-                                              lifetime=2.,
-                                              density=None,
-                                              em_avg=10000,
-                                              frame_range=(0, 1000))
+        em_gen = emgen.EmitterSamplerBlinking(structure=structure, intensity_mu_sig=(100, 2000), lifetime=2.,
+                                              frame_range=(0, 1000), xy_unit='px', px_size=(1., 1.), density=None,
+                                              em_avg=10000)
 
         """Run"""
         emitters = em_gen.sample()
@@ -145,6 +130,17 @@ class TestEmitterPopperMultiframe(TestEmitterPopper):
 
         assert test_utils.tens_almeq(bin_count, torch.ones_like(bin_count) * 10000, 2000)  # plus minus 1000
         assert bin_count.float().mean() == pytest.approx(10000, rel=0.05)
+
+    def test_max_number(self, em_pop):
+
+        """Setup"""
+        em_pop._em_avg = 100
+        em_pop.em_max = 120
+        em_pop._emitter_av_total = em_pop._total_emitter_average_search()
+
+        """Run and Assert"""
+        for _ in range(100):
+            assert len(em_pop.sample()) <= 120
 
     def test_sample_n(self, em_pop):
         return
