@@ -7,7 +7,7 @@ import deepsmlm
 import deepsmlm.generic.emitter
 import deepsmlm.neuralfitter.dataset as can  # candidate
 import deepsmlm.neuralfitter.target_generator
-from deepsmlm.generic.process import Identity
+from deepsmlm.neuralfitter import em_filter
 from deepsmlm.simulation.simulator import Simulation
 
 deepsmlm_root = pathlib.Path(deepsmlm.__file__).parent.parent  # 'repo' directory
@@ -167,6 +167,58 @@ class TestSMLMLiveDataset:
         assert x.dim() == 3
         assert y_tar.dim() == 3
         assert weight.dim() == 3
+
+
+class TestSMLMAPrioriDataset:
+
+    @pytest.fixture()
+    def ds(self):
+        class DummySimulation(Simulation):
+            def __init__(self):
+                return
+
+            def sample(self):
+                em = deepsmlm.RandomEmitterSet(1000)
+                em.phot = torch.rand_like(em.phot) * 10000
+                em.frame_ix = torch.randint_like(em.frame_ix, -10, 5000)
+                frames, bg_frames = self.forward(em)
+
+                return em, frames, bg_frames
+
+            def forward(self, em):
+                return torch.rand((5000, 64, 64)), torch.rand((5000, 64, 64))
+
+        class DummyFrameProc:
+            def forward(self, x):
+                return x / 2
+
+        class DummyEMProc:
+            def forward(self, x):
+                return x[:500]
+
+        class DummyTargen:
+            def forward(self, *args):
+                return torch.rand((5000, 64, 64))
+
+        dataset = can.SMLMAPrioriDataset(simulator=DummySimulation(), em_proc=DummyEMProc(),
+                                         frame_proc=DummyFrameProc(), bg_frame_proc=DummyFrameProc(),
+                                         tar_gen=DummyTargen(), weight_gen=None,
+                                         frame_window=3, pad=None, return_em=False)
+
+        return dataset
+
+    def test_sample(self, ds):
+
+        ds.sample()
+
+        """Assertions"""
+        assert isinstance(ds._emitter, list)
+        assert isinstance(ds._emitter[0], deepsmlm.generic.emitter.EmitterSet)
+
+    def test_len(self, ds):
+
+        ds.sample()
+        assert len(ds) == 5000 - (ds.frame_window - 1)
 
 
 class TestLiveSampleDataset:

@@ -206,7 +206,8 @@ class InferenceDataset(SMLMStaticDataset):
 
 class SMLMLiveDataset(SMLMStaticDataset):
     """
-    A SMLM dataset where new datasets is sampleable via the sample() method.
+    A SMLM dataset where new datasets is sampleable via the sample() method of the simulation instance.
+    The final processing on frame, emitters and target is done online.
 
     """
 
@@ -253,6 +254,57 @@ class SMLMLiveDataset(SMLMStaticDataset):
         self._emitter = emitter
         self._frames = frames.cpu()
         self._bg_frames = bg_frames.cpu()
+
+
+class SMLMAPrioriDataset(SMLMLiveDataset):
+    """
+    A SMLM Dataset where new data is sampled and processed in an 'a priori' manner, i.e. once per epoche. This is useful
+    when processing is fast. Since everything is ready a few number of workers for the dataloader will suffice.
+
+    """
+
+    def __init__(self, *, simulator, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, pad,
+                 return_em=False):
+        super().__init__(simulator=simulator, em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
+                         tar_gen=tar_gen, weight_gen=weight_gen, frame_window=frame_window, pad=pad,
+                         return_em=return_em)
+
+        self._target = None
+        self._weight = None
+
+    def sample(self, verbose: bool = False):
+        """
+        Sample new dataset and process them instantaneously.
+
+        Args:
+            verbose:
+
+        """
+        t0 = time.time()
+        emitter, frames, bg_frames = self.simulator.sample()
+
+        if verbose:
+            print(f"Sampled dataset in {time.time() - t0:.2f}s. {len(emitter)} emitters on {frames.size(0)} frames.")
+
+        frames, target, weight, tar_emitter = self._process_sample(frames, emitter, bg_frames)
+        self._frames = frames
+        self._emitter = emitter.split_in_frames(0, frames.size(0) - 1)
+        self._target, self._weight = target, weight
+
+    def __getitem__(self, ix):
+        """
+
+        Args:
+            ix:
+
+        Returns:
+
+        """
+        """Pad index, get frames and emitters."""
+        ix = self._pad_index(ix)
+
+        return self._return_sample(self._frames[ix], self._target[ix],
+                                   self._weight[ix], self._emitter[ix])
 
 
 class SMLMLiveSampleDataset(SMLMDataset):
