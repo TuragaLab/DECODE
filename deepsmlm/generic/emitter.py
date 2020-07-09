@@ -190,6 +190,13 @@ class EmitterSet:
 
         return em_dict
 
+    # pickle
+    def __getstate__(self):
+        return self.to_dict()
+
+    def __setstate__(self, state):
+        self.__init__(**state)
+
     def save(self, file: Union[str, Path]):
         """
         Pickle save's the dictionary of this instance. No legacy guarantees given.
@@ -596,9 +603,11 @@ class EmitterSet:
         if isinstance(ix, (np.ndarray, np.generic)) and ix.size == 1:  # numpy support
             ix = [int(ix)]
 
-        return EmitterSet(self.xyz[ix, :], self.phot[ix], self.frame_ix[ix], self.id[ix], self.prob[ix], self.bg[ix],
-                          self.xyz_cr[ix], self.phot_cr[ix], self.bg_cr[ix], sanity_check=False,
-                          xy_unit=self.xy_unit, px_size=self.px_size)
+        return EmitterSet(xyz=self.xyz[ix], phot=self.phot[ix], frame_ix=self.frame_ix[ix], id=self.id[ix],
+                          prob=self.prob[ix], bg=self.bg[ix],
+                          xyz_sig=self.xyz_sig[ix], phot_sig=self.phot_sig[ix], bg_sig=self.bg_sig[ix],
+                          xyz_cr=self.xyz_cr[ix], phot_cr=self.phot_cr[ix], bg_cr=self.bg_cr[ix],
+                          sanity_check=False, xy_unit=self.xy_unit, px_size=self.px_size)
 
     def get_subset_frame(self, frame_start, frame_end, frame_ix_shift=None):
         """
