@@ -26,14 +26,11 @@ def setup_random_simulation(param):
         3. Setup simulation and datasets
         """
 
-    native_psf_img_size = (int(param.Simulation.psf_extent[0][1] - param.Simulation.psf_extent[0][0]),
-                           int(param.Simulation.psf_extent[1][1] - param.Simulation.psf_extent[1][0]))
-
     psf = deepsmlm.utils.calibration_io.SMAPSplineCoefficient(
         calib_file=param.InOut.calibration_file).init_spline(
         xextent=param.Simulation.psf_extent[0],
         yextent=param.Simulation.psf_extent[1],
-        img_shape=native_psf_img_size,
+        img_shape=param.Simulation.img_size,
         cuda_kernel=True if param.Hardware.device_simulation[:4] == 'cuda' else False,
         roi_size=param.Simulation.roi_size,
         roi_auto_center=param.Simulation.roi_auto_center

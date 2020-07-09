@@ -41,22 +41,22 @@ def kde_sorted(x: torch.Tensor, y: torch.Tensor, plot=False, ax=None, band_with=
 
     if xy_in.size == 0:
         z = np.zeros(0)
-    else:
-        if nan_inf_ignore:
-            try:
-                if band_with:
-                    z = gaussian_kde(xy_in, bw_method=band_with)(xy_in)
-                else:
-                    z = gaussian_kde(xy_in)(xy_in)
 
-            except:  # ToDo: replace by robust kde
-                z = np.ones_like(xy_in[0]) * float('nan')
-
-        else:
+    elif nan_inf_ignore:
+        try:
             if band_with:
                 z = gaussian_kde(xy_in, bw_method=band_with)(xy_in)
             else:
                 z = gaussian_kde(xy_in)(xy_in)
+
+        except:  # ToDo: replace by robust kde
+            z = np.ones_like(xy_in[0]) * float('nan')
+
+    else:
+        if band_with:
+            z = gaussian_kde(xy_in, bw_method=band_with)(xy_in)
+        else:
+            z = gaussian_kde(xy_in)(xy_in)
 
     # Sort the points by density, so that the most dense points are plotted last
     idx = z.argsort()

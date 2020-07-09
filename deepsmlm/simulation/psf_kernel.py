@@ -449,7 +449,6 @@ class CubicSplinePSF(PSF):
         return self.max_roi_chunk // (5 * 2)
 
     """Pickle"""
-
     def __getstate__(self):
         """
         Returns dict without spline implementation attribute because C++ / CUDA implementation is not (yet) implemented

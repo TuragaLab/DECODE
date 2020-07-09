@@ -189,7 +189,7 @@ class GreedyHungarianMatching(EmitterMatcher):
 
         return tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool
 
-    def forward(self, output, target):
+    def forward(self, output: emitter.EmitterSet, target: emitter.EmitterSet):
 
         """Setup split in frames. Determine the frame range automatically so as to cover everything."""
         if len(output) >= 1 and len(target) >= 1:
