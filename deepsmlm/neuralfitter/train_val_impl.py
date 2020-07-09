@@ -121,7 +121,7 @@ def test(model, loss, dataloader, epoch, device):
 
 def ship_device(x, device: Union[str, torch.device]):
     """
-    Ships the input to CUDA device
+    Ships the input to a pytorch compatible device (e.g. CUDA)
 
     Args:
         x:
@@ -138,7 +138,7 @@ def ship_device(x, device: Union[str, torch.device]):
         return x.to(device)
 
     elif isinstance(x, (tuple, list)):
-        x = [ship_device(x_el, device) for x_el in x]
+        x = [ship_device(x_el, device) for x_el in x]  # a nice little recursion that worked at the first try
         return x
 
     elif device != 'cpu':
