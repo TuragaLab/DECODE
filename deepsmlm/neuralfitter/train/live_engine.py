@@ -1,6 +1,5 @@
 import datetime
 import os
-import resource
 import shutil
 import socket
 from pathlib import Path
@@ -14,234 +13,8 @@ import deepsmlm.neuralfitter
 import deepsmlm.neuralfitter.utils
 import deepsmlm.simulation
 import deepsmlm.utils
+from deepsmlm.neuralfitter.train.random_simulation import setup_random_simulation
 from deepsmlm.neuralfitter.utils import log_train_val_progress
-
-
-def setup_random_simulation(param):
-    """
-        Setup the actual simulation
-
-        0. Define PSF function (load the calibration)
-        1. Define our struture from which we sample (random prior in 3D) and its photophysics
-        2. Define background and noise
-        3. Setup simulation and datasets
-        """
-
-    psf = deepsmlm.utils.calibration_io.SMAPSplineCoefficient(
-        calib_file=param.InOut.calibration_file).init_spline(
-        xextent=param.Simulation.psf_extent[0],
-        yextent=param.Simulation.psf_extent[1],
-        img_shape=param.Simulation.img_size,
-        cuda_kernel=True if param.Hardware.device_simulation[:4] == 'cuda' else False,
-        roi_size=param.Simulation.roi_size,
-        roi_auto_center=param.Simulation.roi_auto_center
-    )
-
-    """Structure Prior"""
-    prior_struct = deepsmlm.simulation.structure_prior.RandomStructure.parse(param)
-
-    if param.Simulation.mode in ('acquisition', 'apriori'):
-        frame_range_train = (0, param.HyperParameter.pseudo_ds_size)
-
-    elif param.Simulation.mode == 'samples':
-        frame_range_train = (-((param.HyperParameter.channels_in - 1) // 2),
-                             (param.HyperParameter.channels_in - 1) // 2)
-    else:
-        raise ValueError
-
-    prior_train = deepsmlm.simulation.emitter_generator.EmitterSamplerBlinking.parse(
-        param, structure=prior_struct, frames=frame_range_train)
-
-    """Define our background and noise model."""
-    bg = deepsmlm.simulation.background.UniformBackground.parse(param)
-
-    noise = deepsmlm.simulation.camera.Photon2Camera.parse(param, device=param.Hardware.device_simulation)
-
-    simulation_train = deepsmlm.simulation.simulator.Simulation(
-        psf=psf, em_sampler=prior_train, background=bg, noise=noise, frame_range=frame_range_train)
-
-    frame_range_test = (0, param.TestSet.test_size)
-
-    prior_test = deepsmlm.simulation.emitter_generator.EmitterSamplerBlinking.parse(
-        param, structure=prior_struct, frames=frame_range_test)
-
-    simulation_test = deepsmlm.simulation.simulator.Simulation(
-        psf=psf, em_sampler=prior_test, background=bg, noise=noise, frame_range=frame_range_test)
-
-    return simulation_train, simulation_test
-
-
-def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
-    """Set model, optimiser, loss and schedulers"""
-    models_available = {
-        'SigmaMUNet': deepsmlm.neuralfitter.models.SigmaMUNet,
-        'DoubleMUnet': deepsmlm.neuralfitter.models.model_param.DoubleMUnet,
-        'SimpleSMLMNet': deepsmlm.neuralfitter.models.model_param.SimpleSMLMNet,
-    }
-
-    model = models_available[param.HyperParameter.architecture]
-    model = model.parse(param)
-
-    model_ls = deepsmlm.utils.model_io.LoadSaveModel(model,
-                                                     output_file=model_out,
-                                                     input_file=param.InOut.model_init)
-
-    model = model_ls.load_init()
-    model = model.to(torch.device(param.Hardware.device))
-
-    # Small collection of optimisers
-    optimizer_available = {
-        'Adam': torch.optim.Adam,
-        'AdamW': torch.optim.AdamW
-    }
-
-    optimizer = optimizer_available[param.HyperParameter.optimizer]
-    optimizer = optimizer(model.parameters(), **param.HyperParameter.opt_param)
-
-    """Loss function."""
-    criterion = deepsmlm.neuralfitter.losscollection.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
-                                                                    yextent=param.Simulation.psf_extent[1],
-                                                                    img_shape=param.Simulation.img_size,
-                                                                    device=param.Hardware.device,
-                                                                    chweight_stat=param.HyperParameter.chweight_stat)
-
-    """Learning Rate and Simulation Scheduling"""
-    lr_scheduler_available = {
-        'ReduceLROnPlateau': torch.optim.lr_scheduler.ReduceLROnPlateau,
-        'StepLR': torch.optim.lr_scheduler.StepLR
-    }
-    lr_scheduler = lr_scheduler_available[param.HyperParameter.learning_rate_scheduler]
-    lr_scheduler = lr_scheduler(optimizer, **param.HyperParameter.learning_rate_scheduler_param)
-
-    """Setup gradient modification"""
-    grad_mod = param.HyperParameter.grad_mod
-
-    """Log the model"""
-    try:
-        dummy = torch.rand((2, param.HyperParameter.channels_in,
-                            *param.Simulation.img_size), requires_grad=True).to(torch.device(param.Hardware.device))
-        logger.add_graph(model, dummy)
-
-    except:
-        raise RuntimeError("Your dummy input is wrong. Please update it.")
-
-    """Transform input data, compute weight mask and target data"""
-    frame_proc = deepsmlm.neuralfitter.scale_transform.AmplitudeRescale.parse(param)
-    bg_frame_proc = None
-
-    if param.HyperParameter.emitter_label_photon_min is not None:
-        em_filter = deepsmlm.neuralfitter.em_filter.PhotonFilter(param.HyperParameter.emitter_label_photon_min)
-    else:
-        em_filter = deepsmlm.neuralfitter.em_filter.NoEmitterFilter()
-
-    tar_frame_ix_train = (0, 0)
-    tar_frame_ix_test = (0, param.TestSet.test_size)
-
-    tar_gen = deepsmlm.neuralfitter.utils.processing.TransformSequence(
-        [
-            deepsmlm.neuralfitter.target_generator.ParameterListTarget(n_max=param.HyperParameter.max_number_targets,
-                                                                       xextent=param.Simulation.psf_extent[0],
-                                                                       yextent=param.Simulation.psf_extent[1],
-                                                                       ix_low=tar_frame_ix_train[0],
-                                                                       ix_high=tar_frame_ix_train[1],
-                                                                       squeeze_batch_dim=True),
-
-            deepsmlm.neuralfitter.scale_transform.ParameterListRescale(phot_max=param.Scaling.phot_max,
-                                                                       z_max=param.Scaling.z_max,
-                                                                       bg_max=param.Scaling.bg_max)
-        ])
-
-    tar_gen_test = copy.deepcopy(tar_gen)
-    tar_gen_test.com[0].ix_low = tar_frame_ix_test[0]
-    tar_gen_test.com[0].ix_high = tar_frame_ix_test[1]
-    tar_gen_test.com[0].squeeze_batch_dim = False
-    tar_gen_test.com[0].sanity_check()
-
-    weight_gen = None
-
-    if param.Simulation.mode == 'acquisition':
-        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator_train, em_proc=em_filter,
-                                                                 frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
-                                                                 tar_gen=tar_gen, weight_gen=weight_gen,
-                                                                 frame_window=param.HyperParameter.channels_in,
-                                                                 pad=None, return_em=False)
-
-        train_ds.sample(True)
-
-    elif param.Simulation.mode == 'samples':
-        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveSampleDataset(simulator=simulator_train, em_proc=em_filter,
-                                                                       frame_proc=frame_proc,
-                                                                       bg_frame_proc=bg_frame_proc,
-                                                                       tar_gen=tar_gen, weight_gen=weight_gen,
-                                                                       frame_window=param.HyperParameter.channels_in,
-                                                                       return_em=False,
-                                                                       ds_len=param.HyperParameter.pseudo_ds_size)
-
-    test_ds = deepsmlm.neuralfitter.dataset.SMLMAPrioriDataset(simulator=simulator_test, em_proc=em_filter,
-                                                               frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
-                                                               tar_gen=tar_gen_test, weight_gen=weight_gen,
-                                                               frame_window=param.HyperParameter.channels_in,
-                                                               pad=None, return_em=False)
-
-    test_ds.sample(True)
-
-    """Set up post processor"""
-    if param.PostProcessing is None:
-        post_processor = deepsmlm.neuralfitter.post_processing.NoPostProcessing(xy_unit='px',
-                                                                                px_size=param.Camera.px_size)
-
-    elif param.PostProcessing == 'LookUp':
-        post_processor = deepsmlm.neuralfitter.utils.processing.TransformSequence([
-
-            deepsmlm.neuralfitter.scale_transform.InverseParamListRescale(phot_max=param.Scaling.phot_max,
-                                                                          z_max=param.Scaling.z_max,
-                                                                          bg_max=param.Scaling.bg_max),
-
-            deepsmlm.neuralfitter.post_processing.Offset2Coordinate.parse(param),
-
-            deepsmlm.neuralfitter.post_processing.LookUpPostProcessing(raw_th=param.PostProcessingParam.raw_th,
-                                                                       pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
-                                                                       xy_unit='px',
-                                                                       px_size=param.Camera.px_size)
-        ])
-
-    elif param.PostProcessing == 'Consistency':
-        raise NotImplementedError
-
-    else:
-        raise ValueError
-
-    """Evaluation Specification"""
-    matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
-
-    return train_ds, test_ds, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher
-
-
-def setup_dataloader(param, train_ds, test_ds=None):
-    train_dl = torch.utils.data.DataLoader(
-        dataset=train_ds,
-        batch_size=param.HyperParameter.batch_size,
-        drop_last=True,
-        shuffle=True,
-        num_workers=param.Hardware.num_worker_train,
-        pin_memory=True,
-        collate_fn=deepsmlm.neuralfitter.utils.collate.smlm_collate)
-
-    if test_ds is not None:
-
-        test_dl = torch.utils.data.DataLoader(
-            dataset=test_ds,
-            batch_size=param.HyperParameter.batch_size,
-            drop_last=True,
-            shuffle=False,
-            num_workers=param.Hardware.num_worker_train,
-            pin_memory=False,
-            collate_fn=deepsmlm.neuralfitter.utils.collate.smlm_collate)
-    else:
-
-        test_dl = None
-
-    return train_dl, test_dl
 
 
 @click.command()
@@ -259,16 +32,19 @@ def setup_dataloader(param, train_ds, test_ds=None):
               help='Specify the (parent) folder you want to log to. If rel-path, relative to DeepSMLM root.')
 @click.option('--log_comment', '-c', default=None,
               help='Add a log_comment to the run.')
-def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, log_folder, log_comment):
+def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, num_worker_override: int,
+                      log_folder: str, log_comment: str):
     """
-    Sets up the engine for simulation the DeepSMLM training data
+    Sets up the engine to train DeepSMLM. Includes sample simulation and the actual training.
 
     Args:
-        param_file:
-        debug:
-        num_worker_override:
-
-    Returns:
+        param_file: parameter file path
+        cuda_ix: overwrite cuda index specified by param file
+        debug: activate debug mode (i.e. less samples) for fast testing
+        no_log: disable logging
+        num_worker_override: overwrite number of workers for dataloader
+        log_folder: folder for logging (where tensorboard puts its stuff)
+        log_comment: comment to the experiment
 
     """
 
@@ -380,6 +156,202 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
             ds_train.sample(True)
         elif param.Simulation.mode != 'samples':
             raise ValueError
+
+
+def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
+    """
+
+    Args:
+        simulator_train:
+        simulator_test:
+        logger:
+        model_out:
+        param:
+
+    Returns:
+
+    """
+    """Set model, optimiser, loss and schedulers"""
+    models_available = {
+        'SigmaMUNet': deepsmlm.neuralfitter.models.SigmaMUNet,
+        'DoubleMUnet': deepsmlm.neuralfitter.models.model_param.DoubleMUnet,
+        'SimpleSMLMNet': deepsmlm.neuralfitter.models.model_param.SimpleSMLMNet,
+    }
+
+    model = models_available[param.HyperParameter.architecture]
+    model = model.parse(param)
+
+    model_ls = deepsmlm.utils.model_io.LoadSaveModel(model,
+                                                     output_file=model_out,
+                                                     input_file=param.InOut.model_init)
+
+    model = model_ls.load_init()
+    model = model.to(torch.device(param.Hardware.device))
+
+    # Small collection of optimisers
+    optimizer_available = {
+        'Adam': torch.optim.Adam,
+        'AdamW': torch.optim.AdamW
+    }
+
+    optimizer = optimizer_available[param.HyperParameter.optimizer]
+    optimizer = optimizer(model.parameters(), **param.HyperParameter.opt_param)
+
+    """Loss function."""
+    criterion = deepsmlm.neuralfitter.losscollection.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
+                                                                    yextent=param.Simulation.psf_extent[1],
+                                                                    img_shape=param.Simulation.img_size,
+                                                                    device=param.Hardware.device,
+                                                                    chweight_stat=param.HyperParameter.chweight_stat)
+
+    """Learning Rate and Simulation Scheduling"""
+    lr_scheduler_available = {
+        'ReduceLROnPlateau': torch.optim.lr_scheduler.ReduceLROnPlateau,
+        'StepLR': torch.optim.lr_scheduler.StepLR
+    }
+    lr_scheduler = lr_scheduler_available[param.HyperParameter.learning_rate_scheduler]
+    lr_scheduler = lr_scheduler(optimizer, **param.HyperParameter.learning_rate_scheduler_param)
+
+    """Setup gradient modification"""
+    grad_mod = param.HyperParameter.grad_mod
+
+    """Log the model"""
+    try:
+        dummy = torch.rand((2, param.HyperParameter.channels_in,
+                            *param.Simulation.img_size), requires_grad=True).to(torch.device(param.Hardware.device))
+        logger.add_graph(model, dummy)
+
+    except:
+        raise RuntimeError("Your dummy input is wrong. Please update it.")
+
+    """Transform input data, compute weight mask and target data"""
+    frame_proc = deepsmlm.neuralfitter.scale_transform.AmplitudeRescale.parse(param)
+    bg_frame_proc = None
+
+    if param.HyperParameter.emitter_label_photon_min is not None:
+        em_filter = deepsmlm.neuralfitter.em_filter.PhotonFilter(param.HyperParameter.emitter_label_photon_min)
+    else:
+        em_filter = deepsmlm.neuralfitter.em_filter.NoEmitterFilter()
+
+    tar_frame_ix_train = (0, 0)
+    tar_frame_ix_test = (0, param.TestSet.test_size)
+
+    """Setup Target generator consisting possibly multiple steps in a transformation sequence."""
+    tar_gen = deepsmlm.neuralfitter.utils.processing.TransformSequence(
+        [
+            deepsmlm.neuralfitter.target_generator.ParameterListTarget(n_max=param.HyperParameter.max_number_targets,
+                                                                       xextent=param.Simulation.psf_extent[0],
+                                                                       yextent=param.Simulation.psf_extent[1],
+                                                                       ix_low=tar_frame_ix_train[0],
+                                                                       ix_high=tar_frame_ix_train[1],
+                                                                       squeeze_batch_dim=True),
+
+            deepsmlm.neuralfitter.scale_transform.ParameterListRescale(phot_max=param.Scaling.phot_max,
+                                                                       z_max=param.Scaling.z_max,
+                                                                       bg_max=param.Scaling.bg_max)
+        ])
+
+    # setup target for test set in similar fashion, however test-set is static.
+    tar_gen_test = copy.deepcopy(tar_gen)
+    tar_gen_test.com[0].ix_low = tar_frame_ix_test[0]
+    tar_gen_test.com[0].ix_high = tar_frame_ix_test[1]
+    tar_gen_test.com[0].squeeze_batch_dim = False
+    tar_gen_test.com[0].sanity_check()
+
+    if param.Simulation.mode == 'acquisition':
+        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator_train, em_proc=em_filter,
+                                                                 frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
+                                                                 tar_gen=tar_gen, weight_gen=None,
+                                                                 frame_window=param.HyperParameter.channels_in,
+                                                                 pad=None, return_em=False)
+
+        train_ds.sample(True)
+
+    elif param.Simulation.mode == 'samples':
+        train_ds = deepsmlm.neuralfitter.dataset.SMLMLiveSampleDataset(simulator=simulator_train, em_proc=em_filter,
+                                                                       frame_proc=frame_proc,
+                                                                       bg_frame_proc=bg_frame_proc,
+                                                                       tar_gen=tar_gen, weight_gen=None,
+                                                                       frame_window=param.HyperParameter.channels_in,
+                                                                       return_em=False,
+                                                                       ds_len=param.HyperParameter.pseudo_ds_size)
+
+    test_ds = deepsmlm.neuralfitter.dataset.SMLMAPrioriDataset(simulator=simulator_test, em_proc=em_filter,
+                                                               frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
+                                                               tar_gen=tar_gen_test, weight_gen=None,
+                                                               frame_window=param.HyperParameter.channels_in,
+                                                               pad=None, return_em=False)
+
+    test_ds.sample(True)
+
+    """Set up post processor"""
+    if param.PostProcessing is None:
+        post_processor = deepsmlm.neuralfitter.post_processing.NoPostProcessing(xy_unit='px',
+                                                                                px_size=param.Camera.px_size)
+
+    elif param.PostProcessing == 'LookUp':
+        post_processor = deepsmlm.neuralfitter.utils.processing.TransformSequence([
+
+            deepsmlm.neuralfitter.scale_transform.InverseParamListRescale(phot_max=param.Scaling.phot_max,
+                                                                          z_max=param.Scaling.z_max,
+                                                                          bg_max=param.Scaling.bg_max),
+
+            deepsmlm.neuralfitter.post_processing.Offset2Coordinate.parse(param),
+
+            deepsmlm.neuralfitter.post_processing.LookUpPostProcessing(raw_th=param.PostProcessingParam.raw_th,
+                                                                       pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
+                                                                       xy_unit='px',
+                                                                       px_size=param.Camera.px_size)
+        ])
+
+    elif param.PostProcessing == 'Consistency':
+        raise NotImplementedError
+
+    else:
+        raise ValueError
+
+    """Evaluation Specification"""
+    matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
+
+    return train_ds, test_ds, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher
+
+
+def setup_dataloader(param, train_ds, test_ds=None):
+    """
+    Set's up dataloader
+
+    Args:
+        param:
+        train_ds:
+        test_ds:
+
+    Returns:
+
+    """
+    train_dl = torch.utils.data.DataLoader(
+        dataset=train_ds,
+        batch_size=param.HyperParameter.batch_size,
+        drop_last=True,
+        shuffle=True,
+        num_workers=param.Hardware.num_worker_train,
+        pin_memory=True,
+        collate_fn=deepsmlm.neuralfitter.utils.collate.smlm_collate)
+
+    if test_ds is not None:
+
+        test_dl = torch.utils.data.DataLoader(
+            dataset=test_ds,
+            batch_size=param.HyperParameter.batch_size,
+            drop_last=True,
+            shuffle=False,
+            num_workers=param.Hardware.num_worker_train,
+            pin_memory=False,
+            collate_fn=deepsmlm.neuralfitter.utils.collate.smlm_collate)
+    else:
+
+        test_dl = None
+
+    return train_dl, test_dl
 
 
 if __name__ == '__main__':
