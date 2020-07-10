@@ -4,6 +4,7 @@ import resource
 import shutil
 import socket
 from pathlib import Path
+import copy
 
 import click
 import torch
@@ -37,12 +38,9 @@ def setup_random_simulation(param):
     )
 
     """Structure Prior"""
-    prior_struct = deepsmlm.simulation.structure_prior.RandomStructure(
-        xextent=param.Simulation.emitter_extent[0],
-        yextent=param.Simulation.emitter_extent[1],
-        zextent=param.Simulation.emitter_extent[2])
+    prior_struct = deepsmlm.simulation.structure_prior.RandomStructure.parse(param)
 
-    if param.Simulation.mode == 'acquisition':
+    if param.Simulation.mode in ('acquisition', 'apriori'):
         frame_range_train = (0, param.HyperParameter.pseudo_ds_size)
 
     elif param.Simulation.mode == 'samples':
@@ -136,18 +134,28 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     else:
         em_filter = deepsmlm.neuralfitter.em_filter.NoEmitterFilter()
 
+    tar_frame_ix_train = (0, 0)
+    tar_frame_ix_test = (0, param.TestSet.test_size)
+
     tar_gen = deepsmlm.neuralfitter.utils.processing.TransformSequence(
         [
             deepsmlm.neuralfitter.target_generator.ParameterListTarget(n_max=param.HyperParameter.max_number_targets,
                                                                        xextent=param.Simulation.psf_extent[0],
                                                                        yextent=param.Simulation.psf_extent[1],
-                                                                       ix_low=0, ix_high=0,
+                                                                       ix_low=tar_frame_ix_train[0],
+                                                                       ix_high=tar_frame_ix_train[1],
                                                                        squeeze_batch_dim=True),
 
             deepsmlm.neuralfitter.scale_transform.ParameterListRescale(phot_max=param.Scaling.phot_max,
                                                                        z_max=param.Scaling.z_max,
                                                                        bg_max=param.Scaling.bg_max)
         ])
+
+    tar_gen_test = copy.deepcopy(tar_gen)
+    tar_gen_test.com[0].ix_low = tar_frame_ix_test[0]
+    tar_gen_test.com[0].ix_high = tar_frame_ix_test[1]
+    tar_gen_test.com[0].squeeze_batch_dim = False
+    tar_gen_test.com[0].sanity_check()
 
     weight_gen = None
 
@@ -169,11 +177,11 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
                                                                        return_em=False,
                                                                        ds_len=param.HyperParameter.pseudo_ds_size)
 
-    test_ds = deepsmlm.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator_test, em_proc=em_filter,
-                                                            frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
-                                                            tar_gen=tar_gen, weight_gen=weight_gen,
-                                                            frame_window=param.HyperParameter.channels_in,
-                                                            pad=None, return_em=True)
+    test_ds = deepsmlm.neuralfitter.dataset.SMLMAPrioriDataset(simulator=simulator_test, em_proc=em_filter,
+                                                               frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
+                                                               tar_gen=tar_gen_test, weight_gen=weight_gen,
+                                                               frame_window=param.HyperParameter.channels_in,
+                                                               pad=None, return_em=False)
 
     test_ds.sample(True)
 
@@ -306,8 +314,9 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
     os.nice(param.Hardware.unix_niceness)
 
     if param.Hardware.torch_multiprocessing_sharing_strategy is None:
-        rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-        resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+        pass
+        # rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        # resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
     else:
         torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
@@ -354,7 +363,7 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
         """Post-Process and Evaluate"""
         log_train_val_progress.post_process_log_test(loss_cmp=test_out.loss, loss_scalar=val_loss,
                                                      x=test_out.x, y_out=test_out.y_out, y_tar=test_out.y_tar,
-                                                     weight=test_out.weight, em_tar=test_out.em_tar,
+                                                     weight=test_out.weight, em_tar=ds_test.emitter,
                                                      px_border=-0.5, px_size=1.,
                                                      post_processor=post_processor, matcher=matcher, logger=logger,
                                                      step=i)
@@ -367,7 +376,7 @@ def live_engine_setup(cuda_ix, param_file, debug, num_worker_override, no_log, l
         model_ls.save(model, val_loss)
 
         """Draw new samples Samples"""
-        if param.Simulation.mode == 'acquisition':
+        if param.Simulation.mode in 'acquisition':
             ds_train.sample(True)
         elif param.Simulation.mode != 'samples':
             raise ValueError

@@ -1,6 +1,5 @@
 import torch
 from torch._six import int_classes, string_classes, container_abcs
-import warnings
 
 import deepsmlm.generic
 

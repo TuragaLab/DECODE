@@ -269,8 +269,13 @@ class SMLMAPrioriDataset(SMLMLiveDataset):
                          tar_gen=tar_gen, weight_gen=weight_gen, frame_window=frame_window, pad=pad,
                          return_em=return_em)
 
+        self._em_split = None  # emitter splitted in frames
         self._target = None
         self._weight = None
+
+    @property
+    def emitter(self):
+        return self._emitter
 
     def sample(self, verbose: bool = False):
         """
@@ -287,8 +292,9 @@ class SMLMAPrioriDataset(SMLMLiveDataset):
             print(f"Sampled dataset in {time.time() - t0:.2f}s. {len(emitter)} emitters on {frames.size(0)} frames.")
 
         frames, target, weight, tar_emitter = self._process_sample(frames, emitter, bg_frames)
-        self._frames = frames
-        self._emitter = emitter.split_in_frames(0, frames.size(0) - 1)
+        self._frames = frames.cpu()
+        self._emitter = emitter
+        self._em_split = emitter.split_in_frames(0, frames.size(0) - 1)
         self._target, self._weight = target, weight
 
     def __getitem__(self, ix):
@@ -303,8 +309,9 @@ class SMLMAPrioriDataset(SMLMLiveDataset):
         """Pad index, get frames and emitters."""
         ix = self._pad_index(ix)
 
-        return self._return_sample(self._frames[ix], self._target[ix],
-                                   self._weight[ix], self._emitter[ix])
+        return self._return_sample(self._get_frames(self._frames, ix), [tar[ix] for tar in self._target],  # target is tuple
+                                   self._weight[ix] if self._weight is not None else None,
+                                   self._em_split[ix])
 
 
 class SMLMLiveSampleDataset(SMLMDataset):

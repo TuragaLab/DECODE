@@ -6,7 +6,6 @@ from tqdm import tqdm
 from collections import namedtuple
 
 from .utils import log_train_val_progress
-from ..generic import emitter
 from ..evaluation.utils import MetricMeter
 
 
@@ -79,22 +78,17 @@ def test(model, loss, dataloader, epoch, device):
 
     """Testing"""
     with torch.no_grad():
-        for batch_num, (x, y_tar, weight, em_tar) in enumerate(tqdm_enum):
+        for batch_num, (x, y_tar, weight) in enumerate(tqdm_enum):
 
             """Ship the data to the correct device"""
             x, y_tar, weight = ship_device([x, y_tar, weight], device)
 
             """
-            Forward the data. Do not apply non-linearity in p-channel because otherwise we log the
-            wrong values. So forward the data as in training mode, then compute the loss and than
-            apply the non-linearity in the p channel such that the prediction is okay.
+            Forward the data.
             """
-            # y_out = model(x, force_no_p_nl=True)  # otherwise logging is wrong
             y_out = model(x)
 
             loss_val = loss(y_out, y_tar, weight)
-
-            # y_out = model.apply_detection_nonlin(y_out)
 
             t_batch = time.time() - t0
 
@@ -104,19 +98,13 @@ def test(model, loss, dataloader, epoch, device):
             loss_cmp_ep.append(loss_val.detach().cpu())
             x_ep.append(x.cpu())
             y_out_ep.append(y_out.detach().cpu())
-            # because the training samples are all on frame 0
-            em_tar_ep.append(emitter.EmitterSet.cat(em_tar, step_frame_ix=1))
 
     """Epoch-Wise Merging"""
     loss_cmp_ep = torch.cat(loss_cmp_ep, 0)
     x_ep = torch.cat(x_ep, 0)
     y_out_ep = torch.cat(y_out_ep, 0)
-    em_tar_ep = emitter.EmitterSet.cat(em_tar_ep, step_frame_ix=dataloader.batch_size)
-    y_tar_ep = None  # torch.cat(y_tar_ep, 0)
-    weight_ep = None  # torch.cat(weight_ep, 0)
 
-    return loss_cmp_ep.mean(), _val_return(loss=loss_cmp_ep,
-                                           x=x_ep, y_out=y_out_ep, y_tar=y_tar_ep, weight=weight_ep, em_tar=em_tar_ep)
+    return loss_cmp_ep.mean(), _val_return(loss=loss_cmp_ep, x=x_ep, y_out=y_out_ep, y_tar=None, weight=None, em_tar=None)
 
 
 def ship_device(x, device: Union[str, torch.device]):
