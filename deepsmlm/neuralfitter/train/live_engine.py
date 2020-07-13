@@ -149,7 +149,7 @@ def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, 
         else:
             lr_scheduler.step()
 
-        model_ls.save(model, val_loss)
+        model_ls.save(model, None)
 
         """Draw new samples Samples"""
         if param.Simulation.mode in 'acquisition':
