@@ -126,7 +126,35 @@ class TestLookUpPostProcessing(TestPostProcessingAbstract):
                                      torch.tensor([[20., 30., 40.], [2 / 0.6, 3 / 0.6, 4 / 0.6]]))
 
         assert test_utils.tens_almeq(emitter_out.phot_sig, torch.tensor([10., 1/0.6]))
-        
+
+
+class TestNMSPostProcessing(TestLookUpPostProcessing):
+
+    @pytest.fixture()
+    def post(self):
+        return post_processing.NMSPostProcessing(raw_th=0.1, xy_unit='px')
+
+    @pytest.mark.parametrize("aggr,expct", [('sum', ([0., 1.000001], [0., 0.501])),
+                                            ('norm_sum', ([0., 1.], [0., 0.501]))
+                             ])
+    def test_nms(self, post, aggr, expct):
+
+        """Setup, Run, Assert"""
+        post.p_aggregation = post.set_p_aggregation(aggr)
+
+        p = torch.zeros((2, 32, 32))
+        p[0, 4:6, 4] = 0.5
+        p[0, 4, 4] = 0.5
+        p[0, 5, 4] = 0.500001
+        p[1, 6, 4] = 0.25
+        p[1, 7, 4] = 0.251
+
+        p_out = post._nms(p, post.p_aggregation, 0.2, 0.6)
+
+        """Assertions"""
+        assert test_utils.tens_almeq(p_out[0, 4:6, 4], torch.tensor(expct[0]))
+        assert test_utils.tens_almeq(p_out[1, 6:8, 4], torch.tensor(expct[1]))
+
 
 class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
