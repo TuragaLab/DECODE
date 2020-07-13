@@ -1,6 +1,7 @@
 import math
 import warnings
 from abc import ABC, abstractmethod
+from typing import Tuple, Union
 
 import numpy as np
 import spline  # cubic spline implementation
@@ -206,13 +207,13 @@ class DeltaPSF(PSF):
         return frames
 
 
-class GaussianExpect(PSF):
+class GaussianPSF(PSF):
     """
-    A gaussian PSF which models the by using the function values of the probability distribution.
-    You must not use this function without shotnoise for simulation.
+    A gaussian PSF model.
+
     """
 
-    def __init__(self, xextent, yextent, zextent, img_shape, sigma_0, peak_weight=False):
+    def __init__(self, xextent: Tuple[float, float], yextent, zextent, img_shape, sigma_0, peak_weight=False):
         """
         Init of Gaussian Expect. If no z extent is provided we assume 2D PSF.
 
@@ -221,7 +222,7 @@ class GaussianExpect(PSF):
             yextent: (tuple of float) extent of psf in y
             zextent: (tuple of float or None, optional) extent of psf in z
             img_shape: (tuple) img shape
-            sigma_0: sigma in focus
+            sigma_0: sigma in focus in px
             peak_weight: (bool) if true: use peak intensity instead of integral under the curve
         """
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)

@@ -171,12 +171,12 @@ class _OutOfFocusEmitters(Background):
         self.yextent = yextent
         self.num_oof_rg = num_oof_rg
 
-        self.gauss_psf = psf_kernel.GaussianExpect(xextent,
-                                                   yextent,
-                                                   (-5000., 5000.),
-                                                   img_shape=img_shape,
-                                                   sigma_0=2.5,
-                                                   peak_weight=True)
+        self.gauss_psf = psf_kernel.GaussianPSF(xextent,
+                                                yextent,
+                                                (-5000., 5000.),
+                                                img_shape=img_shape,
+                                                sigma_0=2.5,
+                                                peak_weight=True)
         self.level_dist = torch.distributions.uniform.Uniform(low=ampl[0], high=ampl[1])
         self.num_emitter_dist = partial(torch.randint, low=self.num_oof_rg[0], high=self.num_oof_rg[1] + 1, size=(1,))
 

@@ -205,7 +205,7 @@ class TestGaussianExpect(TestSingleFrameImplementedPSF):
 
     @pytest.fixture(scope='class', params=[None, (-5000., 5000.)])
     def psf(self, request):
-        return psf_kernel.GaussianExpect((-0.5, 63.5), (-0.5, 63.5), request.param, img_shape=(64, 64), sigma_0=1.5)
+        return psf_kernel.GaussianPSF((-0.5, 63.5), (-0.5, 63.5), request.param, img_shape=(64, 64), sigma_0=1.5)
 
     def test_norm(self, psf):
         xyz = torch.tensor([[32., 32., 0.]])

@@ -11,8 +11,8 @@ class TestSimulator:
 
     @pytest.fixture(scope='class', params=[32, 64])
     def sim(self, request):
-        psf = psf_kernel.GaussianExpect((-0.5, 31.5), (-0.5, 31.5), (-750., 750.), (request.param, request.param),
-                                        sigma_0=1.0)
+        psf = psf_kernel.GaussianPSF((-0.5, 31.5), (-0.5, 31.5), (-750., 750.), (request.param, request.param),
+                                     sigma_0=1.0)
         bg = background.UniformBackground(10.)
         sim = can.Simulation(psf=psf, background=bg, noise=None, frame_range=(-1, 1))
 

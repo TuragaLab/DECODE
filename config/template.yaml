@@ -21,7 +21,7 @@ Hardware:
   num_worker_train: 8
   torch_threads: 8
   unix_niceness: 0
-  torch_multiprocessing_sharing_strategy: file_system # if you get multiprocessing errors, increase ulimit or set to 'file_system'
+  torch_multiprocessing_sharing_strategy:  # if you get multiprocessing errors, increase ulimit or set to 'file_system'
 HyperParameter:
   arch_param:
     activation: ReLU
