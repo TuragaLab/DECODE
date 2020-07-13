@@ -274,7 +274,7 @@ class NMSPostProcessing(LookUpPostProcessing):
 
             """Add probability values from the 4 adjacent pixels"""
             diag = 0.  # 1/np.sqrt(2)
-            filt = torch.tensor([[diag, 1., diag], [1, 1, 1], [diag, 1, diag]]).unsqueeze(0).unsqueeze(0)
+            filt = torch.tensor([[diag, 1., diag], [1, 1, 1], [diag, 1, diag]]).unsqueeze(0).unsqueeze(0).to(p.device)
             conv = torch.nn.functional.conv2d(p[:, None], filt, padding=1)
             p_ps1 = max_mask1 * conv
 
