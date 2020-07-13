@@ -80,11 +80,11 @@ PostProcessing: LookUp  # (blank) for no post-processing or LookUp, Consistency
 PostProcessingParam:
   raw_th: 0.5
 Scaling:
-  input_scale: 200  # formerly in_count_max
-  input_offset: 125.0
-  bg_max: 100.0
-  phot_max: 20000.0
-  z_max: 800.0
+  input_scale: 200  # ~ intensity_mu / 50
+  input_offset: 125.0  # ~ bg_uniform (mean)
+  bg_max: 100.0  # ~ upper limit of bg val
+  phot_max: 20000.0  # ~ intensity_mu + 8 * sigma
+  z_max: 800.0  # ~ upper simulation extent
 Simulation:
   bg_uniform: 90.0
   density:
