@@ -1,15 +1,16 @@
+import copy
 import datetime
 import os
 import shutil
 import socket
 from pathlib import Path
-import copy
 
 import click
 import torch
 
 import deepsmlm.evaluation
 import deepsmlm.neuralfitter
+import deepsmlm.neuralfitter.coord_transform
 import deepsmlm.neuralfitter.utils
 import deepsmlm.simulation
 import deepsmlm.utils
@@ -296,7 +297,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
                                                                           z_max=param.Scaling.z_max,
                                                                           bg_max=param.Scaling.bg_max),
 
-            deepsmlm.neuralfitter.post_processing.Offset2Coordinate.parse(param),
+            deepsmlm.neuralfitter.coord_transform.Offset2Coordinate.parse(param),
 
             deepsmlm.neuralfitter.post_processing.LookUpPostProcessing(raw_th=param.PostProcessingParam.raw_th,
                                                                        pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
@@ -304,11 +305,22 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
                                                                        px_size=param.Camera.px_size)
         ])
 
-    elif param.PostProcessing == 'Consistency':
-        raise NotImplementedError
+    elif param.PostProcessing == 'NMS':
+        post_processor = deepsmlm.neuralfitter.utils.processing.TransformSequence([
+
+            deepsmlm.neuralfitter.scale_transform.InverseParamListRescale(phot_max=param.Scaling.phot_max,
+                                                                          z_max=param.Scaling.z_max,
+                                                                          bg_max=param.Scaling.bg_max),
+
+            deepsmlm.neuralfitter.coord_transform.Offset2Coordinate.parse(param),
+
+            deepsmlm.neuralfitter.post_processing.NMSPostProcessing(raw_th=param.PostProcessingParam.raw_th,
+                                                                    xy_unit='px',
+                                                                    px_size=param.Camera.px_size)
+        ])
 
     else:
-        raise ValueError
+        raise NotImplementedError
 
     """Evaluation Specification"""
     matcher = deepsmlm.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
