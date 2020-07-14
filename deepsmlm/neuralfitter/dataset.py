@@ -3,6 +3,8 @@ import time
 import torch
 from torch.utils.data import Dataset
 
+from deepsmlm.generic import emitter
+
 
 class SMLMDataset(Dataset):
     """
@@ -274,8 +276,25 @@ class SMLMAPrioriDataset(SMLMLiveDataset):
         self._weight = None
 
     @property
-    def emitter(self):
-        return self._emitter
+    def emitter(self) -> emitter.EmitterSet:
+        """
+        Return emitter with same indexing frames are returned; i.e. when pad same is used, the emitters frame index
+        is not changed. When pad is None, the respective frame index is corrected for the frame window.
+
+        """
+        if self.pad == 'same':
+            return self._emitter
+
+        elif self.pad is None:
+            hw = (self.frame_window - 1) // 2  # half window without centre
+
+            # ToDo: Change here when pythonize emitter / frame indexing
+            em = self._emitter.get_subset_frame(hw, len(self))
+            em.frame_ix -= hw
+
+            return em
+        else:
+            raise ValueError
 
     def sample(self, verbose: bool = False):
         """
