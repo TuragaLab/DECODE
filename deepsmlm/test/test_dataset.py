@@ -212,8 +212,8 @@ class TestSMLMAPrioriDataset:
         ds.sample()
 
         """Assertions"""
-        assert isinstance(ds._emitter, list)
-        assert isinstance(ds._emitter[0], deepsmlm.generic.emitter.EmitterSet)
+        assert isinstance(ds._emitter, deepsmlm.generic.emitter.EmitterSet)
+        assert isinstance(ds._em_split, list)
 
     def test_len(self, ds):
 
