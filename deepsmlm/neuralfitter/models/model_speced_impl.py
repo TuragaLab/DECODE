@@ -17,7 +17,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
     pxyz_mu_ch_ix = slice(1, 5)
     pxyz_sig_ch_ix = slice(5, 9)
     bg_ch_ix = [10]
-    sigma_eps = 0.01
+    sigma_eps = 0.001
 
     def __init__(self, ch_in: int, *, depth_shared: int, depth_union: int, initial_features: int, inter_features: int,
                  norm=None, norm_groups=None, norm_head=None, norm_head_groups=None, pool_mode='StrideConv',
