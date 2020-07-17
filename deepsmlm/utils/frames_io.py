@@ -3,6 +3,7 @@ import warnings
 import torch
 import pathlib
 import tifffile
+from typing import Union, Tuple
 
 from tqdm import tqdm
 
@@ -46,3 +47,53 @@ def load_tif(file: (str, pathlib.Path)) -> torch.Tensor:
                       f"or could only find a single frame.", ValueError)
 
     return frames
+
+
+class BatchTiffLoader:
+
+    def __init__(self, par_folder: Union[str, pathlib.Path], file_suffix: str = 'tiff'):
+        """
+        Iterates through parent folder and returns the loaded frames as well as the filename in their iterator
+
+        Example:
+            >>> batch_loader = BatchTiffLoader('dummy_folder')
+            >>> for frame, file in batch_loader:
+            >>>     out = model.forward(frame)
+
+        Args:
+            par_folder:
+            file_suffix:
+
+        """
+
+        self.par_folder = par_folder if isinstance(par_folder, pathlib.Path) else pathlib.Path(par_folder)
+        self.file_suffix = file_suffix
+        self.tiffs = self.get_all_files_rec(self.par_folder, self.file_suffix)
+
+        self._n = -1
+
+    @staticmethod
+    def get_all_files_rec(par_folder: pathlib.Path, suffix):
+
+        assert par_folder.is_dir()
+        return list(par_folder.rglob('*.' + suffix))
+
+    def __len__(self):
+        return len(self.tiffs)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> Tuple[torch.Tensor, pathlib.Path]:
+        """
+
+        Returns:
+            torch.Tensor: frames
+            Path: path to file
+
+        """
+        if self._n >= len(self) - 1:
+            raise StopIteration
+
+        self._n += 1
+        return load_tif(self.tiffs[self._n]), self.tiffs[self._n]
