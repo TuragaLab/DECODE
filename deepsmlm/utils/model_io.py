@@ -24,16 +24,7 @@ def hash_model(modelfile):
 
 class LoadSaveModel:
     def __init__(self, model_instance, output_file: (str, pathlib.Path), input_file=None, name_time_interval=(60 * 60),
-                 better_th=1e-6,
-                 max_files=3):
-        """
-
-        :param model_instance:
-        :param output_file:
-        :param input_file:
-        :param name_time_interval:
-        :param better_th: relative threshold on a metric to determine whether a model is better or not.
-        """
+                 better_th=1e-6, max_files=3, state_dict_update=None):
 
         self.warmstart_file = pathlib.Path(input_file) if input_file is not None else None
         self.output_file = pathlib.Path(output_file) if output_file is not None else None
@@ -46,11 +37,12 @@ class LoadSaveModel:
         self._best_metric_val = math.inf
         self.better_th = better_th
         self.max_files = max_files if ((max_files is not None) or (max_files != -1)) else float('inf')
+        self.state_dict_update = state_dict_update
 
     def _create_target_folder(self):
         """
         Creates the target folder for the network output .pt file, if it does not exists already
-        :return:
+
         """
         p = pathlib.Path(self.output_file)
         try:
@@ -82,7 +74,11 @@ class LoadSaveModel:
             print(f'Model SHA-1 hash: {hashv}')
             model.hash = hashv
 
-            model.load_state_dict(torch.load(self.warmstart_file, map_location=device))
+            state_dict = torch.load(self.warmstart_file, map_location=device)
+            if self.state_dict_update is not None:
+                state_dict.update(self.state_dict_update)
+
+            model.load_state_dict(state_dict)
 
             print('Loaded pretrained model: {}'.format(self.warmstart_file))
 
@@ -91,10 +87,12 @@ class LoadSaveModel:
 
     def save(self, model, metric_val=None):
         """
-        Saves the model if it is better than before
-        :param model:
-        :param metric_val:
-        :return:
+        Save model (conditioned on a better metric if one is provided)
+
+        Args:
+            model:
+            metric_val:
+
         """
         # create folder if does not exists
         self._create_target_folder()
