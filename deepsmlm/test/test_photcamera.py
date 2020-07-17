@@ -2,6 +2,7 @@ import pytest
 import torch
 
 import deepsmlm.simulation.camera as camera
+from deepsmlm.generic import test_utils
 
 
 class TestPhotons2Camera:
@@ -40,6 +41,21 @@ class TestPhotons2Camera:
 
         assert cam_fix.backward(torch.rand((1, 32, 32)).to(input_device), forward_device).device \
                == exp_device
+
+
+class TestPerfectCamera(TestPhotons2Camera):
+
+    @pytest.fixture()
+    def cam_fix(self):
+        return camera.PerfectCamera()
+
+    def test_forward_backward_equal(self, cam_fix):
+        x = torch.rand((32, 3, 64, 64)) * 10000
+
+        x_out_cnt = cam_fix.forward(x.clone())
+        x_out_phot = cam_fix.backward(x_out_cnt.clone())
+
+        assert test_utils.tens_almeq(x_out_phot, x_out_cnt)
 
 
 @pytest.mark.skip(reason="Implementation not ready.")

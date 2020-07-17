@@ -56,13 +56,13 @@ class Photon2Camera(Camera):
         self.photon_units = photon_units
 
     @classmethod
-    def parse(cls, param, **kwargs):
+    def parse(cls, param):
 
         return cls(qe=param.Camera.qe, spur_noise=param.Camera.spur_noise,
                    em_gain=param.Camera.em_gain, e_per_adu=param.Camera.e_per_adu,
                    baseline=param.Camera.baseline, read_sigma=param.Camera.read_sigma,
                    photon_units=param.Camera.convert2photons,
-                   **kwargs)
+                   device=param.Hardware.device_simulation)
 
     def __str__(self):
         return f"Photon to Camera Converter.\n" + \
@@ -136,6 +136,23 @@ class Photon2Camera(Camera):
         out /= self.qe
 
         return out
+
+
+class PerfectCamera(Photon2Camera):
+    def __init__(self, device: Union[str, torch.device] = None):
+        """
+        Convenience wrapper for perfect camera, i.e. only shot noise. By design in 'photon units'.
+
+        Args:
+            device: device for simulation
+
+        """
+        super().__init__(qe=1.0, spur_noise=0., em_gain=None, e_per_adu=1., baseline=0., read_sigma=0.,
+                         photon_units=False, device=device)
+
+    @classmethod
+    def parse(cls, param):
+        cls(device=param.Hardware.device_simulation)
 
 
 @deprecated(reason="Not yet ready implementation. Needs thorough testing and validation.")
