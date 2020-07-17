@@ -17,9 +17,9 @@ Evaluation:
 Hardware:
   device: cuda
   device_ix: 0
-  device_simulation: cpu
-  num_worker_train: 8
-  torch_threads: 8
+  device_simulation: cuda
+  num_worker_train: 4
+  torch_threads: 4
   unix_niceness: 0
   torch_multiprocessing_sharing_strategy:  # if you get multiprocessing errors, increase ulimit or set to 'file_system'
 HyperParameter:
@@ -79,12 +79,12 @@ InOut:
 PostProcessing: LookUp  # (blank) for no post-processing or LookUp, Consistency
 PostProcessingParam:
   raw_th: 0.5
-Scaling:
-  input_scale: 200  # ~ intensity_mu / 50
-  input_offset: 125.0  # ~ bg_uniform (mean)
-  bg_max: 100.0  # ~ upper limit of bg val
-  phot_max: 20000.0  # ~ intensity_mu + 8 * sigma
-  z_max: 800.0  # ~ upper simulation extent
+Scaling:  # if some values are missing they will be auto-set as described in the comment
+  input_scale:  # intensity_mu / 50
+  input_offset:  # bg_uniform (mean)
+  bg_max:  # 1.2 * upper limit of bg val
+  phot_max:  # intensity_mu + 8 * sigma
+  z_max:  # 1.2 * upper simulation extent
 Simulation:
   bg_uniform: 90.0
   density:
@@ -104,7 +104,7 @@ Simulation:
   - 3000.0
   intensity_th:
   lifetime_avg: 2.0
-  mode: samples
+  mode: acquisition  # acquisition / samples
   photon_range:
   psf_extent:
   - - -0.5
@@ -112,7 +112,7 @@ Simulation:
   - - -0.5
     - 39.5
   -
-  roi_size:
+  roi_size:  # if none, take the whole range of calibration
   roi_auto_center: false
   xy_unit: px
 TestSet:
