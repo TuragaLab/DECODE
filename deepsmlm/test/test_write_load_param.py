@@ -1,5 +1,7 @@
 import pytest
 import dotmap
+from collections import namedtuple
+from deepsmlm.utils import dotmap
 
 from pathlib import Path
 
@@ -32,3 +34,24 @@ def test_write_param():
     with asset_handler.RMAfterTest(filename):
         wlp.ParamHandling().write_params(filename_out, param)
         assert isinstance(param, dotmap.DotMap)
+
+
+def test_set_autoscale_param():
+
+    param = dotmap.DotMap({'ScalingMode': 'auto'})
+    param.Simulation.intensity_mu_sig = (100., 1.)
+    param.Simulation.bg_uniform = 10.
+    param.Simulation.emitter_extent = (None, None, (-800., 800.))
+    param.Scaling.input_scale = None
+    param.Scaling.input_offset = None
+    param.Scaling.phot_max = None
+    param.Scaling.bg_max = None
+    param.Scaling.z_max = None
+
+    param = wlp.autoset_scaling(param)
+
+    assert param.Scaling.input_scale == 2.
+    assert param.Scaling.input_offset == 10.
+    assert param.Scaling.bg_max == 12.
+    assert param.Scaling.phot_max == 108.
+    assert param.Scaling.z_max == 960.

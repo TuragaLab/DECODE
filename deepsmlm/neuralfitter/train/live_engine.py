@@ -52,6 +52,9 @@ def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, 
     """Load Parameters and back them up to the network output directory"""
     param_file = Path(param_file)
     param = deepsmlm.utils.param_io.ParamHandling().load_params(param_file)
+    
+    # auto-set some parameters (will be stored in the backup copy)
+    param = deepsmlm.utils.param_io.autoset_scaling(param)
 
     """Experiment ID"""
     if not debug:
