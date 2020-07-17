@@ -40,7 +40,12 @@ def setup_random_simulation(param):
     """Define our background and noise model."""
     bg = deepsmlm.simulation.background.UniformBackground.parse(param)
 
-    noise = deepsmlm.simulation.camera.Photon2Camera.parse(param)
+    if param.CameraPreset == 'Perfect':
+        noise = deepsmlm.simulation.camera.PerfectCamera.parse(param)
+    elif param.CameraPreset is not None:
+        raise NotImplementedError
+    else:
+        noise = deepsmlm.simulation.camera.Photon2Camera.parse(param)
 
     simulation_train = deepsmlm.simulation.simulator.Simulation(
         psf=psf, em_sampler=prior_train, background=bg, noise=noise, frame_range=frame_range_train)

@@ -152,7 +152,7 @@ class PerfectCamera(Photon2Camera):
 
     @classmethod
     def parse(cls, param):
-        cls(device=param.Hardware.device_simulation)
+        return cls(device=param.Hardware.device_simulation)
 
 
 @deprecated(reason="Not yet ready implementation. Needs thorough testing and validation.")
