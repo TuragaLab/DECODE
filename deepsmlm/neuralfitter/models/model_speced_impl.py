@@ -17,7 +17,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
     pxyz_mu_ch_ix = slice(1, 5)
     pxyz_sig_ch_ix = slice(5, 9)
     bg_ch_ix = [10]
-    sigma_eps = 0.001
+    sigma_eps_default = 0.001
 
     def __init__(self, ch_in: int, *, depth_shared: int, depth_union: int, initial_features: int, inter_features: int,
                  norm=None, norm_groups=None, norm_head=None, norm_head_groups=None, pool_mode='StrideConv',
@@ -38,6 +38,10 @@ class SigmaMUNet(model_param.DoubleMUnet):
                                   norm=norm_head, norm_groups=norm_head_groups)
              for ch_out in self.out_channels_heads]
         )
+
+        """Register sigma as parameter such that it is stored in the models state dict and loaded correctly."""
+        self.register_parameter('sigma_eps', torch.nn.Parameter(torch.tensor([self.sigma_eps_default]),
+                                                                requires_grad=False))
 
         if kaiming_normal:
             self.apply(self.weight_init)
