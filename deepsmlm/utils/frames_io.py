@@ -66,19 +66,15 @@ class BatchTiffLoader:
 
         """
 
-        self.par_folder = par_folder if isinstance(par_folder, pathlib.Path) else pathlib.Path(par_folder)
-        self.file_suffix = file_suffix
-        self.tiffs = self.get_all_files_rec(self.par_folder, self.file_suffix)
+        par_folder = par_folder if isinstance(par_folder, pathlib.Path) else pathlib.Path(par_folder)
+        if not par_folder.is_dir():
+            raise FileExistsError(f"Path {str(par_folder)} is either not a directory or does not exist.")
+
+        self.tiffs = list(par_folder.rglob('*.' + file_suffix))
 
         self._n = -1
 
-    @staticmethod
-    def get_all_files_rec(par_folder: pathlib.Path, suffix):
-
-        assert par_folder.is_dir()
-        return list(par_folder.rglob('*.' + suffix))
-
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.tiffs)
 
     def __iter__(self):
