@@ -1,3 +1,4 @@
+CameraPreset:
 Camera:
   baseline: 100.0
   convert2photons: true

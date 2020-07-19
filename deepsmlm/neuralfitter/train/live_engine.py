@@ -79,8 +79,11 @@ def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, 
     model_out = experiment_path / Path('model.pt')
 
     # Backup the parameter file under the network output path with the experiments ID
+    param_backup_in = experiment_path / Path('param_run_in').with_suffix(param_file.suffix)
+    shutil.copy(param_file, param_backup_in)
+
     param_backup = experiment_path / Path('param_run').with_suffix(param_file.suffix)
-    shutil.copy(param_file, param_backup)
+    deepsmlm.utils.param_io.ParamHandling().write_params(param_backup, param)
 
     if debug:
         deepsmlm.utils.param_io.ParamHandling.convert_param_debug(param)
