@@ -49,33 +49,39 @@ def load_tif(file: (str, pathlib.Path)) -> torch.Tensor:
     return frames
 
 
-class BatchTiffLoader:
+class BatchFileLoader:
 
-    def __init__(self, par_folder: Union[str, pathlib.Path], file_suffix: str = 'tiff'):
+    def __init__(self, par_folder: Union[str, pathlib.Path], file_suffix: str = '.tif',
+                 exclude_pattern: Union[None, str] = None):
         """
         Iterates through parent folder and returns the loaded frames as well as the filename in their iterator
 
         Example:
-            >>> batch_loader = BatchTiffLoader('dummy_folder')
+            >>> batch_loader = BatchFileLoader('dummy_folder')
             >>> for frame, file in batch_loader:
             >>>     out = model.forward(frame)
 
         Args:
-            par_folder:
-            file_suffix:
+            par_folder: parent folder in which the files are
+            file_suffix: suffix to search for
+            exclude_pattern: specifies excluded patterns via regex string. If that pattern is found anywhere (!) in the
+            files path, the file will be ingored.
 
         """
 
-        par_folder = par_folder if isinstance(par_folder, pathlib.Path) else pathlib.Path(par_folder)
-        if not par_folder.is_dir():
-            raise FileExistsError(f"Path {str(par_folder)} is either not a directory or does not exist.")
+        self.par_folder = par_folder if isinstance(par_folder, pathlib.Path) else pathlib.Path(par_folder)
+        if not self.par_folder.is_dir():
+            raise FileExistsError(f"Path {str(self.par_folder)} is either not a directory or does not exist.")
 
-        self.tiffs = list(par_folder.rglob('*.' + file_suffix))
+        self.files = list(self.par_folder.rglob('*' + file_suffix))
+        self._exclude_pattern = exclude_pattern if isinstance(exclude_pattern, (list, tuple)) else [exclude_pattern]
+
+        self.remove_by_exclude()
 
         self._n = -1
 
     def __len__(self) -> int:
-        return len(self.tiffs)
+        return len(self.files)
 
     def __iter__(self):
         return self
@@ -92,4 +98,19 @@ class BatchTiffLoader:
             raise StopIteration
 
         self._n += 1
-        return load_tif(self.tiffs[self._n]), self.tiffs[self._n]
+        return load_tif(self.files[self._n]), self.files[self._n]
+
+    def remove_by_exclude(self):
+        """
+        Removes the the files that match the exclude pattern
+
+        """
+
+        if self._exclude_pattern is None:
+            return
+
+        assert isinstance(self._exclude_pattern, (list, tuple))
+
+        for e in self._exclude_pattern:
+            excludes = set(self.par_folder.rglob(e))
+            self.files = list(set(self.files) - excludes)
