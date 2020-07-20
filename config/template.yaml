@@ -54,6 +54,7 @@ HyperParameter:
   chweight_stat:
     - 1.0
     - 0.0
+  disabled_attributes:
   ds_lifetime:
   epoch_0:
   epochs: 10000

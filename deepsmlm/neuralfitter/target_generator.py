@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Union
 
 import torch
 
@@ -244,6 +245,19 @@ class UnifiedEmbeddingTarget(TargetGenerator):
 class ParameterListTarget(TargetGenerator):
     def __init__(self, n_max: int, xextent: tuple, yextent: tuple, ix_low=None, ix_high=None, xy_unit: str = 'px',
                  squeeze_batch_dim: bool = False):
+        """
+        Target corresponding to the Gausian-Mixture Model Loss. Simply cat all emitter's attributes up to a
+         maximum number of emitters as a list.
+
+        Args:
+            n_max:
+            xextent:
+            yextent:
+            ix_low:
+            ix_high:
+            xy_unit:
+            squeeze_batch_dim:
+        """
 
         super().__init__(xy_unit=xy_unit, ix_low=ix_low, ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
         self.n_max = n_max
@@ -288,6 +302,30 @@ class ParameterListTarget(TargetGenerator):
             param_tar[i, :n_emitter, 1:] = xyz[ix]
 
         return self._postprocess_output(param_tar), self._postprocess_output(mask_tar), bg
+
+
+class DisableAttributes:
+
+    def __init__(self, attr_ix: Union[None, int, tuple, list]):
+        """
+        Allows to disable attribute prediction of parameter list target; e.g. when you don't want to predict z.
+
+        Args:
+            attr_ix: index of the attribute you want to disable (phot, x, y, z).
+
+        """
+        self.attr_ix = attr_ix if isinstance(attr_ix, (tuple, list)) else [attr_ix]
+
+    def forward(self, param_tar, mask_tar, bg):
+        if self.attr_ix is None:
+            return param_tar, mask_tar, bg
+
+        param_tar[..., self.attr_ix] = 0.
+        return param_tar, mask_tar, bg
+
+    @classmethod
+    def parse(cls, param):
+        return cls(attr_ix=param.HyperParameter.disabled_attributes)
 
 
 class OverlappingDetectionTarget(UnifiedEmbeddingTarget):

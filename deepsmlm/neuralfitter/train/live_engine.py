@@ -247,6 +247,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
                                                                        ix_high=tar_frame_ix_train[1],
                                                                        squeeze_batch_dim=True),
 
+            deepsmlm.neuralfitter.target_generator.DisableAttributes.parse(param),
+
             deepsmlm.neuralfitter.scale_transform.ParameterListRescale(phot_max=param.Scaling.phot_max,
                                                                        z_max=param.Scaling.z_max,
                                                                        bg_max=param.Scaling.bg_max)
