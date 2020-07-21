@@ -14,6 +14,9 @@ challenge_mapping = {'x': 'xnano',
                      'phot': 'intensity ',  # this is really odd, there is a space after intensity
                      'id': 'Ground-truth'}
 
+deepstorm3d_mapping = copy.deepcopy(challenge_mapping)
+deepstorm3d_mapping['phot'] = 'intensity'
+
 
 def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_args) -> dict:
     """

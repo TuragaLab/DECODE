@@ -7,7 +7,7 @@ Factors and shifts are with respect to (possibly) changed axis, i.e. in the new 
 """
 
 challenge_import = {
-    'desc': 'Challenge data transformation to match this framework.',
+    'desc': 'Challenge data transformation to match DeepSMLM (this framework) format.',
     'xy_unit': 'nm',
     'px_size': (100., 100.),
     'xyz_axis': (1, 0, 2),
@@ -19,7 +19,7 @@ challenge_import = {
 }
 
 challenge_export = {
-    'desc': 'Framework data transformation to match the challenge.',
+    'desc': 'DeepSMLM (this framework) data transformation to match the challenge format.',
     'xy_unit': 'nm',
     'px_size': (100., 100.),
     'xyz_axis': (1, 0, 2),
@@ -28,6 +28,18 @@ challenge_export = {
     'xyz_px_factor': None,
     'xyz_px_shift': None,
     'frame_ix_shift': +1
+}
+
+deepstorm3d_import = {
+    'desc': 'Transformation of DeepStorm output files to be compatible to DeepSMLM.',
+    'xy_unit': 'px',
+    'px_size': None,
+    'xyz_axis': (1, 0, 2),
+    'xyz_nm_factor': None,
+    'xyz_nm_shift': None,
+    'xyz_px_factor': None,
+    'xyz_px_shift': None,
+    'frame_ix_shift': -1
 }
 
 

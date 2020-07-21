@@ -3,7 +3,7 @@ import warnings
 import torch
 import pathlib
 import tifffile
-from typing import Union, Tuple
+from typing import Union, Tuple, Callable
 
 from tqdm import tqdm
 
@@ -51,7 +51,9 @@ def load_tif(file: (str, pathlib.Path)) -> torch.Tensor:
 
 class BatchFileLoader:
 
-    def __init__(self, par_folder: Union[str, pathlib.Path], file_suffix: str = '.tif',
+    def __init__(self, par_folder: Union[str, pathlib.Path],
+                 file_suffix: str = '.tif',
+                 file_loader: Union[None, Callable] = None,
                  exclude_pattern: Union[None, str] = None):
         """
         Iterates through parent folder and returns the loaded frames as well as the filename in their iterator
@@ -74,6 +76,7 @@ class BatchFileLoader:
             raise FileExistsError(f"Path {str(self.par_folder)} is either not a directory or does not exist.")
 
         self.files = list(self.par_folder.rglob('*' + file_suffix))
+        self.file_loader = file_loader if file_loader is not None else load_tif
         self._exclude_pattern = exclude_pattern if isinstance(exclude_pattern, (list, tuple)) else [exclude_pattern]
 
         self.remove_by_exclude()
@@ -98,7 +101,7 @@ class BatchFileLoader:
             raise StopIteration
 
         self._n += 1
-        return load_tif(self.files[self._n]), self.files[self._n]
+        return self.file_loader(self.files[self._n]), self.files[self._n]
 
     def remove_by_exclude(self):
         """
