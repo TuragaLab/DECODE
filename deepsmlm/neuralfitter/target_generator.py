@@ -314,7 +314,13 @@ class DisableAttributes:
             attr_ix: index of the attribute you want to disable (phot, x, y, z).
 
         """
-        self.attr_ix = attr_ix if isinstance(attr_ix, (tuple, list)) else [attr_ix]
+        self.attr_ix = None
+
+        # convert to list
+        if attr_ix is None or isinstance(attr_ix, (tuple, list)):
+            self.attr_ix = attr_ix
+        else:
+            self.attr_ix = [attr_ix]
 
     def forward(self, param_tar, mask_tar, bg):
         if self.attr_ix is None:
