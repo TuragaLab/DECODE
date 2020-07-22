@@ -61,6 +61,8 @@ def transform_emitter(em: emitter.EmitterSet, trafo: dict) -> emitter.EmitterSet
     """Modify proper attributes"""
     if trafo['xyz_axis'] is not None:
         mod_em.xyz = mod_em.xyz[:, trafo['xyz_axis']]
+        mod_em.xyz_cr = mod_em.xyz_cr[:, trafo['xyz_axis']]
+        mod_em.xyz_sig = mod_em.xyz_sig[:, trafo['xyz_axis']]
 
     if trafo['xyz_nm_factor'] is not None:
         mod_em.xyz_nm *= torch.tensor(trafo['xyz_nm_factor'])
