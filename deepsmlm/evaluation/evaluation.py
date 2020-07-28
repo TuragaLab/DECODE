@@ -271,7 +271,7 @@ class WeightedErrors:
                             dxyz_w=dxyz_w, dphot_w=dphot_w, dbg_w=dbg_w)
 
 
-class EvalSet:
+class SMLMEvaluation:
     """
     Just a wrapper class to combine things into one.
     """
@@ -286,7 +286,6 @@ class EvalSet:
     def __init__(self, seg_eval=SegmentationEvaluation(),
                  dist_eval=DistanceEvaluation(),
                  weighted_eval=WeightedErrors(mode='crlb', reduction='gaussian')):
-
         self.seg_eval = seg_eval
         self.dist_eval = dist_eval
         self.weighted_eval = weighted_eval
