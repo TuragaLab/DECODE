@@ -128,6 +128,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
                          density=density,
                          em_avg=em_avg)
 
+        self.n_sampler = np.random.poisson
         self.frame_range = frame_range
         self.intensity_mu_sig = intensity_mu_sig
         self.intensity_dist = torch.distributions.normal.Normal(self.intensity_mu_sig[0],
@@ -175,7 +176,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
 
         """
 
-        n = np.random.poisson(lam=self._emitter_av_total)
+        n = self.n_sampler(self._emitter_av_total)
 
         loose_em = self.sample_loose_emitter(n=n)
         em = loose_em.return_emitterset()
