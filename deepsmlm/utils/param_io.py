@@ -90,6 +90,10 @@ class ParamHandling:
         param.InOut.model_out = 'network/debug.pt'
 
 
+def load_params(file):
+    return ParamHandling().load_params(file)
+
+
 def autoset_scaling(param):
 
     def set_if_none(var, value):
