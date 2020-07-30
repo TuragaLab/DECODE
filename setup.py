@@ -3,7 +3,7 @@ import setuptools
 from setuptools import setup
 
 setup(
-    name='deepsmlm',
+    name='decode',
     version='0.1.dev0',
     packages=setuptools.find_packages(),
     include_package_data=True,

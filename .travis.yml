@@ -21,4 +21,4 @@ install:
   - conda activate deepsmlm_cpu
 
 script:
-  - pytest deepsmlm/test
+  - pytest decode/test

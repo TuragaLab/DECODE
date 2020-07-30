@@ -1,5 +1,5 @@
 package:
-  name: deepsmlm
+  name: decode
   version: "0.1.dev"
 
 source:
@@ -47,7 +47,7 @@ requirements:
     requires:
       - pytest
     commands:
-      - pytest --pyargs deepsmlm
+      - pytest --pyargs decode
 
 about:
     home: https://rieslab.de
@@ -57,4 +57,4 @@ about:
     # license_family: GPL
     # license_file: {{ SRC_DIR }}/LICENSE
     summary: "High-Density 3D Single-Molecule Localisation Microscopy using Convolutional Neural Networks."
-    description: "Experimental. Windows and macOS are CPU only, Linux assumes a CUDA capable GPU. Installation must (!) add the proper channels for the PyTorch dependencies: ```conda install -c haydnspass -c pytorch -c conda-forge deepsmlm```"
+    description: "Experimental. Windows and macOS are CPU only, Linux assumes a CUDA capable GPU. Installation must (!) add the proper channels for the PyTorch dependencies: ```conda install -c haydnspass -c pytorch -c conda-forge decode```"
