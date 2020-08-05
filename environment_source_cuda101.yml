@@ -1,4 +1,4 @@
-name: deepsmlm_source
+name: decode_source
 channels:
   - haydnspass
   - pytorch

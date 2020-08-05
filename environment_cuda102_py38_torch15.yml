@@ -1,4 +1,4 @@
-name: deepsmlm_cuda_py38_pt15
+name: decode_cuda_py38_pt15
 
 channels:
   - haydnspass
