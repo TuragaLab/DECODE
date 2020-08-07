@@ -140,16 +140,10 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         self.t0_dist = torch.distributions.uniform.Uniform(*self._frame_range_plus)
 
         """
-        Determine the total number of emitters. Depends on lifetime and num_frames. 
-        Search for the actual value of total emitters on the extended frame range so that on the 0th frame we have
-        as many as we have specified in self.em_avg
+        Determine the total number of emitters. Depends on lifetime, frames and emitters.
+        (lifetime + 1) because of binning effect.
         """
-        self._emitter_av_total = None
-        self._emitter_av_total = self._total_emitter_average_search()
-
-        """Sanity"""
-        # if self.num_frames != 3 or self.frame_range != (-1, 1):
-        #     warnings.warn("Not yet tested number of frames / frame range.")
+        self._emitter_av_total = self._em_avg * self._num_frames_plus / (self.lifetime_avg + 1)
 
     @property
     def _frame_range_plus(self):
@@ -222,38 +216,6 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
                    density=param.Simulation.density,
                    em_avg=param.Simulation.emitter_av,
                    intensity_th=param.Simulation.intensity_th)
-
-    def _test_actual_number(self, num_em) -> int:
-        """
-        Test actual number of emitters per frame
-
-        Returns:
-            int: number of emitters on a target frame
-
-        """
-        return len(
-            self.sample_loose_emitter(num_em).return_emitterset().get_subset_frame(*self.frame_range)) / self.num_frames
-
-    def _total_emitter_average_search(self, n: int = 100000):
-        """
-        Search for the correct total emitter average of loose emitters so that one results in the correct number of
-        emitters per frame.
-
-        Args:
-            n (int): input samples to test
-
-        Returns:
-            number of actual emitters to put in random distribution to get specified number of emitters per frame
-
-        """
-
-        """
-        Measure for a significantly large number of emitters and then use rule of proportion to get the correct
-        value. An analytical formula would be nice but this is a way to solve the problem ...
-        """
-
-        out = self._test_actual_number(n)
-        return n / out * self._em_avg
 
 
 @deprecated(reason="Deprecated in favour of EmitterSamplerFrameIndependent.", version="0.1.dev")

@@ -130,6 +130,3 @@ class TestEmitterPopperMultiframe(TestEmitterPopper):
 
         assert test_utils.tens_almeq(bin_count, torch.ones_like(bin_count) * 10000, 2000)  # plus minus 1000
         assert bin_count.float().mean() == pytest.approx(10000, rel=0.05)
-
-    def test_sample_n(self, em_pop):
-        return
