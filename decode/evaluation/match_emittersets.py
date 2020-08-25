@@ -194,7 +194,7 @@ class GreedyHungarianMatching(EmitterMatcher):
         """Setup split in frames. Determine the frame range automatically so as to cover everything."""
         if len(output) >= 1 and len(target) >= 1:
             frame_low = output.frame_ix.min() if output.frame_ix.min() < target.frame_ix.min() else target.frame_ix.min()
-            frame_high = output.frame_ix.max() if output.frame_ix.max() > target.frame_ix.max() else target.frame_ix.max().item()
+            frame_high = output.frame_ix.max() if output.frame_ix.max() > target.frame_ix.max() else target.frame_ix.max()
         elif len(output) >= 1:
             frame_low = output.frame_ix.min()
             frame_high = output.frame_ix.max()
@@ -204,8 +204,8 @@ class GreedyHungarianMatching(EmitterMatcher):
         else:
             return (emitter.EmptyEmitterSet(xy_unit=target.xyz, px_size=target.px_size),) * 4
 
-        out_pframe = output.split_in_frames(frame_low, frame_high)
-        tar_pframe = target.split_in_frames(frame_low, frame_high)
+        out_pframe = output.split_in_frames(frame_low.item(), frame_high.item())
+        tar_pframe = target.split_in_frames(frame_low.item(), frame_high.item())
 
         tpl, fpl, fnl, tpml = [], [], [], []  # true positive list, false positive list, false neg. ...
 
