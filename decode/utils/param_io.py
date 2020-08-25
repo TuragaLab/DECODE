@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Union
 
 import yaml
 import pathlib
@@ -56,7 +57,17 @@ class ParamHandling:
 
         return params_dot
 
-    def write_params(self, filename: pathlib.Path, param):
+    def write_params(self, filename: Union[str, pathlib.Path], param):
+        """
+        Write parameter file to path
+
+        Args:
+            filename:
+            param:
+
+        """
+        filename = filename if isinstance(filename, pathlib.Path) else pathlib.Path(filename)
+
         extension = self._check_return_extension(filename)
         param = param.toDict()
 
@@ -90,8 +101,12 @@ class ParamHandling:
         param.InOut.model_out = 'network/debug.pt'
 
 
-def load_params(file):
+def load_params(file):  # alias
     return ParamHandling().load_params(file)
+
+
+def save_params(file, param):  # alias
+    ParamHandling().write_params(file, param)
 
 
 def autoset_scaling(param):
