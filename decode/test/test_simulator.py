@@ -67,3 +67,17 @@ class TestSimulator:
 
         """Assert"""
         assert len(frames) == n, "Wrong number of frames."
+    #
+    # def test_fill_bg_to_em(self, sim):
+    #     """Setup"""
+    #     sim.background = background.UniformBackground([10., 20.])
+    #     sim.bg2em = background.BgPerEmitterFromBgFrame(1, (-0.5, 31.5), (-0.5, 31.5), (32, 32))
+    #
+    #     """Run"""
+    #     em = emitter.RandomEmitterSet(10)
+    #     frames, bg = sim.forward(em)
+    #
+    #     """Assert"""
+    #     assert (em.bg >= 10.).all()
+    #     assert (em.bg <= 20.).all()
+    #

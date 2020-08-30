@@ -431,6 +431,9 @@ class BgPerEmitterFromBgFrame:
         if x.size()[-2:] != torch.Size(self.img_shape):
             raise ValueError("Background does not match specified image size.")
 
+        if self.filter_size[0] <= 1:
+            return x
+
         self.kernel = self.kernel.to(x.device)
         x_mean = torch.nn.functional.conv2d(self.padding(x), self.kernel, stride=1, padding=0)  # since already padded
         return x_mean

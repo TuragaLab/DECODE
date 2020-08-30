@@ -6,7 +6,7 @@ Simulation heavily relies on the Cubic Spline PSF Implementation (Li, Y. et al. 
 It has been factored out in a seperate Repo to make life easier (see https://github.com/Haydnspass/SplinePSF).
 
 
-## Installation for Users
+## Installation for Users (local machine)
 The easiest way to get it, is by using conda. If you don't have conda (chances are you have it when you have used python)
 you may download it from https://anaconda.org.
 
@@ -23,7 +23,7 @@ If everything worked until here you are good and can skip the next step.
 navigator and install the package there. Installing the package without creating a new environment
 (or in a fresh environment) is possible as
 
-        conda install -c haydnspass -c pytorch decode
+        conda install -c haydnspass -c pytorch -c conda-forge decode
 
 In python you can now import this package as simple as ```import decode```
 

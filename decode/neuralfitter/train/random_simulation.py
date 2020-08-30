@@ -47,15 +47,15 @@ def setup_random_simulation(param):
     else:
         noise = decode.simulation.camera.Photon2Camera.parse(param)
 
-    simulation_train = decode.simulation.simulator.Simulation(
-        psf=psf, em_sampler=prior_train, background=bg, noise=noise, frame_range=frame_range_train)
+    simulation_train = decode.simulation.simulator.Simulation(psf=psf, em_sampler=prior_train, background=bg,
+                                                              noise=noise, frame_range=frame_range_train)
 
     frame_range_test = (0, param.TestSet.test_size)
 
     prior_test = decode.simulation.emitter_generator.EmitterSamplerBlinking.parse(
         param, structure=prior_struct, frames=frame_range_test)
 
-    simulation_test = decode.simulation.simulator.Simulation(
-        psf=psf, em_sampler=prior_test, background=bg, noise=noise, frame_range=frame_range_test)
+    simulation_test = decode.simulation.simulator.Simulation(psf=psf, em_sampler=prior_test, background=bg, noise=noise,
+                                                             frame_range=frame_range_test)
 
     return simulation_train, simulation_test
