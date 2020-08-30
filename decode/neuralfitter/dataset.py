@@ -312,8 +312,8 @@ class SMLMAPrioriDataset(SMLMLiveDataset):
 
         frames, target, weight, tar_emitter = self._process_sample(frames, emitter, bg_frames)
         self._frames = frames.cpu()
-        self._emitter = emitter
-        self._em_split = emitter.split_in_frames(0, frames.size(0) - 1)
+        self._emitter = tar_emitter
+        self._em_split = tar_emitter.split_in_frames(0, frames.size(0) - 1)
         self._target, self._weight = target, weight
 
     def __getitem__(self, ix):
