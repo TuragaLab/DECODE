@@ -48,7 +48,7 @@ HyperParameter:
     up_mode: upsample
     use_last_nl:
   architecture: SigmaMUNet
-  batch_size: 10
+  batch_size: 64
   channels_in: 3
   channels_out:
   chweight_stat:
