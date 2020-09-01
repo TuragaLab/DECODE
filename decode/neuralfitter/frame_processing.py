@@ -58,7 +58,7 @@ class AutoCenterCrop(FrameProcessing):
 
         # actual size
         size_is = torch.tensor(frame.size())[-2:]
-        size_tar = (torch.tensor(size_is) / self.px_fold) * self.px_fold  # integer divison
+        size_tar = (torch.tensor(size_is) // self.px_fold) * self.px_fold
 
         if (size_tar <= 0).any():
             raise ValueError
