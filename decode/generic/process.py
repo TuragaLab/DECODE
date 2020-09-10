@@ -38,7 +38,8 @@ class Identity(ProcessEmitters):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x):
+    @staticmethod
+    def forward(x):
         """
         The do nothing pre-processing.
 
