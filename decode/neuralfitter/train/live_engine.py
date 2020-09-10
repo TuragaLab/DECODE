@@ -16,6 +16,7 @@ import decode.simulation
 import decode.utils
 from decode.neuralfitter.train.random_simulation import setup_random_simulation
 from decode.neuralfitter.utils import log_train_val_progress
+from decode.utils.checkpoint import CheckPoint
 
 
 @click.command()
@@ -77,6 +78,7 @@ def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, 
         experiment_path.mkdir(exist_ok=False)
 
     model_out = experiment_path / Path('model.pt')
+    ckpt_path = model_out.parent / Path('ckpt.pt')
 
     # Backup the parameter file under the network output path with the experiments ID
     param_backup_in = experiment_path / Path('param_run_in').with_suffix(param_file.suffix)
@@ -106,11 +108,14 @@ def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, 
 
     else:
         log_folder = log_folder + '/' + experiment_id
-        logger = decode.neuralfitter.utils.logger.SummaryWriter(log_dir=log_folder)
+
+        logger = decode.neuralfitter.utils.logger.MultiLogger(
+            [decode.neuralfitter.utils.logger.SummaryWriter(log_dir=log_folder),
+             decode.neuralfitter.utils.logger.DictLogger()])
 
     sim_train, sim_test = setup_random_simulation(param)
-    ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher = \
-        setup_trainer(sim_train, sim_test, logger, model_out, param)
+    ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
+        setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, param)
 
     dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
 
@@ -151,6 +156,11 @@ def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, 
             lr_scheduler.step()
 
         model_ls.save(model, None)
+        if no_log:
+            ckpt.dump(model.state_dict(), optimizer.state_dict(), lr_scheduler.state_dict(), step=i)
+        else:
+            ckpt.dump(model.state_dict(), optimizer.state_dict(), lr_scheduler.state_dict(),
+                      log=logger.logger[1].log_dict, step=i)
 
         """Draw new samples Samples"""
         if param.Simulation.mode in 'acquisition':
@@ -159,7 +169,7 @@ def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, 
             raise ValueError
 
 
-def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
+def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path, param):
     """
 
     Args:
@@ -167,6 +177,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
         simulator_test:
         logger:
         model_out:
+        ckpt_path: path of checkpoint
         param:
 
     Returns:
@@ -212,6 +223,9 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     }
     lr_scheduler = lr_scheduler_available[param.HyperParameter.learning_rate_scheduler]
     lr_scheduler = lr_scheduler(optimizer, **param.HyperParameter.learning_rate_scheduler_param)
+
+    """Checkpointing"""
+    checkpoint = CheckPoint(path=ckpt_path)
 
     """Setup gradient modification"""
     grad_mod = param.HyperParameter.grad_mod
@@ -327,7 +341,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, param):
     """Evaluation Specification"""
     matcher = decode.evaluation.match_emittersets.GreedyHungarianMatching.parse(param)
 
-    return train_ds, test_ds, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher
+    return train_ds, test_ds, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, checkpoint
 
 
 def setup_dataloader(param, train_ds, test_ds=None):

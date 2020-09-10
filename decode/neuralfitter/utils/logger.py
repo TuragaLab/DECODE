@@ -86,6 +86,11 @@ class DictLogger(NoLog):
         super().__init__()
         self.log_dict = {}
 
+    # ToDo: Remove Duplication (make DictLogger inherit from both NoLog and SummaryWriter?)
+    def add_scalar_dict(self, prefix: str, scalar_dict: dict, global_step=None, walltime=None):
+        for name, value in scalar_dict.items():
+            self.add_scalar(prefix + name, value, global_step=global_step, walltime=walltime)
+
     def add_scalar(self, prefix: str, scalar_value: float, global_step=None, walltime=None):
 
         if walltime is None:
