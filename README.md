@@ -67,3 +67,14 @@ It has been factored out in a seperate Repo to make life easier (see https://git
 
 ### Building the Docs
 Create docs environment from file `environment_docs.yaml`
+
+### Building and Deploy with Conda
+```bash
+# recommended: create a new conda build environment
+conda create --name build_clean conda-build
+conda activate build_clean
+
+# navigate to [repo]/conda
+cd conda
+conda-build -c haydnspass -c pytorch -c conda-forge decode
+```
