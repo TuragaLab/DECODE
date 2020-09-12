@@ -40,6 +40,16 @@ def deviation_dist(x: torch.Tensor, x_gt: torch.Tensor, residuals=False, kde=Tru
 
 
 def px_pointer_dist(pointer, px_border: float, px_size: float):
+    """
+
+    Args:
+        pointer:
+        px_border: lower limit of pixel (most commonly -0.5)
+        px_size: size of pixel (most commonly 1.)
+
+    Returns:
+
+    """
     x = (pointer - px_border) % px_size + px_border
     return x
 

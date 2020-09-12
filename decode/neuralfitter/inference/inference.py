@@ -78,12 +78,13 @@ class Infer:
         return out
 
     def _setup_forward_cat(self, forward_cat):
+
         if forward_cat is None:
             return lambda x: x
 
         elif isinstance(forward_cat, str):
 
-            if forward_cat == 'em':
+            if forward_cat == 'emitter':
                 return partial(emitter.EmitterSet.cat, step_frame_ix=self.batch_size)
 
             elif forward_cat == 'frames':
@@ -94,3 +95,5 @@ class Infer:
 
         else:
             raise TypeError(f"Specified forward cat method was wrong.")
+
+        raise ValueError(f"Unsupported forward_cat value.")

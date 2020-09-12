@@ -1,6 +1,7 @@
 import decode.generic
 import decode.evaluation
 import decode.neuralfitter
+import decode.renderer
 import decode.simulation
 import decode.plot
 
