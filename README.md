@@ -6,7 +6,8 @@ The easiest way to try out the algorithm is to have a look at the Google Colab N
 - DECODE Training [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18V1TLLu63CXSWihwoGX7ZQ5wj0Qk7GnD?usp=sharing)
 - DECODE Fitting [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1O0mjuOjaOl0wnLZ11Xo92IsWrgqtXL17?usp=sharing)
 
-You can find the documentation by clicking on the 'Wiki' button here in github, or under this link: [LINK to Readthedocs].
+You can find the installation instructions below, instructions and examples on how to use DECODE you can find in the documentation.
+The documentation can be found on the 'Wiki' button here in GitHub, or via this link: [LINK to Readthedocs].
 
 
 ## Local Installation for Users (local machine)
@@ -32,8 +33,8 @@ navigator and install the package there. Installing the package without creating
 
 In python you can now import this package as simple as ```import decode```
 
-## Setup for Developers
-[![Build Status](https://travis-ci.com/Haydnspass/DeepSMLM.svg?token=qb4PpCab8Gb7CDLAuNTY&branch=master)](https://travis-ci.com/Haydnspass/DeepSMLM)
+## Instructions for Developers
+Travis CI: [![Build Status](https://travis-ci.com/Haydnspass/DeepSMLM.svg?token=qb4PpCab8Gb7CDLAuNTY&branch=master)](https://travis-ci.com/Haydnspass/DeepSMLM)
 
 0. Clone the repository
 1. Install conda environment from file and activate it. Use the respective environment depending on whether you have a CUDA GPU or not.
