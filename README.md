@@ -66,7 +66,16 @@ Simulation heavily relies on the Cubic Spline PSF Implementation (Li, Y. et al. 
 It has been factored out in a seperate Repo to make life easier (see https://github.com/Haydnspass/SplinePSF). It'll be auto-installed.
 
 ### Building the Docs
-Create docs environment from file `environment_docs.yaml`
+For this we provide a conda environment for the sake of easy use. 
+```bash
+conda env create -f environment_docs.yaml  # once
+conda activate decode_docs
+
+cd docs
+make html
+```
+The docs can be found in the build folder.
+ 
 
 ### Building and Deploy with Conda
 ```bash
