@@ -23,9 +23,9 @@ import sphinx_rtd_theme
 
 # -- Project information -----------------------------------------------------
 
-project = 'DeepSMLM'
-copyright = '2020, Lucas-Raphael Mueller'
-author = 'Lucas-Raphael Mueller'
+project = 'DECODE'
+copyright = '2020, Artur Speiser, Lucas-Raphael Mueller et al.'
+author = 'Artur Speiser, Lucas-Raphael Mueller et al.'
 
 # The full version, including alpha/beta/rc tags
 release = '0.1dev0'
