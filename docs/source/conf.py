@@ -83,7 +83,7 @@ html_theme = "sphinx_rtd_theme"
 
 html_theme_options = {
     # Set the name of the project to appear in the sidebar
-    "project_nav_name": "DeepSMLM",
+    "project_nav_name": "DECODE",
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
