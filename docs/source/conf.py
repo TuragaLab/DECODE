@@ -41,7 +41,8 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx_autodoc_typehints',
     'sphinx.ext.viewcode',
-    'sphinx_rtd_theme'
+    'sphinx_rtd_theme',
+    'recommonmark',
 ]
 
 # napoleon
@@ -54,6 +55,14 @@ templates_path = ['_templates']
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
+
+
+# map file extension to respective types
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.txt': 'markdown',
+    '.md': 'markdown',
+}
 
 
 # -- Options for HTML output -------------------------------------------------
