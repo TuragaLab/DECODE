@@ -238,6 +238,18 @@ class TestEmitterSet:
         """Assert"""
         assert len(em) * frac == pytest.approx(len(out))
 
+    def test_hist_detection(self):
+
+        em = emitter.RandomEmitterSet(10000)
+        em.prob = torch.rand_like(em.prob)
+        em.xyz_sig = torch.randn_like(em.xyz_sig) * torch.tensor([1., 2., 3.]).unsqueeze(0)
+
+        """Run"""
+        out = em.hist_detection()
+
+        """Assert"""
+        assert set(out.keys()) == {'prob', 'sigma_x', 'sigma_y', 'sigma_z'}
+
     def test_sanity_check(self):
         """Test correct shape of 1D tensors in EmitterSet"""
         xyz = torch.rand((10, 3))

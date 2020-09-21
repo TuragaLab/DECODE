@@ -716,6 +716,19 @@ class EmitterSet:
 
         return self[filt_sig]
 
+    def hist_detection(self) -> dict():
+        """
+        Compute hist for detection associated attributes.
+
+        """
+
+        return {
+            'prob': np.histogram(self.prob),
+            'sigma_x': np.histogram(self.xyz_sig[:, 0]),
+            'sigma_y': np.histogram(self.xyz_sig[:, 1]),
+            'sigma_z': np.histogram(self.xyz_sig[:, 2]),
+        }
+
     def split_in_frames(self, ix_low: int = 0, ix_up: int = None) -> list:
         """
         Splits a set of emitters in a list of emittersets based on their respective frame index.
