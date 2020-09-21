@@ -44,6 +44,11 @@ class TestEmitterSet:
                           phot=torch.rand(25),
                           frame_ix=frames)
 
+    def test_dim(self, em2d, em3d):
+
+        assert em2d.dim() == 2
+        assert em3d.dim() == 3
+
     def test_xyz_shape(self, em2d, em3d):
         """
         Tests shape and correct data type
@@ -135,16 +140,16 @@ class TestEmitterSet:
         else:
             assert test_utils.tens_almeq(em.xyz_scr_nm, expct_nm)
 
-    @pytest.mark.skip("At the moment deprecated.")
-    def test_split(self):
-
-        big_em = RandomEmitterSet(100000)
-
-        splits = big_em.chunks(10000)
-        re_merged = EmitterSet.cat(splits)
-
-        assert sum([len(e) for e in splits]) == len(big_em)
-        assert re_merged == big_em
+    # @pytest.mark.skip("At the moment deprecated.")
+    # def test_split(self):
+    #
+    #     big_em = RandomEmitterSet(100000)
+    #
+    #     splits = big_em.chunks(10000)
+    #     re_merged = EmitterSet.cat(splits)
+    #
+    #     assert sum([len(e) for e in splits]) == len(big_em)
+    #     assert re_merged == big_em
 
     def test_split_in_frames(self, em2d, em3d):
         splits = em2d.split_in_frames(None, None)
@@ -219,6 +224,19 @@ class TestEmitterSet:
         ix_re = torch.argsort(em_re_merged.id)
 
         assert em[ix] == em_re_merged[ix_re]
+
+    @pytest.mark.parametrize("frac", [0., 0.1, 0.5, 0.9, 1.])
+    def test_sigma_filter(self, frac):
+
+        """Setup"""
+        em = emitter.RandomEmitterSet(10000)
+        em.xyz_sig = (torch.randn_like(em.xyz_sig) + 5).clamp(0.)
+
+        """Run"""
+        out = em.filter_by_sigma(fraction=frac)
+
+        """Assert"""
+        assert len(em) * frac == pytest.approx(len(out))
 
     def test_sanity_check(self):
         """Test correct shape of 1D tensors in EmitterSet"""

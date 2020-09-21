@@ -1,6 +1,6 @@
 import warnings
 from deprecated import deprecated
-from typing import Union
+from typing import Union, Optional
 
 import numpy as np
 import torch
@@ -104,7 +104,6 @@ class EmitterSet:
     def xyz_px(self) -> torch.Tensor:
         """
         Returns xyz in pixel coordinates and performs respective transformations if needed.
-
         """
         return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='px')
 
@@ -126,15 +125,24 @@ class EmitterSet:
         self.xy_unit = 'nm'
 
     @property
-    def xyz_scr(self) -> torch.Tensor:  # sqrt cramer-rao of xyz
+    def xyz_scr(self) -> torch.Tensor:
+        """
+        Square-Root cramer rao of xyz.
+        """
         return self.xyz_cr.sqrt()
 
     @property
     def xyz_cr_px(self) -> torch.Tensor:
+        """
+        Cramer-Rao of xyz in px units.
+        """
         return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='px', power=2)
 
     @property
     def xyz_scr_px(self) -> torch.Tensor:
+        """
+        Square-Root cramer rao of xyz in px units.
+        """
         return self.xyz_cr_px.sqrt()
 
     @property
@@ -160,6 +168,20 @@ class EmitterSet:
     @property
     def xyz_sig_nm(self) -> torch.Tensor:
         return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='nm')
+
+    def dim(self) -> int:
+        """
+        Returns dimensionality of coordinates. If z is 0 everywhere, it returns 2, else 3.
+
+        Note:
+            Does not do PCA or other sophisticated things.
+
+        """
+
+        if (self.xyz[:, 2] == 0).all():
+            return 2
+        else:
+            return 3
 
     def to_dict(self) -> dict:
         """
@@ -643,26 +665,56 @@ class EmitterSet:
         """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
-    @deprecated(reason="Needs to be debugged.")
-    def chunks(self, n: int):
+    # @deprecated(reason="Needs to be debugged.")
+    # def chunks(self, n: int):
+    #     """
+    #     Splits the EmitterSet into (almost) equal chunks
+    #
+    #     Args:
+    #         n (int): number of splits
+    #
+    #     Returns:
+    #         list: of emittersets
+    #
+    #     """
+    #     from itertools import islice, chain
+    #
+    #     def chunky(iterable, size=10):
+    #         iterator = iter(iterable)
+    #         for first in iterator:
+    #             yield chain([first], islice(iterator, size - 1))
+    #
+    #     return chunky(self, n)
+
+    def filter_by_sigma(self, fraction: float, dim: Optional[int] = None):
         """
-        Splits the EmitterSet into (almost) equal chunks
+        Filter by sigma values. Returns EmitterSet.
 
         Args:
-            n (int): number of splits
-
-        Returns:
-            list: of emittersets
+            fraction: relative fraction of emitters remaining after filtering. Ranges from 0. to 1.
+            dim: 2 or 3 for taking into account z. If None, it will be autodetermined.
 
         """
-        from itertools import islice, chain
+        if dim is None:
+            is_3d = False if self.dim() == 2 else True
 
-        def chunky(iterable, size=10):
-            iterator = iter(iterable)
-            for first in iterator:
-                yield chain([first], islice(iterator, size - 1))
+        if fraction == 1.:
+            return self
 
-        return chunky(self, n)
+        xyz_sig = self.xyz_sig
+
+        x_sig_var = torch.var(xyz_sig[:, 0])
+        y_sig_var = torch.var(xyz_sig[:, 1])
+        z_sig_var = torch.var(xyz_sig[:, 2])
+        tot_var = xyz_sig[:, 0] ** 2 + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sig[:, 1]) ** 2
+
+        if is_3d:
+            tot_var += (np.sqrt(x_sig_var / z_sig_var) * xyz_sig[:, 2]) ** 2
+
+        max_s = np.percentile(tot_var.cpu().numpy(), fraction * 100.)
+        filt_sig = torch.where(tot_var < max_s)
+
+        return self[filt_sig]
 
     def split_in_frames(self, ix_low: int = 0, ix_up: int = None) -> list:
         """
