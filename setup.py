@@ -2,7 +2,7 @@ import setuptools
 
 from setuptools import setup
 
-# requirements when installing the wheel via pip install; conda install uses
+# requirements when building the wheel via pip; conda install uses
 #   info in meta.yaml instead; we're supporting multiple environments, thus
 #   we have to accept some duplication (or near-duplication), unfortunately
 requirements = [
