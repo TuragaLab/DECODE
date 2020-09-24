@@ -32,7 +32,7 @@ requirements = [
 
 setup(
     name='decode',
-    version='0.1.dev0',
+    version='0.9',
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=requirements,
