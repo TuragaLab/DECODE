@@ -38,7 +38,7 @@ setup(
     install_requires=requirements,
     zip_safe=False,
     url='https://rieslab.de',
-    license='',
+    license='GPL3',
     author='Lucas-Raphael Mueller',
     author_email='',
     description=''
