@@ -1,10 +1,10 @@
 # Here we map certain binary / example data to URLs. These can change over time, with using this gateway instead of
-# URLs directly you should always be pointed to the most recent link
+# URLs directly you should always be pointed to the most recent link and must be direct downloads
 
 code: https://github.com/TuragaLab/DECODE/archive/master.zip
 colab:
-  training: https://oc.embl.de/index.php/s/7xB0u8lwjvFSb9n
-  fit: https://oc.embl.de/index.php/s/PtaAHvxogOFfmhZ
+  training: https://oc.embl.de/index.php/s/7xB0u8lwjvFSb9n/download
+  fit: https://oc.embl.de/index.php/s/PtaAHvxogOFfmhZ/download
 
 calib:
   challenge_2d:
