@@ -12,7 +12,7 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
+# sys.path.insert(0, os.path.abspath('../..'))
 
 # import pytorch_sphinx_theme
 import sphinx_rtd_theme
@@ -22,6 +22,7 @@ import sphinx_rtd_theme
 
 
 # -- Project information -----------------------------------------------------
+import decode
 
 project = 'DECODE'
 copyright = '2020, Artur Speiser, Lucas-Raphael Mueller et al.'

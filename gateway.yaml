@@ -1,0 +1,19 @@
+# Here we map certain binary / example data to URLs. These can change over time, with using this gateway instead of
+# URLs directly you should always be pointed to the most recent link and must be direct downloads
+
+code: https://github.com/TuragaLab/DECODE/archive/master.zip
+colab:
+  training: https://oc.embl.de/index.php/s/7xB0u8lwjvFSb9n/download
+  fit: https://oc.embl.de/index.php/s/PtaAHvxogOFfmhZ/download
+
+calib:
+  challenge_2d:
+  challenge_as:
+  challenge_dh:
+
+examples:
+  package_1:
+
+wheels:
+  decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9/decode-0.9-py3-none-any.whl
+  spline_py36: https://github.com/TuragaLab/SplinePSF/releases/download/v0.9/spline-0.9-cp36-cp36m-linux_x86_64.whl
