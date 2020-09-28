@@ -1,5 +1,6 @@
 from copy import deepcopy
 from decode import utils
+import pytest
 
 
 class TestRecursiveNamespace:
@@ -41,3 +42,12 @@ class TestRecursiveNamespace:
         """Run and Assert"""
         assert utils.types.RecursiveNamespace(**self.d).to_dict() == self.d
         assert utils.types.RecursiveNamespace(**self.dr.to_dict()) == self.dr
+
+    def test_mapping(self):
+
+        with pytest.raises(TypeError):  # nested namespace can not work with mapping
+            x = dict(**self.dr)
+
+        x = dict(**self.dr.b)
+        assert x['c'] == 2
+        assert x['d'] == 3

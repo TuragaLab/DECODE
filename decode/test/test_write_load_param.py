@@ -21,11 +21,47 @@ def test_load_params():
 
 
 def test_load_reference_param():
+    """
+    Depends on reference.yaml in utils/references_files
+
+    """
     param = wlp.load_reference()
 
     assert isinstance(param, dict)
     assert param['CameraPreset'] is None
     assert param['Evaluation']['dist_ax'] == 500.0
+
+
+def test_load_by_reference_param():
+    """
+    Check that param that misses values is filled as the reference file is.
+    Depends on  utils/references_files
+
+    """
+
+    """Run"""
+    param_file = test_dir / Path('assets/param.yaml')
+    with asset_handler.RMAfterTest(param_file):
+
+        wlp.save_params(param_file, {'X': 1})
+        param = wlp.load_params(param_file)
+
+    """Assertions"""
+    assert param.Hardware.device_simulation == 'cuda'
+
+
+def test_autofill_dict():
+    """Setup"""
+    a = {'a': 1}
+    ref = {'a': 2, 'b': None, 'c': 3}
+
+    """Run"""
+    a_ = wlp.autofill_dict(a, ref)
+
+    """Assert"""
+    assert a_['a'] == 1
+    assert a_['b'] is None
+    assert a_['c'] == 3
 
 
 def test_write_param():

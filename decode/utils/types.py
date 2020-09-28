@@ -22,7 +22,7 @@ class RecursiveNamespace(SimpleNamespace):
         for key, val in kwargs.items():
             if isinstance(val, dict):
                 setattr(self, key, RecursiveNamespace(**val))
-            elif isinstance(val, Iterable):
+            elif isinstance(val, (tuple, list)):
                 setattr(self, key, list(map(self.map_entry, val)))
 
     def to_dict(self):
@@ -33,3 +33,13 @@ class RecursiveNamespace(SimpleNamespace):
                 d[k] = d[k].to_dict()
 
         return d
+
+    def __getitem__(self, item):
+        out = getattr(self, item)
+        if isinstance(out, RecursiveNamespace):
+            raise TypeError
+
+        return out
+
+    def keys(self):
+        return self.__dict__.keys()

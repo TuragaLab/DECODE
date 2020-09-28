@@ -49,14 +49,16 @@ class ParamHandling:
             with open(filename) as yaml_file:
                 params_dict = yaml.safe_load(yaml_file)
 
-        params_dot = RecursiveNamespace(**params_dict)
+        params_ref = load_reference()
+        params_dict = autofill_dict(params_dict, params_ref)
+        params = RecursiveNamespace(**params_dict)
 
         self.params_dict = params_dict
-        self.params_dot = params_dot
+        self.params_dot = params
 
-        return params_dot
+        return params
 
-    def write_params(self, filename: Union[str, pathlib.Path], param):
+    def write_params(self, filename: Union[str, pathlib.Path], param: Union[dict, RecursiveNamespace]):
         """
         Write parameter file to path
 
@@ -68,7 +70,9 @@ class ParamHandling:
         filename = filename if isinstance(filename, pathlib.Path) else pathlib.Path(filename)
 
         extension = self._check_return_extension(filename)
-        param = param.to_dict()
+
+        if isinstance(param, RecursiveNamespace):
+            param = param.to_dict()
 
         """Create Folder if not exists."""
         p = pathlib.Path(filename)
@@ -119,6 +123,21 @@ def load_reference() -> dict:
     param_ref = yaml.load(param_ref)
 
     return param_ref
+
+
+def autofill_dict(x, reference):
+
+    out = {}
+    for k in reference:
+        if isinstance(reference[k], dict):
+            out[k] = autofill_dict(x[k] if k in x else {}, reference[k])
+
+        if isinstance(x, dict) and k in x:
+            out[k] = x[k]
+        else:
+            out[k] = reference[k]
+
+    return out
 
 
 def save_params(file, param):  # alias
