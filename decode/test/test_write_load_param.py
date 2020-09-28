@@ -1,12 +1,9 @@
-import pytest
-import dotmap
-from collections import namedtuple
-from decode.utils import dotmap
-
 from pathlib import Path
 
-import decode.utils.param_io as wlp
+import pytest
 
+import decode.utils.param_io as wlp
+from decode.utils import types
 from . import asset_handler
 
 """Root folder"""
@@ -14,7 +11,6 @@ test_dir = str(Path(__file__).resolve().parent)
 
 
 def test_load_params():
-
     filename = test_dir / Path('assets/test_param_for_load.json')
     asset_handler.AssetHandler().auto_load(filename)
     _ = wlp.ParamHandling().load_params(filename)
@@ -25,7 +21,6 @@ def test_load_params():
 
 
 def test_write_param():
-
     filename = test_dir / Path('assets/test_param_for_load.json')
     asset_handler.AssetHandler().auto_load(filename)
     param = wlp.ParamHandling().load_params(filename)
@@ -33,12 +28,13 @@ def test_write_param():
     filename_out = test_dir / Path('assets/dummy.yml')
     with asset_handler.RMAfterTest(filename):
         wlp.ParamHandling().write_params(filename_out, param)
-        assert isinstance(param, dotmap.DotMap)
+        assert isinstance(param, types.RecursiveNamespace)
 
 
 def test_set_autoscale_param():
-
-    param = dotmap.DotMap({'ScalingMode': 'auto'})
+    param = types.RecursiveNamespace()
+    param.Simulation = types.RecursiveNamespace()
+    param.Scaling = types.RecursiveNamespace()
     param.Simulation.intensity_mu_sig = (100., 1.)
     param.Simulation.bg_uniform = 10.
     param.Simulation.emitter_extent = (None, None, (-800., 800.))

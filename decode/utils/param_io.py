@@ -1,15 +1,14 @@
 import json
+import pathlib
 from pathlib import Path
 from typing import Union
 
 import yaml
-import pathlib
 
-from decode.utils import dotmap
+from .types import RecursiveNamespace
 
 
 class ParamHandling:
-
     file_extensions = ('.json', '.yml', '.yaml')
 
     def __init__(self):
@@ -31,7 +30,7 @@ class ParamHandling:
 
         return extension
 
-    def load_params(self, filename: str) -> dotmap.DotMap:
+    def load_params(self, filename: str) -> RecursiveNamespace:
         """
         Load parameters from file
 
@@ -50,7 +49,7 @@ class ParamHandling:
             with open(filename) as yaml_file:
                 params_dict = yaml.safe_load(yaml_file)
 
-        params_dot = dotmap.DotMap(params_dict)
+        params_dot = RecursiveNamespace(**params_dict)
 
         self.params_dict = params_dict
         self.params_dot = params_dot
@@ -69,7 +68,7 @@ class ParamHandling:
         filename = filename if isinstance(filename, pathlib.Path) else pathlib.Path(filename)
 
         extension = self._check_return_extension(filename)
-        param = param.toDict()
+        param = param.to_dict()
 
         """Create Folder if not exists."""
         p = pathlib.Path(filename)
@@ -110,7 +109,6 @@ def save_params(file, param):  # alias
 
 
 def autoset_scaling(param):
-
     def set_if_none(var, value):
         if var is None:
             var = value
@@ -118,7 +116,8 @@ def autoset_scaling(param):
 
     param.Scaling.input_scale = set_if_none(param.Scaling.input_scale, param.Simulation.intensity_mu_sig[0] / 50)
     param.Scaling.phot_max = set_if_none(param.Scaling.phot_max,
-                                         param.Simulation.intensity_mu_sig[0] + 8 * param.Simulation.intensity_mu_sig[1])
+                                         param.Simulation.intensity_mu_sig[0] + 8 * param.Simulation.intensity_mu_sig[
+                                             1])
 
     param.Scaling.z_max = set_if_none(param.Scaling.z_max, param.Simulation.emitter_extent[2][1] * 1.2)
     if param.Scaling.input_offset is None:
