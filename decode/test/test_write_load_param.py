@@ -20,6 +20,14 @@ def test_load_params():
         _ = wlp.ParamHandling().load_params(filename)
 
 
+def test_load_reference_param():
+    param = wlp.load_reference()
+
+    assert isinstance(param, dict)
+    assert param['CameraPreset'] is None
+    assert param['Evaluation']['dist_ax'] == 500.0
+
+
 def test_write_param():
     filename = test_dir / Path('assets/test_param_for_load.json')
     asset_handler.AssetHandler().auto_load(filename)

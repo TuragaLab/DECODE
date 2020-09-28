@@ -104,6 +104,23 @@ def load_params(file):  # alias
     return ParamHandling().load_params(file)
 
 
+def load_reference() -> dict:
+    """
+    Loads the static reference .yaml file because there we have the full sets and default values.
+
+    """
+    try:
+        import importlib.resources as pkg_resources
+    except ImportError: # Try backported to PY<37 `importlib_resources`.
+        import importlib_resources as pkg_resources
+
+    from . import reference_files
+    param_ref = pkg_resources.open_text(reference_files, 'reference.yaml')
+    param_ref = yaml.load(param_ref)
+
+    return param_ref
+
+
 def save_params(file, param):  # alias
     ParamHandling().write_params(file, param)
 
