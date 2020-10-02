@@ -1,15 +1,14 @@
 import json
+import pathlib
 from pathlib import Path
 from typing import Union
 
 import yaml
-import pathlib
 
-from decode.utils import dotmap
+from .types import RecursiveNamespace
 
 
 class ParamHandling:
-
     file_extensions = ('.json', '.yml', '.yaml')
 
     def __init__(self):
@@ -31,7 +30,7 @@ class ParamHandling:
 
         return extension
 
-    def load_params(self, filename: str) -> dotmap.DotMap:
+    def load_params(self, filename: str) -> RecursiveNamespace:
         """
         Load parameters from file
 
@@ -50,14 +49,16 @@ class ParamHandling:
             with open(filename) as yaml_file:
                 params_dict = yaml.safe_load(yaml_file)
 
-        params_dot = dotmap.DotMap(params_dict)
+        params_ref = load_reference()
+        params_dict = autofill_dict(params_dict, params_ref)
+        params = RecursiveNamespace(**params_dict)
 
         self.params_dict = params_dict
-        self.params_dot = params_dot
+        self.params_dot = params
 
-        return params_dot
+        return params
 
-    def write_params(self, filename: Union[str, pathlib.Path], param):
+    def write_params(self, filename: Union[str, pathlib.Path], param: Union[dict, RecursiveNamespace]):
         """
         Write parameter file to path
 
@@ -69,7 +70,9 @@ class ParamHandling:
         filename = filename if isinstance(filename, pathlib.Path) else pathlib.Path(filename)
 
         extension = self._check_return_extension(filename)
-        param = param.toDict()
+
+        if isinstance(param, RecursiveNamespace):
+            param = param.to_dict()
 
         """Create Folder if not exists."""
         p = pathlib.Path(filename)
@@ -105,12 +108,43 @@ def load_params(file):  # alias
     return ParamHandling().load_params(file)
 
 
+def load_reference() -> dict:
+    """
+    Loads the static reference .yaml file because there we have the full sets and default values.
+
+    """
+    try:
+        import importlib.resources as pkg_resources
+    except ImportError: # Try backported to PY<37 `importlib_resources`.
+        import importlib_resources as pkg_resources
+
+    from . import reference_files
+    param_ref = pkg_resources.open_text(reference_files, 'reference.yaml')
+    param_ref = yaml.load(param_ref)
+
+    return param_ref
+
+
+def autofill_dict(x, reference):
+
+    out = {}
+    for k in reference:
+        if isinstance(reference[k], dict):
+            out[k] = autofill_dict(x[k] if k in x else {}, reference[k])
+
+        if isinstance(x, dict) and k in x:
+            out[k] = x[k]
+        else:
+            out[k] = reference[k]
+
+    return out
+
+
 def save_params(file, param):  # alias
     ParamHandling().write_params(file, param)
 
 
 def autoset_scaling(param):
-
     def set_if_none(var, value):
         if var is None:
             var = value
@@ -118,7 +152,8 @@ def autoset_scaling(param):
 
     param.Scaling.input_scale = set_if_none(param.Scaling.input_scale, param.Simulation.intensity_mu_sig[0] / 50)
     param.Scaling.phot_max = set_if_none(param.Scaling.phot_max,
-                                         param.Simulation.intensity_mu_sig[0] + 8 * param.Simulation.intensity_mu_sig[1])
+                                         param.Simulation.intensity_mu_sig[0] + 8 * param.Simulation.intensity_mu_sig[
+                                             1])
 
     param.Scaling.z_max = set_if_none(param.Scaling.z_max, param.Simulation.emitter_extent[2][1] * 1.2)
     if param.Scaling.input_offset is None:

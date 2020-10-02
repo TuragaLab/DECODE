@@ -418,25 +418,22 @@ class CubicSplinePSF(PSF):
                           "While this mostly likely works computationally, results may be unexpected.")
 
     @property
-    def cuda_is_available(self) -> bool:
+    def cuda_compiled(self) -> bool:
         """
         Returns true if (1) a CUDA capable device is available and (2) spline was compiled with CUDA support.
         Technically (1) could come without (2).
 
         """
-        if torch.cuda.is_available():
-            return self._spline_impl.cuda_is_available
-
-        return False
+        return spline.cuda_compiled
 
     @staticmethod
-    def check_cuda_is_available() -> bool:
+    def cuda_is_available() -> bool:
         """
         This is a dummy method to check whether CUDA is available without the need to init the class. I wonder
         whether Python has 'static properties'?
 
         """
-        return spline.PSFWrapperCPU(1, 1, 1, 1, 1, torch.zeros((1, 64)).numpy()).cuda_is_available
+        return spline.cuda_is_available()
 
     @property
     def _ref_diff(self):
