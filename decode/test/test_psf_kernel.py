@@ -319,7 +319,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         out = psf.forward(torch.zeros((0, 3)), torch.zeros(0), torch.zeros(0).long(), -5, 5)
         assert out.size(0) == 11
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.check_cuda_is_available(), strict=True,
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_ship(self, psf, psf_cuda):
         """
@@ -353,12 +353,12 @@ class TestCubicSplinePSF(AbstractPSFTest):
         psf_str = pickle.dumps(psf)
         _ = pickle.loads(psf_str)
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.check_cuda_is_available(), strict=True,
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_pickleability_cuda(self, psf_cuda):
         self.test_pickleability_cpu(psf_cuda)
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.check_cuda_is_available(), strict=True,
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_roi_cuda_cpu(self, psf, psf_cuda, onek_rois):
         """
@@ -419,7 +419,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
                   f"Reference: {psf.ref0}")
         plt.show()
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.check_cuda_is_available(), strict=True,
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_roi_drv_cuda_cpu(self, psf, psf_cuda, onek_rois):
         """
@@ -504,7 +504,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
         assert tutil.tens_almeq(roi_0[:, 5:10, 5:10], roi_shift[:, 4:9, 3:8])
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.check_cuda_is_available(), strict=True,
+    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
                        reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_frame_cuda_cpu(self, psf, psf_cuda):
         """
