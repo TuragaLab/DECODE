@@ -6,6 +6,8 @@ This software package implements a DeepLearning based framework for high-density
 
 __version__ = '0.9.a'
 __author__ = 'Lucas-Raphael Müller, Artur Speiser'
+__repo__ = 'https://github.com/TuragaLab/DECODE/master/gateway.yaml'  # main repo
+__gateway__ = 'https://raw.githubusercontent.com/TuragaLab/DECODE/master/gateway.yaml'  # gateway
 
 import decode.generic
 import decode.evaluation
