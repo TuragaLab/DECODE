@@ -120,7 +120,7 @@ def load_reference() -> dict:
 
     from . import reference_files
     param_ref = pkg_resources.open_text(reference_files, 'reference.yaml')
-    param_ref = yaml.load(param_ref)
+    param_ref = yaml.load(param_ref, Loader=yaml.SafeLoader)
 
     return param_ref
 
