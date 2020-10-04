@@ -1,7 +1,9 @@
 """
-Supplementary code for code examples (mainly jupyter notebook).
+Supplementary code for code examples (mainly jupyter notebook). Some of this seams utterly less abstract and hard-coded, but it is a dedicated example helper ...
+
 """
 import requests
+import pathlib
 import yaml
 import zipfile
 
@@ -12,10 +14,10 @@ from decode.utils import loader
 def load_gateway():
     r = requests.get(decode.__gateway__, allow_redirects=True)
 
-    return yaml.load(r.content)
+    return yaml.load(r.content, Loader=yaml.FullLoader)
 
 
-def load_example_package(path, url, hash):
+def load_example_package(path: pathlib.Path, url, hash):
 
     if not loader.check_file(path, hash):
         loader.load(path, url, hash)
@@ -26,8 +28,10 @@ def load_example_package(path, url, hash):
     else:
         print("Found file already in Cache.")
 
-    tif_path = path / 'frames.tiff'
-    model_path = path / 'model.pt'
-    param_path = path / 'param_run.yaml'
+    zip_folder = path.parent / path.stem
+
+    tif_path = zip_folder / 'frames.tif'
+    model_path = zip_folder / 'model.pt'
+    param_path = zip_folder / 'param_run.yaml'
 
     return tif_path, model_path, param_path
