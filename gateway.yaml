@@ -15,7 +15,7 @@ calib:
 examples:
   package_1:
     name: package_1
-    url: https://oc.embl.de/index.php/s/mZPm9HY2lDgCO3s
+    url: https://oc.embl.de/index.php/s/mZPm9HY2lDgCO3s/download
     hash: cf667a69c3bfc382dfb8505a33bdcecd1f12e0a280fc78894cf66862c9b5c477
 
 wheels:
