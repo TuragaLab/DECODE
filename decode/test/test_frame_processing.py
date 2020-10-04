@@ -48,3 +48,21 @@ class TestAutoCenterCrop:
         else:
             x_out = proc.forward(x)
             assert x_out[0].size() == torch.Size(target_size)
+
+
+@pytest.mark.parametrize("x,size_out", [(torch.rand(3, 62, 68), torch.Size([3, 59, 65])), # size out of mock pipeline
+                                        (torch.rand(2, 3, 59, 68), torch.Size([2, 3, 56, 65]))])
+def test_get_frame_extent(x, size_out):
+
+    """Setup"""
+    class Pipeline:
+        def forward(self, x):
+            return x[..., :-3, :-3]
+
+    pipeline = Pipeline()
+
+    """Run"""
+    frame_size = frame_processing.get_frame_extent(x.size(), pipeline.forward)
+
+    """Assert"""
+    assert frame_size == size_out
