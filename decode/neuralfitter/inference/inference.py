@@ -12,7 +12,7 @@ class Infer:
 
     def __init__(self, model, ch_in: int, frame_proc, post_proc, device: Union[str, torch.device],
                  batch_size: int = 64, num_workers: int = 4, pin_memory: bool = True,
-                 forward_cat: Union[str, Callable] = 'em'):
+                 forward_cat: Union[str, Callable] = 'emitter'):
         """
         Convenience class for inference.
 
