@@ -13,6 +13,9 @@ calib:
 
 examples:
   package_1:
+    name: tbd
+    url: https://tbd
+    hash:
 
 wheels:
   decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9/decode-0.9-py3-none-any.whl

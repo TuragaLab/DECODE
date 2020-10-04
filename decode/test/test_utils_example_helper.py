@@ -1,10 +1,10 @@
-from decode.utils import examples
+from decode.utils import example_helper
 
 
 def test_load_gateway():
 
     """Run"""
-    gate = examples.load_gateway()
+    gate = example_helper.load_gateway()
 
     """Assertions"""
     assert isinstance(gate, dict)
