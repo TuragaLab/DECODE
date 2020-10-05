@@ -19,21 +19,43 @@ from decode.neuralfitter.utils import log_train_val_progress
 from decode.utils.checkpoint import CheckPoint
 
 
-@click.command()
-@click.option('--cuda_ix', '-i', default=None, required=False, type=int,
-              help='Specify the cuda device index or set it to false.')
-@click.option('--param_file', '-p', required=True,
-              help='Specify your parameter file (.yml or .json).')
-@click.option('--debug', '-d', default=False, is_flag=True,
-              help='Debug the specified parameter file. Will reduce ds size for example.')
-@click.option('--num_worker_override', '-w', default=None, type=int,
-              help='Override the number of workers for the dataloaders.')
-@click.option('--no_log', '-n', default=False, is_flag=True,
-              help='Set no log if you do not want to log the current run.')
-@click.option('--log_folder', '-l', default='runs',
-              help='Specify the (parent) folder you want to log to. If rel-path, relative to DeepSMLM root.')
-@click.option('--log_comment', '-c', default=None,
-              help='Add a log_comment to the run.')
+import argparse, yaml
+
+def parse_args():
+    '''
+    Parse input arguments
+    '''
+    parser = argparse.ArgumentParser(description='Training Args')
+
+    parser.add_argument('-i', '--cuda_ix', default=None, 
+                      help='Specify the cuda device index or set it to false.',
+                      type=int, required=False)
+
+    parser.add_argument('-p', '--param_file',
+                      help='Specify your parameter file (.yml or .json).',
+                      required=True)
+
+    parser.add_argument('-d', '--debug', default=False, action='store_true',
+                      help='Debug the specified parameter file. Will reduce ds size for example.')
+
+    parser.add_argument('-w', '--num_worker_override',
+                      help='Override the number of workers for the dataloaders.',
+                      type=int)
+
+    parser.add_argument('-n', '--no_log', default=False, action='store_true',
+                      help='Set no log if you do not want to log the current run.',
+                      type=int)
+
+    parser.add_argument('-l', '--log_folder', default='runs',
+                      help='Specify the (parent) folder you want to log to. If rel-path, relative to DeepSMLM root.')
+
+
+    parser.add_argument('-c', '--log_comment', default=None,
+                      help='Add a log_comment to the run.')
+
+    args = parser.parse_args()
+    return args
+
 def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, num_worker_override: int,
                       log_folder: str, log_comment: str):
     """
@@ -383,4 +405,5 @@ def setup_dataloader(param, train_ds, test_ds=None):
 
 
 if __name__ == '__main__':
-    live_engine_setup()
+    args = parse_args()
+    live_engine_setup(args.param_file, args.cuda_ix, args.debug, args.no_log, args.num_worker_override, args.log_folder, args.log_comment)
