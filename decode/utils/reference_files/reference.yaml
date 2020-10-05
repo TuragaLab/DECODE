@@ -1,0 +1,132 @@
+# This is the reference .yaml file which comprises the complete set of parameters.
+# You may modify each of those, those with values are defaults, those without values are
+#   1. needed
+#   2. derived / automatically determined
+#
+CameraPreset:
+Camera:
+  baseline:
+  convert2photons: true
+  e_per_adu:
+  em_gain:
+  px_size:
+  qe: 1.0
+  read_sigma:
+  spur_noise:
+Evaluation:
+  dist_ax: 500.0
+  dist_lat: 250.0
+  dist_vol:
+  match_dims: 3
+Hardware:
+  device: cuda
+  device_ix: 0
+  device_simulation: cuda
+  num_worker_train: 4
+  torch_threads: 4
+  unix_niceness: 0
+HyperParameter:
+  arch_param:
+    activation: ELU
+    depth:
+    depth_shared: 2
+    depth_union: 2
+    depth_bg:
+    init_custom: true
+    initial_features: 48
+    initial_features_bg:
+    inter_features: 48
+    norm:
+    norm_bg:
+    norm_bg_groups:
+    norm_groups:
+    norm_head:
+    norm_head_groups:
+    p_dropout:
+    pool_mode: StrideConv
+    upsample_mode: nearest
+    recpt_bg:
+    skip_gn_level:
+    up_mode: upsample
+    use_last_nl:
+  architecture: SigmaMUNet
+  batch_size: 64
+  channels_in: 3
+  channels_out:
+  chweight_stat:
+    - 1.0
+    - 1.0
+  disabled_attributes:
+  ds_lifetime:
+  epoch_0:
+  epochs: 10000
+  fgbg_factor:
+  grad_mod: true
+  emitter_label_photon_min: 100.0
+  loss_impl: MixtureModel
+  learning_rate_scheduler: StepLR
+  learning_rate_scheduler_param:
+    step_size: 10
+    gamma: 0.9
+  max_number_targets: 250
+  moeller_gradient_rescale: false
+  opt_param:
+    lr: 0.0006
+    weight_decay: 0.1
+  optimizer: AdamW
+  photon_threshold:
+  pseudo_ds_size: 10000
+InOut:
+  calibration_file:  # spline calib
+  experiment_out:  # main output dir
+  model_init:
+PostProcessing: NMS  # (blank) for no post-processing or LookUp, Consistency
+PostProcessingParam:
+  raw_th: 0.5
+Scaling:  # if some values are missing they will be auto-set as described in the respective comments below
+  input_scale:  # intensity_mu / 50
+  input_offset:  # bg_uniform (mean)
+  bg_max:  # 1.2 * upper limit of bg val
+  phot_max:  # intensity_mu + 8 * sigma
+  z_max:  # 1.2 * upper simulation extent
+Simulation:
+  bg_uniform:  # tuple or single value
+  density:  # either density xor emitter avg
+  emitter_av: 20  # either density xor emitter avg
+  emitter_extent:
+    - - -0.5
+      - 39.5
+    - - -0.5
+      - 39.5
+    - - -750
+      - 750
+  img_size:
+    - 40
+    - 40
+  intensity_mu_sig:  # tuple
+  intensity_th:
+  lifetime_avg:
+  mode: acquisition
+  photon_range:
+  psf_extent:
+    - - -0.5
+      - 39.5
+    - - -0.5
+      - 39.5
+    -
+  roi_size:  # if none, take the whole range of calibration
+  roi_auto_center: false
+  xy_unit: px
+TestSet:
+  mode:  simulated
+  test_size: 512
+  frame_extent:
+    - - -0.5
+      - 39.5
+    - - -0.5
+      - 39.5
+    - null
+  img_size:
+    - 40
+    - 40
+
