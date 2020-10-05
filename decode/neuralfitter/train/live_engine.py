@@ -43,8 +43,7 @@ def parse_args():
                       type=int)
 
     parser.add_argument('-n', '--no_log', default=False, action='store_true',
-                      help='Set no log if you do not want to log the current run.',
-                      type=int)
+                      help='Set no log if you do not want to log the current run.')
 
     parser.add_argument('-l', '--log_folder', default='runs',
                       help='Specify the (parent) folder you want to log to. If rel-path, relative to DeepSMLM root.')
