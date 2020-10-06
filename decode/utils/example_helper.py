@@ -30,8 +30,9 @@ def load_example_package(path: pathlib.Path, url, hash):
 
     zip_folder = path.parent / path.stem
 
-    tif_path = zip_folder / 'frames.tif'
-    model_path = zip_folder / 'model.pt'
-    param_path = zip_folder / 'param_run.yaml'
+    tif = zip_folder / 'frames.tif'
+    tif_meta = zip_folder / 'meta.yaml'
+    model = zip_folder / 'model.pt'
+    param_train = zip_folder / 'param_run.yaml'
 
-    return tif_path, model_path, param_path
+    return tif, tif_meta, model, param_train

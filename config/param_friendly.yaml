@@ -6,7 +6,6 @@ Camera:  # camera specs, exemplary shown are the values of the camera used in th
   px_size:
     - 100.0
     - 100.0
-  qe: 1.0
   read_sigma: 74.4
   spur_noise: 0.002
 InOut:
