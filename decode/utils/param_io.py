@@ -45,6 +45,7 @@ class ParamHandling:
         if extension == '.json':
             with open(filename) as json_file:
                 params_dict = json.load(json_file)
+
         elif extension in ('.yml', '.yaml'):
             with open(filename) as yaml_file:
                 params_dict = yaml.safe_load(yaml_file)
@@ -125,14 +126,15 @@ def load_reference() -> dict:
     return param_ref
 
 
-def autofill_dict(x, reference):
+def autofill_dict(x: dict, reference: dict) -> dict:
+    """Fill dict `x` with keys and values of reference if they are not present in x."""
 
     out = {}
-    for k in reference:
-        if isinstance(reference[k], dict):
-            out[k] = autofill_dict(x[k] if k in x else {}, reference[k])
 
-        if isinstance(x, dict) and k in x:
+    for k, v in reference.items():
+        if isinstance(v, dict):
+            out[k] = autofill_dict(x[k] if k in x else {}, v)
+        elif k in x:  # below here never going to be a dict
             out[k] = x[k]
         else:
             out[k] = reference[k]

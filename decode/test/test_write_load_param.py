@@ -52,8 +52,15 @@ def test_load_by_reference_param():
 
 def test_autofill_dict():
     """Setup"""
-    a = {'a': 1}
-    ref = {'a': 2, 'b': None, 'c': 3}
+    a = {'a': 1,
+         'z': {'x': 4}
+         }
+
+    ref = {'a': 2,
+           'b': None,
+           'c': 3,
+           'z': {'x': 5, 'y': 6}
+           }
 
     """Run"""
     a_ = wlp.autofill_dict(a, ref)
@@ -62,6 +69,8 @@ def test_autofill_dict():
     assert a_['a'] == 1
     assert a_['b'] is None
     assert a_['c'] == 3
+    assert a_['z']['x'] == 4
+    assert a_['z']['y'] == 6
 
 
 def test_write_param():
