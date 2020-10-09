@@ -1,34 +1,40 @@
+import os
 import setuptools
 
 from setuptools import setup
 
 # requirements when building the wheel via pip; conda install uses
 #   info in meta.yaml instead; we're supporting multiple environments, thus
-#   we have to accept some duplication (or near-duplication), unfortunately
-requirements = [
-    "numpy",
-    "dotmap",
-    "torch",
-    "torchvision",
-    "click",
-    "deprecated",
-    "dotmap",
-    "h5py",
-    "joblib",
-    "matplotlib",
-    "pandas",
-    "pytest",
-    "pyyaml",
-    "requests",
-    "scipy",
-    "seaborn",
-    "scikit-image",
-    "scikit-learn",
-    "tensorboard",
-    "tifffile",
-    "tqdm",
-    ]
-
+#   we have to accept some duplication (or near-duplication), unfortunately;
+#   however, if conda sees the requirements here, it will be unhappy
+if "CONDA_BUILD" in os.environ:
+    # conda requirements set in meta.yaml
+    requirements = []
+else:
+    # pip needs requirements here; keep in sync with meta.yaml!
+    requirements = [
+        "numpy",
+        "dotmap",
+        "torch",
+        "torchvision",
+        "click",
+        "deprecated",
+        "dotmap",
+        "h5py",
+        "joblib",
+        "matplotlib",
+        "pandas",
+        "pytest",
+        "pyyaml",
+        "requests",
+        "scipy",
+        "seaborn",
+        "scikit-image",
+        "scikit-learn",
+        "tensorboard",
+        "tifffile",
+        "tqdm",
+        ]
 
 setup(
     name='decode',
