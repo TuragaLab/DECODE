@@ -229,3 +229,43 @@ class TestWeightedErrors(TestEval):
 
         """Assert"""
         plt.show()
+
+
+class TestSMLMEval:
+
+    @pytest.fixture()
+    def evaluator(self):
+        return evaluation.SMLMEvaluation()
+
+    def test_result_dictablet(self, evaluator):
+
+        result = evaluator.forward(em.RandomEmitterSet(10, xy_unit='nm'),
+                          em.RandomEmitterSet(1, xy_unit='nm'),
+                          em.RandomEmitterSet(2, xy_unit='nm'),
+                          em.RandomEmitterSet(10, xy_unit='nm'))
+
+        assert isinstance(result._asdict(), dict)
+        assert result.prec == result._asdict()['prec']
+
+    def test_descriptors(self, evaluator):
+
+        descriptors = {
+            'pred': 'Precision',
+            'rec': 'Recall',
+            'jac': 'Jaccard Index',
+            'rmse_lat': 'RMSE lateral',
+            'rmse_ax': 'RMSE axial',
+            'rmse_vol': 'RMSE volumetric',
+            'mad_lat': 'Mean average distance lateral',
+            'mad_ax': 'Mean average distance axial',
+            'mad_vol': 'Mean average distance in 3D',
+            'dx_red_sig': 'CRLB normalised error in x',
+            'dy_red_sig': 'CRLB normalised error in y',
+            'dz_red_sig': 'CRLB normalised error in z',
+            'dx_red_mu': 'CRLB normalised bias in x',
+            'dy_red_mu': 'CRLB normalised bias in y',
+            'dz_red_mu': 'CRLB normalised bias in z',
+        }
+
+        assert isinstance(evaluator.descriptors, dict)
+        assert evaluator.descriptors == descriptors

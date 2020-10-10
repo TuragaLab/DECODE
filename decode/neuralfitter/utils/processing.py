@@ -1,4 +1,5 @@
 from operator import itemgetter
+from typing import Callable
 
 
 class TransformSequence:
@@ -105,3 +106,22 @@ class ParallelTransformSequence(TransformSequence):
             return self.merger(out_cache)
         else:
             return out_cache
+
+
+def wrap_callable(func: Callable):
+    """
+    Wrapps a callable in a class to provide a forward method. This is mainly a helper to wrap arbitrary functions to
+    fit into the transform sequence as above.
+
+    Args:
+        func:
+
+    """
+
+    class TrafoWrapper:
+
+        @staticmethod
+        def forward(*args, **kwargs):
+            return func(*args, **kwargs)
+
+    return TrafoWrapper()

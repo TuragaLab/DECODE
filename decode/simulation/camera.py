@@ -1,9 +1,8 @@
-import warnings
 from abc import ABC, abstractmethod  # abstract class
 from typing import Union
-from deprecated import deprecated
 
 import torch
+from deprecated import deprecated
 
 from . import noise_distributions
 from ..neuralfitter import sampling

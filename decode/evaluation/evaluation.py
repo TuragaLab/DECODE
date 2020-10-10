@@ -283,6 +283,24 @@ class SMLMEvaluation:
                                       "dx_red_mu", "dx_red_sig", "dy_red_mu", "dy_red_sig", "dz_red_mu", "dz_red_sig",
                                       "dphot_red_mu", "dphot_red_sig"])
 
+    descriptors = {
+        'pred': 'Precision',
+        'rec': 'Recall',
+        'jac': 'Jaccard Index',
+        'rmse_lat': 'RMSE lateral',
+        'rmse_ax': 'RMSE axial',
+        'rmse_vol': 'RMSE volumetric',
+        'mad_lat': 'Mean average distance lateral',
+        'mad_ax': 'Mean average distance axial',
+        'mad_vol': 'Mean average distance in 3D',
+        'dx_red_sig': 'CRLB normalised error in x',
+        'dy_red_sig': 'CRLB normalised error in y',
+        'dz_red_sig': 'CRLB normalised error in z',
+        'dx_red_mu': 'CRLB normalised bias in x',
+        'dy_red_mu': 'CRLB normalised bias in y',
+        'dz_red_mu': 'CRLB normalised bias in z',
+    }
+
     def __init__(self, seg_eval=SegmentationEvaluation(),
                  dist_eval=DistanceEvaluation(),
                  weighted_eval=WeightedErrors(mode='crlb', reduction='gaussian')):

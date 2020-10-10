@@ -1,5 +1,6 @@
 import pytest
 import torch
+import unittest.mock
 
 from decode.neuralfitter.utils import processing
 
@@ -64,3 +65,12 @@ class TestParallelTransformSequence(TestTransformSequence):
         assert (out[:5] == 0.).all()
 
 
+def test_wrap_callable():
+
+    def dummy(x):
+        return x.clone()
+
+    assert hasattr(processing.wrap_callable(dummy), 'forward')
+
+    x = torch.rand(5, 5)
+    assert (dummy(x) == processing.wrap_callable(dummy).forward(x)).all()

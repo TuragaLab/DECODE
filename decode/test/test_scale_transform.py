@@ -145,6 +145,6 @@ class TestScaleTransform:
         x = torch.rand((2, 32, 4))
         x_deep = x.clone()
 
-        _ = rescaler.forward(x, torch.rand((32, 32)))
+        _ = rescaler.forward(x, torch.rand((32, 32)), None, None)
 
         assert (x == x_deep).all()
