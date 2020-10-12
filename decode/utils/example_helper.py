@@ -19,16 +19,17 @@ def load_gateway():
 
 def load_example_package(path: pathlib.Path, url, hash):
 
+    zip_folder = path.parent / path.stem
+
     if not loader.check_file(path, hash):
         loader.load(path, url, hash)
 
+        zip_folder.mkdir(exist_ok=True)
         with zipfile.ZipFile(path, "r") as zip_ref:
-            zip_ref.extractall()
+            zip_ref.extractall(path=zip_folder)
 
     else:
         print("Found file already in Cache.")
-
-    zip_folder = path.parent / path.stem
 
     tif = zip_folder / 'frames.tif'
     tif_meta = zip_folder / 'meta.yaml'

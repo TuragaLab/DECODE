@@ -1,4 +1,5 @@
 import json
+# import copy
 import pathlib
 from pathlib import Path
 from typing import Union
@@ -126,10 +127,23 @@ def load_reference() -> dict:
     return param_ref
 
 
-def autofill_dict(x: dict, reference: dict) -> dict:
-    """Fill dict `x` with keys and values of reference if they are not present in x."""
+def autofill_dict(x: dict, reference: dict, mode_missing: str = 'exclude') -> dict:
+    """
+    Fill dict `x` with keys and values of reference if they are not present in x.
 
-    out = {}
+    Args:
+        x: input dict to be filled
+        reference: reference dictionary
+        mode_missing:
+
+    """
+
+    if mode_missing == 'exclude':  # create new dict and copy
+        out = {}
+    elif mode_missing == 'include':
+        out = x
+    else:
+        raise ValueError
 
     for k, v in reference.items():
         if isinstance(v, dict):
