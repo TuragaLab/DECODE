@@ -13,8 +13,23 @@ calib:
   challenge_dh:
 
 examples:
-  package_1:
-    name: package_1
+  package_training_1:
+    name: package_training_1
+    url: /download
+    hash: ba76c6562b9205b8a367d5aae8fc4e7ebb053df6eab19eb22c6581fd0abcfa59
+
+  package_training_2:
+    name: package_training_2  # insert challenge as here
+    url:
+    hash:
+
+  package_training_3:
+    name: package_training_3  # insert challenge dh here
+    url:
+    hash:
+
+  package_fit_1:
+    name: package_fit_1
     url: https://oc.embl.de/index.php/s/mZPm9HY2lDgCO3s/download
     hash: e1c8e04ac5535b79b3f0640884a08938a6b19209749fc3e8e2e481cbb2972f7d
 

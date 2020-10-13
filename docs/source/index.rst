@@ -22,20 +22,33 @@ If you don't have conda (chances are you have it when you have used python) you 
 In the following we will make a conda environment and install decode.
 If you are familiar with using conda in your terminal of choice that's great! Just type:
 ::
-    conda create -n decode_env -c haydnspass -c pytorch -c conda-forge decode python=3.8  # python >=3.6 supported
+    conda create -n decode_env -c Turagalab -c pytorch -c conda-forge decode python=3.8  # python >=3.6 supported
     conda activate decode_env
 
 This will create a new environment and install this framework. If everything worked until here you are good and can skip the next step.
 (optional) You can also create a new environment in the anaconda navigator and install the package there.
 Installing the package without creating a new environment (or in a fresh environment) is possible as
 ::
-    conda install -c haydnspass -c pytorch -c conda-forge decode
+    conda install -c Turagalab -c pytorch -c conda-forge decode
 
 In python you can now import this package as simple as ``import decode``
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 1
+   :caption: Contents
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: DECODE API
+
+   decode
+
+.. toctree::
+   :maxdepth: 0
+   :caption: Tutorial
+
+   tutorial
 
 
 
