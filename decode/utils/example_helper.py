@@ -17,7 +17,16 @@ def load_gateway():
     return yaml.load(r.content, Loader=yaml.FullLoader)
 
 
-def load_example_package(path: pathlib.Path, url, hash):
+def load_example_package(path: pathlib.Path, url: str, hash: str, mode: str):
+    """
+
+    Args:
+        path: destination where to save example package
+        url:
+        hash: sha 256 hash
+        mode: 'fit' or 'train'
+
+    """
 
     zip_folder = path.parent / path.stem
 
@@ -31,9 +40,19 @@ def load_example_package(path: pathlib.Path, url, hash):
     else:
         print("Found file already in Cache.")
 
-    tif = zip_folder / 'frames.tif'
-    tif_meta = zip_folder / 'meta.yaml'
-    model = zip_folder / 'model.pt'
-    param_train = zip_folder / 'param_run.yaml'
+    if mode == 'fit':
 
-    return tif, tif_meta, model, param_train
+        tif = zip_folder / 'frames.tif'
+        tif_meta = zip_folder / 'meta.yaml'
+        model = zip_folder / 'model.pt'
+        param_train = zip_folder / 'param_run.yaml'
+
+        return tif, tif_meta, model, param_train
+
+    elif mode == 'train':
+
+        calib = zip_folder / 'spline_calibration_3dcal.mat'
+        return calib
+
+    else:
+        raise ValueError
