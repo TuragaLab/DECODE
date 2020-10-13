@@ -15,7 +15,7 @@ calib:
 examples:
   package_training_1:
     name: package_training_1
-    url: /download
+    url: https://oc.embl.de/index.php/s/AwF1Kiiswtj1Gbj/download
     hash: ba76c6562b9205b8a367d5aae8fc4e7ebb053df6eab19eb22c6581fd0abcfa59
 
   package_training_2:
@@ -30,7 +30,7 @@ examples:
 
   package_fit_1:
     name: package_fit_1
-    url: https://oc.embl.de/index.php/s/mZPm9HY2lDgCO3s/download
+    url: https://oc.embl.de/index.php/s/KA99Y1qkgmC2qPn/download
     hash: e1c8e04ac5535b79b3f0640884a08938a6b19209749fc3e8e2e481cbb2972f7d
 
 wheels:
