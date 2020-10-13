@@ -29,7 +29,7 @@ copyright = '2020, Artur Speiser, Lucas-Raphael Mueller et al.'
 author = 'Artur Speiser, Lucas-Raphael Mueller et al.'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1dev0'
+release = '0.9.a'
 
 
 # -- General configuration ---------------------------------------------------
@@ -61,7 +61,6 @@ exclude_patterns = []
 # map file extension to respective types
 source_suffix = {
     '.rst': 'restructuredtext',
-    '.txt': 'markdown',
     '.md': 'markdown',
 }
 
