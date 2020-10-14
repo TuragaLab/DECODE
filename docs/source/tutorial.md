@@ -17,4 +17,12 @@ The repeating pattern of working with this package is
 1. Use the bead calibration to fit your SMLM data.
 2. Use the plugin: *DECODE\_training\_estimates* to estimate the photo-physical parameters of the experiment and to save them into a parameter file. Consult the information of the plugin (accessible via the Info button) for further information.
 
-# General Usage
+### Training and Fit
+Please download our example jupyter notebooks that describe the respective steps in detail.
+[Download Notebooks](https://minhaskamal.github.io/DownGit/#/home?url=https://github.com/TuragaLab/DECODE/tree/master/examples).
+
+To get started with the examples, start JupyterLab by typing in your terminal or Anaconda prompt ``jupyter lab``
+which will open up a browser window. 
+In case of trouble please refer to the 
+[Instructions for JupyterLab](https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html).
+Navigate to the path where you saved the notebooks and go through them.
