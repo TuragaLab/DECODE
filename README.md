@@ -1,16 +1,17 @@
 # DECODE
 **Deep learning enables fast and dense single-molecule localization with high accuracy**
 
-This is the *official* implementation of the preprint (Link to ArXiV). 
-The easiest way to try out the algorithm is to have a look at the Google Colab Notebooks we provide for training our algorithm and fitting experimental data. You can find these notebooks here:
+This is the *official* implementation of the preprint (Link to ArXiV).
+[General Words about DECODE]
+The easiest way to try out the algorithm is to have a look at the Google Colab Notebooks we provide for training our algorithm and fitting experimental data. For installation instructions and further information please **refer to our** [**docs**](https://decode.readthedocs.io). 
+You can find these here:
 - DECODE Training [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18V1TLLu63CXSWihwoGX7ZQ5wj0Qk7GnD?usp=sharing)
 - DECODE Fitting [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1O0mjuOjaOl0wnLZ11Xo92IsWrgqtXL17?usp=sharing)
-
-You can find the installation instructions below, instructions and examples on how to use DECODE you can find in the documentation.
-The documentation can be found on the 'Wiki' button here in GitHub, or via this link: [LINK to Readthedocs].
+- [Documentation](https://decode.readthedocs.io)
 
 
-## Local Installation for Users (local machine)
+
+## Local Installation
 Please refer to our [docs](https://decode.readthedocs.io).
 
 ## Instructions for Developers
