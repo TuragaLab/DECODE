@@ -1,1 +1,3 @@
-include deepsmlm/test/assets/asset_list.yaml
+include decode/test/assets/asset_list.yaml
+include decode/utils/reference_files/param_friendly.yaml
+include decode/utils/reference_files/reference.yaml
