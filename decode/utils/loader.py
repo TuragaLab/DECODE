@@ -53,8 +53,9 @@ def load(file: (str, pathlib.Path), url: str, hash: str = None):
     with file.open('wb') as f:
         f.write(file_www.content)
 
-    if hash is not None and not hash == hashlib.sha256(file.read_bytes()).hexdigest():
-        raise RuntimeError("Downloaded file does not match hash.")
+    d_hash = hashlib.sha256(file.read_bytes()).hexdigest()
+    if hash is not None and not hash == d_hash:
+        raise RuntimeError(f"Downloaded file does not match hash.\nSHA-256 of ref.: {hash}\nSHA-256 of downloaded: {d_hash}")
 
 
 def check_load(file: (str, pathlib.Path), url: str, hash: str = None):
