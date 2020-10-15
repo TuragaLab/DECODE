@@ -16,7 +16,7 @@ examples:
   package_training_1:
     name: package_training_1
     url: https://oc.embl.de/index.php/s/AwF1Kiiswtj1Gbj/download
-    hash: ba76c6562b9205b8a367d5aae8fc4e7ebb053df6eab19eb22c6581fd0abcfa59
+    hash: 02d6bc70c7dbf0b44139751722b04c9b769200cf838c80483dc17b452544f670
 
   package_training_2:
     name: package_training_2  # insert challenge as here
