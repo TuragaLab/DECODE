@@ -3,6 +3,10 @@ import json
 import pathlib
 from pathlib import Path
 from typing import Union
+try:
+    import importlib.resources as pkg_resources
+except ImportError:  # Try backported to PY<37 `importlib_resources`.
+    import importlib_resources as pkg_resources
 
 import yaml
 
@@ -115,10 +119,6 @@ def load_reference() -> dict:
     Loads the static reference .yaml file because there we have the full sets and default values.
 
     """
-    try:
-        import importlib.resources as pkg_resources
-    except ImportError: # Try backported to PY<37 `importlib_resources`.
-        import importlib_resources as pkg_resources
 
     from . import reference_files
     param_ref = pkg_resources.open_text(reference_files, 'reference.yaml')
@@ -210,3 +210,24 @@ def add_root_relative(path: (str, Path), root: (str, Path)):
 
     else:
         return root / path
+
+
+def copy_reference_param(path: Union[str, Path]):
+    """
+    Copies our param references to the desired path
+
+    Args:
+        path: destination path, must exist and be a directory
+
+    """
+
+    path = path if isinstance(path, Path) else Path(path)
+    assert path.is_dir()
+
+    from . import reference_files
+    pr = pkg_resources.read_text(reference_files, "reference.yaml")
+    pf = pkg_resources.read_text(reference_files, "param_friendly.yaml")
+
+    (path / "reference.yaml").write_text(pr)
+    (path / "param_friendly.yaml").write_text(pf)
+

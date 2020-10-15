@@ -110,3 +110,15 @@ def test_set_autoscale_param():
     assert param.Scaling.bg_max == 12.
     assert param.Scaling.phot_max == 108.
     assert param.Scaling.z_max == 960.
+
+
+def test_copy_reference_param():
+
+    path = test_dir / Path(f'assets/refs')
+    path.mkdir(exist_ok=True)
+
+    with asset_handler.RMAfterTest(path, recursive=True):
+        wlp.copy_reference_param(path)
+
+        assert (path / 'reference.yaml').exists()
+        assert (path / 'param_friendly.yaml').exists()
