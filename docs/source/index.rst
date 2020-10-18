@@ -20,21 +20,40 @@ Though, the algorithm will work on non-GPU machines as well (you won't have fun 
 The easiest way to install DECODE, is by using conda.
 If you don't have conda (chances are you have it when you have used python) you may download it from https://anaconda.org.
 In the following we will make a conda environment and install decode.
-If you are familiar with using conda in your terminal or the Anaconda that's great! Just type:
+
+Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
+*******************************************************************
+
+If you are familiar with using conda in your terminal or the Anaconda prompt that's great! Depending on your operating system type:
 ::
-    conda create -n decode_env -c Turagalab -c pytorch -c conda-forge decode jupyterlab # python >=3.6 supported, jupyter not actually needed but necessary to run the examples
+    # Windows, Linux
+    conda create -n decode_env -c Turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab
+
+    # macOS (i.e. no CUDA support)
+    conda create -n decode_env -c Turagalab -c pytorch -c conda-forge decode jupyterlab
+
+    # after previous command (all platforms)
     conda activate decode_env
 
-Otherwise you can use *Anaconda Navigator*.
-Create a new environment named *decode_env*, add the channels *Turagalab*,
-*pytorch* and *conda-forge*. Add the packages *decode* and *jupyterlab*.
+Installation in Anaconda Navigator (Windows)
+**************************************************
+
+You can also use *Anaconda Navigator*.
+Create a new environment named *decode_env*, add the channels *Turagalab*, *pytorch* and *conda-forge*. 
+Add the packages *decode*, *cudatoolkit=10.1* and *jupyterlab*.
 Either way, this will create a new environment and install this framework. If everything worked until here you are good
 and can skip the next step.
 
-(optional) You can also create a new environment in the anaconda navigator and install the package there.
+
+Installation as package in current environment
+***********************************************
 Installing the package without creating a new environment (or in a fresh environment) is possible as
 ::
     conda install -c Turagalab -c pytorch -c conda-forge decode
+
+
+Testing
+******* 
 
 In python you can now import this package as simple as ``import decode``.
 You may continue with our tutorial.
