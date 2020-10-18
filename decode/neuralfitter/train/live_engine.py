@@ -54,8 +54,8 @@ def parse_args():
     return args
 
 
-def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, num_worker_override: int,
-                      log_folder: str, log_comment: str):
+def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False, no_log: bool = False, num_worker_override: int = None,
+                      log_folder: str = 'runs', log_comment: str = None):
     """
     Sets up the engine to train DeepSMLM. Includes sample simulation and the actual training.
 
@@ -118,8 +118,6 @@ def live_engine_setup(param_file: str, cuda_ix: int, debug: bool, no_log: bool, 
     torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
     os.nice(param.Hardware.unix_niceness)
 
-    if param.Hardware.torch_multiprocessing_sharing_strategy is not None:
-        torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
     torch.set_num_threads(param.Hardware.torch_threads)
 
     """Setup Log System"""

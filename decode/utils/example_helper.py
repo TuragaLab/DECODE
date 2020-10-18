@@ -40,19 +40,4 @@ def load_example_package(path: pathlib.Path, url: str, hash: str, mode: str):
     else:
         print("Found file already in Cache.")
 
-    if mode == 'fit':
-
-        tif = zip_folder / 'frames.tif'
-        tif_meta = zip_folder / 'meta.yaml'
-        model = zip_folder / 'model.pt'
-        param_train = zip_folder / 'param_run.yaml'
-
-        return tif, tif_meta, model, param_train
-
-    elif mode == 'train':
-
-        calib = zip_folder / 'spline_calibration_3dcal.mat'
-        return calib
-
-    else:
-        raise ValueError
+    return zip_folder

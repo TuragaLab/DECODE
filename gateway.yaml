@@ -13,25 +13,22 @@ calib:
   challenge_dh:
 
 examples:
-  package_training_1:
+  package_1:
     name: package_training_1
-    url: https://oc.embl.de/index.php/s/AwF1Kiiswtj1Gbj/download
-    hash: 02d6bc70c7dbf0b44139751722b04c9b769200cf838c80483dc17b452544f670
+    comment: experimental data, frames, trained model, all in one.
+    url:
+    hash: 418aa36686ea52de47117946f9dd53eb449f4dad1a38948adc786a59efb34100
 
-  package_training_2:
-    name: package_training_2  # insert challenge as here
+  package_2:
+    name: package_2  # insert challenge as here
+    comment:
     url:
     hash:
 
-  package_training_3:
+  package_3:
     name: package_training_3  # insert challenge dh here
     url:
     hash:
-
-  package_fit_1:
-    name: package_fit_1
-    url: https://oc.embl.de/index.php/s/KA99Y1qkgmC2qPn/download
-    hash: e1c8e04ac5535b79b3f0640884a08938a6b19209749fc3e8e2e481cbb2972f7d
 
 wheels:
   decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9/decode-0.9-py3-none-any.whl
