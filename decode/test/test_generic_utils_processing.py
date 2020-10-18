@@ -65,12 +65,28 @@ class TestParallelTransformSequence(TestTransformSequence):
         assert (out[:5] == 0.).all()
 
 
-def test_wrap_callable():
+class TestWrapCallable:
 
-    def dummy(x):
-        return x.clone()
+    @staticmethod
+    def test_wrap_callable():
 
-    assert hasattr(processing.wrap_callable(dummy), 'forward')
+        def dummy(x):
+            return x.clone()
 
-    x = torch.rand(5, 5)
-    assert (dummy(x) == processing.wrap_callable(dummy).forward(x)).all()
+        assert hasattr(processing.wrap_callable(dummy), 'forward')
+
+        x = torch.rand(5, 5)
+        assert (dummy(x) == processing.wrap_callable(dummy).forward(x)).all()
+
+    @staticmethod
+    def test_pickleability():
+        """Test whether camera.backward is pickleable"""
+        import pickle
+        from decode.simulation.camera import Photon2Camera
+
+        camera = Photon2Camera(qe=1.0, spur_noise=0., em_gain=100., e_per_adu=10., baseline=100., read_sigma=25, photon_units=True, device='cpu')
+        wrapped = processing.wrap_callable(camera.backward)
+
+        """Tests"""
+        s = pickle.dumps(wrapped)
+        w = pickle.loads(s)

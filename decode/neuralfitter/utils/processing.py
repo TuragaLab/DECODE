@@ -118,10 +118,17 @@ def wrap_callable(func: Callable):
 
     """
 
-    class TrafoWrapper:
+    return _TrafoWrapper(func=func)
 
-        @staticmethod
-        def forward(*args, **kwargs):
-            return func(*args, **kwargs)
 
-    return TrafoWrapper()
+class _TrafoWrapper:
+    """
+    Wrapps a callable. Useful because this way they can be element of a Transform Sequence.
+    Only to be used in conjunction with wrap_callable function above.
+    """
+
+    def __init__(self, func: Callable):
+        self._wrapped_callable = func
+
+    def forward(self, *args, **kwargs):
+        return self._wrapped_callable(*args, **kwargs)
