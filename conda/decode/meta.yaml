@@ -1,12 +1,13 @@
 package:
   name: decode
-  version: "0.1.dev"
+  version: "0.9.b"
 
 source:
      - path: ../..
 
 build:
-  number: 26
+  noarch: python
+  number: 27
 
 requirements:
   build:
@@ -20,13 +21,10 @@ requirements:
   run:
     - {{ pin_compatible('python', max_pin='x.x') }}
     - {{ pin_compatible('numpy', max_pin='x.x') }}
-    - cudatoolkit=10.1  # [linux]
-    - dotmap
     - pytorch=1.5
     - torchvision
     - click
     - deprecated
-    - dotmap
     - h5py
     - joblib
     - matplotlib
