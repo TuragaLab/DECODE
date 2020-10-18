@@ -7,7 +7,7 @@ source:
 
 build:
   noarch: python
-  number: 27
+  number: 29
 
 requirements:
   build:
@@ -19,7 +19,7 @@ requirements:
     - numpy {{ numpy }}
 
   run:
-    - {{ pin_compatible('python', max_pin='x.x') }}
+    - python >=3.6,<4
     - {{ pin_compatible('numpy', max_pin='x.x') }}
     - pytorch=1.5
     - torchvision
@@ -43,6 +43,7 @@ requirements:
 
   test:
     requires:
+      - python >=3.6,<4
       - pytest
     commands:
       - pytest --pyargs decode
