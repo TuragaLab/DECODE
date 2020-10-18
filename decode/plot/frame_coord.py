@@ -181,7 +181,7 @@ class PlotCoordinates3D:
             rgba_colors = torch.zeros((xyz.shape[0], 4))
             rgba_colors[:, 2] = 1.0
             rgba_colors[:, 3] = 1.0
-            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], marker='^', color=rgba_colors, label=self.labels[1])
+            self.ax.scatter(xyz[:, 0], xyz[:, 1], xyz[:, 2], marker='^', color=rgba_colors.numpy(), label=self.labels[1])
             plt.xlabel('x')
             plt.ylabel('y')
             plt.gca().invert_yaxis()
