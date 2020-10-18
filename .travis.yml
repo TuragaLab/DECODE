@@ -1,23 +1,26 @@
+# With this configuration we test functionality of decode. We don't test the deployed stuff, only what is in the respective REPO / branch.
 dist: xenial
 
-language: generic
+language: python
+python:
+  - 3.6
+  - 3.7
+  - 3.8
 
 install:
   - sudo apt-get update
   - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
   - bash miniconda.sh -b -p $HOME/miniconda
   - source "$HOME/miniconda/etc/profile.d/conda.sh"
-#  - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   # Useful for debugging any issues with conda
   - conda info -a
 
-  # Replace dep1 dep2 ... with your dependencies
-  # - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION pytest
   - conda config --set channel_priority strict
-  - conda env create -q -f environment_cpu_py38_torch15.yaml
+  - sed -i -E 's/(python=)(.*)/\1'$TRAVIS_PYTHON_VERSION'/' ./environment_cpu.yml  # modify environment file in order to specify python version, a bit hacky ...
+  - conda env create -q -f environment_cpu.yaml
   - conda activate decode_cpu
 
 script:
