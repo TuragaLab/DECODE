@@ -1,11 +1,10 @@
 from abc import ABC
-import matplotlib.pyplot as plt
+
 import pytest
 import torch
 
 import decode.simulation.background as background
 from decode.generic import emitter, test_utils
-from decode.plot import PlotFrame
 
 
 class BackgroundAbstractTest(ABC):
@@ -26,7 +25,6 @@ class BackgroundAbstractTest(ABC):
         return torch.rand((2, 3, 64, 64))
 
     def test_sanity(self, bgf):
-
         with pytest.raises(ValueError) as e_info:
             bgf.__init__(forward_return='asjdfki')
 
@@ -49,7 +47,6 @@ class BackgroundAbstractTest(ABC):
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Makes only sense if we have another device to test on.")
     def test_sample_like_cuda(self, bgf):
-
         x = torch.rand((2, 32, 32)).cuda()
 
         out = bgf.sample_like(x)
@@ -93,7 +90,6 @@ class TestUniformBackground(BackgroundAbstractTest):
         return background.UniformBackground((0., 100.), forward_return='tuple')
 
     def test_sample(self, bgf):
-
         super().test_sample(bgf)
 
         out = bgf.sample((5, 32, 32))
@@ -104,69 +100,6 @@ class TestUniformBackground(BackgroundAbstractTest):
             assert len(out_c.unique()) == 1, "Background not spacially constant"
 
         assert ((out >= 0) * (out <= 100)).all(), "Wrong output values."
-
-
-@pytest.mark.skip(reason="Currently ToDos, not useable rn.")
-class TestOofEmitterBackground(BackgroundAbstractTest):
-
-    @pytest.fixture()
-    def bgf(self):
-        extent = ((-0.5, 63.5), (-0.5, 63.5), (-750., 750.))
-        img_shape = (64, 64)
-        return background._OutOfFocusEmitters(extent[0], extent[1], img_shape, ampl=(1., 1.), num_oof_rg=(1, 1))
-
-    def test_gauss_psf(self, bgf):
-        """Tests whether the correct attribute for the gaussian psf is used."""
-        assert bgf.gauss_psf.peak_weight
-
-    def test_forward(self, bgf):
-        """Test peak heights."""
-        x = torch.zeros((1, 1, 64, 64))
-        out, _ = bgf.forward(x)
-        assert pytest.approx(out.max().item(), 0.01) == 1.
-
-
-@pytest.mark.skip(reason="Currently ToDos, not useable rn.")
-class TestPerlinBg(BackgroundAbstractTest):
-
-    @pytest.fixture(scope='class')
-    def bgf(self):
-        img_size = (64, 64)
-        return background._PerlinBackground(img_size, 2, 20)
-
-    def test_bypass(self, bgf):
-        """
-        Tests whether what comes in is what comes out if the amplitude is 0.
-        :param perlin_default:
-        :return:
-        """
-        bgf.amplitude = 0.
-        x_in = torch.zeros((2, 3, 64, 64))
-        x_out, _ = bgf.forward(x_in.clone())
-        assert test_utils.tens_almeq(x_in, x_out)
-
-    def test_approximate_range(self, bgf):
-        x_in = torch.zeros((2, 3, 64, 64))
-        x_out, _ = bgf.forward(x_in.clone())
-        assert x_out.min() >= 0.
-        assert x_out.max() <= bgf.amplitude * 1.
-
-
-@pytest.mark.skip(reason="Currently ToDos, not useable rn.")
-class TestMultiPerlin(BackgroundAbstractTest):
-
-    @pytest.fixture(scope='class')
-    def bgf(self):
-        return background._MultiPerlin((64, 64), [64, 32, 16, 8], [1, 1, 1, 1],
-                                       norm_amps=False,
-                                       draw_amps=True)
-
-    @pytest.mark.plot
-    def test_multiscale(self, bgf):
-        out, _ = bgf.forward(torch.zeros((2, 3, 64, 64)))
-        PlotFrame(out[0, 0]).plot()
-        plt.colorbar()
-        plt.show()
 
 
 class TestBgPerEmitterFromBgFrame:
