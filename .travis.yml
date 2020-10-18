@@ -19,7 +19,7 @@ install:
   - conda info -a
 
   - conda config --set channel_priority strict
-  - sed -i -E 's/(python=)(.*)/\1'$TRAVIS_PYTHON_VERSION'/' ./environment_cpu.yml  # modify environment file in order to specify python version, a bit hacky ...
+  - sed -i -E 's/(python=)(.*)/\1'$TRAVIS_PYTHON_VERSION'/' ./environment_cpu.yaml  # modify environment file in order to specify python version, a bit hacky ...
   - conda env create -q -f environment_cpu.yaml
   - conda activate decode_cpu
 
