@@ -6,6 +6,18 @@ import torch.utils.tensorboard
 
 class SummaryWriter(torch.utils.tensorboard.SummaryWriter):
 
+    def __init__(self, filter_keys=(), *args, **kwargs):
+        """
+
+        Args:
+            filter_keys: keys to be filtered in add_scalar_dict method
+            *args:
+            **kwargs:
+        """
+        super().__init__(*args, **kwargs)
+
+        self.filter_keys = filter_keys
+
     def add_scalar_dict(self, prefix: str, scalar_dict: dict, global_step=None, walltime=None):
         """
         Adds a couple of scalars that are in a dictionary to the summary.
@@ -14,6 +26,9 @@ class SummaryWriter(torch.utils.tensorboard.SummaryWriter):
         """
 
         for name, value in scalar_dict.items():
+            if name in self.filter_keys:
+                continue
+
             self.add_scalar(prefix + name, value, global_step=global_step, walltime=walltime)
 
 

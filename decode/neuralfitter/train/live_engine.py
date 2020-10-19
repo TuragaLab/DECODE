@@ -54,7 +54,8 @@ def parse_args():
     return args
 
 
-def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False, no_log: bool = False, num_worker_override: int = None,
+def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False, no_log: bool = False,
+                      num_worker_override: int = None,
                       log_folder: str = 'runs', log_comment: str = None):
     """
     Sets up the engine to train DeepSMLM. Includes sample simulation and the actual training.
@@ -128,7 +129,10 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
         log_folder = log_folder + '/' + experiment_id
 
         logger = decode.neuralfitter.utils.logger.MultiLogger(
-            [decode.neuralfitter.utils.logger.SummaryWriter(log_dir=log_folder),
+            [decode.neuralfitter.utils.logger.SummaryWriter(log_dir=log_folder,
+                                                            filter_keys=["dx_red_mu", "dx_red_sig", "dy_red_mu",
+                                                                         "dy_red_sig", "dz_red_mu", "dz_red_sig",
+                                                                         "dphot_red_mu", "dphot_red_sig"]),
              decode.neuralfitter.utils.logger.DictLogger()])
 
     sim_train, sim_test = setup_random_simulation(param)
