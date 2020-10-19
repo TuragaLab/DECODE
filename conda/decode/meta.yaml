@@ -57,4 +57,4 @@ about:
     # license_file: {{ SRC_DIR }}/LICENSE
     summary: "High-Density 3D Single-Molecule Localisation Microscopy using Convolutional Neural Networks."
     description: "Experimental. Windows and macOS are CPU only, Linux assumes a CUDA capable GPU. Installation must
-    (!) add the proper channels for the PyTorch dependencies: ```conda install decode -c haydnspass -c pytorch -c conda-forge```"
+    (!) add the proper channels for the PyTorch dependencies: ```conda install decode -c Turagalab -c pytorch -c conda-forge```"
