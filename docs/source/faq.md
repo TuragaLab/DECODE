@@ -9,3 +9,17 @@
     > 2. old
     > 
     > If you have multiple GPU devices you may set: `device='cuda:1'` (where `1` corresponds to the respective index of the device, starting with 0). If you don't have multiple devices, you may want to reduce the batch size: `param.HyperParameter.batch_size`.
+
+- I get errors like `No CUDA capable device found` or CUDA driver issues.
+    > This could mean that you really don't have a CUDA capable device (e.g. only an AMD GPU), or that there are
+    > driver issues. Please check the following
+    ```python
+      import spline
+      import torch
+      
+      print(torch.cuda.is_available())
+      print(spline.cuda_compiled)
+      print(spline.cuda_is_available())
+    ```
+    > All above should return `True`. When the first one returns `False` it is likely that you experience a CUDA
+    > driver issue.
