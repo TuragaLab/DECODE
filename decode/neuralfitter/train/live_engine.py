@@ -116,7 +116,9 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
 
     """Hardware / Server stuff."""
     cuda_ix = int(param.Hardware.device_ix) if cuda_ix is None else cuda_ix
-    torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
+    if torch.cuda.is_available():
+        torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
+
     os.nice(param.Hardware.unix_niceness)
 
     torch.set_num_threads(param.Hardware.torch_threads)
