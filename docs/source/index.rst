@@ -80,6 +80,12 @@ You may continue with our tutorial.
 
    tutorial
 
+.. toctree::
+   :maxdepth: 0
+   :caption: FAQ
+
+   faq
+
 
 
 Indices and tables
