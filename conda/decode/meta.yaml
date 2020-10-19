@@ -7,7 +7,7 @@ source:
 
 build:
   noarch: python
-  number: 29
+  number: 30
 
 requirements:
   build:
@@ -56,5 +56,4 @@ about:
     # license_family: GPL
     # license_file: {{ SRC_DIR }}/LICENSE
     summary: "High-Density 3D Single-Molecule Localisation Microscopy using Convolutional Neural Networks."
-    description: "Experimental. Windows and macOS are CPU only, Linux assumes a CUDA capable GPU. Installation must
-    (!) add the proper channels for the PyTorch dependencies: ```conda install decode -c Turagalab -c pytorch -c conda-forge```"
+    description: "Installation must add the respective channels for the dependencies (i.e. PyTorch and the spline package): ```conda install decode -c Turagalab -c pytorch -c conda-forge```"
