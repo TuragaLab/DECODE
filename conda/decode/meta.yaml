@@ -7,7 +7,7 @@ source:
 
 build:
   noarch: python
-  number: 2
+  number: 3
 
 requirements:
   build:
@@ -36,7 +36,7 @@ requirements:
     - scikit-image
     - scikit-learn
     - spline
-    - tensorboard=2.2
+    - tensorboard=2.0
     - tifffile
     - tqdm
 
