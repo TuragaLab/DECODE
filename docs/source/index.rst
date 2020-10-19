@@ -27,7 +27,7 @@ Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
 If you are familiar with using conda in your terminal or the Anaconda prompt that's great! Depending on your operating system type:
 ::
     # Windows, Linux
-    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab
+    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab ipykernel
 
     # macOS (i.e. no CUDA support)
     conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab
@@ -40,7 +40,7 @@ Installation in Anaconda Navigator (Windows)
 
 You can also use *Anaconda Navigator*.
 Create a new environment named *decode_env*, add the channels *turagalab*, *pytorch* and *conda-forge*. 
-Add the packages *decode*, *cudatoolkit=10.1* and *jupyterlab*.
+Add the packages *decode*, *cudatoolkit=10.1*, *jupyterlab* and *ipykernel*.
 Either way, this will create a new environment and install this framework. If everything worked until here you are good
 and can skip the next step.
 
