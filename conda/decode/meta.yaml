@@ -19,7 +19,7 @@ requirements:
     - numpy {{ numpy }}
 
   run:
-    - python >=3.6,<4
+    - python >=3.7,<4
     - {{ pin_compatible('numpy', max_pin='x.x') }}
     - pytorch=1.5.1
     - torchvision
@@ -42,7 +42,7 @@ requirements:
 
   test:
     requires:
-      - python >=3.6,<4
+      - python >=3.7,<4
       - pytest
     commands:
       - pytest --pyargs decode
