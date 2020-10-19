@@ -27,10 +27,10 @@ Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
 If you are familiar with using conda in your terminal or the Anaconda prompt that's great! Depending on your operating system type:
 ::
     # Windows, Linux
-    conda create -n decode_env -c Turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab
+    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab
 
     # macOS (i.e. no CUDA support)
-    conda create -n decode_env -c Turagalab -c pytorch -c conda-forge decode jupyterlab
+    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab
 
     # after previous command (all platforms)
     conda activate decode_env
@@ -39,7 +39,7 @@ Installation in Anaconda Navigator (Windows)
 **************************************************
 
 You can also use *Anaconda Navigator*.
-Create a new environment named *decode_env*, add the channels *Turagalab*, *pytorch* and *conda-forge*. 
+Create a new environment named *decode_env*, add the channels *turagalab*, *pytorch* and *conda-forge*. 
 Add the packages *decode*, *cudatoolkit=10.1* and *jupyterlab*.
 Either way, this will create a new environment and install this framework. If everything worked until here you are good
 and can skip the next step.
@@ -49,13 +49,18 @@ Installation as package in current environment
 ***********************************************
 Installing the package without creating a new environment (or in a fresh environment) is possible as
 ::
-    conda install -c Turagalab -c pytorch -c conda-forge decode
+    conda install -c turagalab -c pytorch -c conda-forge decode
 
+Updating
+***********
+Please execute the following command in your terminal/Anaconda prompt or do it via the Anaconda Navigator GUI.
+::
+    conda update -c turagalab -c pytorch -c conda-forge decode
 
-Testing
+Import
 ******* 
 
-In python you can now import this package as simple as ``import decode``.
+In python you can import this package as simple as ``import decode``.
 You may continue with our tutorial.
 
 .. toctree::
