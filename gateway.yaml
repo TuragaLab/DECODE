@@ -14,9 +14,9 @@ calib:
 
 examples:
   package_1:
-    name: package_training_1
+    name: package_1
     comment: experimental data, frames, trained model, all in one.
-    url:
+    url: https://oc.embl.de/index.php/s/TPlwJGVAaT3NKzf/download
     hash: 418aa36686ea52de47117946f9dd53eb449f4dad1a38948adc786a59efb34100
 
   package_2:
@@ -26,7 +26,7 @@ examples:
     hash:
 
   package_3:
-    name: package_training_3  # insert challenge dh here
+    name: package_3  # insert challenge dh here
     url:
     hash:
 
