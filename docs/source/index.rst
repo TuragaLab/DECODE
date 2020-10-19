@@ -85,12 +85,3 @@ You may continue with our tutorial.
    :caption: FAQ
 
    faq
-
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
