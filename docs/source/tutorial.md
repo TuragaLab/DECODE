@@ -21,8 +21,12 @@ The repeating pattern of working with this package is
 Please download our example jupyter notebooks that describe the respective steps in detail.
 [Download Notebooks](https://minhaskamal.github.io/DownGit/#/home?url=https://github.com/TuragaLab/DECODE/tree/master/examples).
 
-To get started with the examples, start JupyterLab by typing in your terminal or Anaconda prompt ``jupyter lab``
-which will open up a browser window. 
-In case of trouble please refer to the 
-[Instructions for JupyterLab](https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html).
-Navigate to the path where you saved the notebooks and go through them.
+To get started start up JupyterLab from the decode environment as follows:
+```bash
+conda activate decode_env
+jupyter lab
+```
+This will open up a new brewser tab/window. Navigate to the path where you saved the notebooks and go through them.
+
+In case of trouble please refer to the [Instructions for JupyterLab](https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html).
+

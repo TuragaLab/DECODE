@@ -2,6 +2,7 @@ import argparse
 import copy
 import datetime
 import os
+import sys
 import shutil
 import socket
 from pathlib import Path
@@ -119,7 +120,10 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
     if torch.cuda.is_available():
         torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
 
-    os.nice(param.Hardware.unix_niceness)
+    if sys.platform in ('linux', 'darwin'):
+        os.nice(param.Hardware.unix_niceness)
+    elif param.Hardware.unix_niceness is not None:
+        print(f"Cannot set niceness on platform {sys.platform}. You probably do not need to worry.")
 
     torch.set_num_threads(param.Hardware.torch_threads)
 
