@@ -76,12 +76,12 @@ def log_frames(x, y_out, y_tar, weight, em_out, em_tar, tp, tp_match, logger, st
 
     # plot dist of probability channel
     f_prob_dist, ax_prob_dist = plt.subplots()
-    sns.distplot(y_out[0].reshape(-1).numpy(), kde=False, ax=ax_prob_dist)
+    sns.histplot(y_out[0].reshape(-1).numpy(), kde=False, ax=ax_prob_dist)
     plt.xlabel('prob')
     logger.add_figure('output_dist/prob', f_prob_dist)
 
     f_prob_dist_log, ax_prob_dist_log = plt.subplots()
-    sns.distplot(y_out[0].reshape(-1).numpy(), kde=False, ax=ax_prob_dist_log)
+    sns.histplot(y_out[0].reshape(-1).numpy(), kde=False, ax=ax_prob_dist_log)
     plt.yscale('log')
     plt.xlabel('prob')
     logger.add_figure('output_dist/prob_log', f_prob_dist_log)
@@ -116,7 +116,7 @@ def log_dists(tp, tp_match, pred, px_border, px_size, logger, step):
 
     """Log prob dist"""
     f_prob, ax_prob = plt.subplots()
-    sns.distplot(pred.prob, bins=50, norm_hist=True, ax=ax_prob, kde=False)
+    sns.histplot(pred.prob, bins=50, stat='density', ax=ax_prob, kde=False)
     logger.add_figure('dist/prob', f_prob, step)
 
 

@@ -1,8 +1,7 @@
-import matplotlib.pyplot as plt
-import torch.utils.tensorboard
 import time
 
-from functools import partial
+import matplotlib.pyplot as plt
+import torch.utils.tensorboard
 
 
 class SummaryWriter(torch.utils.tensorboard.SummaryWriter):
@@ -120,9 +119,11 @@ class MultiLogger:
     A 'Meta-Logger', i.e. a logger that calls its components.
     Note all component loggers are assumed to have the same methods.
     """
+
     def __init__(self, logger):
         def do_for_all(cmp, mthd: str):
             """Execute a method which is present in all cmp sequentially."""
+
             def idk(*args, **kwargs):
                 # for c in cmp:
                 return [getattr(c, mthd)(*args, **kwargs) for c in cmp]
@@ -137,4 +138,3 @@ class MultiLogger:
 
         for m in mthds:
             setattr(self, m, do_for_all(self.logger, m))
-

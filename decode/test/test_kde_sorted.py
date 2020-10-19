@@ -10,7 +10,9 @@ class TestKDESorted:
     def test_nan(self):
 
         x = torch.randn(25, )
-        y = float('nan') * torch.ones_like(x)
+        x[1] = float('nan')
+        y = torch.rand_like(x)
+        y[5:] = float('nan') * torch.ones_like(y[5:])
 
-        z, x, y = utils.kde_sorted(x, y, True, nan_inf_ignore=True)
+        z, x, y = utils.kde_sorted(x, y, plot=True, nan_inf_ignore=True, sub_sample=False)
         plt.show()

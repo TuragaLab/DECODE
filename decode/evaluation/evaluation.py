@@ -216,12 +216,12 @@ class WeightedErrors:
         if len(dxyz[:, 0]) != len(dphot) or len(dphot) != len(dbg):
             raise ValueError("Inconsistent number of elements.")
 
-        sns.distplot(dxyz[:, 0].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[0])
-        sns.distplot(dxyz[:, 1].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[1])
-        sns.distplot(dxyz[:, 2].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[2])
+        sns.histplot(dxyz[:, 0].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[0])
+        sns.histplot(dxyz[:, 1].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[1])
+        sns.histplot(dxyz[:, 2].numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[2])
 
-        sns.distplot(dphot.numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[3])
-        sns.distplot(dbg.numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[4])
+        sns.histplot(dphot.numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[3])
+        sns.histplot(dbg.numpy(), norm_hist=True, kde=False, fit=scipy.stats.norm, ax=axes[4])
 
         return axes
 

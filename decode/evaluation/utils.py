@@ -1,5 +1,4 @@
 import math
-import random
 
 import numpy as np
 import seaborn as sns
@@ -49,7 +48,7 @@ def kde_sorted(x: torch.Tensor, y: torch.Tensor, plot=False, ax=None, band_with=
             else:
                 z = gaussian_kde(xy_in)(xy_in)
 
-        except:  # ToDo: replace by robust kde
+        except ValueError:  # ToDo: replace by robust kde
             z = np.ones_like(xy_in[0]) * float('nan')
 
     else:
@@ -68,9 +67,12 @@ def kde_sorted(x: torch.Tensor, y: torch.Tensor, plot=False, ax=None, band_with=
             ax = plt.gca()
 
         if sub_sample:
-            ax.scatter(xy_out[0, :], xy_out[1, :], c='k', s=10, edgecolor='')
+            # get rid of nan
+            xy_out = xy_out[:, np.prod((~np.isnan(xy_out)), 0).astype('bool')]
+            ax.scatter(xy_out[0, :], xy_out[1, :], c='k', s=10, edgecolors='none')
 
-        ax.scatter(x_in, y_in, c=z, s=10, edgecolor='', cmap='RdBu_r')
+        not_nan = (~np.isnan(x_in) * ~np.isnan(y_in))
+        ax.scatter(x_in[not_nan], y_in[not_nan], c=z[None, not_nan], s=10, edgecolors='none', cmap='RdBu_r')
 
     return z, x_in, y_in
 
@@ -125,9 +127,9 @@ class MetricMeter:
         vals = self.vals.view(-1).numpy()
         f, (ax_box, ax_hist) = plt.subplots(2, sharex=True, gridspec_kw={"height_ratios": (.1, .9)})
 
-        """Plot boxplot and distplot."""
+        """Plot boxplot and histplot."""
         sns.boxplot(vals, ax=ax_box)
-        sns.distplot(vals, ax=ax_hist, kde=False, fit=fit, bins=bins_, norm_hist=True)
+        sns.histplot(vals, ax=ax_hist, kde=False, fit=fit, bins=bins_, norm_hist=True)
 
         """Get the fit values."""
         if fit is not None:
