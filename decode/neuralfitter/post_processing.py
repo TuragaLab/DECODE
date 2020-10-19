@@ -1,4 +1,3 @@
-import math
 import warnings
 from abc import ABC, abstractmethod  # abstract class
 from typing import Union, Callable
@@ -6,7 +5,6 @@ from typing import Union, Callable
 import scipy
 import torch
 from deprecated import deprecated
-from joblib import Parallel, delayed
 from sklearn.cluster import AgglomerativeClustering
 
 import decode.simulation.background
@@ -502,44 +500,6 @@ class ConsistencyPostprocessing(PostProcessing):
 
         return p_out.reshape(p.size()), feat_out.reshape(features.size())
 
-    @deprecated(reason="Does not work.")
-    def _cluster_mp(self, p: torch.Tensor, features: torch.Tensor):
-        """
-        Processes a batch in a multiprocessing fashion by splitting the batch into multiple smaller ones and forwards
-        them through ._cluster_batch
-
-        Args:
-            p (torch.Tensor): detections
-            features (torch.Tensor): features
-
-        Returns:
-
-        """
-
-        p = p.cpu()
-        features = features.cpu()
-        batch_size = p.size(0)
-
-        # split the tensors into smaller batches and multi-process them
-        p_split = torch.split(p, math.ceil(batch_size / self.num_workers))
-        feat_split = torch.split(features, math.ceil(batch_size / self.num_workers))
-
-        args = zip(p_split, feat_split)
-
-        results = Parallel(n_jobs=self.num_workers)(
-            delayed(self._cluster_batch)(p_, f_) for p_, f_ in args)
-
-        p_out_ = []
-        feat_out_ = []
-        for i in range(len(results)):
-            p_out_.append(results[i][0])
-            feat_out_.append(results[i][1])
-
-        p_out = torch.cat(p_out_, dim=0)
-        feat_out = torch.cat(feat_out_, dim=0)
-
-        return p_out, feat_out
-
     def _forward_raw_impl(self, p, features):
         """
         Actual implementation.
@@ -599,7 +559,7 @@ class ConsistencyPostprocessing(PostProcessing):
             if self.num_workers == 0:
                 p_out_diff, feat_out_diff = self._cluster_batch(p_diff.cpu(), feat_diff.cpu())
             else:
-                p_out_diff, feat_out_diff = self._cluster_mp(p_diff, feat_diff)
+                raise NotImplementedError
 
             """Add the easy ones."""
             p_out[is_easy] = p_easy[is_easy].cpu()
@@ -688,5 +648,3 @@ class ConsistencyPostprocessing(PostProcessing):
         return EmitterSet(xyz=feature_list[:, 1:4], phot=feature_list[:, 0], frame_ix=frame_ix,
                           prob=prob_final, bg=feature_list[:, 4],
                           xy_unit=self.xy_unit, px_size=self.px_size)
-
-

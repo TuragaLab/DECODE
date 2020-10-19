@@ -193,6 +193,7 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
         _ = post.forward(torch.cat((p, out), 1))
 
+    @pytest.mark.skip(reason="Implementation was not robust and was removed. Test can be used when new implementation is there.")
     def test_multi_worker(self, post):
 
         """Setup"""
