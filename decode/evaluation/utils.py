@@ -48,7 +48,7 @@ def kde_sorted(x: torch.Tensor, y: torch.Tensor, plot=False, ax=None, band_with=
             else:
                 z = gaussian_kde(xy_in)(xy_in)
 
-        except ValueError:  # ToDo: replace by robust kde
+        except (np.linalg.LinAlgError, ValueError):  # ToDo: replace by robust kde
             z = np.ones_like(xy_in[0]) * float('nan')
 
     else:
