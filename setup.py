@@ -14,14 +14,11 @@ else:
     # pip needs requirements here; keep in sync with meta.yaml!
     requirements = [
         "numpy",
-        "dotmap",
         "torch",
         "torchvision",
         "click",
         "deprecated",
-        "dotmap",
         "h5py",
-        "joblib",
         "matplotlib",
         "pandas",
         "pytest",
@@ -38,7 +35,7 @@ else:
 
 setup(
     name='decode',
-    version='0.9.1dev',
+    version='0.9.1.dev',
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=requirements,
