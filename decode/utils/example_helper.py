@@ -17,20 +17,20 @@ def load_gateway():
     return yaml.load(r.content, Loader=yaml.FullLoader)
 
 
-def load_example_package(path: pathlib.Path, url: str, hash: str, mode: str):
+def load_example_package(path: pathlib.Path, url: str, hash: str):
     """
 
     Args:
         path: destination where to save example package
         url:
         hash: sha 256 hash
-        mode: 'fit' or 'train'
 
     """
 
     zip_folder = path.parent / path.stem
 
     if not loader.check_file(path, hash):
+        print("Downloading example package, this might take a while. File will be cached.")
         loader.load(path, url, hash)
 
         zip_folder.mkdir(exist_ok=True)
