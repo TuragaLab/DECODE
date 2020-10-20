@@ -21,6 +21,9 @@ The easiest way to install DECODE, is by using conda.
 If you don't have conda (chances are you have it when you have used python) you may download it from https://anaconda.org.
 In the following we will make a conda environment and install decode.
 
+Note that in the following we install *jupyterlab* (and *ipykernel*) in addition to DECODE. This is not strictly needed to run the code locally, but you need
+some kind of jupyter lab instance with the decode environment enabled in it to run the examples as described in the Tutorial.
+
 Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
 *******************************************************************
 
@@ -30,7 +33,7 @@ If you are familiar with using conda in your terminal or the Anaconda prompt tha
     conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab ipykernel
 
     # macOS (i.e. no CUDA support)
-    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab
+    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab ipykernel
 
     # after previous command (all platforms)
     conda activate decode_env
