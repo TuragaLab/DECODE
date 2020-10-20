@@ -27,25 +27,22 @@ some kind of jupyter lab instance with the decode environment enabled in it to r
 Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
 *******************************************************************
 
-If you are familiar with using conda in your terminal or the Anaconda prompt that's great! Depending on your operating system type:
+On macOS and Linux please open your terminal, on Windows open *Anaconda Prompt*.
+We recommend to set the conda channel_priority to strict. This does two things: Installation is faster, packages are used from the same channel if present.
+Depending on whether you have a CUDA capable GPU type:
+
 ::
-    # Windows, Linux
+    # (optional, recommended, only do once) weight channel hierarchy more than package version
+    conda config --set channel_priority strict
+
+    # CUDA capable GPU
     conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab ipykernel
 
-    # macOS (i.e. no CUDA support)
+    # macOS or no CUDA capable GPU
     conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab ipykernel
 
     # after previous command (all platforms)
     conda activate decode_env
-
-Installation in Anaconda Navigator (Windows)
-**************************************************
-
-You can also use *Anaconda Navigator*.
-Create a new environment named *decode_env*, add the channels *turagalab*, *pytorch* and *conda-forge*. 
-Add the packages *decode*, *cudatoolkit=10.1*, *jupyterlab* and *ipykernel*.
-Either way, this will create a new environment and install this framework. If everything worked until here you are good
-and can skip the next step.
 
 
 Installation as package in current environment
