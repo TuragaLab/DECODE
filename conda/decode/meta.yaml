@@ -1,13 +1,13 @@
 package:
   name: decode
-  version: "0.9.1.a"
+  version: "0.9.2.a"
 
 source:
      - path: ../..
 
 build:
   noarch: python
-  number: 3
+  number: 1
 
 requirements:
   build:
