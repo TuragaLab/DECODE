@@ -30,7 +30,6 @@ Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
 On macOS and Linux please open your terminal, on Windows open *Anaconda Prompt*.
 We recommend to set the conda channel_priority to strict. This does two things: Installation is faster, packages are used from the same channel if present.
 Depending on whether you have a CUDA capable GPU type:
-
 ::
     # (optional, recommended, only do once) weight channel hierarchy more than package version
     conda config --set channel_priority strict
