@@ -1,13 +1,14 @@
 name: decode_cpu
 
 channels:
-  - Turagalab
+  - turagalab
   - pytorch
   - conda-forge
   - defaults
 
 dependencies:
   # for building (decode and splinepsf)
+  - bump2version
   - cmake=3.15
   - ninja
   - pybind11>=2.4

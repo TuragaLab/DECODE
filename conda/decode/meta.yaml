@@ -36,7 +36,7 @@ requirements:
     - scikit-image
     - scikit-learn
     - spline
-    - tensorboard=2.0
+    - tensorboard
     - tifffile
     - tqdm
 

@@ -64,7 +64,10 @@ The docs can be found in the build folder.
 conda create --name build_clean conda-build
 conda activate build_clean
 
+# bump version so that all versions get updated automatically
+bump2version [major/minor/patch/release/build]  # --verbose --dry_run to see the effect
+
 # navigate to [repo]/conda
 cd conda
-conda-build -c haydnspass -c pytorch -c conda-forge decode
+conda-build -c turagalab -c pytorch -c conda-forge decode
 ```

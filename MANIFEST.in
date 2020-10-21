@@ -1,3 +1,7 @@
 include decode/test/assets/asset_list.yaml
 include decode/utils/reference_files/param_friendly.yaml
 include decode/utils/reference_files/reference.yaml
+include decode/utils/examples/Introduction.ipynb
+include decode/utils/examples/Evaluation.ipynb
+include decode/utils/examples/Training.ipynb
+include decode/utils/examples/Fit.ipynb

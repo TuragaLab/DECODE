@@ -18,15 +18,18 @@ The repeating pattern of working with this package is
 2. Use the plugin: *DECODE\_training\_estimates* to estimate the photo-physical parameters of the experiment and to save them into a parameter file. Consult the information of the plugin (accessible via the Info button) for further information.
 
 ### Training and Fit
-Please download our example jupyter notebooks that describe the respective steps in detail.
-[Download Notebooks](https://minhaskamal.github.io/DownGit/#/home?url=https://github.com/TuragaLab/DECODE/tree/master/examples).
+Please load the notebooks and start up JupyterLab by executing the following in the Terminal/Anaconda Prompt:
 
-To get started start up JupyterLab from the decode environment as follows:
 ```bash
 conda activate decode_env
+
+# load the example notebooks
+python -m decode.utils.notebooks [Destination Path of the Notebooks, e.g. /Users/MaxMustermann/Downloads]  # only needed once
+
+# fire up jupyter
 jupyter lab
 ```
-This will open up a new brewser tab/window. Navigate to the path where you saved the notebooks and go through them.
+This will load the example files and open up a new brewser tab/window. Navigate to the path where you saved the notebooks and go through them.
 
 In case of trouble please refer to the [Instructions for JupyterLab](https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html).
-
+Note that these notebooks might change with different versions of DECODE and might be incompatible. In that case you may want to load the notebooks again (as stated above).
