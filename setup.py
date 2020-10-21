@@ -35,7 +35,7 @@ else:
 
 setup(
     name='decode',
-    version='0.9.3.a',
+    version='0.9.3.a0',
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=requirements,
