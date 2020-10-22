@@ -58,16 +58,28 @@ make html
 The docs can be found in the build folder.
  
 
-### Building and Deploy with Conda
+### Building and Deploying
+Please follow the instructions as described here. Note that create the wheels only for Google Colab. 
+All users should install via conda.
 ```bash
-# recommended: create a new conda build environment
-conda create --name build_clean conda-build
+# optional, only once: create a new conda build environment
+conda create --name build_clean conda-build anaconda bump2version -c conda-forge
 conda activate build_clean
 
-# bump version so that all versions get updated automatically
+# bump version so that all versions get updated automatically, creates a git version tag automatically
 bump2version [major/minor/patch/release/build]  # --verbose --dry_run to see the effect
 
-# navigate to [repo]/conda
+# upload git tag
+git push --tags
+
+# build wheels
+python setup.py bdist_wheel
+# edit git release and upload the wheels
+
+# conda release
 cd conda
 conda-build -c turagalab -c pytorch -c conda-forge decode
+
+anaconda upload -u [your username] [path as provided at the end of the conda-build output]
 ```
+After this you may test the build in a clean environment.
