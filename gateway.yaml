@@ -31,5 +31,5 @@ examples:
     hash:
 
 wheels:
-  decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9.3.b0/decode-0.9.3b0-py3-none-any.whl
+  decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9.3-beta.2/decode-0.9.3b2-py3-none-any.whl
   spline_py36: https://github.com/TuragaLab/SplinePSF/releases/download/v0.9/spline-0.9-cp36-cp36m-linux_x86_64.whl
