@@ -30,6 +30,12 @@ examples:
     url:
     hash:
 
+  colab_uhd_2020-07-23:
+    name: uhd_2020-07-23
+    comment:
+    url: https://oc.embl.de/index.php/s/7Duj5GOceYR3HqJ/download
+    hash: 9b9960f798ba79256978a3fc778ce4d5d7e86e5d89c0d85b160ab4c88c4c8bba
+
 wheels:
   decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9.3-beta.2/decode-0.9.3b2-py3-none-any.whl
   spline_py36: https://github.com/TuragaLab/SplinePSF/releases/download/v0.9/spline-0.9-cp36-cp36m-linux_x86_64.whl
