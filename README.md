@@ -83,3 +83,5 @@ conda-build -c turagalab -c pytorch -c conda-forge decode
 anaconda upload -u [your username] [path as provided at the end of the conda-build output]
 ```
 After this you may test the build in a clean environment.
+You may update the link to the wheels in the `gateway.yaml` file in order to let Colab download the respective version.
+As we want to have this tested first, we did not automate this.
