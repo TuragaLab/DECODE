@@ -19,6 +19,7 @@ else:
         "click",
         "deprecated",
         "h5py",
+        "importlib_resources",
         "matplotlib",
         "pandas",
         "pytest",
