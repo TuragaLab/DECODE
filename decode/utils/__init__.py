@@ -4,6 +4,5 @@ from . import emitter_trafo
 from . import example_helper
 from . import frames_io
 from . import model_io
-from . import notebooks
 from . import param_io
 from . import types
