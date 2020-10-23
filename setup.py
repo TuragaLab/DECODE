@@ -14,7 +14,7 @@ else:
     # pip needs requirements here; keep in sync with meta.yaml!
     requirements = [
         "numpy",
-        "torch",
+        "torch==1.6",
         "torchvision",
         "click",
         "deprecated",
