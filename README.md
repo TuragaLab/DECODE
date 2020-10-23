@@ -55,6 +55,6 @@ Artur Speiser*, Lucas-Raphael Müller*, Ulf Matti, Christopher J. Obara, Wesley 
 ### Data availability
 The data referred to in our paper can be accessed at the following locations:
 - Fig 3: Can be downloaded from the SMLM 2016 challenge [website](http://bigwww.epfl.ch/smlm/challenge2016/)
-- Fig 4: [here](https://oc.embl.de/index.php/s/Qdqoqi1wV6Zg0MU?path=%2FRAW_Models_Fits%2FFigure%204)
+- Fig 4: [here]
 - Fig 5: By request from the authors Wesley R Legant, Lin Shao, Jonathan B Grimm, Timothy A Brown, Daniel E Milkie, Brian B Avants, Luke D Lavis & Eric Betzig, [**High-density three-dimensional localization microscopy across large volumes**](https://www.nature.com/articles/nmeth.3797), _Nature Methods_, *13*, pages 359–365 (2016).
 
