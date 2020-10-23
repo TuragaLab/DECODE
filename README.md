@@ -4,6 +4,8 @@ DECODE is a Python and [Pytorch](http://pytorch.org/) based deep learning tool f
 
 DECODE works by training a DEep COntext DEpendent (DECODE) neural network to detect and localize emitters at sub-pixel resolution. Notably, DECODE also predict detection and localization uncertainties, which can be used to generate superior super-resolution reconstructions.
 
+## Getting started
+
 The easiest way to try out the algorithm is to have a look at the Google Colab Notebooks we provide for training our algorithm and fitting experimental data. For installation instructions and further information please **refer to our** [**docs**](https://decode.readthedocs.io). 
 You can find these here:
 - DECODE Training [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18V1TLLu63CXSWihwoGX7ZQ5wj0Qk7GnD?usp=sharing)
