@@ -48,11 +48,11 @@ Please refer to our [docs](https://decode.readthedocs.io) for more information o
 ## Paper
 This is the *official* implementation of the preprint (Link to ArXiV).
 
-Artur Speiser*, Lucas-Raphael Müller*, Ulf Matti, Christopher J. Obara, Wesley R. Legant, Anna Kreshuk, Jakob H. Macke†, Jonas Ries†, and Srinivas C. Turaga†, **Deep learning enables fast and dense single-molecule localization with high accuracy**
+Artur Speiser*, Lucas-Raphael Müller*, Ulf Matti, Christopher J. Obara, Wesley R. Legant, Anna Kreshuk, Jakob H. Macke†, Jonas Ries†, and Srinivas C. Turaga†, **Deep learning enables fast and dense single-molecule localization with high accuracy**.
 
 ### Data availability
 The data referred to in our paper can be accessed at the following locations:
 - Fig 3: Can be downloaded from the SMLM 2016 challenge [website](http://bigwww.epfl.ch/smlm/challenge2016/)
 - Fig 4: [here](https://oc.embl.de/index.php/s/Qdqoqi1wV6Zg0MU?path=%2FRAW_Models_Fits%2FFigure%204)
-- Fig 5: Provided by the authors of [paper](https://www.nature.com/articles/nmeth.3797) Wesley R Legant, Lin Shao, Jonathan B Grimm, Timothy A Brown, Daniel E Milkie, Brian B Avants, Luke D Lavis & Eric Betzig, *High-density three-dimensional localization microscopy across large volumes*, _Nature Methods_, *13*, pages 359–365 (2016).
+- Fig 5: By request from the authors Wesley R Legant, Lin Shao, Jonathan B Grimm, Timothy A Brown, Daniel E Milkie, Brian B Avants, Luke D Lavis & Eric Betzig, [**High-density three-dimensional localization microscopy across large volumes**](https://www.nature.com/articles/nmeth.3797), _Nature Methods_, *13*, pages 359–365 (2016).
 
