@@ -1,8 +1,11 @@
 # DECODE
-**Deep learning enables fast and dense single-molecule localization with high accuracy**
 
-This is the *official* implementation of the preprint (Link to ArXiV).
-[General Words about DECODE]
+DECODE is a Python and [Pytorch](http://pytorch.org/) based deep learning tool for single molecule localization microscopy (SMLM). It has high accuracy for a large range of imaging modalities and conditions. On the public [SMLM 2016](http://bigwww.epfl.ch/smlm/challenge2016/) software benchmark competition, it [outperformed](http://bigwww.epfl.ch/smlm/challenge2016/leaderboard.html) all other fitters on 12 out of 12 data-sets when comparing both detection accuracy and localization error, often by a substantial margin. DECODE enables live-cell SMLM data with reduced light exposure in just 3 seconds and to image microtubules at ultra-high labeling density.
+
+DECODE works by training a DEep COntext DEpendent (DECODE) neural network to detect and localize emitters at sub-pixel resolution. Notably, DECODE also predict detection and localization uncertainties, which can be used to generate superior super-resolution reconstructions.
+
+## Getting started
+
 The easiest way to try out the algorithm is to have a look at the Google Colab Notebooks we provide for training our algorithm and fitting experimental data. For installation instructions and further information please **refer to our** [**docs**](https://decode.readthedocs.io). 
 You can find these here:
 - DECODE Training [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18V1TLLu63CXSWihwoGX7ZQ5wj0Qk7GnD?usp=sharing)
@@ -12,76 +15,46 @@ You can find these here:
 
 
 ## Local Installation
-Please refer to our [docs](https://decode.readthedocs.io).
 
-## Instructions for Developers
-Travis CI: [![Build Status](https://travis-ci.com/Haydnspass/DeepSMLM.svg?token=qb4PpCab8Gb7CDLAuNTY&branch=master)](https://travis-ci.com/Haydnspass/DeepSMLM)
+We highly recommend using [Anaconda Python](http://anaconda.org) for installing DECODE and its dependencies, including [Pytorch](http://pytorch.org/). While a CUDA-compatible GPU is not essential, it is strongly recommended, as it significantly speeds up the training and analysis steps.
 
-0. Clone the repository
-1. Install conda environment from file and activate it. Use the respective environment depending on whether you have a CUDA GPU or not.
-The cubic spline psf is pre-compiled in a different repo / as a separate package and will be installed automatically.
+### Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
+On macOS and Linux please open your terminal, on Windows open Anaconda Prompt. We recommend to set the conda channel_priority to strict. This does two things: Installation is faster, packages are used from the same channel if present. Depending on whether you have a CUDA capable GPU type:
 
-        # CUDA
-        conda env create -f environment_cuda102_py38_pt15.yml
-        conda activate decode_cuda_py38_pt15   
+    # (optional, recommended, only do once) weight channel hierarchy more than package version
+    conda config --set channel_priority strict
 
-        # CPU / macOS
-        conda env create -f environment_cpu_py38_pt15.yml
-        conda activate deepsmlm_cpu
+    # CUDA capable GPU
+    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab ipykernel
 
-3. Test whether everything works as expected
+    # macOS or no CUDA capable GPU
+    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab ipykernel
 
-            # assuming you are in the repo folder
-            pytest decode/test
+    # after previous command (all platforms)
+    conda activate decode_env
 
-            # or if you fancy some nice figures, depending on your IDE
-            # you might need to close popping up matplot figures
-            pytest decode/test --plot  
+### Installation as package in current environment
+Installing the package without creating a new environment (or in a fresh environment) is possible as
 
-4. The package can be used in python as
+    conda install -c turagalab -c pytorch -c conda-forge decode
 
-    ```import decode```
+### Updating
+ Please execute the following command in your terminal/Anaconda prompt or do it via the Anaconda Navigator GUI.
 
-### Note
-Simulation heavily relies on the Cubic Spline PSF Implementation (Li, Y. et al. Real-time 3D single-molecule localization using experimental point spread functions. Nature Methods 15, 367–369 (2018)).
-It has been factored out in a seperate Repo to make life easier (see https://github.com/Haydnspass/SplinePSF). It'll be auto-installed.
+    conda update -c turagalab -c pytorch -c conda-forge decode
 
-### Building the Docs
-For this we provide a conda environment for the sake of easy use. 
-```bash
-conda env create -f environment_docs.yaml  # once
-conda activate decode_docs
 
-cd docs
-make html
-```
-The docs can be found in the build folder.
- 
+Please refer to our [docs](https://decode.readthedocs.io) for more information on other options for installation.
 
-### Building and Deploying
-Please follow the instructions as described here. Note that create the wheels only for Google Colab. 
-All users should install via conda.
-```bash
-# optional, only once: create a new conda build environment
-conda create --name build_clean conda-build anaconda bump2version -c conda-forge
-conda activate build_clean
 
-# bump version so that all versions get updated automatically, creates a git version tag automatically
-bump2version [major/minor/patch/release/build]  # --verbose --dry_run to see the effect
+## Paper
+This is the *official* implementation of the preprint (Link to ArXiV).
 
-# upload git tag
-git push --tags
+Artur Speiser*, Lucas-Raphael Müller*, Ulf Matti, Christopher J. Obara, Wesley R. Legant, Anna Kreshuk, Jakob H. Macke†, Jonas Ries†, and Srinivas C. Turaga†, **Deep learning enables fast and dense single-molecule localization with high accuracy**.
 
-# build wheels
-python setup.py bdist_wheel
-# edit git release and upload the wheels
+### Data availability
+The data referred to in our paper can be accessed at the following locations:
+- Fig 3: Can be downloaded from the SMLM 2016 challenge [website](http://bigwww.epfl.ch/smlm/challenge2016/)
+- Fig 4: [here](https://oc.embl.de/index.php/s/SFM6Pc8RetX09pJ)
+- Fig 5: By request from the authors Wesley R Legant, Lin Shao, Jonathan B Grimm, Timothy A Brown, Daniel E Milkie, Brian B Avants, Luke D Lavis & Eric Betzig, [**High-density three-dimensional localization microscopy across large volumes**](https://www.nature.com/articles/nmeth.3797), _Nature Methods_, *13*, pages 359–365 (2016).
 
-# conda release
-cd conda
-conda-build -c turagalab -c pytorch -c conda-forge decode
-
-anaconda upload -u [your username] [path as provided at the end of the conda-build output]
-```
-After this you may test the build in a clean environment.
-You may update the link to the wheels in the `gateway.yaml` file in order to let Colab download the respective version.
-As we want to have this tested first, we did not automate this.
