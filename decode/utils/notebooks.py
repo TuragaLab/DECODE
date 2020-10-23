@@ -37,11 +37,11 @@ def copy_pkg_file(package, file: str, destination: Path):
     """
     Copies a package file to a destination folder.
     """
-    template = pkg_resources.read_text(package, file)
+    template = pkg_resources.read_text(package, file, encoding='utf-8')
 
     assert destination.is_dir(), "Destination must be directory."
     dest_file = destination / file
-    dest_file.write_text(template)
+    dest_file.write_text(template, encoding='utf-8')
 
 
 if __name__ == '__main__':
