@@ -1,3 +1,5 @@
+import warnings
+
 import matplotlib.pyplot as plt
 import torch
 import seaborn as sns
@@ -140,7 +142,9 @@ def post_process_log_test(*, loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_
 
     """Match and Evaluate"""
     tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
-    result = evaluation.SMLMEvaluation(weighted_eval=WeightedErrors(mode='crlb', reduction='gaussian')).forward(tp, fp, fn, tp_match)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Non-Finite values encountered during fitting.")
+        result = evaluation.SMLMEvaluation(weighted_eval=WeightedErrors(mode='crlb', reduction='gaussian')).forward(tp, fp, fn, tp_match)
 
     """Log"""
     # raw frames
