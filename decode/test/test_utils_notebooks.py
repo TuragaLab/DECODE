@@ -1,9 +1,7 @@
-import pytest
-import hashlib
 from pathlib import Path
 
-from decode.utils import notebooks
 from decode.test import asset_handler
+from decode.utils import notebooks
 
 
 def test_load_notebooks():
