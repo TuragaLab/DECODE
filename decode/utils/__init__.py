@@ -1,4 +1,5 @@
 from . import calibration_io
+from . import checkpoint
 from . import emitter_io
 from . import emitter_trafo
 from . import example_helper

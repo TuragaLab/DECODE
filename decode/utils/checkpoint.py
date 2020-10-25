@@ -6,7 +6,10 @@ import torch
 
 class CheckPoint:
     """
-    Checkpointing intended for use of
+    Checkpointing intended to resume to an already started training.
+    Warning:
+        Checkpointing is not intended for long-term storage of models or other information.
+        No version compatibility guarantees are given here at all.
     """
 
     def __init__(self, path: Union[str, Path]):
