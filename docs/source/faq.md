@@ -30,3 +30,9 @@
     ```
     > All above should return `True`. When the first one returns `False` it is likely that you experience a CUDA
     driver issue.
+
+- Training breaks due to `multiprocessing` or `broken pipe` error.
+    > This can happen particularly for Windows and there is no 'one answer'. 
+    > One workaround is to start the training with the 0 workers by adding `-n 0` at the end of the python command. However this will slow down training.
+    > You may change the multiprocessing strategy, which you can do in the .yaml file. `param -> Hardware -> torch_multiprocessing_sharing_strategy`. The sharing strategies depend on your
+    > system. Please have a look at https://pytorch.org/docs/stable/multiprocessing.html
