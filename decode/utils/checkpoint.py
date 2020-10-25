@@ -5,6 +5,10 @@ import torch
 
 
 class CheckPoint:
+    """
+    Checkpointing intended for use of
+    """
+
     def __init__(self, path: Union[str, Path]):
         self.path = path
 
@@ -24,7 +28,7 @@ class CheckPoint:
             'log': self.log
         }
 
-    def update(self, model_state, optimizer_state, lr_sched_state, step, log):
+    def update(self, model_state: dict, optimizer_state: dict, lr_sched_state: dict, step: int, log=None):
         self.model_state = model_state
         self.optimizer_state = optimizer_state
         self.lr_sched_state = lr_sched_state
@@ -47,6 +51,7 @@ class CheckPoint:
 
         return ckpt
 
-    def dump(self, model_state, optimizer_state, lr_sched_state, step, log=None):
+    def dump(self, model_state: dict, optimizer_state: dict, lr_sched_state: dict, step: int, log=None):
+        """Updates and saves to file."""
         self.update(model_state, optimizer_state, lr_sched_state, step, log)
         self.save()
