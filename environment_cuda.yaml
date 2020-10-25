@@ -15,8 +15,8 @@ dependencies:
 
   # actual package
   - python=3.8
-  - pytorch=1.6
-  - cudatoolkit=10.2
+  - pytorch=1.5.1
+  - cudatoolkit=10.1
   - torchvision
   - click
   - deprecated
@@ -28,7 +28,7 @@ dependencies:
   - pyyaml
   - requests
   - scipy
-  - seaborn
+  - seaborn=0.10
   - scikit-image
   - scikit-learn
   - spline

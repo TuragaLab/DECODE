@@ -119,7 +119,7 @@ def log_dists(tp, tp_match, pred, px_border, px_size, logger, step):
 
     """Log prob dist"""
     f_prob, ax_prob = plt.subplots()
-    sns.histplot(pred.prob, bins=50, stat='density', ax=ax_prob, kde=False)
+    sns.distplot(pred.prob, bins=50, norm_hist=True, ax=ax_prob, kde=False)
     logger.add_figure('dist/prob', f_prob, step)
 
 

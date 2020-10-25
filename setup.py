@@ -14,7 +14,7 @@ else:
     # pip needs requirements here; keep in sync with meta.yaml!
     requirements = [
         "numpy",
-        "torch==1.6",
+        "torch==1.5.1",
         "torchvision",
         "click",
         "deprecated",
@@ -26,7 +26,7 @@ else:
         "pyyaml",
         "requests",
         "scipy",
-        "seaborn",
+        "seaborn==0.10",
         "scikit-image",
         "scikit-learn",
         "tensorboard",

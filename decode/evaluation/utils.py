@@ -129,7 +129,7 @@ class MetricMeter:
 
         """Plot boxplot and histplot."""
         sns.boxplot(vals, ax=ax_box)
-        sns.histplot(vals, ax=ax_hist, kde=False, fit=fit, bins=bins_, norm_hist=True)
+        sns.distplot(vals, ax=ax_hist, kde=False, fit=fit, bins=bins_, norm_hist=True)
 
         """Get the fit values."""
         if fit is not None:

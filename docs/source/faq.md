@@ -32,7 +32,10 @@
     driver issue.
 
 - Training breaks due to `multiprocessing` or `broken pipe` error.
-    > This can happen particularly for Windows and there is no 'one answer'. 
-    > One workaround is to start the training with the 0 workers by adding `-n 0` at the end of the python command. However this will slow down training.
-    > You may change the multiprocessing strategy, which you can do in the .yaml file. `param -> Hardware -> torch_multiprocessing_sharing_strategy`. The sharing strategies depend on your
-    > system. Please have a look at https://pytorch.org/docs/stable/multiprocessing.html
+    > This can happen particularly often  for Windows and there is no 'one answer'. 
+    You might want to decrease the number of CPU workers or disable multiprocessing at all.
+    For this you would start the training with changed number of workers workers by adding `-n [number of workers]` at the end of the python command. Specify `-n 0` for disabling multiprocessing if even 2 lead to an error.
+    Alternitavely change the `.yaml` file here `param -> Hardware -> num_worker_train`.
+    Note that this can slow down training.
+    You can also try changing the multiprocessing strategy, which you can do in the .yaml file. `param -> Hardware -> torch_multiprocessing_sharing_strategy`. The sharing strategies depend on your
+    system. Please have a look at https://pytorch.org/docs/stable/multiprocessing.html

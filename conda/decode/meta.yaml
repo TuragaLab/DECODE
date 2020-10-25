@@ -21,7 +21,7 @@ requirements:
   run:
     - python >=3.6,<4
     - {{ pin_compatible('numpy', max_pin='x.x') }}
-    - pytorch=1.6
+    - pytorch=1.5.1
     - torchvision
     - click
     - deprecated
@@ -33,7 +33,7 @@ requirements:
     - pyyaml
     - requests
     - scipy
-    - seaborn
+    - seaborn=0.10
     - scikit-image
     - scikit-learn
     - spline
