@@ -5,14 +5,17 @@ import torch
 
 
 class CheckPoint:
-    """
-    Checkpointing intended to resume to an already started training.
-    Warning:
-        Checkpointing is not intended for long-term storage of models or other information.
-        No version compatibility guarantees are given here at all.
-    """
-
     def __init__(self, path: Union[str, Path]):
+        """
+        Checkpointing intended to resume to an already started training.
+        Warning:
+            Checkpointing is not intended for long-term storage of models or other information.
+            No version compatibility guarantees are given here at all.
+
+        Args:
+            path: filename / path where to dump the checkpoints
+
+        """
         self.path = path
 
         self.model_state = None
