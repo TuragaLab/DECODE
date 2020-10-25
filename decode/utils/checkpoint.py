@@ -1,8 +1,7 @@
-import torch
-import pytest
-
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
+
+import torch
 
 
 class CheckPoint:
@@ -34,6 +33,19 @@ class CheckPoint:
 
     def save(self):
         torch.save(self.dict, self.path)
+
+    @classmethod
+    def load(cls, path: Union[str, Path], path_out: Optional[Union[str, Path]] = None):
+        ckpt_dict = torch.load(path)
+
+        if path_out is None:
+            path_out = path
+        ckpt = cls(path=path_out)
+        ckpt.update(model_state=ckpt_dict['model_state'], optimizer_state=ckpt_dict['optimizer_state'],
+                    lr_sched_state=ckpt_dict['lr_sched_state'], step=ckpt_dict['step'],
+                    log=ckpt_dict['log'] if 'log' in ckpt_dict.keys() else None)
+
+        return ckpt
 
     def dump(self, model_state, optimizer_state, lr_sched_state, step, log=None):
         self.update(model_state, optimizer_state, lr_sched_state, step, log)
