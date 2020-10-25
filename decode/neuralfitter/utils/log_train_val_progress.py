@@ -77,16 +77,17 @@ def log_frames(x, y_out, y_tar, weight, em_out, em_tar, tp, tp_match, logger, st
             logger.add_figure('weight/weight_ch_' + str(i), f_w, step)
 
     # plot dist of probability channel
-    f_prob_dist, ax_prob_dist = plt.subplots()
-    sns.histplot(y_out[0].reshape(-1).numpy(), kde=False, ax=ax_prob_dist)
-    plt.xlabel('prob')
-    logger.add_figure('output_dist/prob', f_prob_dist)
-
-    f_prob_dist_log, ax_prob_dist_log = plt.subplots()
-    sns.histplot(y_out[0].reshape(-1).numpy(), kde=False, ax=ax_prob_dist_log)
-    plt.yscale('log')
-    plt.xlabel('prob')
-    logger.add_figure('output_dist/prob_log', f_prob_dist_log)
+    # ToDo: Histplots seem to cause trouble with memory. Deactivated for now.
+    # f_prob_dist, ax_prob_dist = plt.subplots()
+    # sns.histplot(y_out[0].reshape(-1).numpy(), kde=False, ax=ax_prob_dist)
+    # plt.xlabel('prob')
+    # logger.add_figure('output_dist/prob', f_prob_dist)
+    #
+    # f_prob_dist_log, ax_prob_dist_log = plt.subplots()
+    # sns.histplot(y_out[0].reshape(-1).numpy(), kde=False, ax=ax_prob_dist_log)
+    # plt.yscale('log')
+    # plt.xlabel('prob')
+    # logger.add_figure('output_dist/prob_log', f_prob_dist_log)
 
 
 def log_kpi(loss_scalar: float, loss_cmp: dict, eval_set: dict, logger, step):
