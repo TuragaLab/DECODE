@@ -13,7 +13,7 @@
 - I get `CUDA out of memory` errors
     > This might happen if your GPU is 
     > 1. Doing multiple things, i.e. used not only for computation but also for the display
-    > 2. old
+    > 2. old or has to little memory
     > 
     > If you have multiple GPU devices you may set: `device='cuda:1'` (where `1` corresponds to the respective index of the device, starting with 0). If you don't have multiple devices, you may want to reduce the batch size: `param.HyperParameter.batch_size`.
 
