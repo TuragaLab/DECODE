@@ -119,6 +119,10 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
     cuda_ix = int(param.Hardware.device_ix) if cuda_ix is None else cuda_ix
     if torch.cuda.is_available():
         torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
+        device = 'cuda'
+
+    else:
+        device = 'cpu'
 
     if param.Hardware.torch_multiprocessing_sharing_strategy is not None:  # one some platforms you might have trouble and need to change
         torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
@@ -146,7 +150,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
 
     sim_train, sim_test = setup_random_simulation(param)
     ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
-        setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, param)
+        setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
 
     dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
 
@@ -165,13 +169,13 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                 grad_rescale=param.HyperParameter.moeller_gradient_rescale,
                 grad_mod=grad_mod,
                 epoch=i,
-                device=torch.device(param.Hardware.device),
+                device=torch.device(device),
                 logger=logger
             )
 
         val_loss, test_out = decode.neuralfitter.train_val_impl.test(model=model, loss=criterion, dataloader=dl_test,
                                                                      epoch=i,
-                                                                     device=torch.device(param.Hardware.device))
+                                                                     device=torch.device(device))
 
         """Post-Process and Evaluate"""
         log_train_val_progress.post_process_log_test(loss_cmp=test_out.loss, loss_scalar=val_loss,
@@ -200,10 +204,11 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
             raise ValueError
 
 
-def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path, param):
+def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path, device, param):
     """
 
     Args:
+        device:
         simulator_train:
         simulator_test:
         logger:
@@ -229,7 +234,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
                                                    input_file=param.InOut.model_init)
 
     model = model_ls.load_init()
-    model = model.to(torch.device(param.Hardware.device))
+    model = model.to(torch.device(device))
 
     # Small collection of optimisers
     optimizer_available = {
@@ -244,7 +249,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     criterion = decode.neuralfitter.losscollection.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
                                                                   yextent=param.Simulation.psf_extent[1],
                                                                   img_shape=param.Simulation.img_size,
-                                                                  device=param.Hardware.device,
+                                                                  device=device,
                                                                   chweight_stat=param.HyperParameter.chweight_stat)
 
     """Learning Rate and Simulation Scheduling"""
@@ -264,7 +269,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     """Log the model"""
     try:
         dummy = torch.rand((2, param.HyperParameter.channels_in,
-                            *param.Simulation.img_size), requires_grad=True).to(torch.device(param.Hardware.device))
+                            *param.Simulation.img_size), requires_grad=True).to(torch.device(device))
         logger.add_graph(model, dummy)
 
     except:
