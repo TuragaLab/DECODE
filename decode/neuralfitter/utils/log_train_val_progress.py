@@ -77,7 +77,7 @@ def log_frames(x, y_out, y_tar, weight, em_out, em_tar, tp, tp_match, logger, st
             logger.add_figure('weight/weight_ch_' + str(i), f_w, step)
 
     # plot dist of probability channel
-    # ToDo: Histplots seem to cause trouble with memory. Deactivated for now.
+    # ToDo: Histplots seem to cause trouble with memory. Deactivated for now. If reactivate: change back to distplot
     # f_prob_dist, ax_prob_dist = plt.subplots()
     # sns.histplot(y_out[0].reshape(-1).numpy(), kde=False, ax=ax_prob_dist)
     # plt.xlabel('prob')
