@@ -20,6 +20,7 @@ dependencies:
   - click
   - deprecated
   - h5py
+  - line_profiler
   - matplotlib
   - pandas
   - pytest
@@ -34,7 +35,5 @@ dependencies:
   - tifffile
   - tqdm
 
-  # jupyter
-  - jupyter_contrib_nbextensions
-  - jupyterlab
-  - nb_conda
+  # add kernel to jupyter
+  - ipykernel
