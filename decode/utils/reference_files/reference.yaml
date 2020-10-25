@@ -25,6 +25,7 @@ Hardware:
   num_worker_train: 4
   torch_threads: 4
   unix_niceness: 0
+  torch_multiprocessing_sharing_strategy:
 HyperParameter:
   arch_param:
     activation: ELU
