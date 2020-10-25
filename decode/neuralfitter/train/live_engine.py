@@ -120,6 +120,9 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
     if torch.cuda.is_available():
         torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
 
+    if param.Hardware.torch_multiprocessing_sharing_strategy is not None:  # one some platforms you might have trouble and need to change
+        torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
+
     if sys.platform in ('linux', 'darwin'):
         os.nice(param.Hardware.unix_niceness)
     elif param.Hardware.unix_niceness is not None:
