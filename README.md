@@ -58,3 +58,10 @@ The data referred to in our paper can be accessed at the following locations:
 - Fig 4: [here](https://oc.embl.de/index.php/s/SFM6Pc8RetX09pJ)
 - Fig 5: By request from the authors Wesley R Legant, Lin Shao, Jonathan B Grimm, Timothy A Brown, Daniel E Milkie, Brian B Avants, Luke D Lavis & Eric Betzig, [**High-density three-dimensional localization microscopy across large volumes**](https://www.nature.com/articles/nmeth.3797), _Nature Methods_, *13*, pages 359–365 (2016).
 
+## Contributors
+- Artur Speiser (@aspeiser, arturspeiser@gmail.com)
+- Lucas-Raphael Müller (@haydnspass, lucasraphael.mueller@gmail.com)
+
+### Acknowledgements
+- Don Olbris (olbris, olbrisd@janelia.hhmi.org) for help with python packaging.
+
