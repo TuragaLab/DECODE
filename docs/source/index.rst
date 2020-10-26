@@ -22,14 +22,23 @@ The easiest way to install DECODE, is by using conda.
 If you don't have conda (chances are you have it when you have used python) you may download it from https://anaconda.org.
 In the following we will make a conda environment and install decode.
 
-Note that in the following we install *jupyterlab* (and *ipykernel*) in addition to DECODE. This is not strictly needed to run the code locally, but you need
-some kind of jupyter lab instance with the decode environment enabled in it to run the examples as described in the Tutorial.
+System Requirements (TLDR)
+**************************
+* GPU: CUDA with compute capability >= 3.7 (highly recommended)
+* OS: Linux (GPU accelerated), Windows (GPU accelerated), macOS (CPU only)
+* RAM: >= 8 GB
+* CPU: Multi-Core recommended
+* Software: conda, anaconda
 
 Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
 *******************************************************************
 
+Note that in the following we install *jupyterlab* (and *ipykernel*) in addition to DECODE. This is not strictly needed to run the code locally, but you need
+some kind of jupyter lab instance with the decode environment enabled in it to run the examples as described in the Tutorial.
+
 On macOS and Linux please open your terminal, on Windows open *Anaconda Prompt*.
 We recommend to set the conda channel_priority to strict. This does two things: Installation is faster, packages are used from the same channel if present.
+
 Depending on whether you have a CUDA capable GPU type:
 ::
     # (optional, recommended, only do once) weight channel hierarchy more than package version
