@@ -41,9 +41,9 @@ examples:
     name: uhd_2020-07-23_fit
     comment:
     url: https://oc.embl.de/index.php/s/V6hdzqv9Erc2mtM/download
-    hash: d1101156858bb2b20ff4f39f52d543ae602d3c74f4ae24b3e670bc2caf2efc6e
+    hash: 411e1d455066323cc15b97e93683b822618d3b4aecdbca37d39d04e558641bec
 
 
 wheels:
-  decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9.3/decode-0.9.3-py3-none-any.whl
+  decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9.3/decode-0.9.3-py3-none-any.whla
   spline_py36: https://github.com/TuragaLab/SplinePSF/releases/download/v0.9/spline-0.9-cp36-cp36m-linux_x86_64.whl
