@@ -13,6 +13,12 @@ dependencies:
   - ninja
   - pybind11>=2.4
 
+  # docs
+  - recommonmark  # markdown for sphinx
+  - sphinx
+  - sphinx-autodoc-typehints
+  - sphinx_rtd_theme
+
   # actual package
   - python=3.8
   - pytorch=1.5.1
