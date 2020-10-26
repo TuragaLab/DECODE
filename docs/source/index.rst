@@ -15,8 +15,9 @@ Local Installation
 ##################
 
 For regular use, of course we recommend to install and use the framework on your local machine.
-We strongly recommend using a machine with a modern CUDA enabled GPU, e.g. an RTX 3080, in particular for training.
-Though, the algorithm will work on non-GPU machines as well (you won't have fun though).
+We strongly recommend using a machine with a modern GPU, e.g. an RTX 3080, in particular for training.
+To make use of your GPU it requires a CUDA capability of 3.7 or higher (see here to check if your GPU is valid: https://en.wikipedia.org/wiki/CUDA#GPUs_supported).
+However, the algorithm will work on non-GPU machines as well (you won't have fun though).
 The easiest way to install DECODE, is by using conda.
 If you don't have conda (chances are you have it when you have used python) you may download it from https://anaconda.org.
 In the following we will make a conda environment and install decode.
