@@ -273,7 +273,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
         logger.add_graph(model, dummy)
 
     except:
-        raise RuntimeError("Your dummy input is wrong. Please update it.")
+        print("Did not log graph.")
+        # raise RuntimeError("Your dummy input is wrong. Please update it.")
 
     """Transform input data, compute weight mask and target data"""
     frame_proc = decode.neuralfitter.scale_transform.AmplitudeRescale.parse(param)
