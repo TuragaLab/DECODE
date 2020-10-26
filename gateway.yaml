@@ -35,7 +35,7 @@ examples:
     name: uhd_2020-07-23
     comment:
     url: https://oc.embl.de/index.php/s/7Duj5GOceYR3HqJ/download
-    hash: 1032de6d8bc16ee62d7cb160cd309693d73e473db352f2cc163d894732fc946e
+    hash: 6d6abb86ac796c5290a0beaf1bb2056122feec2cbef3b28295f7d57ec3833bab
 
   colab_uhd_2020-07-23_fit:
     name: uhd_2020-07-23_fit
