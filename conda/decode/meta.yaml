@@ -49,7 +49,7 @@ requirements:
       - pytest --pyargs decode
 
 about:
-    home: https://rieslab.de
+    home: https://github.com/TuragaLab/DECODE
     # dev_url: github url 
     # doc_url: doc url
     # license: GPL-3.0
