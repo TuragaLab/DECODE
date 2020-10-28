@@ -50,7 +50,7 @@ Please refer to our [docs](https://decode.readthedocs.io) for more information o
 ## Paper
 This is the *official* implementation of the [preprint](https://www.biorxiv.org/content/10.1101/2020.10.26.355164v1).
 
-[Artur Speiser*, Lucas-Raphael Müller*, Ulf Matti, Christopher J. Obara, Wesley R. Legant, Anna Kreshuk, Jakob H. Macke†, Jonas Ries†, and Srinivas C. Turaga†, **Deep learning enables fast and dense single-molecule localization with high accuracy**.](https://www.biorxiv.org/content/10.1101/2020.10.26.355164v1)
+Artur Speiser*, Lucas-Raphael Müller*, Ulf Matti, Christopher J. Obara, Wesley R. Legant, Anna Kreshuk, Jakob H. Macke†, Jonas Ries†, and Srinivas C. Turaga†, **Deep learning enables fast and dense single-molecule localization with high accuracy**, [_bioRxiv_2020.10.26.355164.](https://www.biorxiv.org/content/10.1101/2020.10.26.355164v1)
 
 ### Data availability
 The data referred to in our paper can be accessed at the following locations:
