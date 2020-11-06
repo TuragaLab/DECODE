@@ -2,13 +2,10 @@
 
 name: Test workflow
 
-# run manually
 on: push
 
 jobs:
   output_job:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-        echo "PATH is $PATH"
-        echo "conda located at $CONDA"
+      - run: echo conda located at $CONDA
