@@ -1,0 +1,19 @@
+# test workflow
+
+name: Test workflow
+
+# run manually
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: Arbitrary input
+        required: true
+        default: default input
+
+jobs:
+  output_job:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+        echo "Your input was ${{ github.event.inputs.name }}."
