@@ -1,0 +1,38 @@
+name: Build DECODE and upload to Anaconda Cloud
+
+
+# this will be on release at some point
+on: [push]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    
+    - name: Install conda build libraries
+      run: |
+        $CONDA/bin/conda install conda-build anaconda-client
+    
+    - name: Build DECODE
+      run: |
+        cd ./conda
+        $CONDA/bin/conda-build -c turagalab -c pytorch -c conda-forge decode
+
+    # need to test this part and see if it builds in their env
+
+
+    
+
+    # could have a pytest step here, with upload termination if it fails
+
+    # - name: Upload to Anaconda Cloud
+    #   run: |
+    #     # this is entirely wrong; needs correct paths from previous step,
+    #     #   plus needs secrets for login before upload; also needs logout?
+    #     $CONDA/bin/anaconda upload -u Turagalab /path/to/output/file/decode-blah-blah.tar.bz2
