@@ -43,6 +43,12 @@ examples:
     url: https://oc.embl.de/index.php/s/V6hdzqv9Erc2mtM/download
     hash: 411e1d455066323cc15b97e93683b822618d3b4aecdbca37d39d04e558641bec
 
+  bead_cal_2020-07-23:
+    name: beads_m2_2020-07-23
+    comment: raw beads
+    url: https://oc.embl.de/index.php/s/2pnyNbXZnegBIVs/download
+    hash: 7337d1fbc24363a5980031caf5356219a75e303738b50e61942d23c44321210f
+
 
 wheels:
   decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9.3/decode-0.9.3-py3-none-any.whl
