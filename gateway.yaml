@@ -16,7 +16,7 @@ examples:
   package_1:
     name: package_1
     comment: experimental data, frames, trained model, all in one.
-    url: https://oc.embl.de/index.php/s/TPlwJGVAaT3NKzf/download
+    url: https://oc.embl.de/index.php/s/j2kCCILAS5oLO8B/download
     hash: 418aa36686ea52de47117946f9dd53eb449f4dad1a38948adc786a59efb34100
 
   package_2:
