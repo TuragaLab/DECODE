@@ -40,5 +40,5 @@ jobs:
       run: |
         cd ./conda
         while read PATH; do 
-          echo pretend $CONDA/bin/anaconda upload -t token -u Turagalab $PATH
+          $CONDA/bin/anaconda upload -t $ANACONDA_TOKEN -u Turagalab $PATH
         done < $FILENAMES
