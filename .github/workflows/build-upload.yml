@@ -14,6 +14,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        ref: workflow-tests
+
     - name: Python 3.8
       uses: actions/setup-python@v2
       with:
@@ -36,5 +39,6 @@ jobs:
         ANACONDA_TOKEN: ${{ secrets.TURAGALAB_ANACONDA_TOKEN }}
       run: |
         cd ./conda
-        echo this is a test file > testlib-0.9.4-np118py_0.tar.bz2
-        $CONDA/bin/anaconda upload -t $ANACONDA_TOKEN -u Turagalab testlib-0.9.4-np118py_0.tar.bz2
+        while read PATH; do 
+          echo pretend $CONDA/bin/anaconda upload -t token -u Turagalab $PATH
+        done < $FILENAMES
