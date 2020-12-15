@@ -34,7 +34,7 @@ jobs:
         FILENAMES: temp-filenames.txt
       run: |
         cd ./conda
-        $CONDA/bin/conda-build -c conda-forge spline --output > $FILENAMES
+        $CONDA/bin/conda-build -c turagalab -c pytorch -c conda-forge decode --output > $FILENAMES
         echo conda-build --output:
         while read PATH; do 
           echo pretend anaconda upload -t token $PATH
