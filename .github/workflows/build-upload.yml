@@ -9,6 +9,9 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
 
+    env: 
+        FILENAMES: temp-filenames.txt
+
     steps:
     - uses: actions/checkout@v2
     - name: Python 3.8
@@ -31,7 +34,6 @@ jobs:
     - name: Upload to Anaconda Cloud
       env:
         ANACONDA_TOKEN: ${{ secrets.TURAGALAB_ANACONDA_TOKEN }}
-        FILENAMES: temp-filenames.txt
       run: |
         cd ./conda
         $CONDA/bin/conda-build -c turagalab -c pytorch -c conda-forge decode --output > $FILENAMES
