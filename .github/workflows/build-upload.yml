@@ -33,7 +33,8 @@ jobs:
         ANACONDA_TOKEN: ${{ secrets.TURAGALAB_ANACONDA_TOKEN }}
         FILENAMES: temp-filenames.txt
       run: |
-        conda-build -c conda-forge spline --output > $FILENAMES
+        cd ./conda
+        $CONDA/bin/conda-build -c conda-forge spline --output > $FILENAMES
         echo conda-build --output:
         while read PATH; do 
           echo pretend anaconda upload -t token $PATH
