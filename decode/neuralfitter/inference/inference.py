@@ -6,6 +6,7 @@ from tqdm import tqdm
 from .. import dataset
 from ...generic import emitter
 from functools import partial
+import decode.utils
 
 
 class Infer:
@@ -41,7 +42,7 @@ class Infer:
 
         self.forward_cat = self._setup_forward_cat(forward_cat)
 
-    def forward(self, frames: torch.Tensor) -> emitter.EmitterSet:
+    def forward(self, frames: torch.Tensor, sig_frames: torch.Tensor = None) -> emitter.EmitterSet:
         """
         Forward frames through model, pre- and post-processing and output EmitterSet
 
@@ -50,19 +51,38 @@ class Infer:
 
         """
 
-        """Form Dataset and Dataloader"""
-        ds = dataset.InferenceDataset(frames=frames, frame_proc=self.frame_proc, frame_window=self.ch_in)
-        dl = torch.utils.data.DataLoader(dataset=ds, batch_size=self.batch_size, shuffle=False,
-                                         num_workers=self.num_workers, pin_memory=self.pin_memory)
-
         """Move Model"""
         model = self.model.to(self.device)
         model.eval()
 
+        if model.sig_in:
+            assert sig_frames is not None, 'Noise map has to be provided in addition to the frames'
+
+        """Form Dataset and Dataloader"""
+        if model.sig_in:
+            if frames.shape == sig_frames.shape:
+                ds = dataset.InferenceDataset(frames=frames, frame_proc=self.frame_proc, frame_window=self.ch_in, sig_frames=sig_frames)
+            else:
+                assert frames.shape[-2:] == sig_frames.shape[-2:], "Frames and noise map need to have the same image dimension"
+        else:
+            ds = dataset.InferenceDataset(frames=frames, frame_proc=self.frame_proc, frame_window=self.ch_in, sig_frames=None)
+
+        dl = torch.utils.data.DataLoader(dataset=ds, batch_size=self.batch_size, shuffle=False,
+                                         num_workers=self.num_workers, pin_memory=self.pin_memory,
+                                         collate_fn=decode.neuralfitter.utils.collate.smlm_collate)
+
         out = []
 
         with torch.no_grad():
-            for sample in tqdm(dl):
+            for sample, sig_sample in tqdm(dl):
+                if model.sig_in:
+                    if sig_sample is not None:
+                        sample = torch.cat([sample, sig_sample], 1)
+                    elif sig_frames.ndim == 3:
+                        sample = torch.cat([sample, sig_frames.unsqueeze(0).repeat(sample.shape[0], sample.shape[1], 1, 1)], 1)
+                    elif sig_frames.ndim == 2:
+                        sample = torch.cat([sample, sig_frames.unsqueeze(0).unsqueeze(0).repeat(sample.shape[0], sample.shape[1], 1, 1)], 1)
+
                 x_in = sample.to(self.device)
 
                 # compute output

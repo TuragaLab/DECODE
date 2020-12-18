@@ -53,6 +53,7 @@ HyperParameter:
   architecture: SigmaMUNet
   batch_size: 64
   channels_in: 3
+  sig_in: 0
   channels_out:
   chweight_stat:
     - 1.0
@@ -80,6 +81,9 @@ HyperParameter:
 InOut:
   calibration_file:  # spline calib
   experiment_out:  # main output dir
+  cmos_noise: 
+  cmos_gain: 
+  cmos_mean: 
   model_init:
 PostProcessing: NMS  # (blank) for no post-processing or LookUp, Consistency
 PostProcessingParam:
@@ -118,6 +122,8 @@ Simulation:
   roi_size:  # if none, take the whole range of calibration
   roi_auto_center: false
   xy_unit: px
+  lls_cam_rot_euler_xyz:
+  lls_step_size_nm:
 TestSet:
   mode:  simulated
   test_size: 512

@@ -1,6 +1,6 @@
 import decode.simulation
 import decode.utils
-
+import torch
 
 def setup_random_simulation(param):
     """
@@ -42,13 +42,23 @@ def setup_random_simulation(param):
 
     if param.CameraPreset == 'Perfect':
         noise = decode.simulation.camera.PerfectCamera.parse(param)
+    elif param.CameraPreset == 'scmos':
+        noise = decode.simulation.camera.SCMOS.parse(param)
+#         if param.InOut.cmos_noise:
+#             noise_map = torch.load(param.InOut.cmos_noise)
+#             if param.InOut.cmos_gain:
+#                 noise_map = noise_map / torch.load(param.InOut.cmos_gain)
+#             else:
+#                 noise_map = noise_map / param.Camera.em_gain
+#             noise._read_sigma = noise_map
+
     elif param.CameraPreset is not None:
         raise NotImplementedError
     else:
         noise = decode.simulation.camera.Photon2Camera.parse(param)
 
-    simulation_train = decode.simulation.simulator.Simulation(psf=psf, em_sampler=prior_train, background=bg,
-                                                              noise=noise, frame_range=frame_range_train)
+    simulation_train = decode.simulation.simulator.Simulation(psf=psf, em_sampler=prior_train, background=bg, noise=noise, 
+                                                              frame_range=frame_range_train)
 
     frame_range_test = (0, param.TestSet.test_size)
 

@@ -53,11 +53,10 @@ class Simulation:
         """
 
         emitter = self.em_sampler()
-        frames, bg = self.forward(emitter)
-        return emitter, frames, bg
+        frames, bg, sigma = self.forward(emitter)
+        return emitter, frames, bg, sigma
 
-    def forward(self, em: EmitterSet, ix_low: Union[None, int] = None, ix_high: Union[None, int] = None) -> Tuple[
-        torch.Tensor, torch.Tensor]:
+    def forward(self, em: EmitterSet, ix_low: Union[None, int] = None, ix_high: Union[None, int] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Forward an EmitterSet through the simulation pipeline. 
         Setting ix_low or ix_high overwrites the frame range specified in the init.
@@ -92,6 +91,10 @@ class Simulation:
             bg_frames = None
 
         if self.noise is not None:
-            frames = self.noise.forward(frames)
+            if self.noise.return_sigma_map:
+                frames, sigma = self.noise.forward(frames)
+            else:
+                frames = self.noise.forward(frames)
+                sigma = None
 
-        return frames, bg_frames
+        return frames, bg_frames, sigma

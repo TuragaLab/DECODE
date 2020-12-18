@@ -3,6 +3,7 @@ from deprecated import deprecated
 
 import numpy as np
 import torch
+from scipy.spatial.transform import Rotation as R
 from torch.distributions.exponential import Exponential
 
 import decode.generic.emitter
@@ -106,7 +107,7 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
 
 class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
     def __init__(self, *, structure: structure_prior.StructurePrior, intensity_mu_sig: tuple, lifetime: float,
-                 frame_range: tuple, xy_unit: str, px_size: tuple, density=None, em_avg=None, intensity_th=None):
+                 frame_range: tuple, xy_unit: str, px_size: tuple, density=None, em_avg=None, intensity_th=None, lls_step_size_nm=None, lls_cam_rot_euler_xyz=None):
         """
 
         Args:
@@ -138,7 +139,19 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         self.lifetime_dist = Exponential(1 / self.lifetime_avg)  # parse the rate not the scale ...
 
         self.t0_dist = torch.distributions.uniform.Uniform(*self._frame_range_plus)
-
+        
+        self.lls_step_size_nm = lls_step_size_nm
+        self.lls_cam_rot_euler_xyz = lls_cam_rot_euler_xyz
+        
+        if lls_step_size_nm:
+            rot = R.from_euler('xyz', self.lls_cam_rot_euler_xyz, degrees=True)
+            self.lls_xyz_delta = torch.FloatTensor(rot.apply([0, self.lls_step_size_nm, 0]))
+            if xy_unit == 'px':
+                self.lls_xyz_delta[0] /= px_size[0]
+                self.lls_xyz_delta[1] /= px_size[1]
+        else:
+            self.lls_xyz_delta = None
+                        
         """
         Determine the total number of emitters. Depends on lifetime, frames and emitters.
         (lifetime + 1) because of binning effect.
@@ -169,13 +182,16 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
             EmitterSet
 
         """
-
         n = self.n_sampler(self._emitter_av_total)
 
         loose_em = self.sample_loose_emitter(n=n)
         em = loose_em.return_emitterset()
         em = em.get_subset_frame(*self.frame_range)  # because the simulated frame range is larger
-
+        
+        em = em[(em.xyz_px[:,0] > self.structure.xextent[0]) & (em.xyz_px[:,0] < self.structure.xextent[1])]
+        em = em[(em.xyz_px[:,1] > self.structure.yextent[0]) & (em.xyz_px[:,1] < self.structure.yextent[1])]
+        em = em[(em.xyz_nm[:,2] > self.structure.zextent[0]) & (em.xyz_nm[:,2] < self.structure.zextent[1])]
+        
         return em
 
     def sample_n(self, *args, **kwargs):
@@ -203,7 +219,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         ontime = self.lifetime_dist.rsample((n,))
 
         return decode.generic.emitter.LooseEmitterSet(xyz, intensity, ontime, t0, id=torch.arange(n).long(),
-                                                      xy_unit=self.xy_unit, px_size=self.px_size)
+                                                      xy_unit=self.xy_unit, px_size=self.px_size, lls_xyz_delta=self.lls_xyz_delta)
 
     @classmethod
     def parse(cls, param, structure, frames: tuple):
@@ -215,7 +231,10 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
                    frame_range=frames,
                    density=param.Simulation.density,
                    em_avg=param.Simulation.emitter_av,
-                   intensity_th=param.Simulation.intensity_th)
+                   intensity_th=param.Simulation.intensity_th,
+                   lls_step_size_nm=param.Simulation.lls_step_size_nm,
+                   lls_cam_rot_euler_xyz=param.Simulation.lls_cam_rot_euler_xyz
+                   )
 
 
 @deprecated(reason="Deprecated in favour of EmitterSamplerFrameIndependent.", version="0.1.dev")

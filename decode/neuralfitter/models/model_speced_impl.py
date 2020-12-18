@@ -19,12 +19,12 @@ class SigmaMUNet(model_param.DoubleMUnet):
     bg_ch_ix = [10]
     sigma_eps_default = 0.001
 
-    def __init__(self, ch_in: int, *, depth_shared: int, depth_union: int, initial_features: int, inter_features: int,
+    def __init__(self, ch_in: int, *, sig_in: int, depth_shared: int, depth_union: int, initial_features: int, inter_features: int,
                  norm=None, norm_groups=None, norm_head=None, norm_head_groups=None, pool_mode='StrideConv',
                  upsample_mode='bilinear', skip_gn_level: Union[None, bool] = None,
                  activation=nn.ReLU(), kaiming_normal=True):
 
-        super().__init__(ch_in=ch_in, ch_out=self.ch_out, depth_shared=depth_shared, depth_union=depth_union,
+        super().__init__(ch_in=ch_in, sig_in=sig_in, ch_out=self.ch_out, depth_shared=depth_shared, depth_union=depth_union,
                          initial_features=initial_features, inter_features=inter_features,
                          norm=norm, norm_groups=norm_groups, norm_head=norm_head,
                          norm_head_groups=norm_head_groups, pool_mode=pool_mode,
@@ -83,6 +83,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
         activation = activation()
         return cls(
             ch_in=param.HyperParameter.channels_in,
+            sig_in=param.HyperParameter.sig_in,
             depth_shared=param.HyperParameter.arch_param.depth_shared,
             depth_union=param.HyperParameter.arch_param.depth_union,
             initial_features=param.HyperParameter.arch_param.initial_features,

@@ -911,7 +911,7 @@ class LooseEmitterSet:
     """
 
     def __init__(self, xyz: torch.Tensor, intensity: torch.Tensor, ontime: torch.Tensor, t0: torch.Tensor,
-                 xy_unit: str, px_size, id: torch.Tensor = None, sanity_check=True):
+                 xy_unit: str, px_size, id: torch.Tensor = None, lls_xyz_delta = None, sanity_check=True):
         """
 
         Args:
@@ -935,7 +935,8 @@ class LooseEmitterSet:
         self.id = id
         self.t0 = t0
         self.ontime = ontime
-
+        self.lls_xyz_delta = lls_xyz_delta
+                
         if sanity_check:
             self.sanity_check()
 
@@ -994,7 +995,7 @@ class LooseEmitterSet:
                 return arr
 
             _, cnt = torch.unique(arr, return_counts=True)
-            return grp_range(cnt)[torch.argsort(arr).argsort()]
+            return grp_range(cnt)[np.argsort(np.argsort(arr, kind='mergesort'), kind='mergesort')]
 
         frame_start = torch.floor(self.t0).long()
         frame_last = torch.floor(self.te).long()
@@ -1009,6 +1010,7 @@ class LooseEmitterSet:
         # kick out everything that has no full frame_duration
         ix_full = frame_count_full >= 0
         xyz_ = self.xyz[ix_full, :]
+        
         flux_ = self.intensity[ix_full]
         id_ = self.id[ix_full]
         frame_start_full = frame_start[ix_full]
@@ -1033,6 +1035,16 @@ class LooseEmitterSet:
         phot_ = torch.cat((phot_, self.intensity[ix_with_last] * ontime_last[ix_with_last]), 0)
         id_ = torch.cat((id_, self.id[ix_with_last]), 0)
         frame_ix_ = torch.cat((frame_ix_, frame_last[ix_with_last]))
+        
+        if self.lls_xyz_delta is not None:
+        
+            sort_ix = torch.argsort(frame_ix_)
+            frame_ix_ = frame_ix_[sort_ix]
+            phot_ = phot_[sort_ix]
+            id_ = id_[sort_ix]
+            xyz_ = xyz_[sort_ix]
+
+            xyz_ = xyz_ + cum_count_per_group(id_)[:,None] * self.lls_xyz_delta
 
         return xyz_, phot_, frame_ix_, id_
 

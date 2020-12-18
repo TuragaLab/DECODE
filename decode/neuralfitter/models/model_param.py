@@ -3,6 +3,7 @@ from torch import nn as nn
 
 from . import unet_param
 from ..utils import last_layer_dynamics as lyd
+import numpy as np
 
 
 class SimpleSMLMNet(unet_param.UNet2d):
@@ -129,13 +130,13 @@ class SimpleSMLMNet(unet_param.UNet2d):
 
 
 class DoubleMUnet(nn.Module):
-    def __init__(self, ch_in, ch_out, ext_features=0, depth_shared=3, depth_union=3, initial_features=64,
+    def __init__(self, ch_in, sig_in, ch_out, ext_features=0, depth_shared=3, depth_union=3, initial_features=64,
                  inter_features=64,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
                  norm_head_groups=None, pool_mode='Conv2d', upsample_mode='bilinear', skip_gn_level=None):
         super().__init__()
 
-        self.unet_shared = unet_param.UNet2d(1 + ext_features, inter_features, depth=depth_shared, pad_convs=True,
+        self.unet_shared = unet_param.UNet2d(1 + ext_features + int(sig_in), inter_features, depth=depth_shared, pad_convs=True,
                                              initial_features=initial_features,
                                              activation=activation, norm=norm, norm_groups=norm_groups,
                                              pool_mode=pool_mode, upsample_mode=upsample_mode,
@@ -150,6 +151,7 @@ class DoubleMUnet(nn.Module):
         assert ch_in in (1, 3)
         # assert ch_out in (5, 6)
         self.ch_in = ch_in
+        self.sig_in = sig_in
         self.ch_out = ch_out
         self.mt_heads = nn.ModuleList(
             [MLTHeads(inter_features, out_channels=1, last_kernel=1,
@@ -266,9 +268,14 @@ class DoubleMUnet(nn.Module):
 
     def _forward_core(self, x) -> torch.Tensor:
         if self.ch_in == 3:
-            x0 = x[:, [0]]
-            x1 = x[:, [1]]
-            x2 = x[:, [2]]
+            if self.sig_in == 1:
+                x0 = torch.cat((x[:, [0]], (x[:, [3]] - 5) / 10), 1)
+                x1 = torch.cat((x[:, [1]], (x[:, [4]] - 5) / 10), 1)
+                x2 = torch.cat((x[:, [2]], (x[:, [5]] - 5) / 10), 1)
+            else:
+                x0 = x[:, [0]]
+                x1 = x[:, [1]]
+                x2 = x[:, [2]]
 
             o0 = self.unet_shared.forward(x0)
             o1 = self.unet_shared.forward(x1)
@@ -277,7 +284,11 @@ class DoubleMUnet(nn.Module):
             o = torch.cat((o0, o1, o2), 1)
 
         elif self.ch_in == 1:
-            o = self.unet_shared.forward(x)
+            if self.sig_in == 1:
+                x0 = torch.cat((x[:, [0]], (x[:, [1]] - 5) / 10), 1)
+            else:
+                x0 = x[:, [0]]
+            o = self.unet_shared.forward(x0)
 
         o = self.unet_union.forward(o)
 

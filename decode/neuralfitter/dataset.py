@@ -34,6 +34,7 @@ class SMLMDataset(Dataset):
 
         self._frames = None
         self._emitter = None
+        self._sig_frames = None
 
         self.em_proc = em_proc
         self.frame_proc = frame_proc
@@ -83,7 +84,6 @@ class SMLMDataset(Dataset):
             return index
 
     def _process_sample(self, frames, tar_emitter, bg_frame):
-
         """Process"""
         if self.frame_proc is not None:
             frames = self.frame_proc.forward(frames)
@@ -106,12 +106,12 @@ class SMLMDataset(Dataset):
 
         return frames, target, weight, tar_emitter
 
-    def _return_sample(self, frame, target, weight, emitter):
+    def _return_sample(self, frame, target, weight, emitter, sig_frames):
 
         if self.return_em:
-            return frame, target, weight, emitter
+            return frame, target, weight, emitter, sig_frames
         else:
-            return frame, target, weight
+            return frame, target, weight, sig_frames
 
 
 class SMLMStaticDataset(SMLMDataset):
@@ -131,7 +131,7 @@ class SMLMStaticDataset(SMLMDataset):
 
     def __init__(self, *, frames, emitter: (None, list, tuple),
                  frame_proc=None, bg_frame_proc=None, em_proc=None, tar_gen=None,
-                 bg_frames=None, weight_gen=None, frame_window=3, pad: (str, None) = None, return_em=True):
+                 bg_frames=None, sig_frames=None, weight_gen=None, frame_window=3, pad: (str, None) = None, return_em=True):
         """
 
         Args:
@@ -152,6 +152,7 @@ class SMLMStaticDataset(SMLMDataset):
         self._frames = frames
         self._emitter = emitter
         self._bg_frames = bg_frames
+        self._sig_frames = sig_frames
 
         if self._frames is not None and self._frames.dim() != 3:
             raise ValueError("Frames must be 3 dimensional, i.e. N x H x W.")
@@ -179,10 +180,11 @@ class SMLMStaticDataset(SMLMDataset):
         tar_emitter = self._emitter[ix] if self._emitter is not None else None
         frames = self._get_frames(self._frames, ix)
         bg_frame = self._bg_frames[ix] if self._bg_frames is not None else None
+        sig_frames = self._get_frames(self._sig_frames, ix) if self._sig_frames is not None else None
 
         frames, target, weight, tar_emitter = self._process_sample(frames, tar_emitter, bg_frame)
 
-        return self._return_sample(frames, target, weight, tar_emitter)
+        return self._return_sample(frames, target, weight, tar_emitter, sig_frames)
 
 
 class InferenceDataset(SMLMStaticDataset):
@@ -191,7 +193,7 @@ class InferenceDataset(SMLMStaticDataset):
     This is dummy wrapper to keep the visual appearance of a separate dataset.
     """
 
-    def __init__(self, *, frames, frame_proc, frame_window):
+    def __init__(self, *, frames, frame_proc, frame_window, sig_frames):
         """
 
         Args:
@@ -199,11 +201,11 @@ class InferenceDataset(SMLMStaticDataset):
             frame_proc: frame processing function
             frame_window (int): frame window
         """
-        super().__init__(frames=frames, emitter=None, frame_proc=frame_proc, bg_frame_proc=None, em_proc=None,
+        super().__init__(frames=frames, emitter=None, sig_frames=sig_frames, frame_proc=frame_proc, bg_frame_proc=None, em_proc=None,
                          tar_gen=None, pad='same', frame_window=frame_window, return_em=False)
 
-    def _return_sample(self, frame, target, weight, emitter):
-        return frame
+    def _return_sample(self, frame, target, weight, emitter, sig_frames):
+        return frame, sig_frames
 
 
 class SMLMLiveDataset(SMLMStaticDataset):
@@ -216,7 +218,7 @@ class SMLMLiveDataset(SMLMStaticDataset):
     def __init__(self, *, simulator, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window, pad,
                  return_em=False):
 
-        super().__init__(emitter=None, frames=None,
+        super().__init__(emitter=None, frames=None, 
                          em_proc=em_proc, frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
                          tar_gen=tar_gen, weight_gen=weight_gen,
                          frame_window=frame_window, pad=pad, return_em=return_em)
@@ -245,7 +247,7 @@ class SMLMLiveDataset(SMLMStaticDataset):
 
         """Sample new dataset."""
         t0 = time.time()
-        emitter, frames, bg_frames = self.simulator.sample()
+        emitter, frames, bg_frames, sig_frames = self.simulator.sample()
         if verbose:
             print(f"Sampled dataset in {time.time() - t0:.2f}s. {len(emitter)} emitters on {frames.size(0)} frames.")
 
@@ -256,6 +258,7 @@ class SMLMLiveDataset(SMLMStaticDataset):
         self._emitter = emitter
         self._frames = frames.cpu()
         self._bg_frames = bg_frames.cpu()
+        self._sig_frames = sig_frames.cpu() if sig_frames is not None else None
 
 
 class SMLMAPrioriDataset(SMLMLiveDataset):
@@ -305,13 +308,13 @@ class SMLMAPrioriDataset(SMLMLiveDataset):
 
         """
         t0 = time.time()
-        emitter, frames, bg_frames = self.simulator.sample()
-
+        emitter, frames, bg_frames, sig_frames = self.simulator.sample()
         if verbose:
             print(f"Sampled dataset in {time.time() - t0:.2f}s. {len(emitter)} emitters on {frames.size(0)} frames.")
 
         frames, target, weight, tar_emitter = self._process_sample(frames, emitter, bg_frames)
         self._frames = frames.cpu()
+        self._sig_frames = sig_frames.cpu() if sig_frames is not None else None
         self._emitter = tar_emitter
         self._em_split = tar_emitter.split_in_frames(0, frames.size(0) - 1)
         self._target, self._weight = target, weight
@@ -330,7 +333,8 @@ class SMLMAPrioriDataset(SMLMLiveDataset):
 
         return self._return_sample(self._get_frames(self._frames, ix), [tar[ix] for tar in self._target],  # target is tuple
                                    self._weight[ix] if self._weight is not None else None,
-                                   self._em_split[ix])
+                                   self._em_split[ix],
+                                   self._get_frames(self._sig_frames, ix) if self._sig_frames is not None else None)
 
 
 class SMLMLiveSampleDataset(SMLMDataset):
@@ -353,13 +357,12 @@ class SMLMLiveSampleDataset(SMLMDataset):
 
     def __getitem__(self, ix):
         """Sample"""
-        emitter, frames, bg_frames = self.simulator.sample()
-
+        emitter, frames, bg_frames, sig_frames = self.simulator.sample()
         assert frames.size(0) % 2 == 1
         frames = self._get_frames(frames, (frames.size(0) - 1) // 2)
         tar_emitter = emitter.get_subset_frame(0, 0)  # target emitters are the zero ones
         bg_frames = bg_frames[(self.frame_window - 1) // 2]  # ToDo: Beautify this
-
+        sig_frames = self._get_frames(sig_frames, (frames.size(0) - 1) // 2)
         frames, target, weight, tar_emitter = self._process_sample(frames, tar_emitter, bg_frames)
 
-        return self._return_sample(frames, target, weight, tar_emitter)
+        return self._return_sample(frames, target, weight, tar_emitter, sig_frames)

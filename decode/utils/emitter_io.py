@@ -31,7 +31,7 @@ def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_a
         dict: dictionary which can readily be converted to an EmitterSet by EmitterSet(**out_dict)
     """
     if mapping is None:
-        mapping = {'x': 'x', 'y': 'y', 'z': 'z', 'phot': 'phot', 'frame_ix': 'frame_ix'}
+        mapping = {'x': 'x', 'y': 'y', 'z': 'z', 'phot': 'phot', 'frame_ix': 'frame_ix', 'x_sig': 'x_sig', 'y_sig': 'y_sig', 'z_sig': 'z_sig'}
 
     chunks = pd.read_csv(file, chunksize=100000, **pd_csv_args)
     data = pd.concat(chunks)
@@ -39,6 +39,10 @@ def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_a
     xyz = torch.stack((torch.from_numpy(data[mapping['x']].to_numpy()).float(),
                        torch.from_numpy(data[mapping['y']].to_numpy()).float(),
                        torch.from_numpy(data[mapping['z']].to_numpy()).float()), 1)
+
+    xyz_sig = torch.stack((torch.from_numpy(data[mapping['x_sig']].to_numpy()).float(),
+                           torch.from_numpy(data[mapping['y_sig']].to_numpy()).float(),
+                           torch.from_numpy(data[mapping['z_sig']].to_numpy()).float()), 1)
 
     phot = torch.from_numpy(data[mapping['phot']].to_numpy()).float()
     frame_ix = torch.from_numpy(data[mapping['frame_ix']].to_numpy()).long()
@@ -48,7 +52,7 @@ def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_a
     else:
         identifier = None
 
-    return {'xyz': xyz, 'phot': phot, 'frame_ix': frame_ix, 'id': identifier}
+    return {'xyz': xyz, 'phot': phot, 'frame_ix': frame_ix, 'id': identifier, 'xyz_sig': xyz_sig}
 
 
 def save_csv(file: (str, pathlib.Path), data: dict):

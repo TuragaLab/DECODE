@@ -18,15 +18,18 @@ def train(model, optimizer, loss, dataloader, grad_rescale, grad_mod, epoch, dev
     loss_epoch = MetricMeter()
 
     """Actual Training"""
-    for batch_num, (x, y_tar, weight) in enumerate(tqdm_enum):  # model input (x), target (yt), weights (w)
+    for batch_num, (x, y_tar, weight, sig) in enumerate(tqdm_enum):  # model input (x), target (yt), weights (w)
 
         """Monitor time to get the data"""
         t_data = time.time() - t0
-
         """Ship the data to the correct device"""
-        x, y_tar, weight = ship_device([x, y_tar, weight], device)
-        
+        x, y_tar, weight, sig = ship_device([x, y_tar, weight, sig], device)
+
         """Forward the data"""
+        if model.sig_in:
+#             print(sig.shape)
+            x = torch.cat([x, sig], 1)
+
         y_out = model(x)
 
         """Reset the optimiser, compute the loss and backprop it"""
@@ -78,14 +81,17 @@ def test(model, loss, dataloader, epoch, device):
 
     """Testing"""
     with torch.no_grad():
-        for batch_num, (x, y_tar, weight) in enumerate(tqdm_enum):
+        for batch_num, (x, y_tar, weight, sig) in enumerate(tqdm_enum):
 
             """Ship the data to the correct device"""
-            x, y_tar, weight = ship_device([x, y_tar, weight], device)
-
+            x, y_tar, weight, sig = ship_device([x, y_tar, weight, sig], device)
             """
             Forward the data.
             """
+            if model.sig_in:
+#                 print(sig.shape)
+                x = torch.cat([x, sig], 1)
+
             y_out = model(x)
 
             loss_val = loss(y_out, y_tar, weight)
