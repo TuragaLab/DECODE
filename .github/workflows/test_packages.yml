@@ -1,9 +1,10 @@
 name: Test Example Packages
 
-on:
-  schedule:
+on: [push]
+#on:
+#  schedule:
     # * is a special character in YAML so you have to quote this string
-    - cron:  '0 8 * * *'
+#    - cron:  '0 8 * * *'
 
 jobs:
   test_asset_web_availablity:
