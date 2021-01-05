@@ -17,6 +17,7 @@ jobs:
         with:
           python-version: 3.6
           mamba-version: "*"
+          channels: conda-forge,defaults
           channel-priority: strict
           activate-environment: decode_dev_cpu
           environment-file: environment_cpu.yaml
