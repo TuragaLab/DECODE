@@ -23,6 +23,6 @@ jobs:
           environment-file: environment_cpu.yaml
 
       # Run the specific test
-      - name: Run unit tests
+      - shell: bash -l {0}
         run: |
           pytest decode/test/test_assets_web.py
