@@ -1,4 +1,4 @@
-name: decode_cpu
+name: decode_dev_cpu
 
 channels:
   - turagalab

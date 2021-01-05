@@ -30,13 +30,13 @@ def gateway_host(path: Path = Path(__file__).parent.parent.parent / 'gateway.yam
 @pytest.mark.web
 @pytest.mark.slow
 @pytest.mark.parametrize("gate_type", ['host', 'public'])  # unfortunately fixture in paramet. does not work yet
-def test_examples(gate_type, gateway_host, gateway_public, tmpdir):
+def test_examples(gate_type: str, gateway_host: dict, gateway_public: dict, tmpdir):
 
     gate = gateway_public if gate_type == 'public' else gateway_host
     examples = gate['examples']
 
     for k, v in examples.items():
-        fpath = Path(tmpdir / (v['name'] + '.zip'))
+        fpath = Path(tmpdir / (v['name'] + f'_{gate_type}.zip'))
 
         decode.utils.loader.load(fpath, url=v['url'], hash=v['hash'])
         if not decode.utils.loader.check_file(fpath, hash=v['hash']):

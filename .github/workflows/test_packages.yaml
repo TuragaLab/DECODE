@@ -1,0 +1,26 @@
+name: Test Example Packages
+
+on:
+  schedule:
+    # * is a special character in YAML so you have to quote this string
+    - cron:  '0 8 * * *'
+
+jobs:
+  test_asset_web_availablity:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          python-version: 3.6
+          mamba-version: "*"
+          channel-priority: strict
+          activate-environment: decode_dev_cpu
+          environment-file: environment_cpu.yaml
+
+      # Run the specific test
+      - name: Run unit tests
+        run: |
+          pytest decode/test/test_assets_web.py
