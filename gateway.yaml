@@ -4,8 +4,8 @@
 
 code: https://github.com/TuragaLab/DECODE/archive/master.zip
 colab:
-  training: https://oc.embl.de/index.php/s/7xB0u8lwjvFSb9n/download
-  fit: https://oc.embl.de/index.php/s/PtaAHvxogOFfmhZ/download
+  training: https://oc.embl.de/index.php/s/7xB0u8lwjvFSb9n/download  # what is this? if active put to examples or rm from examples
+  fit: https://oc.embl.de/index.php/s/PtaAHvxogOFfmhZ/download  # same for this
 
 calib:
   challenge_2d:
