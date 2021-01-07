@@ -9,10 +9,22 @@ on:
 jobs:
   test_asset_web_availablity:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE
       - uses: actions/checkout@v2
+      - name: Cache conda environment
+          uses: actions/cache@v1
+          env:
+            # Increase this value to force reset cache
+            CACHE_NUMBER: 0
+          with:
+            path: ~/conda_pkgs_dir
+            key:
+              ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('environment_cpu.yaml') }}
       - uses: conda-incubator/setup-miniconda@v2
         with:
           mamba-version: "*"
@@ -22,20 +34,13 @@ jobs:
           environment-file: environment_cpu.yaml
 
       # Run the specific test
-      - shell: bash -l {0}
-        run: |
-          pytest decode/test/test_assets_web.py
+      - run: pytest decode/test/test_assets_web.py
 
       - name: Raise issue when test failed
         if: failure()
-        uses: lowply/issue-from-template@v0.1.2
+        uses: alialaa/issue-action@v1.0.0
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IFT_TEMPLATE_NAME: web_availability.md
-
-      - name: keep only max 1 of the automatic issues
-        uses: lowply/auto-closer@0.0.3
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AC_LABEL: auto_web
-          AC_KEEP: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: Failed to download assets
+          body: Failed to download web assets as tested in decode/test/test_assets_web.py.
+          assignees: Haydnspass
