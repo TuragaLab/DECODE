@@ -12,5 +12,5 @@ jobs:
       - uses: Naturalclar/issue-action@v2.0.2
         with:
           title-or-body: "both"
-          parameters: '[ {"keywords": ["decode/test/test_assets_web.py."], "labels": ["web", "asset", "test"]} ]'
+          parameters: '[ {"keywords": ["decode\\/test\\/test_assets_web.py."], "labels": ["web", "asset", "test"]} ]'
           github-token: "${{ secrets.GITHUB_TOKEN }}"
