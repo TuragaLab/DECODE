@@ -1,0 +1,16 @@
+name: Manage Opened Issues
+
+on:
+  workflow_dispatch:
+  issues:
+    types: [ opened ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Naturalclar/issue-action@v2.0.2
+        with:
+          title-or-body: "both"
+          parameters: '[ {"keywords": ["decode/test/test_assets_web.py."], "labels": ["web", "asset", "test"]} ]'
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
