@@ -30,12 +30,12 @@ jobs:
         if: failure()
         uses: lowply/issue-from-template@v0.1.2
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IFT_TEMPLATE_NAME: web_availability.md
 
       - name: keep only max 1 of the automatic issues
         uses: lowply/auto-closer@0.0.3
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AC_LABEL: auto_web
           AC_KEEP: 1
