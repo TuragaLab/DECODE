@@ -34,7 +34,7 @@ jobs:
           IFT_TEMPLATE_NAME: web_availability.md
 
       - name: keep only max 1 of the automatic issues
-        uses: lowply/auto-closer@v0.0.3
+        uses: lowply/auto-closer@0.0.3
         with:
           AC_LABEL: auto_web
           AC_KEEP: 1
