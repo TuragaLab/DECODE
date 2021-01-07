@@ -3,8 +3,8 @@ name: Test Example Packages
 on:
   push:
   pull_request:
-#  schedule:
-#    - cron:  '0 8 * * *' # once a day at 8 @ master branch
+  schedule:
+    - cron:  '0 8 * * *' # once a day at 8 @ master branch
 
 jobs:
   test_asset_web_availablity:
