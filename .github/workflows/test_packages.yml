@@ -1,10 +1,10 @@
 name: Test Example Packages
 
-on: [push]
-#on:
+on:
+  push:
+  pull_request:
 #  schedule:
-    # * is a special character in YAML so you have to quote this string
-#    - cron:  '0 8 * * *'
+#    - cron:  '0 8 * * *' # once a day at 8 @ master branch
 
 jobs:
   test_asset_web_availablity:
@@ -26,3 +26,17 @@ jobs:
       - shell: bash -l {0}
         run: |
           pytest decode/test/test_assets_web.py
+
+      - name: Raise issue when test failed
+          if: ${{ failure() }}
+          uses: lowply/issue-from-template@v0.1.2
+            with:
+              IFT_TEMPLATE_NAME: web_availability.md
+
+      - name: keep only <= 1 of the automatic issues
+        uses: lowply/auto-closer@v0.0.3
+          with:
+            AC_LABEL: auto_web
+            AC_KEEP: 1
+
+
