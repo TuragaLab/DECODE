@@ -1,8 +1,10 @@
 name: Build DECODE and upload to Anaconda Cloud
 
 
-# this will be on release at some point
-on: [push]
+# use on: [push] for testing
+on:
+  release:
+    types: [edited, published]
 
 jobs:
   # this is a pure Python noarch build; we use Linux for convenience
@@ -14,8 +16,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+        # this grabs the release commit
       with:
-        ref: workflow-tests
+        ref: ${{ github.ref }}
 
     - name: Python 3.8
       uses: actions/setup-python@v2
