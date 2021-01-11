@@ -17,6 +17,14 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE
       - uses: actions/checkout@v2
+
+      # overwrites the python versionin the environment for the testing matrix
+      - name: Set up Python ${{ matrix.python-version }}
+        run: |
+          sed -i -E 's/(python=)(.*)/\1'${{ matrix.python-version }}'/' ./environment_cpu.yaml
+          cat environment_cpu.yaml | grep python
+      
+      # overwrites the python versionin the environment
       - uses: conda-incubator/setup-miniconda@v2
         with:
           mamba-version: "*"
@@ -24,11 +32,6 @@ jobs:
           channel-priority: strict
           activate-environment: decode_dev_cpu
           environment-file: environment_cpu.yaml
-
-      # overwrites the python versionin the environment
-      - name: Set up Python ${{ matrix.python-version }}
-        run: |
-          mamba install python=${{ matrix.python-version }}
 
       # Run the specific test
       - name: Run pytest (without big web)
