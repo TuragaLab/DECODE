@@ -32,4 +32,5 @@ jobs:
 
       # Run the specific test
       - name: Run pytest (without big web)
-      - run: pytest -m "not webbig" decode/test
+        run: |
+          pytest -m "not webbig" decode/test
