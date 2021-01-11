@@ -12,7 +12,7 @@ jobs:
         shell: bash -l {0}
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.6, 3.7, 3.8]
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE
