@@ -40,6 +40,6 @@ jobs:
         if: matrix.python-version <= '3.6'
 
       # Run the specific test
-      - name: Run pytest (without big web)
+      - name: Run pytest (without big web and graphical output)
         run: |
-          pytest -m "not webbig" decode/test
+          pytest -m "not webbig" -m "not plot" decode/test
