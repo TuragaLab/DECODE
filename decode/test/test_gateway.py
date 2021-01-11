@@ -1,5 +1,5 @@
-# The purpose of this is to check the availability of the assets. This of course requires web connection of the
-# machine that tests
+# The purpose of this is to check the availability of the assets as referenced in the gateway. 
+# This of course requires web connection of the machine that tests
 from pathlib import Path
 
 import requests

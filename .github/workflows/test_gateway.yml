@@ -1,10 +1,10 @@
-name: Test Example Packages
+name: Gateway Test
 
 on:
   push:
   pull_request:
   schedule:
-    - cron:  '0 8 * * *' # once a day at 8 @ master branch
+    - cron:  '0 8 * * *'  # once a day at 8 @ master branch
 
 jobs:
   test_asset_web_availablity:
@@ -25,7 +25,7 @@ jobs:
           environment-file: environment_cpu.yaml
 
       # Run the specific test
-      - run: pytest decode/test/test_assets_web.py
+      - run: pytest decode/test/test_gateway.py
 
       - name: Raise issue when test failed
         if: failure()
