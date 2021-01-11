@@ -28,7 +28,7 @@ jobs:
       # overwrites the python versionin the environment
       - name: Set up Python ${{ matrix.python-version }}
         run: |
-          mamba install ${{ matrix.python-version }}
+          mamba install python=${{ matrix.python-version }}
 
       # Run the specific test
       - name: Run pytest (without big web)
