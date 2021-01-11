@@ -39,6 +39,9 @@ Installing the package without creating a new environment (or in a fresh environ
 
     conda install -c turagalab -c pytorch -c conda-forge decode
 
+*Note:* Python 3.6 users will need to add importlib_resources at the end of the above command.
+
+
 ### Updating
  Please execute the following command in your terminal/Anaconda prompt or do it via the Anaconda Navigator GUI.
 

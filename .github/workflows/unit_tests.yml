@@ -1,0 +1,35 @@
+name: Unit Tests
+
+on:
+  push:
+  pull_request:
+  
+jobs:
+  unit_test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8, 3.9]
+
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          mamba-version: "*"
+          channels: conda-forge,defaults
+          channel-priority: strict
+          activate-environment: decode_dev_cpu
+          environment-file: environment_cpu.yaml
+
+      # overwrites the python versionin the environment
+      - name: Set up Python ${{ matrix.python-version }}
+        run: |
+          mamba install ${{ matrix.python-version }}
+
+      # Run the specific test
+      - name: Run pytest (without big web)
+      - run: pytest -m "not webbig" decode/test

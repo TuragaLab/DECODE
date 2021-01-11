@@ -28,6 +28,7 @@ def gateway_host(path: Path = Path(__file__).parent.parent.parent / 'gateway.yam
 
 
 @pytest.mark.web
+@pytest.mark.webbig
 @pytest.mark.slow
 @pytest.mark.parametrize("gate_type", ['host', 'public'])  # unfortunately fixture in paramet. does not work yet
 def test_examples(gate_type: str, gateway_host: dict, gateway_public: dict, tmpdir):
