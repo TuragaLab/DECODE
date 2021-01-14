@@ -63,7 +63,7 @@ jobs:
 
     - uses: conda-incubator/setup-miniconda@v2
       with:
-        environment-file: python/environment.yml
+        environment-file: environment_cpu.yaml
         python-version: 3.8
         auto-activate-base: false
         activate-environment: pip-build
