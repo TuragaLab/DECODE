@@ -8,7 +8,7 @@ from decode.generic import test_utils
 from decode.simulation.structure_prior import RandomStructure
 
 
-class TestEmitterPopperABC:
+class TestEmitterSamplerABC:
 
     @pytest.fixture()
     def em_pop(self):
@@ -31,7 +31,7 @@ class TestEmitterPopperABC:
         assert isinstance(em_pop(), em.EmitterSet), "Wrong output type."
 
 
-class TestEmitterPopper(TestEmitterPopperABC):
+class TestEmitterSamplerFrameIndependent(TestEmitterSamplerABC):
 
     @pytest.fixture()
     def structure(self):
@@ -50,6 +50,7 @@ class TestEmitterPopper(TestEmitterPopperABC):
 
         return cand
 
+    @pytest.mark.skip("Not implemented.")
     @pytest.mark.parametrize("n", [-1, 0, 1, 10, 100])
     def test_sample_n(self, em_pop, n):
 
@@ -86,7 +87,7 @@ class TestEmitterPopper(TestEmitterPopperABC):
             assert (em_pop().frame_ix == 0).all()
 
 
-class TestEmitterPopperMultiframe(TestEmitterPopper):
+class TestEmitterPopperMultiframe(TestEmitterSamplerFrameIndependent):
 
     @pytest.fixture(params=[[None, 10.], [2., None]], ids=["em_av", "dens"])
     def em_pop(self, request, structure):
