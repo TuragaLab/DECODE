@@ -1,4 +1,6 @@
+import torch
 import pytest
+
 from unittest.mock import patch, Mock
 
 from decode.utils import hardware
@@ -12,3 +14,22 @@ def test_get_device_capability(device_cap, device_cap_str):
 
     with patch('torch.cuda.get_device_capability', return_value=device_cap):
         assert hardware.get_device_capability() == device_cap_str
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Only works with CUDA.")
+@pytest.mark.parametrize("size_low,size_high,expct", [(1, 5000, None),
+                                                      (5000, 35000, 'err')])
+def test_get_max_batch_size(size_low, size_high, expct):
+    def dummy(x):
+        return x ** 2 + 2 * x + x.sqrt()
+
+    x_size = (512, 512)
+
+    if expct is None:
+        bs = hardware.get_max_batch_size(dummy, x_size, 'cuda:0', size_low, size_high)
+        dummy(torch.rand(bs, *x_size, device='cuda:0'))  # check if it actually works
+
+    else:
+        with pytest.raises(RuntimeError) as err:
+            hardware.get_max_batch_size(dummy, x_size, 'cuda:0', size_low, size_high)
+        assert "Lowest possible batch size is outside of provided bounds." == str(err.value)
