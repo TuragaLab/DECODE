@@ -593,7 +593,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert tutil.tens_almeq(roi_chunk, roi)
 
     @pytest.mark.slow
-    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available,
+    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available(),
                         reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_many_em_forward(self, psf_cuda):
         """Setup"""
@@ -611,7 +611,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert frames.size() == torch.Size([n_frames + 1, 64, 64])
 
     @pytest.mark.slow
-    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available,
+    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available(),
                         reason="Skipped because PSF implementation not compiled with CUDA support.")
     def test_many_drv_roi_forward(self, psf_cuda):
         """Setup"""
