@@ -276,7 +276,7 @@ class NMSPostProcessing(LookUpPostProcessing):
             p_ps1 = max_mask1 * conv
 
             """
-            In order do be able to identify two fluorophores in adjacent pixels we look for 
+            In order do be able to identify two fluorophores in adjacent pixels we look for
             probablity values > 0.6 that are not part of the first mask
             """
             p_copy *= (1 - max_mask1[:, 0])
@@ -427,7 +427,7 @@ class ConsistencyPostprocessing(PostProcessing):
     def _cluster_batch(self, p, features):
         """
         Cluster a batch of frames
-        
+
         Args:
             p (torch.Tensor): detections
             features (torch.Tensor): features
