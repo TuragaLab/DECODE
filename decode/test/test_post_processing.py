@@ -26,7 +26,6 @@ class TestPostProcessingAbstract:
             post.sanity_check()
 
     def test_filter(self, post):
-
         assert not post.skip_if(torch.rand((1, 3, 32, 32)))
 
 
@@ -37,7 +36,6 @@ class TestNoPostProcessing(TestPostProcessingAbstract):
         return post_processing.NoPostProcessing()
 
     def test_forward(self, post):
-
         out = post.forward(torch.rand((256, 2, 64, 64)))
         assert isinstance(out, emitter.EmptyEmitterSet)
 
@@ -60,7 +58,6 @@ class TestLookUpPostProcessing(TestPostProcessingAbstract):
 
         return pseudo_net_ouput
 
-
     @pytest.fixture()
     def pseudo_out(self):
         """Pseudo model output with sigma prediction"""
@@ -76,9 +73,7 @@ class TestLookUpPostProcessing(TestPostProcessingAbstract):
 
         return pseudo_net_ouput
 
-
     def test_filter(self, post):
-
         """Setup"""
         detection = torch.tensor([[0.1, 0.0], [0.6, 0.05]]).unsqueeze(0)
 
@@ -91,7 +86,6 @@ class TestLookUpPostProcessing(TestPostProcessingAbstract):
         return active_px
 
     def test_lookup(self, post):
-
         """Setup"""
         active_px = self.test_filter(post)  # get the return value of the previous test
 
@@ -110,7 +104,6 @@ class TestLookUpPostProcessing(TestPostProcessingAbstract):
         assert ((features / (torch.arange(5).unsqueeze(1).float() + 1)).unique() == torch.tensor([1., 3.])).all()
 
     def test_forward_no_sigma(self, post, pseudo_out_no_sigma):
-
         """Setup"""
         post.photxyz_sigma_mapping = None  # because this test is without sigma (this is non-default)
 
@@ -123,7 +116,6 @@ class TestLookUpPostProcessing(TestPostProcessingAbstract):
         assert (emitter_out.phot.unique() == torch.tensor([1., 3.])).all()
 
     def test_forward(self, post, pseudo_out):
-
         """Run"""
         emitter_out = post.forward(pseudo_out)
 
@@ -139,17 +131,16 @@ class TestLookUpPostProcessing(TestPostProcessingAbstract):
         assert test_utils.tens_almeq(emitter_out.xyz_sig,
                                      torch.tensor([[20., 30., 40.], [2 / 0.6, 3 / 0.6, 4 / 0.6]]))
 
-        assert test_utils.tens_almeq(emitter_out.phot_sig, torch.tensor([10., 1/0.6]))
+        assert test_utils.tens_almeq(emitter_out.phot_sig, torch.tensor([10., 1 / 0.6]))
 
 
-class TestNMSPostProcessing(TestLookUpPostProcessing):
+class TestSpatialIntegration(TestLookUpPostProcessing):
 
     @pytest.fixture()
     def post(self):
-        return post_processing.NMSPostProcessing(raw_th=0.1, xy_unit='px')
+        return post_processing.SpatialIntegration(raw_th=0.1, xy_unit='px')
 
     def test_forward_no_sigma(self, post, pseudo_out_no_sigma):
-
         """Setup"""
         post.photxyz_sigma_mapping = None  # because this test is without sigma (this is non-default)
 
@@ -164,7 +155,6 @@ class TestNMSPostProcessing(TestLookUpPostProcessing):
         assert emitter_out.prob == pytest.approx(0.75)
 
     def test_forward(self, post, pseudo_out):
-
         """Run"""
         emitter_out = post.forward(pseudo_out)
 
@@ -181,12 +171,10 @@ class TestNMSPostProcessing(TestLookUpPostProcessing):
 
         assert test_utils.tens_almeq(emitter_out.phot_sig, torch.tensor([1 / 0.6]))
 
-
     @pytest.mark.parametrize("aggr,expct", [('sum', ([0., 1.000001], [0., 0.501])),
                                             ('norm_sum', ([0., 1.], [0., 0.501]))
-                             ])
+                                            ])
     def test_nms(self, post, aggr, expct):
-
         """Setup, Run, Assert"""
         post.p_aggregation = post.set_p_aggregation(aggr)
 
@@ -241,9 +229,9 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
         _ = post.forward(torch.cat((p, out), 1))
 
-    @pytest.mark.skip(reason="Implementation was not robust and was removed. Test can be used when new implementation is there.")
+    @pytest.mark.skip(
+        reason="Implementation was not robust and was removed. Test can be used when new implementation is there.")
     def test_multi_worker(self, post):
-
         """Setup"""
         p = torch.zeros((2, 1, 32, 32))
         out = torch.zeros((2, 5, 32, 32))
@@ -340,8 +328,8 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
 
     @pytest.mark.parametrize("x,expct", [(torch.ones((2, 6, 32, 32)), True),
                                          (torch.zeros((2, 6, 32, 32)), False),
-                                         (torch.tensor([[0.5, 0., 0.], [0., 0., 0.]]).unsqueeze(0).unsqueeze(0), False)])
+                                         (
+                                         torch.tensor([[0.5, 0., 0.], [0., 0., 0.]]).unsqueeze(0).unsqueeze(0), False)])
     def test_filter(self, post, x, expct):
-
         post.skip_th = 0.2
         assert post.skip_if(x) is expct

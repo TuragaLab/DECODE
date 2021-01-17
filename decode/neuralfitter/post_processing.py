@@ -216,9 +216,9 @@ class LookUpPostProcessing(PostProcessing):
                           prob=prob.cpu(), xy_unit=self.xy_unit, px_size=self.px_size)
 
 
-class NMSPostProcessing(LookUpPostProcessing):
+class SpatialIntegration(LookUpPostProcessing):
     """
-    Non-Maximum Suppression post-processing.
+    Spatial Integration post processing.
     """
 
     _p_aggregations = ('sum', 'norm_sum')  # , 'max', 'pbinom_cdf', 'pbinom_pdf')
@@ -231,12 +231,12 @@ class NMSPostProcessing(LookUpPostProcessing):
         """
 
         Args:
-            raw_th:
-            xy_unit:
-            px_size:
-            pphotxyzbg_mapping:
-            photxyz_sigma_mapping:
-            p_aggregation:
+            raw_th: probability threshold from where detections are considered
+            xy_unit: unit of the xy coordinates
+            px_size: pixel size
+            pphotxyzbg_mapping: channel index mapping
+            photxyz_sigma_mapping: channel index mapping of sigma channels
+            p_aggregation: aggreation method to aggregate probabilities. can be 'sum', 'max', 'norm_sum'
         """
         super().__init__(raw_th=raw_th, xy_unit=xy_unit, px_size=px_size,
                          pphotxyzbg_mapping=pphotxyzbg_mapping,

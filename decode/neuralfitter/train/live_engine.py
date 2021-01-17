@@ -367,9 +367,9 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
 
             decode.neuralfitter.coord_transform.Offset2Coordinate.parse(param),
 
-            decode.neuralfitter.post_processing.NMSPostProcessing(raw_th=param.PostProcessingParam.raw_th,
-                                                                  xy_unit='px',
-                                                                  px_size=param.Camera.px_size)
+            decode.neuralfitter.post_processing.SpatialIntegration(raw_th=param.PostProcessingParam.raw_th,
+                                                                   xy_unit='px',
+                                                                   px_size=param.Camera.px_size)
         ])
 
     else:
