@@ -334,58 +334,6 @@ class DisableAttributes:
         return cls(attr_ix=param.HyperParameter.disabled_attributes)
 
 
-class OverlappingDetectionTarget(UnifiedEmbeddingTarget):
-
-    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, roi_size: int, rim_max, ix_low=None,
-                 ix_high=None, squeeze_batch_dim: bool = False):
-        super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape, roi_size=roi_size, ix_low=ix_low,
-                         ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
-
-        self.rim_max = rim_max
-
-    @classmethod
-    def parse(cls, param, **kwargs):
-        return cls(xextent=param.Simulation.psf_extent[0],
-                   yextent=param.Simulation.psf_extent[1],
-                   img_shape=param.Simulation.img_size,
-                   roi_size=param.HyperParameter.target_roi_size,
-                   rim_max=param.HyperParameter.target_doublette_rim,
-                   **kwargs)
-
-    @staticmethod
-    def p_from_dxy(dx, dy, active_px, border, rim_max):
-
-        def piecewise_prob(x, border, rim_max):
-            prob = torch.zeros_like(x)
-            prob[x.abs() <= border] = 1.
-
-            ix_in_rim = (x.abs() > border) * (x.abs() <= rim_max)
-            # prob[ix_in_rim] = (0.5 - x[ix_in_rim].abs()) / (rim_max - 0.5) + 1
-            prob[ix_in_rim] = 1
-
-            return prob
-
-        ix = (dx.abs() <= 0.7) * (dy.abs() <= 0.5) * active_px
-        p_x = torch.zeros_like(dx)
-        p_x[ix] = piecewise_prob(dx[ix], border, rim_max)
-
-        # y
-        ix = (dy.abs() <= 0.7) * (dx.abs() <= 0.5) * active_px
-        p_y = torch.zeros_like(dy)
-        p_y[ix] = piecewise_prob(dy[ix], border, rim_max)
-
-        return torch.max(p_x, p_y)
-
-    def forward(self, em: EmitterSet, bg: torch.Tensor = None, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
-        tar = super().forward(em, bg, ix_low, ix_high)
-
-        # modify probabilities
-        active_px = tar[:, 2] != 0
-        tar[:, 0] = self.p_from_dxy(tar[:, 2], tar[:, 3], active_px, 0.5, self.rim_max)
-
-        return self._postprocess_output(tar)
-
-
 class FourFoldEmbedding(TargetGenerator):
 
     def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, rim_size: float,
