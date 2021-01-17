@@ -1,4 +1,4 @@
-name: decode_dev_cpu_a0
+name: decode_dev_cpu
 
 channels:
   - turagalab/label/dev
