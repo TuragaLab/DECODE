@@ -1,4 +1,4 @@
-name: decode_dev_cuda_dev_spline
+name: decode_dev_cuda
 
 channels:
   - turagalab/label/dev
@@ -38,7 +38,7 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-  - spline>=0.10
+  - spline>=0.10.alpha
   - tensorboard
   - tifffile
   - tqdm

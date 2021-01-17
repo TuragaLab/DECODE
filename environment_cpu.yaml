@@ -1,4 +1,4 @@
-name: decode_dev_cpu
+name: decode_dev_cpu_a0
 
 channels:
   - turagalab/label/dev
@@ -37,7 +37,7 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-  - spline>=0.10
+  - spline>=0.10.alpha
   - tensorboard
   - tifffile
   - tqdm
