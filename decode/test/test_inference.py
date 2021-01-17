@@ -35,9 +35,12 @@ class TestInfer:
         """Assertions"""
         assert isinstance(em, emitter.EmitterSet)
 
-    def test_forward_frames(self, infer):
-        infer.post_proc = Identity()
-        infer.forward_cat = infer._setup_forward_cat('frames')
+    @pytest.mark.parametrize("batch_size", [16, 'auto'])
+    def test_forward_frames(self, infer, batch_size):
+        # reinit because now we output frames
+        infer = inference.Infer(model=infer.model, batch_size=batch_size, ch_in=3, 
+                                frame_proc=None, post_proc=Identity(), forward_cat='frames',
+                                device='cuda' if torch.cuda.is_available() else 'cpu')
 
         out = infer.forward(torch.rand((100, 64, 64)))
 
@@ -45,3 +48,9 @@ class TestInfer:
         assert isinstance(out, torch.Tensor)
         assert out.size() == torch.Size((100, 1, 64, 64))
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA.")
+    def test_get_max_batch_size(self, infer):
+
+        bs = infer.get_max_batch_size(infer.model.cuda(), (3, 256, 256), 1, 5024)
+
+        assert 16 <= bs <= 1024
