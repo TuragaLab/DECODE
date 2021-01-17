@@ -1,5 +1,6 @@
 from typing import Union, Callable
 
+import warnings
 import torch
 from tqdm import tqdm
 
@@ -12,7 +13,7 @@ from functools import partial
 class Infer:
 
     def __init__(self, model, ch_in: int, frame_proc, post_proc, device: Union[str, torch.device],
-                 batch_size: Union[int, str] = 'auto', num_workers: int = 4, pin_memory: bool = True,
+                 batch_size: Union[int, str] = 'auto', num_workers: int = 4, pin_memory: bool = False,
                  forward_cat: Union[str, Callable] = 'emitter'):
         """
         Convenience class for inference.
@@ -20,12 +21,12 @@ class Infer:
         Args:
             model: pytorch model
             ch_in: number of input channels
-            frame_proc: frame pre-procssing
-            post_proc: post-processing
+            frame_proc: frame pre-processing pipeline
+            post_proc: post-processing pipeline
             device: device where to run inference
-            batch_size: batch-size
+            batch_size: batch-size or 'auto' if the batch size should be determined automatically (only use in combination with cuda)
             num_workers: number of workers
-            pin_memory:
+            pin_memory: pin memory in dataloader
             forward_cat: method which concatenates the output batches. Can be string or Callable.
             Use 'em' when the post-processor outputs an EmitterSet, or 'frames' when you don't use post-processing or if
             the post-processor outputs frames.
@@ -42,6 +43,11 @@ class Infer:
 
         self.forward_cat = None
         self._forward_cat_mode = forward_cat
+
+        if str(self.device) == 'cpu' and self.batch_size == 'auto':
+            warnings.warn("Automatically determining the batch size does not make sense on cpu device. "
+                          "Falling back to reasonable value.")
+            self.batch_size = 64
 
     def forward(self, frames: torch.Tensor) -> emitter.EmitterSet:
         """
