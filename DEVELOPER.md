@@ -1,5 +1,4 @@
 ## Instructions for Developers
-Travis CI: [![Build Status](https://travis-ci.com/Haydnspass/DeepSMLM.svg?token=qb4PpCab8Gb7CDLAuNTY&branch=master)](https://travis-ci.com/Haydnspass/DeepSMLM)
 
 0. Clone the repository
 1. Install conda environment from file and activate it. Use the respective environment depending on whether you have a CUDA GPU or not.
