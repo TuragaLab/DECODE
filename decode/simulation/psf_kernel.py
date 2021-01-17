@@ -332,7 +332,7 @@ class CubicSplinePSF(PSF):
 
     def __init__(self, xextent, yextent, img_shape, ref0, coeff, vx_size,
                  *, roi_size: (None, tuple) = None, ref_re: (None, torch.Tensor, tuple) = None,
-                 roi_auto_center: bool = False, cuda_kernel=True, max_roi_chunk: int = 500000):
+                 roi_auto_center: bool = False, device: str = 'cuda:0', max_roi_chunk: int = 500000):
         """
         Initialise Spline PSF
 
@@ -363,7 +363,8 @@ class CubicSplinePSF(PSF):
 
         self.ref_re = self._shift_ref(ref_re, roi_auto_center)
 
-        self._cuda = cuda_kernel
+        self._device = device
+        self._device_ix = None if 'cpu' == device else int(device.split(':')[-1])
         self.max_roi_chunk = max_roi_chunk
 
         self._init_spline_impl()
@@ -391,16 +392,18 @@ class CubicSplinePSF(PSF):
         Init the spline implementation. Done seperately because otherwise it's harder to pickle
 
         """
-        if self._cuda:
+        if 'cuda' in self._device:
             self._spline_impl = spline.PSFWrapperCUDA(self._coeff.shape[0], self._coeff.shape[1],
                                                       self._coeff.shape[2],
                                                       self.roi_size_px[0], self.roi_size_px[1],
-                                                      self._coeff.numpy())
-        else:
+                                                      self._coeff.numpy(), self._device_ix)
+        elif 'cpu' == self._device:
             self._spline_impl = spline.PSFWrapperCPU(self._coeff.shape[0], self._coeff.shape[1],
                                                      self._coeff.shape[2],
                                                      self.roi_size_px[0], self.roi_size_px[1],
                                                      self._coeff.numpy())
+        else:
+            raise ValueError(f"Unsupported device ({self._device} has been set.")
 
     def sanity_check(self):
         """
@@ -481,19 +484,22 @@ class CubicSplinePSF(PSF):
         self.__dict__ = state
         self._init_spline_impl()
 
-    def cuda(self):
+    def cuda(self, ix: int = 0):
         """
-        Returns a copy of this object with implementation in CUDA. If already on CUDA, return original object.
+        Returns a copy of this object with implementation in CUDA. If already on CUDA and selected device, return original object.
+
+        Args:
+            ix: device index 
 
         Returns:
             CubicSplinePSF instance
 
         """
-        if self._cuda:
+        if 'cuda' in self._device and ix == self._device_ix:
             return self
 
         return CubicSplinePSF(xextent=self.xextent, yextent=self.yextent, img_shape=self.img_shape, ref0=self.ref0,
-                              coeff=self._coeff, vx_size=self.vx_size, roi_size=self.roi_size_px, cuda_kernel=True)
+                              coeff=self._coeff, vx_size=self.vx_size, roi_size=self.roi_size_px, device=f'cuda:{ix}')
 
     def cpu(self):
         """
@@ -503,11 +509,11 @@ class CubicSplinePSF(PSF):
             CubicSplinePSF instance
 
         """
-        if not self._cuda:
+        if self._device == 'cpu':
             return self
 
         return CubicSplinePSF(xextent=self.xextent, yextent=self.yextent, img_shape=self.img_shape, ref0=self.ref0,
-                              coeff=self._coeff, vx_size=self.vx_size, roi_size=self.roi_size_px, cuda_kernel=False)
+                              coeff=self._coeff, vx_size=self.vx_size, roi_size=self.roi_size_px, device='cpu')
 
     def coord2impl(self, xyz):
         """

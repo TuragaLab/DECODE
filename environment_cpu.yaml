@@ -1,6 +1,7 @@
 name: decode_dev_cpu
 
 channels:
+  - turagalab/label/dev
   - turagalab
   - pytorch
   - conda-forge
@@ -36,7 +37,7 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-  - spline
+  - spline>=0.10
   - tensorboard
   - tifffile
   - tqdm
