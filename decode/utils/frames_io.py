@@ -3,7 +3,7 @@ import warnings
 import torch
 import pathlib
 import tifffile
-from typing import Union, Tuple, Callable
+from typing import Union, Tuple, Callable, Iterable
 
 from tqdm import tqdm
 
@@ -47,6 +47,26 @@ def load_tif(file: (str, pathlib.Path)) -> torch.Tensor:
                       f"or could only find a single frame.", ValueError)
 
     return frames
+
+
+def get_tif_tag(file: Union[str, pathlib.Path], tag: Union[str, Iterable[str]]):
+
+    # def deep_get(dictionary, *keys):
+    #     """get value of a nested dict"""
+    #     return reduce(lambda d, key: d.get(key, None) if isinstance(d, dict) else None, keys, dictionary)
+    #
+    # if not isinstance(tag, str):
+    #     tag = [tag]
+    #
+    # with tifffile.TiffFile(file) as tif:
+    #     tif_tags = {}
+    #
+    #     for tag in tif.pages[0].tags.values():
+    #         name, value = tag.name, tag.value
+    #         tif_tags[name] = value
+    #
+    # return deep_get(tif_tags, tag)
+    raise NotImplementedError
 
 
 class BatchFileLoader:

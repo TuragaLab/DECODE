@@ -46,7 +46,7 @@ requirements:
       - python >=3.6,<4
       - pytest
     commands:
-      - pytest --pyargs decode
+      - pytest -m "not webbig" -m "not slow" --pyargs decode
 
 about:
     home: https://github.com/TuragaLab/DECODE
