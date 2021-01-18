@@ -1,11 +1,11 @@
 import warnings
-from deprecated import deprecated
+from pathlib import Path
 from typing import Union, Optional
 
 import numpy as np
 import torch
-from pathlib import Path
 
+import decode.generic.utils
 from . import slicing as gutil, test_utils as tutil
 
 
@@ -406,11 +406,12 @@ class EmitterSet:
             true if as stated above.
 
         """
+
         def check_em_dict_equality(em_a: dict, em_b: dict) -> bool:
 
             for k in em_a.keys():
-                 if not tutil.tens_almeq(em_a[k], em_b[k], nan=True):
-                     return False
+                if not tutil.tens_almeq(em_a[k], em_b[k], nan=True):
+                    return False
 
             return True
 
@@ -761,7 +762,7 @@ class EmitterSet:
             if self.px_size is None:
                 raise ValueError("Conversion not possible if px size is not specified.")
 
-            return self._convert_coordinates(factor=1/self.px_size ** power, xyz=xyz)
+            return self._convert_coordinates(factor=1 / self.px_size ** power, xyz=xyz)
 
         elif in_unit == 'px' and tar_unit == 'nm':
             if self.px_size is None:
@@ -973,29 +974,6 @@ class LooseEmitterSet:
 
         """
 
-        def cum_count_per_group(arr):
-            """
-            Helper function that returns the cumulative sum per group.
-
-            Example:
-                [0, 0, 0, 1, 2, 2, 0] --> [0, 1, 2, 0, 0, 1, 3]
-            """
-
-            def grp_range(counts: torch.Tensor):
-                assert counts.dim() == 1
-
-                idx = counts.cumsum(0)
-                id_arr = torch.ones(idx[-1], dtype=int)
-                id_arr[0] = 0
-                id_arr[idx[:-1]] = -counts[:-1] + 1
-                return id_arr.cumsum(0)
-
-            if arr.numel() == 0:
-                return arr
-
-            _, cnt = torch.unique(arr, return_counts=True)
-            return grp_range(cnt)[torch.argsort(arr).argsort()]
-
         frame_start = torch.floor(self.t0).long()
         frame_last = torch.floor(self.te).long()
         frame_count = (frame_last - frame_start).long()
@@ -1018,7 +996,8 @@ class LooseEmitterSet:
         phot_ = flux_.repeat_interleave(frame_dur_full_clean + 1, dim=0)  # because intensity * 1 = phot
         id_ = id_.repeat_interleave(frame_dur_full_clean + 1, dim=0)
         # because 0 is first occurence
-        frame_ix_ = frame_start_full.repeat_interleave(frame_dur_full_clean + 1, dim=0) + cum_count_per_group(id_) + 1
+        frame_ix_ = frame_start_full.repeat_interleave(frame_dur_full_clean + 1, dim=0) \
+                    + decode.generic.utils.cum_count_per_group(id_) + 1
 
         """First frame"""
         # first
