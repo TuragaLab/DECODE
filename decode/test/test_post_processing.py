@@ -213,7 +213,7 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
         with pytest.raises(IndexError):
             post.forward(torch.rand((1, 2, 32, 32)))
 
-    @pytest.mark.xfail(condition=not torch.cuda.is_available(), reason="CUDA not available on this machine.")
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available on this machine.")
     def test_forward_cuda(self, post):
         p = torch.zeros((2, 1, 32, 32)).cuda()
         out = torch.zeros((2, 5, 32, 32)).cuda()
@@ -329,7 +329,8 @@ class TestConsistentPostProcessing(TestPostProcessingAbstract):
     @pytest.mark.parametrize("x,expct", [(torch.ones((2, 6, 32, 32)), True),
                                          (torch.zeros((2, 6, 32, 32)), False),
                                          (
-                                         torch.tensor([[0.5, 0., 0.], [0., 0., 0.]]).unsqueeze(0).unsqueeze(0), False)])
+                                                 torch.tensor([[0.5, 0., 0.], [0., 0., 0.]]).unsqueeze(0).unsqueeze(0),
+                                                 False)])
     def test_filter(self, post, x, expct):
         post.skip_th = 0.2
         assert post.skip_if(x) is expct
