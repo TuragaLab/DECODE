@@ -21,7 +21,7 @@ Evaluation:
 Hardware:
   device: cuda
   device_ix: 0
-  device_simulation: cuda
+  device_simulation: cuda:0
   num_worker_train: 4
   torch_threads: 4
   unix_niceness: 0

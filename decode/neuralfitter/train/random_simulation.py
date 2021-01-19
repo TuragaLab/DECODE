@@ -17,7 +17,7 @@ def setup_random_simulation(param):
         xextent=param.Simulation.psf_extent[0],
         yextent=param.Simulation.psf_extent[1],
         img_shape=param.Simulation.img_size,
-        cuda_kernel=True if param.Hardware.device_simulation[:4] == 'cuda' else False,
+        device=param.Hardware.device_simulation,
         roi_size=param.Simulation.roi_size,
         roi_auto_center=param.Simulation.roi_auto_center
     )
