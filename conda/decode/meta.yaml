@@ -1,6 +1,6 @@
 package:
   name: decode
-  version: "0.10.0.alpha.0"  # do not modify by hand set and sync with bumpversion
+  version: "0.10.0.alpha.1"  # do not modify by hand set and sync with bumpversion
 
 source:
      - path: ../..
