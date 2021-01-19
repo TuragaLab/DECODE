@@ -72,7 +72,7 @@ HyperParameter:
   max_number_targets: 250
   moeller_gradient_rescale: false
   opt_param:
-    lr: 0.0006
+    lr: 0.0002
     weight_decay: 0.1
   optimizer: AdamW
   photon_threshold:
