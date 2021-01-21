@@ -8,43 +8,43 @@ on:
 
 jobs:
   # this is a pure Python noarch build; we use Linux for convenience
-  # build-linux:
-  #   runs-on: ubuntu-latest
+  build-linux:
+    runs-on: ubuntu-latest
 
-  #   env: 
-  #       FILENAMES: temp-filenames.txt
+    env: 
+      FILENAMES: temp-filenames.txt
 
-  #   steps:
-  #   - uses: actions/checkout@v2
-  #       # this grabs the release commit
-  #     with:
-  #       ref: ${{ github.ref }}
+    steps:
+    - uses: actions/checkout@v2
+      # this grabs the release commit
+      with:
+        ref: ${{ github.ref }}
 
-  #   - name: Python 3.8
-  #     uses: actions/setup-python@v2
-  #     with:
-  #       python-version: 3.8
+    - name: Python 3.8
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
     
-  #   - name: Install conda build libraries
-  #     run: |
-  #       $CONDA/bin/conda install conda-build anaconda-client
+    - name: Install conda build libraries
+      run: |
+        $CONDA/bin/conda install conda-build anaconda-client
 
-  #   # build, then also store the file paths that were built    
-  #   - name: Build DECODE
-  #     run: |
-  #       cd ./conda
-  #       $CONDA/bin/conda-build -c turagalab -c pytorch -c conda-forge decode
-  #       $CONDA/bin/conda-build -c turagalab -c pytorch -c conda-forge decode --output > $FILENAMES
+    # build, then also store the file paths that were built    
+    - name: Build DECODE
+      run: |
+        cd ./conda
+        $CONDA/bin/conda-build -c turagalab -c pytorch -c conda-forge decode
+        $CONDA/bin/conda-build -c turagalab -c pytorch -c conda-forge decode --output > $FILENAMES
 
-  #   # upload to Anaconda Cloud; separate step to minimize exposure of the token
-  #   - name: Upload to Anaconda Cloud
-  #     env:
-  #       ANACONDA_TOKEN: ${{ secrets.TURAGALAB_ANACONDA_TOKEN }}
-  #     run: |
-  #       cd ./conda
-  #       while read PATH; do 
-  #         $CONDA/bin/anaconda -t $ANACONDA_TOKEN upload -u Turagalab $PATH
-  #       done < $FILENAMES
+    # upload to Anaconda Cloud; separate step to minimize exposure of the token
+    - name: Upload to Anaconda Cloud
+      env:
+        ANACONDA_TOKEN: ${{ secrets.TURAGALAB_ANACONDA_TOKEN }}
+      run: |
+        cd ./conda
+        while read PATH; do 
+          $CONDA/bin/anaconda -t $ANACONDA_TOKEN upload -u Turagalab $PATH
+        done < $FILENAMES
 
 
   build-linux-pip:
@@ -68,7 +68,7 @@ jobs:
         auto-activate-base: false
         activate-environment: pip-build
     
-    - name: Build SplinePSF (pip)
+    - name: Build DECODE (pip)
       id: pip-build
       shell: bash -l {0}
       run: |
