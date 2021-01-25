@@ -25,11 +25,11 @@ jobs:
           sed -i -E 's/(python=)(.*)/\1'${{ matrix.python-version }}'/' ./environment_cpu.yaml
           cat environment_cpu.yaml | grep python
       
-      # overwrites the python versionin the environment
+      # overwrites the python version in the environment
       - uses: conda-incubator/setup-miniconda@v2
         with:
           mamba-version: "*"
-          channels: conda-forge,defaults
+          channels: turagalab/label/dev,turagalab,pytorch,conda-forge,defaults
           channel-priority: strict
           activate-environment: decode_dev_cpu
           environment-file: environment_cpu.yaml
