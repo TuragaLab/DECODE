@@ -168,6 +168,32 @@ class EmitterSet:
     @property
     def xyz_sig_nm(self) -> torch.Tensor:
         return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='nm')
+    
+    @property
+    def meta(self) -> dict:
+        """Return metadata of EmitterSet"""
+        return {
+            'xy_unit': self.xy_unit,
+            'px_size': self.px_size
+        }
+
+    @property
+    def data(self) -> dict:
+        """Return intrinsic data (without metadata)"""
+        return {
+            'xyz': self.xyz,
+            'phot': self.phot,
+            'frame_ix': self.frame_ix,
+            'id': self.id,
+            'prob': self.prob,
+            'bg': self.bg,
+            'xyz_cr': self.xyz_cr,
+            'phot_cr': self.phot_cr,
+            'bg_cr': self.bg_cr,
+            'xyz_sig': self.xyz_sig,
+            'phot_sig': self.phot_sig,
+            'bg_sig': self.bg_sig,
+        }
 
     def dim(self) -> int:
         """
@@ -193,22 +219,9 @@ class EmitterSet:
             >>> em_clone = EmitterSet(**em_dict)  # returns a clone of the emitterset
 
         """
-        em_dict = {
-            'xyz': self.xyz,
-            'phot': self.phot,
-            'frame_ix': self.frame_ix,
-            'id': self.id,
-            'prob': self.prob,
-            'bg': self.bg,
-            'xyz_cr': self.xyz_cr,
-            'phot_cr': self.phot_cr,
-            'bg_cr': self.bg_cr,
-            'xyz_sig': self.xyz_sig,
-            'phot_sig': self.phot_sig,
-            'bg_sig': self.bg_sig,
-            'xy_unit': self.xy_unit,
-            'px_size': self.px_size
-        }
+        em_dict = {}
+        em_dict.update(self.meta)
+        em_dict.update(self.data)
 
         return em_dict
 
@@ -418,15 +431,7 @@ class EmitterSet:
         if not self.eq_attr(other):
             return False
 
-        self_dict = self.to_dict()
-        self_dict.pop('xy_unit')
-        self_dict.pop('px_size')
-
-        other_dict = other.to_dict()
-        other_dict.pop('xy_unit')
-        other_dict.pop('px_size')
-
-        if not check_em_dict_equality(self_dict, other_dict):
+        if not check_em_dict_equality(self.data, other.data):
             return False
 
         return True

@@ -295,6 +295,24 @@ class TestEmitterSet:
         else:
             assert not (em_a == em_b)
 
+    def test_meta(self):
+
+        em = RandomEmitterSet(100, xy_unit='nm', px_size=(100., 200.))
+        assert set(em.meta.keys()) == {'xy_unit', 'px_size'}
+
+    def test_data(self):
+        return  # implicitly in test_to_dict
+
+    def test_to_dict(self):
+
+        em = RandomEmitterSet(100, xy_unit='nm', px_size=(100., 200.))
+        
+        """Check whether doing one round of to_dict and back works"""
+        em_clone = em.clone()
+
+        em_dict = EmitterSet(**em.to_dict())
+        assert em_clone == em_dict
+
 
 def test_empty_emitterset():
     em = EmptyEmitterSet()

@@ -1,11 +1,11 @@
 import copy
 import pathlib
+from typing import Union, Tuple
 
 import h5py
 import numpy as np
 import pandas as pd
 import torch
-
 
 challenge_mapping = {'x': 'xnano',
                      'y': 'ynano',
@@ -121,3 +121,49 @@ def load_smap(file: (str, pathlib.Path), mapping: (dict, None) = None) -> dict:
     emitter_dict['frame_ix'] -= 1  # MATLAB starts at 1, python and all serious languages at 0
 
     return emitter_dict
+
+
+def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict):
+    def create_volatile_dataset(group, name, tensor):
+        """Empty DS if all nan"""
+        if torch.isnan(tensor).all():
+            group.create_dataset(name, data=h5py.Empty("f"))
+        else:
+            group.create_dataset(name, data=tensor.numpy())
+
+    with h5py.File(path, 'w') as f:
+        m = f.create_group('meta')
+        m.attrs.update(metadata)
+
+        g = f.create_group('data')
+        g.create_dataset('xyz', data=data['xyz'].numpy())
+        create_volatile_dataset(g, 'xyz_sig', data['xyz_sig'])
+        create_volatile_dataset(g, 'xyz_cr', data['xyz_cr'])
+
+        g.create_dataset('phot', data=data['phot'].numpy())
+        create_volatile_dataset(g, 'phot_cr', data['phot_cr'])
+        create_volatile_dataset(g, 'phot_sig', data['phot_sig'])
+
+        g.create_dataset('frame_ix', data=data['frame_ix'].numpy())
+        g.create_dataset('id', data=data['id'].numpy())
+        g.create_dataset('prob', data=data['prob'].numpy())
+
+        g.create_dataset('bg', data=data['bg'].numpy())
+        create_volatile_dataset(g, 'bg_cr', data['bg_cr'])
+        create_volatile_dataset(g, 'bg_sig', data['bg_sig'])
+
+
+def load_h5(path) -> Tuple[dict, dict]:
+
+    with h5py.File(path, 'r') as h5:
+
+        data = {
+            k: torch.from_numpy(v[:]) for k, v in h5['data'].items() if v.shape is not None
+        }
+        data.update({  # add the None ones
+            k: None for k, v in h5['data'].items() if v.shape is None
+        })
+
+        meta = dict(h5['meta'].attrs)
+
+    return data, meta
