@@ -3,11 +3,13 @@ from typing import Union, Callable
 import warnings
 import torch
 from tqdm import tqdm
+import time
 
 from .. import dataset
 from ...generic import emitter
 from ...utils import hardware
 from functools import partial
+from ...simulation import camera
 
 
 class Infer:
@@ -137,3 +139,38 @@ class Infer:
     
         return hardware.get_max_batch_size(model_forward_no_grad, frame_size, next(model.parameters()).device, limit_low, limit_high)
 
+
+class LiveInfer(Infer):
+    def __init__(self,
+                 model, ch_in: int, *,
+                 stream, time_wait=5,
+                 frame_proc=None, post_proc=None,
+                 device: Union[str, torch.device] = 'cuda:0' if torch.cuda.is_available() else 'cpu',
+                 batch_size: Union[int, str] = 'auto', num_workers: int = 4, pin_memory: bool = False,
+                 forward_cat: Union[str, Callable] = 'emitter'):
+
+        super().__init__(
+            model=model, ch_in=ch_in, frame_proc=frame_proc, post_proc=post_proc,
+            device=device, batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory,
+            forward_cat=forward_cat)
+
+        self._stream = stream
+        self._time_wait = time_wait
+
+    def forward(self, frames):
+
+        n_fitted = 0
+        n_waited = 0
+        while n_waited <= 2:
+            n = len(frames)
+
+            if n_fitted == n:
+                n_waited += 1
+                time.sleep(self._time_wait)  # wait
+                continue
+
+            out = super().forward(frames[n_fitted:n])
+            self._stream(out, n_fitted, n)
+
+            n_fitted = n
+            n_waited = 0
