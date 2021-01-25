@@ -37,7 +37,7 @@ jobs:
       
       - name: Install backport of importlib_resources
         run: |
-          mamba install -y importlib_resources
+          conda install -y importlib_resources
         if: matrix.python-version <= '3.6'
 
       # Run the specific test
