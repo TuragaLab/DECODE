@@ -1,6 +1,3 @@
-import pytest
-import h5py
-
 from decode.generic import emitter
 from decode.utils import emitter_io
 

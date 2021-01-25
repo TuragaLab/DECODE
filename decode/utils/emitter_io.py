@@ -133,6 +133,8 @@ def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict):
 
     with h5py.File(path, 'w') as f:
         m = f.create_group('meta')
+        if any(v is None for v in metadata.values()):
+            raise ValueError(f"Cannot save to hdf5 because encountered None in one of {metadata.keys()}")
         m.attrs.update(metadata)
 
         g = f.create_group('data')

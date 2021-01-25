@@ -241,12 +241,19 @@ class EmitterSet:
             file: path where to save
 
         """
+        from decode.utils import emitter_io
 
         if not isinstance(file, Path):
             file = Path(file)
 
-        em_dict = self.to_dict()
-        torch.save(em_dict, file)
+        if file.suffix == '.pt':
+            torch.save(self.to_dict(), file)
+        elif file.suffix in ('.h5', '.hdf5'):
+            emitter_io.save_h5(file, self.data, self.meta)
+        elif file.suffix == '.csv':
+            emitter_io.save_csv(file, self.to_dict())
+        else:
+            raise ValueError
 
     @staticmethod
     def load(file: Union[str, Path]):
@@ -260,8 +267,20 @@ class EmitterSet:
             EmitterSet
 
         """
+        from decode.utils import emitter_io
 
-        em_dict = torch.load(file)
+        file = Path(file) if not isinstance(file, Path) else file
+
+        if file.suffix == '.pt':
+            em_dict = torch.load(file)
+        elif file.suffix in ('.h5', '.hdf5'):
+            em_dict, meta = emitter_io.load_h5(file)
+            em_dict.update(meta)
+        elif file.suffix == '.csv':
+            raise NotImplementedError("For .csv files, please use 'decode.utils.emitter_io.load_csv' explicitly.")
+        else:
+            raise ValueError
+
         return EmitterSet(**em_dict)
 
     def _set_typed(self, xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr, xyz_sig, phot_sig, bg_sig):

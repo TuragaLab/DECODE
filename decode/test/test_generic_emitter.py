@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from copy import deepcopy
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -265,18 +266,22 @@ class TestEmitterSet:
         with pytest.raises(ValueError):
             EmitterSet(xyz, phot, frame_ix)
 
-    def test_save_load(self):
+    def test_save_load(self, tmpdir):
 
-        random_em = RandomEmitterSet(1000)
-        file = Path(deepsmlm_root + 'decode/test/assets/dummy_emitter_save.pickle')
+        em = RandomEmitterSet(1000)
 
-        with RMAfterTest(file):
-            random_em.save(file)
+        # test natural format
+        p = Path(tmpdir / 'em.pt')
+        em.save(p)
+        em_pt = EmitterSet.load(p)
+        assert em == em_pt, "Reloaded emitterset is not equivalent to inital one."
 
-            """Assertions"""
-            assert file.exists(), "File does not exist."
-            random_em_load = EmitterSet.load(file)
-            assert random_em == random_em_load, "Reloaded emitterset is not equivalent to inital one."
+        p = Path(tmpdir / 'em.h5')
+        em.xy_unit = 'nm'
+        em.px_size = torch.Tensor([100., 100.])
+        em.save(p)
+        em_h5 = EmitterSet.load(p)
+        assert em_h5 == em
 
     @pytest.mark.parametrize("em_a,em_b,expct", [(CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
                                                   CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
