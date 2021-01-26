@@ -17,7 +17,7 @@ def online_tiff_writer(path, n: int, sleep: float):
         time.sleep(sleep)
 
         new = torch.randint(255, (100, 64, 64), dtype=torch.short)
-        tifffile.imwrite(path, data=new.numpy(), append=True)
+        tifffile.imwrite(path, data=new.numpy(), ome=True, append=True)
 
 
 def test_tiff_tensor(tmpdir):

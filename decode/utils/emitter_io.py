@@ -161,7 +161,6 @@ def load_h5(path) -> Tuple[dict, dict]:
     """Loads a hdf5 file and returns data and metadata."""
 
     with h5py.File(path, 'r') as h5:
-
         data = {
             k: torch.from_numpy(v[:]) for k, v in h5['data'].items() if v.shape is not None
         }
