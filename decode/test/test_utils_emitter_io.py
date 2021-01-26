@@ -1,5 +1,6 @@
 import torch
 import pytest
+from unittest import mock
 
 from decode.generic import emitter
 from decode.utils import emitter_io
@@ -32,3 +33,23 @@ def test_save_load_h5py(em_rand, em_all_attrs, tmpdir):
         data, meta = emitter_io.load_h5(path)
         em_h5 = emitter.EmitterSet(**data, **meta)
         assert em == em_h5  # if equality check is wrong, this is wrong as well
+
+
+# @pytest.mark.parametrize('')
+@pytest.mark.parametrize('last_index', ['including', 'excluding'])
+def test_streamer(last_index, tmpdir):
+
+    stream = emitter_io.EmitterWriteStream('dummy', '.pt', tmpdir, last_index=last_index)
+
+    with mock.patch.object(emitter.EmitterSet, 'save') as mock_save:
+        stream.write(emitter.RandomEmitterSet(20), 0, 100)
+
+    if last_index == 'including':
+        mock_save.assert_called_once_with(tmpdir / 'dummy_0_100.pt')
+    elif last_index == 'excluding':
+        mock_save.assert_called_once_with(tmpdir / 'dummy_0_99.pt')
+
+    with mock.patch.object(emitter.EmitterSet, 'save') as mock_save:
+        stream(emitter.RandomEmitterSet(20), 0, 100)
+
+    mock_save.assert_called_once()

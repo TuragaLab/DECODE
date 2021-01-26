@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import torch
 
+from decode.generic.emitter import EmitterSet
+
 challenge_mapping = {'x': 'xnano',
                      'y': 'ynano',
                      'z': 'znano',
@@ -156,6 +158,7 @@ def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict):
 
 
 def load_h5(path) -> Tuple[dict, dict]:
+    """Loads a hdf5 file and returns data and metadata."""
 
     with h5py.File(path, 'r') as h5:
 
@@ -169,3 +172,36 @@ def load_h5(path) -> Tuple[dict, dict]:
         meta = dict(h5['meta'].attrs)
 
     return data, meta
+
+
+class EmitterWriteStream:
+    def __init__(self, name: str, suffix: str, path: pathlib.Path, last_index: str):
+        """
+        Stream to save emitters when fitting is performed online and in chunks.
+
+        Args:
+            name: name of the stream
+            suffix: suffix of the file
+            path: destination directory
+            last_index: either 'including' or 'excluding' (does 0:500 include or exclude index 500).
+            While excluding is pythonic, it is not what is common for saved files.
+        """
+        self._name = name
+        self._suffix = suffix
+        self._path = path if isinstance(path, pathlib.Path) else pathlib.Path(path)
+        self._last_index = last_index
+
+    def __call__(self, em: EmitterSet, ix_low: int, ix_high: int):
+        return self.write(em, ix_low, ix_high)
+
+    def write(self, em: EmitterSet, ix_low: int, ix_high: int):
+        """Write emitter chunk to file."""
+        if self._last_index == 'including':
+            ix = f'_{ix_low}_{ix_high}'
+        elif self._last_index == 'excluding':
+            ix = f'_{ix_low}_{ix_high - 1}'
+        else:
+            raise ValueError
+
+        fname = self._path / (self._name + ix + self._suffix)
+        em.save(fname)
