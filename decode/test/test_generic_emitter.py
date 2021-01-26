@@ -1,7 +1,4 @@
-import os
 from pathlib import Path
-from copy import deepcopy
-from unittest import mock
 
 import numpy as np
 import pytest
@@ -10,11 +7,6 @@ import torch
 import decode.generic.emitter as emitter
 from decode.generic import test_utils
 from decode.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet
-from decode.test.asset_handler import RMAfterTest
-
-deepsmlm_root = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 os.pardir, os.pardir)) + '/'
 
 
 class TestEmitterSet:
@@ -266,22 +258,15 @@ class TestEmitterSet:
         with pytest.raises(ValueError):
             EmitterSet(xyz, phot, frame_ix)
 
-    def test_save_load(self, tmpdir):
+    @pytest.mark.parametrize("format", ['.pt', '.h5'])
+    def test_save_load(self, format, tmpdir):
 
-        em = RandomEmitterSet(1000)
+        em = RandomEmitterSet(1000, xy_unit='nm', px_size=(100., 100.))
 
-        # test natural format
-        p = Path(tmpdir / 'em.pt')
+        p = Path(tmpdir / f'em.{format}')
         em.save(p)
-        em_pt = EmitterSet.load(p)
-        assert em == em_pt, "Reloaded emitterset is not equivalent to inital one."
-
-        p = Path(tmpdir / 'em.h5')
-        em.xy_unit = 'nm'
-        em.px_size = torch.Tensor([100., 100.])
-        em.save(p)
-        em_h5 = EmitterSet.load(p)
-        assert em_h5 == em
+        em_load = EmitterSet.load(p)
+        assert em == em_load, "Reloaded emitterset is not equivalent to inital one."
 
     @pytest.mark.parametrize("em_a,em_b,expct", [(CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
                                                   CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
