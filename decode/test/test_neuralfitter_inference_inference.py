@@ -15,15 +15,18 @@ from .test_utils_frames_io import online_tiff_writer
 
 class TestInfer:
 
-    @pytest.fixture(scope='module')
+    @pytest.fixture()
     def model(self):
         class DummyModel(torch.nn.Module):
-            @staticmethod
-            def forward(x):
+            def __init__(self):
+                super().__init__()
+                self.dummy = torch.nn.parameter.Parameter(torch.rand(1, 1, 1, 1))
+
+            def forward(self, x):
                 assert x.dim() == 4
                 assert x.size(1) == 3
 
-                return torch.rand_like(x[:, [0]])
+                return self.dummy * torch.rand_like(x[:, [0]])
 
         return DummyModel()
 
@@ -61,6 +64,9 @@ class TestInfer:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA.")
     def test_get_max_batch_size(self, infer):
+        infer.model = torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
+                                     in_channels=3, out_channels=1, init_features=32, pretrained=False)
+
         bs = infer.get_max_batch_size(infer.model.cuda(), (3, 256, 256), 1, 5024)
 
         assert 16 <= bs <= 1024
