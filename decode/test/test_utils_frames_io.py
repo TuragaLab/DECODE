@@ -1,4 +1,4 @@
-import multiprocessing
+import threading
 import time
 
 import tifffile
@@ -24,7 +24,7 @@ def test_tiff_tensor(tmpdir):
     fname = tmpdir / 'contin.tiff'
 
     # start a thread that continuously write to a tiff file
-    thread = multiprocessing.Process(target=online_tiff_writer, args=[str(fname), 10, 1])
+    thread = threading.Thread(target=online_tiff_writer, args=[str(fname), 10, 1])
     thread.start()
 
     while not fname.isfile():

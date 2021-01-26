@@ -1,4 +1,4 @@
-import multiprocessing
+import threading
 import time
 from unittest import mock
 
@@ -17,8 +17,15 @@ class TestInfer:
 
     @pytest.fixture(scope='module')
     def model(self):
-        return torch.hub.load('mateuszbuda/brain-segmentation-pytorch', 'unet',
-                              in_channels=3, out_channels=1, init_features=32, pretrained=False)
+        class DummyModel(torch.nn.Module):
+            @staticmethod
+            def forward(x):
+                assert x.dim() == 4
+                assert x.size(1) == 3
+
+                return torch.rand_like(x[:, [0]])
+
+        return DummyModel()
 
     @pytest.fixture()
     def infer(self, model):
@@ -64,7 +71,7 @@ class TestLiveInfer(TestInfer):
     @pytest.fixture()
     def infer(self, model):
         return inference.LiveInfer(
-            model, ch_in=3, stream=None, time_wait=5,
+            model, ch_in=3, stream=None, time_wait=1,
             frame_proc=None, post_proc=post_processing.NoPostProcessing(),
             device='cuda' if torch.cuda.is_available() else 'cpu'
         )
@@ -81,7 +88,7 @@ class TestLiveInfer(TestInfer):
 
     def test_forward_online(self, infer, tmpdir):
         path = tmpdir / 'online.tiff'
-        tiff_writer = multiprocessing.Process(target=online_tiff_writer, args=[path, 10, 1])
+        tiff_writer = threading.Thread(target=online_tiff_writer, args=[path, 10, 0.5])
         tiff_writer.start()
 
         frames = frames_io.TiffTensor(path)
