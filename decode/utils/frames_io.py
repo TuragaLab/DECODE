@@ -82,7 +82,7 @@ class TiffTensor:
         raise NotImplementedError
 
     def __len__(self):
-        tiff = tifffile.TiffFile(self._file)
+        tiff = tifffile.TiffFile(self._file, mode='rb')
         n = len(tiff.pages)
         tiff.close()
         return n

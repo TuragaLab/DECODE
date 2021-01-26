@@ -40,7 +40,7 @@ dependencies:
   - scikit-learn
   - spline>=0.10.alpha
   - tensorboard
-  - tifffile
+  - tifffile>=2021.1
   - tqdm
 
   # add kernel to jupyter

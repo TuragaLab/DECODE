@@ -21,7 +21,7 @@ requirements:
   run:
     - python >=3.6,<4
     - {{ pin_compatible('numpy', max_pin='x.x') }}
-    - pytorch=1.6
+    - pytorch=1.7.1
     - torchvision
     - click
     - deprecated
@@ -36,9 +36,9 @@ requirements:
     - seaborn=0.10
     - scikit-image
     - scikit-learn
-    - spline
+    - spline>=0.10.alpha
     - tensorboard
-    - tifffile
+    - tifffile>=2021.1
     - tqdm
 
   test:
@@ -49,7 +49,7 @@ requirements:
       - pytest -m "not webbig" -m "not slow" --pyargs decode
 
 about:
-    home: https://github.com/TuragaLab/DECODE
+    home: https://github.com/turagaLab/decode
     # dev_url: github url 
     # doc_url: doc url
     # license: GPL-3.0
