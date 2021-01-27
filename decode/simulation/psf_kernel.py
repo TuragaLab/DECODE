@@ -8,6 +8,7 @@ import spline  # cubic spline implementation
 import torch
 
 from decode.generic import slicing as gutil
+import decode.generic.utils
 
 
 class PSF(ABC):
@@ -133,10 +134,8 @@ class DeltaPSF(PSF):
 
         self._fov_filter = RemoveOutOfFOV(xextent=self.xextent, yextent=self.yextent, zextent=None)
 
-        self._bin_x = torch.linspace(*xextent, steps=img_shape[0] + 1)
-        self._bin_y = torch.linspace(*yextent, steps=img_shape[1] + 1)
-        self._bin_ctr_x = (self._bin_x + (self._bin_x[1] - self._bin_x[0]) / 2)[:-1]
-        self._bin_ctr_y = (self._bin_y + (self._bin_y[1] - self._bin_y[0]) / 2)[:-1]
+        self._bin_x, self._bin_y, self._bin_ctr_x, self._bin_ctr_y = \
+            decode.generic.utils.frame_grid(img_shape, xextent, yextent)
 
     @property
     def bin_ctr_x(self):
