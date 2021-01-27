@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from decode.generic import test_utils
-from decode.neuralfitter import losscollection as loss
+from decode.neuralfitter import loss
 
 
 class TestLossAbstract:
