@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from decode.neuralfitter import losscollection
+from decode.neuralfitter import loss
 from decode.neuralfitter import post_processing
 from decode.neuralfitter import train_val_impl
 from decode.neuralfitter.models import unet_param
@@ -20,7 +20,7 @@ class TestTrain:
 
     @pytest.fixture()
     def loss(self):
-        return losscollection.PPXYZBLoss(torch.device('cpu'))
+        return loss.PPXYZBLoss(torch.device('cpu'))
 
     @pytest.fixture()
     def dataloader(self):
