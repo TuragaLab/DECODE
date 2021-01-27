@@ -1,15 +1,15 @@
+import time
+import warnings
+from functools import partial
 from typing import Union, Callable
 
 import warnings
 import torch
 from tqdm import tqdm
-import time
 
 from .. import dataset
 from ...generic import emitter
 from ...utils import hardware
-from functools import partial
-from ...simulation import camera
 
 
 class Infer:
@@ -66,13 +66,13 @@ class Infer:
 
         """Form Dataset and Dataloader"""
         ds = dataset.InferenceDataset(frames=frames, frame_proc=self.frame_proc, frame_window=self.ch_in)
-        
+
         if self.batch_size == 'auto':
             # include safety factor of 20%
             bs = int(0.8 * self.get_max_batch_size(model, ds[0].size(), 1, 512))
         else:
             bs = self.batch_size
-            
+
         # generate concatenate function here because we need batch size for this
         self.forward_cat = self._setup_forward_cat(self._forward_cat_mode, bs)
 
@@ -118,26 +118,33 @@ class Infer:
 
         raise ValueError(f"Unsupported forward_cat value.")
 
-    def get_max_batch_size(self, model: torch.nn.Module, frame_size: Union[tuple, torch.Size], limit_low: int, limit_high: int):
+    @staticmethod
+    def get_max_batch_size(model: torch.nn.Module, frame_size: Union[tuple, torch.Size],
+                           limit_low: int, limit_high: int):
         """
         Get maximum batch size for inference.
 
         Args: 
             model: model on correct device
             frame_size: size of frames (without batch dimension)
+            limit_low: lower batch size limit
+            limit_high: upper batch size limit
         """
+
         def model_forward_no_grad(x: torch.Tensor):
             """
             Helper function because we need to account for torch.no_grad()
             """
             with torch.no_grad():
                 o = model.forward(x)
-            
+
             return o
 
-        assert next(model.parameters()).is_cuda, "Auto determining the max batch size makes only sense when running on CUDA device."
-    
-        return hardware.get_max_batch_size(model_forward_no_grad, frame_size, next(model.parameters()).device, limit_low, limit_high)
+        assert next(model.parameters()).is_cuda, \
+            "Auto determining the max batch size makes only sense when running on CUDA device."
+
+        return hardware.get_max_batch_size(model_forward_no_grad, frame_size, next(model.parameters()).device,
+                                           limit_low, limit_high)
 
 
 class LiveInfer(Infer):
