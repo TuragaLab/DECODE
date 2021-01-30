@@ -38,7 +38,7 @@ else:
 
 setup(
     name='decode',
-    version='0.10.0.alpha.1',  # do not modify by hand set and sync with bumpversion
+    version='0.10.0.alpha.2',  # do not modify by hand set and sync with bumpversion
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=requirements,
