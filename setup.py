@@ -14,8 +14,8 @@ else:
     # pip needs requirements here; keep in sync with meta.yaml!
     requirements = [
         "numpy",
-        "torch==1.6",
-        "torchvision",
+        "torch==1.7.1+cu101",  # we need to pin the cuda version for colab
+        "torchvision==0.8.2+cu101",
         "click",
         "deprecated",
         "h5py",
