@@ -1052,13 +1052,15 @@ class LooseEmitterSet:
         return EmitterSet(xyz_, phot_, frame_ix_.long(), id_.long(), xy_unit=self.xy_unit, px_size=self.px_size)
 
 
-def at_least_one_dim(*args):
+def at_least_one_dim(*args) -> None:
+    """Make tensors at least one dimensional (inplace)"""
     for arg in args:
         if arg.dim() == 0:
             arg.unsqueeze_(0)
 
 
-def same_shape_tensor(dim, *args):
+def same_shape_tensor(dim, *args) -> bool:
+    """Test if tensors are of same size in a certain dimension."""
     for i in range(args.__len__() - 1):
         if args[i].size(dim) == args[i + 1].size(dim):
             continue
@@ -1068,7 +1070,8 @@ def same_shape_tensor(dim, *args):
     return True
 
 
-def same_dim_tensor(*args):
+def same_dim_tensor(*args) -> bool:
+    """Test if tensors are of same dimensionality"""
     for i in range(args.__len__() - 1):
         if args[i].dim() == args[i + 1].dim():
             continue
