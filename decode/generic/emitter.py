@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Iterable
 
 import numpy as np
 import torch
@@ -412,6 +412,13 @@ class EmitterSet:
                          f"\n::spanned volume: {self.xyz.min(0)[0].numpy()} - {self.xyz.max(0)[0].numpy()}"
         return print_str
 
+    def __add__(self, other):
+        return self.cat((self, other), None, None)
+
+    def __iadd__(self, other):
+        self._inplace_replace(self + other)
+        return self
+
     def __eq__(self, other) -> bool:
         """
         Implements equalness check. Returns true if all attributes are the same and in the same order.
@@ -531,19 +538,18 @@ class EmitterSet:
                           px_size=self.px_size)
 
     @staticmethod
-    def cat(emittersets: list, remap_frame_ix: Union[None, torch.Tensor] = None, step_frame_ix: int = None):
+    def cat(emittersets: Iterable, remap_frame_ix: Union[None, torch.Tensor] = None, step_frame_ix: int = None):
         """
         Concatenate multiple emittersets into one emitterset which is returned. Optionally modify the frame indices by
         the arguments.
 
         Args:
-            emittersets: emittersets to be concatenated
-            remap_frame_ix: optional index of 0th frame to map the corresponding emitterset to. Length must
-            correspond to length of list in first argument.
-            step_frame_ix: optional step size of 0th frame between emittersets.
+            emittersets: iterable of emittersets to be concatenated
+            remap_frame_ix: new index of the 0th frame of each iterable
+            step_frame_ix: step size between 0th frame of each iterable
 
         Returns:
-            EmitterSet concatenated emitterset
+            concatenated emitters
 
         """
 
@@ -553,40 +559,39 @@ class EmitterSet:
             meta.append(em.meta)
             data.append(em.data)
 
-        n_emitters = len(data)
+        n_chunks = len(data)
 
         if remap_frame_ix is not None and step_frame_ix is not None:
             raise ValueError("You cannot specify remap frame ix and step frame ix at the same time.")
         elif remap_frame_ix is not None:
             shift = remap_frame_ix.clone()
         elif step_frame_ix is not None:
-            shift = torch.arange(0, n_emitters) * step_frame_ix
+            shift = torch.arange(0, n_chunks) * step_frame_ix
         else:
-            shift = torch.zeros(n_emitters).int()
+            shift = torch.zeros(n_chunks).int()
 
         # apply shift
-        data['frame_ix'] = [d + s for d, s in zip(data['frame_ix'], shift)]
+        for d, s in zip(data, shift):
+            d['frame_ix'] = d['frame_ix'] + s
+
+        # list of dicts to dict of lists
+        data = {k: torch.cat([x[k] for x in data], 0) for k in data[0]}
+        # meta = {k: [x[k] for x in meta] for k in meta[0]}
 
         # px_size and xy unit is taken from the first element that is not None
         xy_unit = None
         px_size = None
 
-        for i in range(n_emitters):
-            if emittersets[i].xy_unit is not None:
-                xy_unit = emittersets[i].xy_unit
+        for m in meta:
+            if m['xy_unit'] is not None:
+                xy_unit = m['xy_unit']
                 break
-        for i in range(n_emitters):
-            if emittersets[i].px_size is not None:
-                px_size = emittersets[i].px_size
+        for m in meta:
+            if m['px_size'] is not None:
+                xy_unit = m['px_size']
                 break
 
-
-
-        return EmitterSet(xyz, phot, frame_ix, id, prob, bg,
-                          xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr,
-                          xyz_sig=xyz_sig, phot_sig=phot_sig, bg_sig=bg_sig,
-                          sanity_check=True,
-                          xy_unit=xy_unit, px_size=px_size)
+        return EmitterSet(xy_unit=xy_unit, px_size=px_size, **data)
 
     def sort_by_frame_(self):
         """
@@ -670,26 +675,22 @@ class EmitterSet:
         """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
-    # @deprecated(reason="Needs to be debugged.")
-    # def chunks(self, n: int):
-    #     """
-    #     Splits the EmitterSet into (almost) equal chunks
-    #
-    #     Args:
-    #         n (int): number of splits
-    #
-    #     Returns:
-    #         list: of emittersets
-    #
-    #     """
-    #     from itertools import islice, chain
-    #
-    #     def chunky(iterable, size=10):
-    #         iterator = iter(iterable)
-    #         for first in iterator:
-    #             yield chain([first], islice(iterator, size - 1))
-    #
-    #     return chunky(self, n)
+    def chunks(self, chunks: int):
+        """
+        Splits the EmitterSet into (almost) equal chunks
+
+        Args:
+            chunks (int): number of splits
+
+        Returns:
+            list: of emittersets
+
+        """
+        n = len(self)
+        l = self
+        k = chunks
+        # https://stackoverflow.com/questions/2130016/splitting-a-list-into-n-parts-of-approximately-equal-length/37414115#37414115
+        return [l[i * (n // k) + min(i, n % k):(i+1) * (n // k) + min(i+1, n % k)] for i in range(k)]
 
     def filter_by_sigma(self, fraction: float, dim: Optional[int] = None):
         """

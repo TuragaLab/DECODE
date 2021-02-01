@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -133,16 +134,39 @@ class TestEmitterSet:
         else:
             assert test_utils.tens_almeq(em.xyz_scr_nm, expct_nm)
 
+    @mock.patch.object(emitter.EmitterSet, 'cat')
+    def test_add(self, mock_add):
+        em_0 = emitter.RandomEmitterSet(20)
+        em_1 = emitter.RandomEmitterSet(100)
+
+        _ = em_0 + em_1
+        mock_add.assert_called_once_with((em_0, em_1), None, None)
+
+    def test_iadd(self):
+        em_0 = emitter.RandomEmitterSet(20)
+        em_1 = emitter.RandomEmitterSet(50)
+
+        em_0 += em_1
+        assert len(em_0) == 70
+
     # @pytest.mark.skip("At the moment deprecated.")
-    # def test_split(self):
-    #
-    #     big_em = RandomEmitterSet(100000)
-    #
-    #     splits = big_em.chunks(10000)
-    #     re_merged = EmitterSet.cat(splits)
-    #
-    #     assert sum([len(e) for e in splits]) == len(big_em)
-    #     assert re_merged == big_em
+    def test_chunk(self):
+
+        big_em = RandomEmitterSet(100000)
+
+        splits = big_em.chunks(10000)
+        re_merged = EmitterSet.cat(splits)
+
+        assert sum([len(e) for e in splits]) == len(big_em)
+        assert re_merged == big_em
+
+        # test not evenly splittable number
+        em = RandomEmitterSet(7)
+        splits = em.chunks(3)
+
+        assert len(splits[0]) == 3
+        assert len(splits[1]) == 2
+        assert len(splits[-1]) == 2
 
     def test_split_in_frames(self, em2d, em3d):
         splits = em2d.split_in_frames(None, None)
