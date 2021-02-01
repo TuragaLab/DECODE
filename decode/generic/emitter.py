@@ -350,21 +350,7 @@ class EmitterSet:
 
 
         """
-        self.__init__(xyz=em.xyz,
-                      phot=em.phot,
-                      frame_ix=em.frame_ix,
-                      id=em.id,
-                      prob=em.prob,
-                      bg=em.bg,
-                      xyz_cr=em.xyz_cr,
-                      phot_cr=em.phot_cr,
-                      bg_cr=em.bg_cr,
-                      xyz_sig=em.xyz_sig,
-                      phot_sig=em.phot_sig,
-                      bg_sig=em.bg_sig,
-                      sanity_check=True,
-                      xy_unit=em.xy_unit,
-                      px_size=em.px_size)
+        self.__init__(**em.to_dict(), sanity_check=False)
 
     def _sanity_check(self, check_uniqueness=False):
         """
@@ -560,47 +546,41 @@ class EmitterSet:
             EmitterSet concatenated emitterset
 
         """
-        num_emittersets = len(emittersets)
+
+        meta = []
+        data = []
+        for em in emittersets:
+            meta.append(em.meta)
+            data.append(em.data)
+
+        n_emitters = len(data)
 
         if remap_frame_ix is not None and step_frame_ix is not None:
             raise ValueError("You cannot specify remap frame ix and step frame ix at the same time.")
         elif remap_frame_ix is not None:
             shift = remap_frame_ix.clone()
         elif step_frame_ix is not None:
-            shift = torch.arange(0, num_emittersets) * step_frame_ix
+            shift = torch.arange(0, n_emitters) * step_frame_ix
         else:
-            shift = torch.zeros(num_emittersets).int()
+            shift = torch.zeros(n_emitters).int()
 
-        total_num_emitter = 0
-        for i in range(num_emittersets):
-            total_num_emitter += len(emittersets[i])
-
-        xyz = torch.cat([emittersets[i].xyz for i in range(num_emittersets)], 0)
-        phot = torch.cat([emittersets[i].phot for i in range(num_emittersets)], 0)
-        frame_ix = torch.cat([emittersets[i].frame_ix + shift[i] for i in range(num_emittersets)], 0)
-        id = torch.cat([emittersets[i].id for i in range(num_emittersets)], 0)
-        prob = torch.cat([emittersets[i].prob for i in range(num_emittersets)], 0)
-        bg = torch.cat([emittersets[i].bg for i in range(num_emittersets)], 0)
-
-        xyz_cr = torch.cat([emittersets[i].xyz_cr for i in range(num_emittersets)], 0)
-        phot_cr = torch.cat([emittersets[i].phot_cr for i in range(num_emittersets)], 0)
-        bg_cr = torch.cat([emittersets[i].bg_cr for i in range(num_emittersets)], 0)
-
-        xyz_sig = torch.cat([emittersets[i].xyz_sig for i in range(num_emittersets)], 0)
-        phot_sig = torch.cat([emittersets[i].phot_sig for i in range(num_emittersets)], 0)
-        bg_sig = torch.cat([emittersets[i].bg_sig for i in range(num_emittersets)], 0)
+        # apply shift
+        data['frame_ix'] = [d + s for d, s in zip(data['frame_ix'], shift)]
 
         # px_size and xy unit is taken from the first element that is not None
         xy_unit = None
         px_size = None
-        for i in range(num_emittersets):
+
+        for i in range(n_emitters):
             if emittersets[i].xy_unit is not None:
                 xy_unit = emittersets[i].xy_unit
                 break
-        for i in range(num_emittersets):
+        for i in range(n_emitters):
             if emittersets[i].px_size is not None:
                 px_size = emittersets[i].px_size
                 break
+
+
 
         return EmitterSet(xyz, phot, frame_ix, id, prob, bg,
                           xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr,
@@ -857,18 +837,7 @@ class RandomEmitterSet(EmitterSet):
                          xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
-        super().__init__(xyz=em.xyz,
-                         phot=em.phot,
-                         frame_ix=em.frame_ix,
-                         id=em.id,
-                         prob=em.prob,
-                         bg=em.bg,
-                         xyz_cr=em.xyz_cr,
-                         phot_cr=em.phot_cr,
-                         bg_cr=em.bg_cr,
-                         sanity_check=False,
-                         xy_unit=em.xy_unit,
-                         px_size=em.px_size)
+        super().__init__(**em.to_dict(), sanity_check=False)
 
 
 class CoordinateOnlyEmitter(EmitterSet):
@@ -886,18 +855,7 @@ class CoordinateOnlyEmitter(EmitterSet):
                          xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
-        super().__init__(xyz=em.xyz,
-                         phot=em.phot,
-                         frame_ix=em.frame_ix,
-                         id=em.id,
-                         prob=em.prob,
-                         bg=em.bg,
-                         xyz_cr=em.xyz_cr,
-                         phot_cr=em.phot_cr,
-                         bg_cr=em.bg_cr,
-                         sanity_check=False,
-                         xy_unit=em.xy_unit,
-                         px_size=em.px_size)
+        super().__init__(**em.to_dict(), sanity_check=False)
 
 
 class EmptyEmitterSet(CoordinateOnlyEmitter):
@@ -907,18 +865,7 @@ class EmptyEmitterSet(CoordinateOnlyEmitter):
         super().__init__(torch.zeros((0, 3)), xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
-        super().__init__(xyz=em.xyz,
-                         phot=em.phot,
-                         frame_ix=em.frame_ix,
-                         id=em.id,
-                         prob=em.prob,
-                         bg=em.bg,
-                         xyz_cr=em.xyz_cr,
-                         phot_cr=em.phot_cr,
-                         bg_cr=em.bg_cr,
-                         sanity_check=False,
-                         xy_unit=em.xy_unit,
-                         px_size=em.px_size)
+        super().__init__(**em.to_dict())
 
 
 class LooseEmitterSet:

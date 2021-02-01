@@ -258,6 +258,14 @@ class TestEmitterSet:
         with pytest.raises(ValueError):
             EmitterSet(xyz, phot, frame_ix)
 
+    @pytest.mark.parametrize("em", [emitter.RandomEmitterSet(25, 64, px_size=(100., 125.)),
+                                    emitter.EmptyEmitterSet(xy_unit='nm', px_size=(100., 125.))])
+    def test_inplace_replace(self, em):
+        em_start = emitter.RandomEmitterSet(25, xy_unit='px', px_size=None)
+        em_start._inplace_replace(em)
+
+        assert em_start == em
+
     @pytest.mark.parametrize("format", ['.pt', '.h5'])
     def test_save_load(self, format, tmpdir):
 
