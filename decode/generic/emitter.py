@@ -1,6 +1,7 @@
 import warnings
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Iterable
+import copy
 
 import numpy as np
 import torch
@@ -225,13 +226,6 @@ class EmitterSet:
 
         return em_dict
 
-    # pickle
-    def __getstate__(self):
-        return self.to_dict()
-
-    def __setstate__(self, state):
-        self.__init__(**state)
-
     def save(self, file: Union[str, Path]):
         """
         Pickle save's the dictionary of this instance. No legacy guarantees given.
@@ -301,6 +295,7 @@ class EmitterSet:
 
         i_type = torch.int64
 
+        # make xyz always 3 dim
         xyz = xyz if xyz.shape[1] == 3 else torch.cat((xyz, torch.zeros_like(xyz[:, [0]])), 1)
 
         num_input = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
@@ -350,21 +345,7 @@ class EmitterSet:
 
 
         """
-        self.__init__(xyz=em.xyz,
-                      phot=em.phot,
-                      frame_ix=em.frame_ix,
-                      id=em.id,
-                      prob=em.prob,
-                      bg=em.bg,
-                      xyz_cr=em.xyz_cr,
-                      phot_cr=em.phot_cr,
-                      bg_cr=em.bg_cr,
-                      xyz_sig=em.xyz_sig,
-                      phot_sig=em.phot_sig,
-                      bg_sig=em.bg_sig,
-                      sanity_check=True,
-                      xy_unit=em.xy_unit,
-                      px_size=em.px_size)
+        self.__init__(**em.to_dict(), sanity_check=False)
 
     def _sanity_check(self, check_uniqueness=False):
         """
@@ -425,6 +406,13 @@ class EmitterSet:
             print_str += f"\n::frame range: {self.frame_ix.min().item()} - {self.frame_ix.max().item()}" \
                          f"\n::spanned volume: {self.xyz.min(0)[0].numpy()} - {self.xyz.max(0)[0].numpy()}"
         return print_str
+
+    def __add__(self, other):
+        return self.cat((self, other), None, None)
+
+    def __iadd__(self, other):
+        self._inplace_replace(self + other)
+        return self
 
     def __eq__(self, other) -> bool:
         """
@@ -528,85 +516,63 @@ class EmitterSet:
             EmitterSet
 
         """
-        return EmitterSet(xyz=self.xyz.clone(),
-                          phot=self.phot.clone(),
-                          frame_ix=self.frame_ix.clone(),
-                          id=self.id.clone(),
-                          prob=self.prob.clone(),
-                          bg=self.bg.clone(),
-                          xyz_cr=self.xyz_cr.clone(),
-                          phot_cr=self.phot_cr.clone(),
-                          bg_cr=self.bg_cr.clone(),
-                          xyz_sig=self.xyz_sig.clone(),
-                          phot_sig=self.phot_sig.clone(),
-                          bg_sig=self.bg_sig.clone(),
-                          sanity_check=False,
-                          xy_unit=self.xy_unit,
-                          px_size=self.px_size)
+        return copy.deepcopy(self)
 
     @staticmethod
-    def cat(emittersets: list, remap_frame_ix: Union[None, torch.Tensor] = None, step_frame_ix: int = None):
+    def cat(emittersets: Iterable, remap_frame_ix: Union[None, torch.Tensor] = None, step_frame_ix: int = None):
         """
         Concatenate multiple emittersets into one emitterset which is returned. Optionally modify the frame indices by
         the arguments.
 
         Args:
-            emittersets: emittersets to be concatenated
-            remap_frame_ix: optional index of 0th frame to map the corresponding emitterset to. Length must
-            correspond to length of list in first argument.
-            step_frame_ix: optional step size of 0th frame between emittersets.
+            emittersets: iterable of emittersets to be concatenated
+            remap_frame_ix: new index of the 0th frame of each iterable
+            step_frame_ix: step size between 0th frame of each iterable
 
         Returns:
-            EmitterSet concatenated emitterset
+            concatenated emitters
 
         """
-        num_emittersets = len(emittersets)
+
+        meta = []
+        data = []
+        for em in emittersets:
+            meta.append(em.meta)
+            data.append(em.data)
+
+        n_chunks = len(data)
 
         if remap_frame_ix is not None and step_frame_ix is not None:
             raise ValueError("You cannot specify remap frame ix and step frame ix at the same time.")
         elif remap_frame_ix is not None:
             shift = remap_frame_ix.clone()
         elif step_frame_ix is not None:
-            shift = torch.arange(0, num_emittersets) * step_frame_ix
+            shift = torch.arange(0, n_chunks) * step_frame_ix
         else:
-            shift = torch.zeros(num_emittersets).int()
+            shift = torch.zeros(n_chunks).int()
 
-        total_num_emitter = 0
-        for i in range(num_emittersets):
-            total_num_emitter += len(emittersets[i])
+        # apply shift
+        for d, s in zip(data, shift):
+            d['frame_ix'] = d['frame_ix'] + s
 
-        xyz = torch.cat([emittersets[i].xyz for i in range(num_emittersets)], 0)
-        phot = torch.cat([emittersets[i].phot for i in range(num_emittersets)], 0)
-        frame_ix = torch.cat([emittersets[i].frame_ix + shift[i] for i in range(num_emittersets)], 0)
-        id = torch.cat([emittersets[i].id for i in range(num_emittersets)], 0)
-        prob = torch.cat([emittersets[i].prob for i in range(num_emittersets)], 0)
-        bg = torch.cat([emittersets[i].bg for i in range(num_emittersets)], 0)
-
-        xyz_cr = torch.cat([emittersets[i].xyz_cr for i in range(num_emittersets)], 0)
-        phot_cr = torch.cat([emittersets[i].phot_cr for i in range(num_emittersets)], 0)
-        bg_cr = torch.cat([emittersets[i].bg_cr for i in range(num_emittersets)], 0)
-
-        xyz_sig = torch.cat([emittersets[i].xyz_sig for i in range(num_emittersets)], 0)
-        phot_sig = torch.cat([emittersets[i].phot_sig for i in range(num_emittersets)], 0)
-        bg_sig = torch.cat([emittersets[i].bg_sig for i in range(num_emittersets)], 0)
+        # list of dicts to dict of lists
+        data = {k: torch.cat([x[k] for x in data], 0) for k in data[0]}
+        # meta = {k: [x[k] for x in meta] for k in meta[0]}
 
         # px_size and xy unit is taken from the first element that is not None
         xy_unit = None
         px_size = None
-        for i in range(num_emittersets):
-            if emittersets[i].xy_unit is not None:
-                xy_unit = emittersets[i].xy_unit
+
+        for m in meta:
+            if m['xy_unit'] is not None:
+                xy_unit = m['xy_unit']
                 break
-        for i in range(num_emittersets):
-            if emittersets[i].px_size is not None:
-                px_size = emittersets[i].px_size
+        for m in meta:
+            if m['px_size'] is not None:
+                xy_unit = m['px_size']
                 break
 
-        return EmitterSet(xyz, phot, frame_ix, id, prob, bg,
-                          xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr,
-                          xyz_sig=xyz_sig, phot_sig=phot_sig, bg_sig=bg_sig,
-                          sanity_check=True,
-                          xy_unit=xy_unit, px_size=px_size)
+        return EmitterSet(xy_unit=xy_unit, px_size=px_size, **data)
 
     def sort_by_frame_(self):
         """
@@ -690,26 +656,22 @@ class EmitterSet:
         """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
-    # @deprecated(reason="Needs to be debugged.")
-    # def chunks(self, n: int):
-    #     """
-    #     Splits the EmitterSet into (almost) equal chunks
-    #
-    #     Args:
-    #         n (int): number of splits
-    #
-    #     Returns:
-    #         list: of emittersets
-    #
-    #     """
-    #     from itertools import islice, chain
-    #
-    #     def chunky(iterable, size=10):
-    #         iterator = iter(iterable)
-    #         for first in iterator:
-    #             yield chain([first], islice(iterator, size - 1))
-    #
-    #     return chunky(self, n)
+    def chunks(self, chunks: int):
+        """
+        Splits the EmitterSet into (almost) equal chunks
+
+        Args:
+            chunks (int): number of splits
+
+        Returns:
+            list: of emittersets
+
+        """
+        n = len(self)
+        l = self
+        k = chunks
+        # https://stackoverflow.com/questions/2130016/splitting-a-list-into-n-parts-of-approximately-equal-length/37414115#37414115
+        return [l[i * (n // k) + min(i, n % k):(i+1) * (n // k) + min(i+1, n % k)] for i in range(k)]
 
     def filter_by_sigma(self, fraction: float, dim: Optional[int] = None):
         """
@@ -857,18 +819,7 @@ class RandomEmitterSet(EmitterSet):
                          xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
-        super().__init__(xyz=em.xyz,
-                         phot=em.phot,
-                         frame_ix=em.frame_ix,
-                         id=em.id,
-                         prob=em.prob,
-                         bg=em.bg,
-                         xyz_cr=em.xyz_cr,
-                         phot_cr=em.phot_cr,
-                         bg_cr=em.bg_cr,
-                         sanity_check=False,
-                         xy_unit=em.xy_unit,
-                         px_size=em.px_size)
+        super().__init__(**em.to_dict(), sanity_check=False)
 
 
 class CoordinateOnlyEmitter(EmitterSet):
@@ -886,18 +837,7 @@ class CoordinateOnlyEmitter(EmitterSet):
                          xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
-        super().__init__(xyz=em.xyz,
-                         phot=em.phot,
-                         frame_ix=em.frame_ix,
-                         id=em.id,
-                         prob=em.prob,
-                         bg=em.bg,
-                         xyz_cr=em.xyz_cr,
-                         phot_cr=em.phot_cr,
-                         bg_cr=em.bg_cr,
-                         sanity_check=False,
-                         xy_unit=em.xy_unit,
-                         px_size=em.px_size)
+        super().__init__(**em.to_dict(), sanity_check=False)
 
 
 class EmptyEmitterSet(CoordinateOnlyEmitter):
@@ -907,18 +847,7 @@ class EmptyEmitterSet(CoordinateOnlyEmitter):
         super().__init__(torch.zeros((0, 3)), xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
-        super().__init__(xyz=em.xyz,
-                         phot=em.phot,
-                         frame_ix=em.frame_ix,
-                         id=em.id,
-                         prob=em.prob,
-                         bg=em.bg,
-                         xyz_cr=em.xyz_cr,
-                         phot_cr=em.phot_cr,
-                         bg_cr=em.bg_cr,
-                         sanity_check=False,
-                         xy_unit=em.xy_unit,
-                         px_size=em.px_size)
+        super().__init__(**em.to_dict())
 
 
 class LooseEmitterSet:
@@ -1052,13 +981,15 @@ class LooseEmitterSet:
         return EmitterSet(xyz_, phot_, frame_ix_.long(), id_.long(), xy_unit=self.xy_unit, px_size=self.px_size)
 
 
-def at_least_one_dim(*args):
+def at_least_one_dim(*args) -> None:
+    """Make tensors at least one dimensional (inplace)"""
     for arg in args:
         if arg.dim() == 0:
             arg.unsqueeze_(0)
 
 
-def same_shape_tensor(dim, *args):
+def same_shape_tensor(dim, *args) -> bool:
+    """Test if tensors are of same size in a certain dimension."""
     for i in range(args.__len__() - 1):
         if args[i].size(dim) == args[i + 1].size(dim):
             continue
@@ -1068,7 +999,8 @@ def same_shape_tensor(dim, *args):
     return True
 
 
-def same_dim_tensor(*args):
+def same_dim_tensor(*args) -> bool:
+    """Test if tensors are of same dimensionality"""
     for i in range(args.__len__() - 1):
         if args[i].dim() == args[i + 1].dim():
             continue
