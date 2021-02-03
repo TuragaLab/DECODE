@@ -1,6 +1,7 @@
 import warnings
 from pathlib import Path
 from typing import Union, Optional, Iterable
+import copy
 
 import numpy as np
 import torch
@@ -225,13 +226,6 @@ class EmitterSet:
 
         return em_dict
 
-    # pickle
-    def __getstate__(self):
-        return self.to_dict()
-
-    def __setstate__(self, state):
-        self.__init__(**state)
-
     def save(self, file: Union[str, Path]):
         """
         Pickle save's the dictionary of this instance. No legacy guarantees given.
@@ -301,6 +295,7 @@ class EmitterSet:
 
         i_type = torch.int64
 
+        # make xyz always 3 dim
         xyz = xyz if xyz.shape[1] == 3 else torch.cat((xyz, torch.zeros_like(xyz[:, [0]])), 1)
 
         num_input = int(xyz.shape[0]) if xyz.shape[0] != 0 else 0
@@ -521,21 +516,7 @@ class EmitterSet:
             EmitterSet
 
         """
-        return EmitterSet(xyz=self.xyz.clone(),
-                          phot=self.phot.clone(),
-                          frame_ix=self.frame_ix.clone(),
-                          id=self.id.clone(),
-                          prob=self.prob.clone(),
-                          bg=self.bg.clone(),
-                          xyz_cr=self.xyz_cr.clone(),
-                          phot_cr=self.phot_cr.clone(),
-                          bg_cr=self.bg_cr.clone(),
-                          xyz_sig=self.xyz_sig.clone(),
-                          phot_sig=self.phot_sig.clone(),
-                          bg_sig=self.bg_sig.clone(),
-                          sanity_check=False,
-                          xy_unit=self.xy_unit,
-                          px_size=self.px_size)
+        return copy.deepcopy(self)
 
     @staticmethod
     def cat(emittersets: Iterable, remap_frame_ix: Union[None, torch.Tensor] = None, step_frame_ix: int = None):
