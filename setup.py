@@ -20,6 +20,7 @@ else:
         "torchvision",
         "click",
         "deprecated",
+        "gitpython>=3.1",
         "h5py",
         "importlib_resources",
         "matplotlib",

@@ -27,6 +27,7 @@ dependencies:
   - torchvision
   - click
   - deprecated
+  - gitpython>=3.1
   - h5py
   - line_profiler
   - matplotlib
