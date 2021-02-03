@@ -3,7 +3,6 @@ import warnings
 from functools import partial
 from typing import Union, Callable
 
-import warnings
 import torch
 from tqdm import tqdm
 
@@ -15,7 +14,7 @@ from ...utils import hardware
 class Infer:
 
     def __init__(self, model, ch_in: int, frame_proc, post_proc, device: Union[str, torch.device],
-                 batch_size: Union[int, str] = 'auto', num_workers: int = 4, pin_memory: bool = False,
+                 batch_size: Union[int, str] = 'auto', num_workers: int = 0, pin_memory: bool = False,
                  forward_cat: Union[str, Callable] = 'emitter'):
         """
         Convenience class for inference.
@@ -153,7 +152,7 @@ class LiveInfer(Infer):
                  stream, time_wait=5,
                  frame_proc=None, post_proc=None,
                  device: Union[str, torch.device] = 'cuda:0' if torch.cuda.is_available() else 'cpu',
-                 batch_size: Union[int, str] = 'auto', num_workers: int = 4, pin_memory: bool = False,
+                 batch_size: Union[int, str] = 'auto', num_workers: int = 0, pin_memory: bool = False,
                  forward_cat: Union[str, Callable] = 'emitter'):
 
         super().__init__(
@@ -181,3 +180,54 @@ class LiveInfer(Infer):
 
             n_fitted = n
             n_waited = 0
+
+
+if __name__ == '__main__':
+    import argparse
+    import yaml
+
+    import decode.neuralfitter.models
+    import decode.utils
+
+    parse = argparse.ArgumentParser(
+        description="Inference. This uses the default, suggested implementation. "
+                    "For anything else, consult the fitting notebook and make your changes there.")
+    parse.add_argument('frame_path', help='Path to the tiff file of the frames')
+    parse.add_argument('frame_meta_path', help='Path to the meta of the tiff (i.e. camera parameters)')
+    parse.add_argument('model_path', help='Path to the model file')
+    parse.add_argument('param_path', help='Path to the parameters of the training')
+    parse.add_argument('device', help='Device on which to do inference (e.g. "cpu" or "cuda:0"')
+    parse.add_argument('-o', '--online', action='store_true')
+
+    args = parse.parse_args()
+    online = args.o
+
+    """Load the model"""
+    param = decode.utils.param_io.load_params(args.param_path)
+
+    model = decode.neuralfitter.models.SigmaMUNet.parse(param)
+    model = decode.utils.model_io.LoadSaveModel(
+        model, input_file=args.model_path, output_file=None).load_init(args.device)
+
+    """Load the frame"""
+    if not online:
+        frames = decode.utils.frames_io.load_tif(args.frame_path)
+    else:
+        frames = decode.utils.frames_io.TiffTensor(args.frame_path)
+
+    # load meta
+    with open(args.frame_meta_path) as meta:
+        meta = yaml.safe_load(meta)
+
+    param = decode.utils.param_io.autofill_dict(meta['Camera'], param.to_dict(), mode_missing='include')
+    param = decode.utils.param_io.RecursiveNamespace(**param)
+
+    camera = decode.simulation.camera.Photon2Camera.parse(param)
+    camera.device = 'cpu'
+
+    """Prepare Pre and post-processing"""
+
+    """Fit"""
+
+    """Return"""
+
