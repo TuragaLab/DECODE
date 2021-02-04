@@ -26,4 +26,5 @@ def decode_state() -> str:
 
 
 if __name__ == '__main__':
-    print(f"DECODE version: decode_state()")
+    v = decode_state()
+    print(f"DECODE version: {v}")
