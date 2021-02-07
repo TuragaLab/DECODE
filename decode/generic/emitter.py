@@ -241,7 +241,7 @@ class EmitterSet:
             file = Path(file)
 
         if file.suffix == '.pt':
-            torch.save(self.to_dict(), file)
+            emitter_io.save_torch(file, self.data, self.meta)
         elif file.suffix in ('.h5', '.hdf5'):
             emitter_io.save_h5(file, self.data, self.meta)
         elif file.suffix == '.csv':
@@ -266,14 +266,15 @@ class EmitterSet:
         file = Path(file) if not isinstance(file, Path) else file
 
         if file.suffix == '.pt':
-            em_dict = torch.load(file)
+            em_dict, meta, _ = emitter_io.load_torch(file)
         elif file.suffix in ('.h5', '.hdf5'):
-            em_dict, meta = emitter_io.load_h5(file)
-            em_dict.update(meta)
+            em_dict, meta, _ = emitter_io.load_h5(file)
         elif file.suffix == '.csv':
             raise NotImplementedError("For .csv files, please use 'decode.utils.emitter_io.load_csv' explicitly.")
         else:
             raise ValueError
+
+        em_dict.update(meta)
 
         return EmitterSet(**em_dict)
 

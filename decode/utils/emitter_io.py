@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 
 from decode.generic.emitter import EmitterSet
+from decode.utils import bookkeeping
 
 challenge_mapping = {'x': 'xnano',
                      'y': 'ynano',
@@ -18,6 +19,12 @@ challenge_mapping = {'x': 'xnano',
 
 deepstorm3d_mapping = copy.deepcopy(challenge_mapping)
 deepstorm3d_mapping['phot'] = 'intensity'
+
+
+def get_decode_meta() -> dict:
+    return {
+        'version': bookkeeping.decode_state()
+    }
 
 
 def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_args) -> dict:
@@ -53,7 +60,7 @@ def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_a
     return {'xyz': xyz, 'phot': phot, 'frame_ix': frame_ix, 'id': identifier}
 
 
-def save_csv(file: (str, pathlib.Path), data: dict):
+def save_csv(file: (str, pathlib.Path), data: dict) -> None:
     def convert_dict_torch_numpy(data: dict) -> dict:
         """Convert all torch tensors in dict to numpy."""
         for k, v in data.items():
@@ -85,8 +92,12 @@ def save_csv(file: (str, pathlib.Path), data: dict):
     data.pop('px_size')
     data = change_to_one_dim(convert_dict_torch_numpy(data))
 
+    # create file and add metadata to it
+    with pathlib.Path(file).open('w+') as f:
+        f.write(f"# DECODE version: {bookkeeping.decode_state()}")
+
     df = pd.DataFrame.from_dict(data)
-    df.to_csv(file, index=False)
+    df.to_csv(file, mode='a', index=False)
 
 
 def load_smap(file: (str, pathlib.Path), mapping: (dict, None) = None) -> dict:
@@ -125,7 +136,7 @@ def load_smap(file: (str, pathlib.Path), mapping: (dict, None) = None) -> dict:
     return emitter_dict
 
 
-def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict):
+def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict) -> None:
     def create_volatile_dataset(group, name, tensor):
         """Empty DS if all nan"""
         if torch.isnan(tensor).all():
@@ -138,6 +149,9 @@ def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict):
         if any(v is None for v in metadata.values()):
             raise ValueError(f"Cannot save to hdf5 because encountered None in one of {metadata.keys()}")
         m.attrs.update(metadata)
+
+        d = f.create_group('decode')
+        d.attrs.update(get_decode_meta())
 
         g = f.create_group('data')
         g.create_dataset('xyz', data=data['xyz'].numpy())
@@ -157,8 +171,8 @@ def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict):
         create_volatile_dataset(g, 'bg_sig', data['bg_sig'])
 
 
-def load_h5(path) -> Tuple[dict, dict]:
-    """Loads a hdf5 file and returns data and metadata."""
+def load_h5(path) -> Tuple[dict, dict, dict]:
+    """Loads a hdf5 file and returns data, metadata and decode meta."""
 
     with h5py.File(path, 'r') as h5:
         data = {
@@ -168,9 +182,27 @@ def load_h5(path) -> Tuple[dict, dict]:
             k: None for k, v in h5['data'].items() if v.shape is None
         })
 
-        meta = dict(h5['meta'].attrs)
+        meta_data = dict(h5['meta'].attrs)
+        meta_decode = dict(h5['decode'].attrs)
 
-    return data, meta
+    return data, meta_data, meta_decode
+
+
+def save_torch(path: Union[str, pathlib.Path], data: dict, metadata: dict):
+    torch.save(
+        {
+        'data': data,
+        'meta': metadata,
+        'decode': get_decode_meta(),
+        },
+        path
+    )
+
+
+def load_torch(path) -> Tuple[dict, dict, dict]:
+    """Loads a torch saved emitterset and returns data, metadata and decode meta."""
+    out = torch.load(path)
+    return out['data'], out['meta'], out['decode']
 
 
 class EmitterWriteStream:
