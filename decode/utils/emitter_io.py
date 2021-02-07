@@ -27,7 +27,7 @@ def get_decode_meta() -> dict:
     }
 
 
-def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_args) -> dict:
+def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_args) -> Tuple[dict, dict, dict]:
     """
     Loads a CSV file which does provide a header.
 
@@ -57,7 +57,7 @@ def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_a
     else:
         identifier = None
 
-    return {'xyz': xyz, 'phot': phot, 'frame_ix': frame_ix, 'id': identifier}
+    return {'xyz': xyz, 'phot': phot, 'frame_ix': frame_ix, 'id': identifier}, None, None
 
 
 def save_csv(file: (str, pathlib.Path), data: dict) -> None:
@@ -100,7 +100,7 @@ def save_csv(file: (str, pathlib.Path), data: dict) -> None:
     df.to_csv(file, mode='a', index=False)
 
 
-def load_smap(file: (str, pathlib.Path), mapping: (dict, None) = None) -> dict:
+def load_smap(file: (str, pathlib.Path), mapping: (dict, None) = None) -> Tuple[dict, dict, dict]:
     """
 
     Args:
@@ -133,7 +133,7 @@ def load_smap(file: (str, pathlib.Path), mapping: (dict, None) = None) -> dict:
 
     emitter_dict['frame_ix'] -= 1  # MATLAB starts at 1, python and all serious languages at 0
 
-    return emitter_dict
+    return emitter_dict, None, None
 
 
 def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict) -> None:
