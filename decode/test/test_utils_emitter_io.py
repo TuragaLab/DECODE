@@ -30,12 +30,13 @@ def test_save_load_h5py(em_rand, em_all_attrs, tmpdir):
     for em in (em_rand, em_all_attrs):
         emitter_io.save_h5(path, em.data, em.meta)
 
-        data, meta = emitter_io.load_h5(path)
+        data, meta, decode_meta = emitter_io.load_h5(path)
         em_h5 = emitter.EmitterSet(**data, **meta)
+
         assert em == em_h5  # if equality check is wrong, this is wrong as well
+        assert decode_meta['version'][0] == 'v'
 
 
-# @pytest.mark.parametrize('')
 @pytest.mark.parametrize('last_index', ['including', 'excluding'])
 def test_streamer(last_index, tmpdir):
 
