@@ -51,3 +51,30 @@ def open_n_hash(file: Union[str, pathlib.Path]) -> str:
     hash_str = hashlib.sha256(file.read_bytes()).hexdigest()
 
     return hash_str
+
+
+def file_loadable(path: Union[str, pathlib.Path], reader=None, mode=None, exceptions=None) -> bool:
+    """
+    Check whether file is present and loadable. This function could be used in a while lood and sleep
+
+    Example:
+        while not file_loadable(path, ...):
+            time.sleep()
+    """
+    if not isinstance(path, pathlib.Path):
+        path = pathlib.Path(path)
+
+    if not path.is_file():
+        return False
+
+    # try to actually load the file (or the handle)
+    if reader is not None:
+        try:
+            if mode is not None:
+                reader(path, mode=mode)
+            else:
+                reader(path)
+            return True
+
+        except exceptions:
+            return False

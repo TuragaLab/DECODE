@@ -5,6 +5,7 @@ import time
 import tifffile
 import torch
 
+from decode.generic import test_utils
 from decode.utils import frames_io
 
 
@@ -38,7 +39,7 @@ def test_tiff_tensor(tmpdir):
     tiff_gt = q.get()
 
     # wait until file is there
-    while not fname.isfile():
+    while not test_utils.file_loadable(fname, tifffile.TiffFile, mode='rb'):
         time.sleep(0.5)
 
     tiff = frames_io.TiffTensor(fname)

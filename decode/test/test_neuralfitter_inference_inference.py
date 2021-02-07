@@ -3,13 +3,16 @@ import time
 from unittest import mock
 
 import pytest
+import tifffile
 import torch
 
 from decode.generic import emitter
+from decode.generic import test_utils
 from decode.generic.process import Identity
 from decode.neuralfitter import post_processing
 from decode.neuralfitter.inference import inference
 from decode.utils import frames_io
+
 from .test_utils_frames_io import online_tiff_writer
 
 
@@ -98,7 +101,7 @@ class TestLiveInfer(TestInfer):
         tiff_writer.start()
 
         frames = frames_io.TiffTensor(path)
-        while not path.isfile():
+        while not test_utils.file_loadable(path, tifffile.TiffFile, mode='rb'):
             time.sleep(1)
 
         infer._stream = mock.MagicMock()
@@ -113,4 +116,4 @@ class TestLiveInfer(TestInfer):
 
         # check that last call of inference ends with last index of frames
         args, _ = infer._stream.call_args_list[-1]
-        assert args[2] == 1100
+        assert args[2] == 1000
