@@ -101,7 +101,8 @@ class TestLiveInfer(TestInfer):
         tiff_writer.start()
 
         frames = frames_io.TiffTensor(path)
-        while not test_utils.file_loadable(path, tifffile.TiffFile, mode='rb'):
+        while not test_utils.file_loadable(path, tifffile.TiffFile, mode='rb',
+                                           exceptions=(KeyError, tifffile.TiffFileError)):
             time.sleep(1)
 
         infer._stream = mock.MagicMock()

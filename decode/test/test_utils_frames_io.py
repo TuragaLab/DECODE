@@ -39,7 +39,8 @@ def test_tiff_tensor(tmpdir):
     tiff_gt = q.get()
 
     # wait until file is there
-    while not test_utils.file_loadable(fname, tifffile.TiffFile, mode='rb'):
+    while not test_utils.file_loadable(fname, tifffile.TiffFile, mode='rb',
+                                       exceptions=(KeyError, tifffile.TiffFileError)):
         time.sleep(0.5)
 
     tiff = frames_io.TiffTensor(fname)
