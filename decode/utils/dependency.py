@@ -1,6 +1,18 @@
 import copy
 from typing import Iterable
 
+import yaml
+
+
+def convert_mixed_list(mix) -> dict:
+    """Convert a list of elements and dicts to list of dicts (with None values for non dicts)"""
+
+    mix_dict = dict.fromkeys([k for k in mix if not isinstance(k, dict)])
+    for k in [k for k in mix if isinstance(k, dict)]:  # limit to dicts
+        mix_dict.update(k)
+
+    return mix_dict
+
 
 def convert_to_spec(package):
     """Convert yaml style '=' to '==' as in spec."""
@@ -10,6 +22,7 @@ def convert_to_spec(package):
 
 
 def add_update_package(deps: dict, update: dict, level: Iterable) -> dict:
+    """Adds or updates a package"""
 
     update = {k: v for k,v in update.items() if k in level}  # limit to active levels
     for n_deps in update.values():  # loop over level
@@ -92,4 +105,14 @@ def pip(run_deps, dev_deps, doc_deps, pip, level):
 
 
 def parse_dependency(path) -> dict:
-    pass
+
+    with open(path, 'r') as stream:
+        data = yaml.safe_load(stream)
+
+    for k, v in data['pip'].items():
+        data['pip'][k] = convert_mixed_list(v)
+
+    data['conda-build']['run'] = convert_mixed_list(data['conda-build']['run'])
+
+    return data
+
