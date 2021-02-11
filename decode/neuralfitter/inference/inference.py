@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .. import dataset
 from ...generic import emitter
-from ...utils import hardware
+from ...utils import hardware, frames_io
 
 
 class Infer:
@@ -89,7 +89,10 @@ class Infer:
 
                 """In post processing we need to make sure that we get a single Emitterset for each batch, 
                 so that we can easily concatenate."""
-                out.append(self.post_proc.forward(y_out))
+                if self.post_proc is not None:
+                    out.append(self.post_proc.forward(y_out))
+                else:
+                    out.append(y_out.detach().cpu())
 
         """Cat to single emitterset / frame tensor depending on the specification of the forward_cat attr."""
         out = self.forward_cat(out)
@@ -163,7 +166,7 @@ class LiveInfer(Infer):
         self._stream = stream
         self._time_wait = time_wait
 
-    def forward(self, frames):
+    def forward(self, frames: Union[torch.Tensor, frames_io.TiffTensor]):
 
         n_fitted = 0
         n_waited = 0
