@@ -13,4 +13,4 @@ import decode.neuralfitter.train_val_impl
 import decode.neuralfitter.train
 import decode.neuralfitter.inference
 
-from decode.neuralfitter.inference.inference import Infer
+from decode.neuralfitter.inference.inference import Infer, LiveInfer
