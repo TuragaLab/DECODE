@@ -269,7 +269,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     """Log the model"""
     try:
         dummy = torch.rand((2, param.HyperParameter.channels_in,
-                            *param.Simulation.img_size), requires_grad=True).to(torch.device(device))
+                            *param.Simulation.img_size), requires_grad=False).to(torch.device(device))
         logger.add_graph(model, dummy)
 
     except:
