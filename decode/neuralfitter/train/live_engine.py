@@ -185,10 +185,11 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                                                      post_processor=post_processor, matcher=matcher, logger=logger,
                                                      step=i)
 
-        if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-            lr_scheduler.step(val_loss)
-        else:
-            lr_scheduler.step()
+        if i >= 1:
+            if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                lr_scheduler.step(val_loss)
+            else:
+                lr_scheduler.step()
 
         model_ls.save(model, None)
         if no_log:
