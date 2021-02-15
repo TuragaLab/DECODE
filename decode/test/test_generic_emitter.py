@@ -221,6 +221,13 @@ class TestEmitterSet:
         assert 5 == cat_sets.frame_ix[0]
         assert 50 == cat_sets.frame_ix[50]
 
+        # test correctness of px size and xy unit
+        sets = [RandomEmitterSet(50, xy_unit='px', px_size=(100., 200.)), RandomEmitterSet(20)]
+        em = EmitterSet.cat(sets)
+        assert em.xy_unit == 'px'
+        assert (em.px_size == torch.tensor([100., 200.])).all()
+
+
     def test_split_cat(self):
         """
         Tests whether split and cat (and sort by ID) returns the same result as the original starting.

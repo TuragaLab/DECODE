@@ -570,7 +570,7 @@ class EmitterSet:
                 break
         for m in meta:
             if m['px_size'] is not None:
-                xy_unit = m['px_size']
+                px_size = m['px_size']
                 break
 
         return EmitterSet(xy_unit=xy_unit, px_size=px_size, **data)
