@@ -19,7 +19,6 @@ from decode.neuralfitter.train.random_simulation import setup_random_simulation
 from decode.neuralfitter.utils import log_train_val_progress
 from decode.utils.checkpoint import CheckPoint
 
-
 def parse_args():
     """
     Parse input arguments
@@ -149,59 +148,80 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
              decode.neuralfitter.utils.logger.DictLogger()])
 
     sim_train, sim_test = setup_random_simulation(param)
-    ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
-        setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
-
-    dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
 
     # useful if we restart a training
     first_epoch = param.HyperParameter.epoch_0 if param.HyperParameter.epoch_0 is not None else 0
+    n_training_starts = 0
+    
+    while n_training_starts <= param.HyperParameter.auto_restart_params.nr_restarts:
+        
+        n_training_starts += 1
+        
+        ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
+            setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
 
-    for i in range(first_epoch, param.HyperParameter.epochs):
-        logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
+        dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
 
-        if i >= 1:
-            train_loss = decode.neuralfitter.train_val_impl.train(
-                model=model,
-                optimizer=optimizer,
-                loss=criterion,
-                dataloader=dl_train,
-                grad_rescale=param.HyperParameter.moeller_gradient_rescale,
-                grad_mod=grad_mod,
-                epoch=i,
-                device=torch.device(device),
-                logger=logger
-            )
+        for i in range(first_epoch, param.HyperParameter.epochs):
+            logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
 
-        val_loss, test_out = decode.neuralfitter.train_val_impl.test(model=model, loss=criterion, dataloader=dl_test,
-                                                                     epoch=i,
-                                                                     device=torch.device(device))
+            if i >= 1:
+                train_loss = decode.neuralfitter.train_val_impl.train(
+                    model=model,
+                    optimizer=optimizer,
+                    loss=criterion,
+                    dataloader=dl_train,
+                    grad_rescale=param.HyperParameter.moeller_gradient_rescale,
+                    grad_mod=grad_mod,
+                    epoch=i,
+                    device=torch.device(device),
+                    logger=logger
+                )
 
-        """Post-Process and Evaluate"""
-        log_train_val_progress.post_process_log_test(loss_cmp=test_out.loss, loss_scalar=val_loss,
-                                                     x=test_out.x, y_out=test_out.y_out, y_tar=test_out.y_tar,
-                                                     weight=test_out.weight, em_tar=ds_test.emitter,
-                                                     px_border=-0.5, px_size=1.,
-                                                     post_processor=post_processor, matcher=matcher, logger=logger,
-                                                     step=i)
+            val_loss, test_out = decode.neuralfitter.train_val_impl.test(model=model, loss=criterion, dataloader=dl_test,
+                                                                         epoch=i,
+                                                                         device=torch.device(device))
+            
+    
+            if i == 1:
+                
+                per_em_gmm_loss = test_out.loss[:, 0].mean() / param.Simulation.emitter_av
+                
+                if per_em_gmm_loss > param.HyperParameter.auto_restart_params.restart_treshold:
+                    if n_training_starts <= param.HyperParameter.auto_restart_params.nr_restarts:
+                        print(f'The model will be reinitialized and training restarted due to a pathological loss. {int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_params.restart_treshold}')
+                    else:
+                        print(f'Training aborted after {param.HyperParameter.auto_restart_params.nr_restarts} restarts. \n You can try to reduce the learning rate by a factor of 2. It is also possible that the simulated data is to challenging. \n Check if your background and intensity values are correct and possibly lower the average number of emitters.')
+                    break
+                    
+                else:
+                    print(f"Restart check passed. {int(per_em_gmm_loss)} < {param.HyperParameter.auto_restart_params.restart_treshold}")
 
-        if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-            lr_scheduler.step(val_loss)
-        else:
-            lr_scheduler.step()
+            """Post-Process and Evaluate"""
+            log_train_val_progress.post_process_log_test(loss_cmp=test_out.loss, loss_scalar=val_loss,
+                                                         x=test_out.x, y_out=test_out.y_out, y_tar=test_out.y_tar,
+                                                         weight=test_out.weight, em_tar=ds_test.emitter,
+                                                         px_border=-0.5, px_size=1.,
+                                                         post_processor=post_processor, matcher=matcher, logger=logger,
+                                                         step=i)
 
-        model_ls.save(model, None)
-        if no_log:
-            ckpt.dump(model.state_dict(), optimizer.state_dict(), lr_scheduler.state_dict(), step=i)
-        else:
-            ckpt.dump(model.state_dict(), optimizer.state_dict(), lr_scheduler.state_dict(),
-                      log=logger.logger[1].log_dict, step=i)
+            if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                lr_scheduler.step(val_loss)
+            else:
+                lr_scheduler.step()
 
-        """Draw new samples Samples"""
-        if param.Simulation.mode in 'acquisition':
-            ds_train.sample(True)
-        elif param.Simulation.mode != 'samples':
-            raise ValueError
+            model_ls.save(model, None)
+            if no_log:
+                ckpt.dump(model.state_dict(), optimizer.state_dict(), lr_scheduler.state_dict(), step=i)
+            else:
+                ckpt.dump(model.state_dict(), optimizer.state_dict(), lr_scheduler.state_dict(),
+                          log=logger.logger[1].log_dict, step=i)
+
+            """Draw new samples Samples"""
+            if param.Simulation.mode in 'acquisition':
+                ds_train.sample(True)
+            elif param.Simulation.mode != 'samples':
+                raise ValueError
 
 
 def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path, device, param):
