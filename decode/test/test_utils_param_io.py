@@ -47,7 +47,7 @@ def test_load_by_reference_param():
         param = wlp.load_params(param_file)
 
     """Assertions"""
-    assert param.Hardware.device_simulation == 'cuda'
+    assert param.Hardware.device_simulation == 'cuda:0'
 
 
 @pytest.mark.parametrize("mode_missing", ['exclude', 'include'])

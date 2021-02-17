@@ -248,11 +248,11 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     optimizer = optimizer(model.parameters(), **param.HyperParameter.opt_param)
 
     """Loss function."""
-    criterion = decode.neuralfitter.losscollection.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
-                                                                  yextent=param.Simulation.psf_extent[1],
-                                                                  img_shape=param.Simulation.img_size,
-                                                                  device=device,
-                                                                  chweight_stat=param.HyperParameter.chweight_stat)
+    criterion = decode.neuralfitter.loss.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
+                                                        yextent=param.Simulation.psf_extent[1],
+                                                        img_shape=param.Simulation.img_size,
+                                                        device=device,
+                                                        chweight_stat=param.HyperParameter.chweight_stat)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler_available = {
@@ -369,9 +369,9 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
 
             decode.neuralfitter.coord_transform.Offset2Coordinate.parse(param),
 
-            decode.neuralfitter.post_processing.NMSPostProcessing(raw_th=param.PostProcessingParam.raw_th,
-                                                                  xy_unit='px',
-                                                                  px_size=param.Camera.px_size)
+            decode.neuralfitter.post_processing.SpatialIntegration(raw_th=param.PostProcessingParam.raw_th,
+                                                                   xy_unit='px',
+                                                                   px_size=param.Camera.px_size)
         ])
 
     else:

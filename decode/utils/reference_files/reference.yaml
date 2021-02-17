@@ -21,7 +21,7 @@ Evaluation:
 Hardware:
   device: cuda
   device_ix: 0
-  device_simulation: cuda
+  device_simulation: cuda:0
   num_worker_train: 4
   torch_threads: 4
   unix_niceness: 0
@@ -73,7 +73,7 @@ HyperParameter:
   max_number_targets: 250
   moeller_gradient_rescale: false
   opt_param:
-    lr: 0.0006
+    lr: 0.0002
     weight_decay: 0.1
   optimizer: AdamW
   photon_threshold:

@@ -33,7 +33,7 @@ def check_file(file: (str, pathlib.Path), hash=None):
         return False
 
 
-def load(file: (str, pathlib.Path), url: str, hash: str = None):
+def load(file: (str, pathlib.Path), url: str, hash: str = None) -> None:
     """
     Loads file from URL (and checks hash if present)
 

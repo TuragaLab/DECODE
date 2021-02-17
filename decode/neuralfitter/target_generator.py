@@ -5,9 +5,9 @@ import torch
 
 from decode.evaluation import predict_dist
 from decode.generic import EmitterSet
+from decode.generic import process
 from decode.generic.process import RemoveOutOfFOV
 from decode.simulation.psf_kernel import DeltaPSF
-from decode.generic import process
 
 
 class TargetGenerator(ABC):
@@ -171,9 +171,9 @@ class UnifiedEmbeddingTarget(TargetGenerator):
                (y_ix_roi >= 0) * (y_ix_roi < self.img_shape[1])
 
         batch_ix_roi, x_ix_roi, y_ix_roi, offset_x, offset_y, id = batch_ix_roi[mask], x_ix_roi[mask], \
-                                                                              y_ix_roi[mask], \
-                                                                              offset_x[mask], offset_y[mask], \
-                                                                              id[mask]
+                                                                   y_ix_roi[mask], \
+                                                                   offset_x[mask], offset_y[mask], \
+                                                                   id[mask]
 
         return batch_ix_roi, x_ix_roi, y_ix_roi, offset_x, offset_y, id
 
@@ -213,7 +213,6 @@ class UnifiedEmbeddingTarget(TargetGenerator):
 
     def forward_(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.LongTensor,
                  ix_low: int, ix_high: int) -> torch.Tensor:
-
         """Get index of central bin for each emitter."""
         x_ix, y_ix = self._delta_psf.search_bin_index(xyz[:, :2])
 
@@ -250,13 +249,13 @@ class ParameterListTarget(TargetGenerator):
          maximum number of emitters as a list.
 
         Args:
-            n_max:
-            xextent:
-            yextent:
-            ix_low:
-            ix_high:
-            xy_unit:
-            squeeze_batch_dim:
+            n_max: maximum number of emitters (should be multitude of what you draw on average)
+            xextent: extent of the emitters in x
+            yextent: extent of the emitters in y
+            ix_low: lower frame index
+            ix_high: upper frame index
+            xy_unit: xy unit
+            squeeze_batch_dim: squeeze batch dimension before return
         """
 
         super().__init__(xy_unit=xy_unit, ix_low=ix_low, ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
@@ -332,58 +331,6 @@ class DisableAttributes:
     @classmethod
     def parse(cls, param):
         return cls(attr_ix=param.HyperParameter.disabled_attributes)
-
-
-class OverlappingDetectionTarget(UnifiedEmbeddingTarget):
-
-    def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple, roi_size: int, rim_max, ix_low=None,
-                 ix_high=None, squeeze_batch_dim: bool = False):
-        super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape, roi_size=roi_size, ix_low=ix_low,
-                         ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
-
-        self.rim_max = rim_max
-
-    @classmethod
-    def parse(cls, param, **kwargs):
-        return cls(xextent=param.Simulation.psf_extent[0],
-                   yextent=param.Simulation.psf_extent[1],
-                   img_shape=param.Simulation.img_size,
-                   roi_size=param.HyperParameter.target_roi_size,
-                   rim_max=param.HyperParameter.target_doublette_rim,
-                   **kwargs)
-
-    @staticmethod
-    def p_from_dxy(dx, dy, active_px, border, rim_max):
-
-        def piecewise_prob(x, border, rim_max):
-            prob = torch.zeros_like(x)
-            prob[x.abs() <= border] = 1.
-
-            ix_in_rim = (x.abs() > border) * (x.abs() <= rim_max)
-            # prob[ix_in_rim] = (0.5 - x[ix_in_rim].abs()) / (rim_max - 0.5) + 1
-            prob[ix_in_rim] = 1
-
-            return prob
-
-        ix = (dx.abs() <= 0.7) * (dy.abs() <= 0.5) * active_px
-        p_x = torch.zeros_like(dx)
-        p_x[ix] = piecewise_prob(dx[ix], border, rim_max)
-
-        # y
-        ix = (dy.abs() <= 0.7) * (dx.abs() <= 0.5) * active_px
-        p_y = torch.zeros_like(dy)
-        p_y[ix] = piecewise_prob(dy[ix], border, rim_max)
-
-        return torch.max(p_x, p_y)
-
-    def forward(self, em: EmitterSet, bg: torch.Tensor = None, ix_low: int = None, ix_high: int = None) -> torch.Tensor:
-        tar = super().forward(em, bg, ix_low, ix_high)
-
-        # modify probabilities
-        active_px = tar[:, 2] != 0
-        tar[:, 0] = self.p_from_dxy(tar[:, 2], tar[:, 3], active_px, 0.5, self.rim_max)
-
-        return self._postprocess_output(tar)
 
 
 class FourFoldEmbedding(TargetGenerator):

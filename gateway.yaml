@@ -3,14 +3,6 @@
 # hashs are sha256
 
 code: https://github.com/TuragaLab/DECODE/archive/master.zip
-colab:
-  training: https://oc.embl.de/index.php/s/7xB0u8lwjvFSb9n/download
-  fit: https://oc.embl.de/index.php/s/PtaAHvxogOFfmhZ/download
-
-calib:
-  challenge_2d:
-  challenge_as:
-  challenge_dh:
 
 examples:
   package_1:
@@ -33,13 +25,13 @@ examples:
 
   colab_uhd_2020-07-23:
     name: uhd_2020-07-23
-    comment:
+    comment: Colab training data.
     url: https://oc.embl.de/index.php/s/7Duj5GOceYR3HqJ/download
     hash: 6d6abb86ac796c5290a0beaf1bb2056122feec2cbef3b28295f7d57ec3833bab
 
   colab_uhd_2020-07-23_fit:
     name: uhd_2020-07-23_fit
-    comment:
+    comment: Colab fitting data. Includes cropped version experimental data (of example package 1) and model.
     url: https://oc.embl.de/index.php/s/V6hdzqv9Erc2mtM/download
     hash: 411e1d455066323cc15b97e93683b822618d3b4aecdbca37d39d04e558641bec
 

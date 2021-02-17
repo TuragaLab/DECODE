@@ -3,6 +3,7 @@ from typing import Union
 
 import torch
 import torch.nn
+from deprecated import deprecated
 
 import decode.generic.emitter as emc
 import decode.simulation.psf_kernel as psf_kernel
@@ -180,6 +181,7 @@ class FourFoldSimpleWeight(WeightGenerator):
 
     def __init__(self, *, xextent: tuple, yextent: tuple, img_shape: tuple, roi_size: int,
                  rim: float, weight_mode='const', weight_power: float = None):
+        raise NotImplementedError
         super().__init__()
         self.rim = rim
 

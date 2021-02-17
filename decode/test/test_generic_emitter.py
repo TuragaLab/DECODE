@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-from copy import deepcopy
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -9,11 +8,6 @@ import torch
 import decode.generic.emitter as emitter
 from decode.generic import test_utils
 from decode.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet
-from decode.test.asset_handler import RMAfterTest
-
-deepsmlm_root = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 os.pardir, os.pardir)) + '/'
 
 
 class TestEmitterSet:
@@ -140,16 +134,39 @@ class TestEmitterSet:
         else:
             assert test_utils.tens_almeq(em.xyz_scr_nm, expct_nm)
 
+    @mock.patch.object(emitter.EmitterSet, 'cat')
+    def test_add(self, mock_add):
+        em_0 = emitter.RandomEmitterSet(20)
+        em_1 = emitter.RandomEmitterSet(100)
+
+        _ = em_0 + em_1
+        mock_add.assert_called_once_with((em_0, em_1), None, None)
+
+    def test_iadd(self):
+        em_0 = emitter.RandomEmitterSet(20)
+        em_1 = emitter.RandomEmitterSet(50)
+
+        em_0 += em_1
+        assert len(em_0) == 70
+
     # @pytest.mark.skip("At the moment deprecated.")
-    # def test_split(self):
-    #
-    #     big_em = RandomEmitterSet(100000)
-    #
-    #     splits = big_em.chunks(10000)
-    #     re_merged = EmitterSet.cat(splits)
-    #
-    #     assert sum([len(e) for e in splits]) == len(big_em)
-    #     assert re_merged == big_em
+    def test_chunk(self):
+
+        big_em = RandomEmitterSet(100000)
+
+        splits = big_em.chunks(10000)
+        re_merged = EmitterSet.cat(splits)
+
+        assert sum([len(e) for e in splits]) == len(big_em)
+        assert re_merged == big_em
+
+        # test not evenly splittable number
+        em = RandomEmitterSet(7)
+        splits = em.chunks(3)
+
+        assert len(splits[0]) == 3
+        assert len(splits[1]) == 2
+        assert len(splits[-1]) == 2
 
     def test_split_in_frames(self, em2d, em3d):
         splits = em2d.split_in_frames(None, None)
@@ -203,6 +220,13 @@ class TestEmitterSet:
         assert 70 == len(cat_sets)
         assert 5 == cat_sets.frame_ix[0]
         assert 50 == cat_sets.frame_ix[50]
+
+        # test correctness of px size and xy unit
+        sets = [RandomEmitterSet(50, xy_unit='px', px_size=(100., 200.)), RandomEmitterSet(20)]
+        em = EmitterSet.cat(sets)
+        assert em.xy_unit == 'px'
+        assert (em.px_size == torch.tensor([100., 200.])).all()
+
 
     def test_split_cat(self):
         """
@@ -265,18 +289,23 @@ class TestEmitterSet:
         with pytest.raises(ValueError):
             EmitterSet(xyz, phot, frame_ix)
 
-    def test_save_load(self):
+    @pytest.mark.parametrize("em", [emitter.RandomEmitterSet(25, 64, px_size=(100., 125.)),
+                                    emitter.EmptyEmitterSet(xy_unit='nm', px_size=(100., 125.))])
+    def test_inplace_replace(self, em):
+        em_start = emitter.RandomEmitterSet(25, xy_unit='px', px_size=None)
+        em_start._inplace_replace(em)
 
-        random_em = RandomEmitterSet(1000)
-        file = Path(deepsmlm_root + 'decode/test/assets/dummy_emitter_save.pickle')
+        assert em_start == em
 
-        with RMAfterTest(file):
-            random_em.save(file)
+    @pytest.mark.parametrize("format", ['.pt', '.h5'])
+    def test_save_load(self, format, tmpdir):
 
-            """Assertions"""
-            assert file.exists(), "File does not exist."
-            random_em_load = EmitterSet.load(file)
-            assert random_em == random_em_load, "Reloaded emitterset is not equivalent to inital one."
+        em = RandomEmitterSet(1000, xy_unit='nm', px_size=(100., 100.))
+
+        p = Path(tmpdir / f'em.{format}')
+        em.save(p)
+        em_load = EmitterSet.load(p)
+        assert em == em_load, "Reloaded emitterset is not equivalent to inital one."
 
     @pytest.mark.parametrize("em_a,em_b,expct", [(CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
                                                   CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
@@ -294,6 +323,24 @@ class TestEmitterSet:
             assert em_a == em_b
         else:
             assert not (em_a == em_b)
+
+    def test_meta(self):
+
+        em = RandomEmitterSet(100, xy_unit='nm', px_size=(100., 200.))
+        assert set(em.meta.keys()) == {'xy_unit', 'px_size'}
+
+    def test_data(self):
+        return  # implicitly in test_to_dict
+
+    def test_to_dict(self):
+
+        em = RandomEmitterSet(100, xy_unit='nm', px_size=(100., 200.))
+        
+        """Check whether doing one round of to_dict and back works"""
+        em_clone = em.clone()
+
+        em_dict = EmitterSet(**em.to_dict())
+        assert em_clone == em_dict
 
 
 def test_empty_emitterset():

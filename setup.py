@@ -14,10 +14,13 @@ else:
     # pip needs requirements here; keep in sync with meta.yaml!
     requirements = [
         "numpy",
-        "torch==1.6",
+        # HACK: We omit torch version to be as flexible to the torchversion
+        # as we can so that slight changes on colab do not break so fast
+        "torch",
         "torchvision",
         "click",
         "deprecated",
+        "gitpython>=3.1",
         "h5py",
         "importlib_resources",
         "matplotlib",
@@ -36,7 +39,7 @@ else:
 
 setup(
     name='decode',
-    version='0.9.4',  # do not modify by hand set and sync with bumpversion
+    version='0.10.0.alpha.3',  # do not modify by hand set and sync with bumpversion
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=requirements,

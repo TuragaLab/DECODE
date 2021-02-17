@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from decode.generic import test_utils
-from decode.neuralfitter import losscollection as loss
+from decode.neuralfitter import loss
 
 
 class TestLossAbstract:
@@ -120,18 +120,6 @@ class TestPPXYZBLoss(TestLossAbstract):
 
         assert test_utils.tens_almeq(out[:, 2:], torch.ones_like(out[:, 2:]))
         assert test_utils.tens_almeq(out[:, 1], torch.ones_like(out[:, 1]) * 2)
-
-
-class TestFourFoldLoss(TestLossAbstract):
-
-    @pytest.fixture()
-    def loss_impl(self):
-        return loss.FourFoldPPXYZ(components=(loss.PPXYZBLoss(device=torch.device('cpu'),
-                                                              chweight_stat=[1., 1., 1., 1., 1.],
-                                                              forward_safety=False),) * 4)
-
-    def test_forward(self, loss_impl):
-        loss_impl.forward(torch.rand((2, 21, 32, 32)), torch.rand((2, 21, 32, 32)), torch.rand((2, 21, 32, 32)))
 
 
 class TestGaussianMixtureModelLoss:

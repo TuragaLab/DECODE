@@ -1,0 +1,37 @@
+name: Gateway Test
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron:  '0 8 * * *'  # once a day at 8 @ master branch
+
+jobs:
+  test_asset_web_availablity:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          # mamba-version: "*"  # does not work reliably atm
+          # channels: turagalab/label/dev,turagalab,pytorch,conda-forge,defaults
+          channel-priority: strict
+          activate-environment: decode_dev_cpu
+          environment-file: environment_cpu.yaml
+
+      # Run the specific test
+      - run: pytest decode/test/test_gateway.py
+
+      - name: Raise issue when test failed
+        if: failure()
+        uses: alialaa/issue-action@v1.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: Failed to download assets
+          body: Failed to download web assets as tested in decode/test/test_assets_web.py.
+          assignees: Haydnspass

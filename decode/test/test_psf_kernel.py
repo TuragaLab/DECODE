@@ -14,6 +14,10 @@ import decode.simulation.psf_kernel as psf_kernel
 from . import asset_handler
 
 
+psf_cuda_available = pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available(), 
+                                        reason="Skipped because cuda not available for Spline PSF.")
+
+
 class AbstractPSFTest(ABC):
 
     @abstractmethod
@@ -257,7 +261,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         smap_psf = load_cal.SMAPSplineCoefficient(calib_file=str(self.bead_cal_file))
         psf_impl = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=smap_psf.ref0,
                                              coeff=smap_psf.coeff, vx_size=(1., 1., 10), roi_size=(32, 32),
-                                             cuda_kernel=False)
+                                             device='cpu')
 
         return psf_impl
 
@@ -298,20 +302,20 @@ class TestCubicSplinePSF(AbstractPSFTest):
         with pytest.raises(ValueError) as err:  # even roi size --> no center
             psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
                          coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(24, 24), roi_auto_center=True,
-                         cuda_kernel=False)
+                         device='cpu')
 
             assert err == 'PSF reference can not be centered when the roi_size is even.'
 
         with pytest.raises(ValueError) as err:  # even roi size --> no center
             psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
                          coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), ref_re=(5, 5, 100),
-                         roi_auto_center=True, cuda_kernel=False)
+                         roi_auto_center=True, device='cpu')
 
             assert err == 'PSF reference can not be automatically centered when you specify a custom center at the same time.'
 
         psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
                      coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), roi_auto_center=True,
-                     cuda_kernel=False)
+                     device='cpu')
 
         assert (psf.ref_re == torch.tensor([12, 12, psf.ref0[2]])).all()
 
@@ -319,8 +323,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         out = psf.forward(torch.zeros((0, 3)), torch.zeros(0), torch.zeros(0).long(), -5, 5)
         assert out.size(0) == 11
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
-                       reason="Skipped because PSF implementation not compiled with CUDA support.")
+    @psf_cuda_available
     def test_ship(self, psf, psf_cuda):
         """
         Tests ships to CPU / CUDA
@@ -353,13 +356,11 @@ class TestCubicSplinePSF(AbstractPSFTest):
         psf_str = pickle.dumps(psf)
         _ = pickle.loads(psf_str)
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
-                       reason="Skipped because PSF implementation not compiled with CUDA support.")
+    @psf_cuda_available
     def test_pickleability_cuda(self, psf_cuda):
         self.test_pickleability_cpu(psf_cuda)
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
-                       reason="Skipped because PSF implementation not compiled with CUDA support.")
+    @psf_cuda_available
     def test_roi_cuda_cpu(self, psf, psf_cuda, onek_rois):
         """
         Tests approximate equality of CUDA vs CPU implementation for a few ROIs
@@ -419,8 +420,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
                   f"Reference: {psf.ref0}")
         plt.show()
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
-                       reason="Skipped because PSF implementation not compiled with CUDA support.")
+    @psf_cuda_available
     def test_roi_drv_cuda_cpu(self, psf, psf_cuda, onek_rois):
         """
         Tests approximate equality of CUDA and CPU implementation for a few ROIs on the derivatives.
@@ -498,14 +498,13 @@ class TestCubicSplinePSF(AbstractPSFTest):
         psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape,
                      ref0=psf.ref0, coeff=psf._coeff, vx_size=psf.vx_size,
                      roi_size=psf.roi_size_px, ref_re=psf.ref0 - torch.Tensor([1., 2., 0.]),
-                     cuda_kernel=psf._cuda)
+                     device=psf._device)
 
         roi_shift = psf.forward_rois(xyz, torch.ones(1, ))
 
         assert tutil.tens_almeq(roi_0[:, 5:10, 5:10], roi_shift[:, 4:9, 3:8])
 
-    @pytest.mark.xfail(not psf_kernel.CubicSplinePSF.cuda_is_available(), strict=True,
-                       reason="Skipped because PSF implementation not compiled with CUDA support.")
+    @psf_cuda_available
     def test_frame_cuda_cpu(self, psf, psf_cuda):
         """
         Tests approximate equality of CUDA vs CPU implementation for a few frames
@@ -593,8 +592,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert tutil.tens_almeq(roi_chunk, roi)
 
     @pytest.mark.slow
-    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available,
-                        reason="Skipped because PSF implementation not compiled with CUDA support.")
+    @psf_cuda_available
     def test_many_em_forward(self, psf_cuda):
         """Setup"""
         psf_cuda.max_roi_chunk = 1000000
@@ -611,8 +609,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert frames.size() == torch.Size([n_frames + 1, 64, 64])
 
     @pytest.mark.slow
-    @pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available,
-                        reason="Skipped because PSF implementation not compiled with CUDA support.")
+    @psf_cuda_available
     def test_many_drv_roi_forward(self, psf_cuda):
         """Setup"""
         psf_cuda.max_roi_chunk = 1000000
