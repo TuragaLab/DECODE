@@ -8,12 +8,9 @@ from tqdm import tqdm
 
 from .. import dataset
 from ...generic import emitter
-<<<<<<< HEAD
 from functools import partial
 import decode.utils
-=======
 from ...utils import hardware, frames_io
->>>>>>> origin/master
 
 
 class Infer:
