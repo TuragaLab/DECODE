@@ -55,6 +55,15 @@ class AutoCenterCrop(FrameProcessing):
             raise ValueError
 
     def forward(self, frame: torch.Tensor) -> torch.Tensor:
+        """
+        Process frames
+
+        Args:
+            frame: size [*, H, W]
+
+        """
+        if self.px_fold == 1:
+            return frame
 
         size_is = torch.tensor(frame.size())[-2:]
         size_tar = (size_is // self.px_fold) * self.px_fold
@@ -84,6 +93,9 @@ class AutoPad(AutoCenterCrop):
         self.mode = mode
 
     def forward(self, frame: torch.Tensor) -> torch.Tensor:
+
+        if self.px_fold == 1:
+            return frame
 
         size_is = torch.tensor(frame.size())[-2:]
         size_tar = torch.ceil(size_is / self.px_fold) * self.px_fold

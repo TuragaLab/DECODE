@@ -49,6 +49,15 @@ class TestAutoCenterCrop:
             x_out = proc.forward(x)
             assert x_out[0].size() == torch.Size(target_size)
 
+    def test_forward_noop(self, proc):
+        proc.px_fold = 1
+
+        x = torch.rand(2, 32, 34)
+        out = proc.forward(x)
+
+        assert out.size() == x.size()
+        assert (out == x).all()
+
 
 class TestAutoPad(TestAutoCenterCrop):
 
@@ -73,6 +82,7 @@ class TestAutoPad(TestAutoCenterCrop):
         else:
             x_out = proc.forward(x)
             assert x_out[0].size() == torch.Size(target_size)
+
 
 
 @pytest.mark.parametrize("x,size_out", [(torch.rand(3, 62, 68), torch.Size([3, 59, 65])), # size out of mock pipeline
