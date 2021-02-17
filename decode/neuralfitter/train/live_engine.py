@@ -185,10 +185,11 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                                                      post_processor=post_processor, matcher=matcher, logger=logger,
                                                      step=i)
 
-        if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-            lr_scheduler.step(val_loss)
-        else:
-            lr_scheduler.step()
+        if i >= 1:
+            if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                lr_scheduler.step(val_loss)
+            else:
+                lr_scheduler.step()
 
         model_ls.save(model, None)
         if no_log:
@@ -269,7 +270,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     """Log the model"""
     try:
         dummy = torch.rand((2, param.HyperParameter.channels_in,
-                            *param.Simulation.img_size), requires_grad=True).to(torch.device(device))
+                            *param.Simulation.img_size), requires_grad=False).to(torch.device(device))
         logger.add_graph(model, dummy)
 
     except:
