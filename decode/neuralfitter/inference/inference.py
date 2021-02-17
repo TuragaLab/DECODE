@@ -76,6 +76,8 @@ class Infer:
                 assert frames.shape[-2:] == sig_frames.shape[-2:], "Frames and noise map need to have the same image dimension"
         else:
             ds = dataset.InferenceDataset(frames=frames, frame_proc=self.frame_proc, frame_window=self.ch_in, sig_frames=None)
+            
+        self.forward_cat = self._setup_forward_cat(self._forward_cat_mode, self.batch_size)
 
         dl = torch.utils.data.DataLoader(dataset=ds, batch_size=self.batch_size, shuffle=False,
                                          num_workers=self.num_workers, pin_memory=self.pin_memory,
