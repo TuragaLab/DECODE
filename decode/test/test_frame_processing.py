@@ -50,6 +50,31 @@ class TestAutoCenterCrop:
             assert x_out[0].size() == torch.Size(target_size)
 
 
+class TestAutoPad(TestAutoCenterCrop):
+
+    @pytest.fixture()
+    def proc(self):
+        return frame_processing.AutoPad(4)
+
+    @pytest.mark.parametrize("actual_size,target_size", [((5, 6), (8, 8)),
+                                                         ((5, 8), (8, 8)),
+                                                         ((12, 4), (12, 4)),
+                                                         ((13, 25), (16, 28)),
+                                                         ((3, 8), (4, 8))])
+    def test_forward(self, actual_size, target_size, proc):
+
+        x = torch.rand((2, *actual_size))
+
+        """Forward"""
+        if target_size == 'err':
+            with pytest.raises(ValueError):
+                proc.forward(x)
+
+        else:
+            x_out = proc.forward(x)
+            assert x_out[0].size() == torch.Size(target_size)
+
+
 @pytest.mark.parametrize("x,size_out", [(torch.rand(3, 62, 68), torch.Size([3, 59, 65])), # size out of mock pipeline
                                         (torch.rand(2, 3, 59, 68), torch.Size([2, 3, 56, 65]))])
 def test_get_frame_extent(x, size_out):
