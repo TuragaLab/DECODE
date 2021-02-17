@@ -189,9 +189,12 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                 
                 if per_em_gmm_loss > param.HyperParameter.auto_restart_params.restart_treshold:
                     if n_training_starts <= param.HyperParameter.auto_restart_params.nr_restarts:
-                        print(f'The model will be reinitialized and training restarted due to a pathological loss. {int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_params.restart_treshold}')
+                        print(f'The model will be reinitialized and training restarted due to a pathological loss. ' \
+                              '{int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_params.restart_treshold}')
                     else:
-                        print(f'Training aborted after {param.HyperParameter.auto_restart_params.nr_restarts} restarts. \n You can try to reduce the learning rate by a factor of 2. It is also possible that the simulated data is to challenging. \n Check if your background and intensity values are correct and possibly lower the average number of emitters.')
+                        print(f'Training aborted after {param.HyperParameter.auto_restart_params.nr_restarts} restarts. ' \
+                        'You can try to reduce the learning rate by a factor of 2. It is also possible that the simulated data is to challenging. ' \
+                        'Check if your background and intensity values are correct and possibly lower the average number of emitters.')
                     break
                     
                 else:
