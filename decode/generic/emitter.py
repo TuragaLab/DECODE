@@ -674,17 +674,22 @@ class EmitterSet:
         # https://stackoverflow.com/questions/2130016/splitting-a-list-into-n-parts-of-approximately-equal-length/37414115#37414115
         return [l[i * (n // k) + min(i, n % k):(i+1) * (n // k) + min(i+1, n % k)] for i in range(k)]
 
-    def filter_by_sigma(self, fraction: float, dim: Optional[int] = None):
+    def filter_by_sigma(self, fraction: float, dim: Optional[int] = None, return_low=True):
         """
         Filter by sigma values. Returns EmitterSet.
 
         Args:
             fraction: relative fraction of emitters remaining after filtering. Ranges from 0. to 1.
             dim: 2 or 3 for taking into account z. If None, it will be autodetermined.
+            return_low: 
+                if True return the fraction of emitter with the lowest sigma values. 
+                if False return the (1-fraction) with the highest sigma values.
 
         """
         if dim is None:
             is_3d = False if self.dim() == 2 else True
+        else:
+            is_3d = False if dim == 2 else True
 
         if fraction == 1.:
             return self
@@ -700,7 +705,10 @@ class EmitterSet:
             tot_var += (np.sqrt(x_sig_var / z_sig_var) * xyz_sig[:, 2]) ** 2
 
         max_s = np.percentile(tot_var.cpu().numpy(), fraction * 100.)
-        filt_sig = torch.where(tot_var < max_s)
+        if return_low:
+            filt_sig = torch.where(tot_var < max_s)
+        else:
+            filt_sig = torch.where(tot_var > max_s)
 
         return self[filt_sig]
 
