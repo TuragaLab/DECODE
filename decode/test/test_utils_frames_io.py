@@ -1,6 +1,7 @@
 import threading
 import queue
 import time
+import pytest
 
 import tifffile
 import torch
@@ -28,7 +29,29 @@ def online_tiff_writer(path, iterations: int, sleep: float, out_queue=None):
 
 
 def test_tiff_tensor(tmpdir):
-    fname = tmpdir / 'contin.tiff'
+    fname = tmpdir / 'static.tiff'
+
+    data = torch.randint(255, (1000, 64, 64), dtype=torch.short)
+    tifffile.imwrite(fname, data=data.numpy())
+
+    data_tensor = frames_io.TiffTensor(fname)
+
+    # test complete load
+    assert (data == data_tensor[:]).all()
+
+    # test integer slice load
+    ix = torch.randint(len(data), size=(10, ), dtype=torch.long)
+    assert (data[ix] == data_tensor[ix]).all()
+
+    # test subslice
+    ix_sub = torch.randint(data.size(1), size=(10, ), dtype=torch.long)
+    assert (data[ix[0].item(), ix_sub] == data_tensor[ix[0].item(), ix_sub]).all()
+    assert (data[ix[0].item(), ...,  ix_sub] == data_tensor[ix[0].item(), ..., ix_sub]).all()
+
+
+@pytest.mark.skip(reason="Online Tiff Writer not stable.")
+def test_tiff_tensor_online(tmpdir):
+    fname = tmpdir / 'online.tiff'
 
     # start a thread that continuously write to a tiff file
     q = queue.Queue()
