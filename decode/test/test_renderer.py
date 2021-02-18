@@ -37,7 +37,7 @@ class TestRenderer3D:
 
     @pytest.fixture()
     def rend(self):
-        return renderer.Renderer2D(plot_axis = (0,1,2), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), px_size=10., sigma_blur=10.,
+        return renderer.Renderer3D(plot_axis = (0,1,2), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), px_size=10., sigma_blur=10.,
                                    clip_percentile=None)
 
     @pytest.fixture()
