@@ -1,12 +1,10 @@
-import pytest
-
-import torch
-import numpy as np
 import matplotlib.pyplot as plt
+import pytest
+import torch
 
 from decode.generic import emitter
-from decode.renderer import renderer
 from decode.plot import PlotFrameCoord
+from decode.renderer import renderer
 
 
 class TestRenderer2D:
@@ -16,13 +14,18 @@ class TestRenderer2D:
         return renderer.Renderer2D(xextent=(0., 100.), yextent=(0., 100.), px_size=10., sigma_blur=10.,
                                    clip_percentile=None)
 
-    def test_plot_frame_render_equality(self, rend):
-
+    @pytest.fixture()
+    def em(self):
         """Setup"""
         xyz = torch.tensor([[10., 50., 100.]])
-        em = emitter.CoordinateOnlyEmitter(xyz, xy_unit='nm')
+        return emitter.CoordinateOnlyEmitter(xyz, xy_unit='nm')
 
-        """Run"""
+    def test_forward(self, rend, em):
+        histogram = rend.forward(em)
+        assert histogram.size() == torch.Size([10, 10])
+
+    @pytest.mark.plot
+    def test_plot_frame_render_visual(self, rend, em):
         PlotFrameCoord(torch.zeros((101, 101)), em.xyz_nm).plot()
         plt.show()
 

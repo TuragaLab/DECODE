@@ -95,6 +95,9 @@ class TestLiveInfer(TestInfer):
     def test_forward_frames(self):
         return
 
+    @pytest.mark.skip(reason="Currently not stable because of simultaneous read/write. "
+                             "Revisit when buffer is implemented.")
+    @pytest.mark.skipif(int(tifffile.__version__[:4]) <= 2020, reason="Online writer does not work with this version.")
     def test_forward_online(self, infer, tmpdir):
         path = tmpdir / 'online.tiff'
         tiff_writer = threading.Thread(target=online_tiff_writer, args=[path, 10, 0.5])
