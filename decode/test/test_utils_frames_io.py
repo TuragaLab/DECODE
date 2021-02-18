@@ -50,6 +50,7 @@ def test_tiff_tensor(tmpdir):
 
 
 @pytest.mark.skip(reason="Online Tiff Writer not stable.")
+@pytest.mark.skipif(int(tifffile.__version__[:4]) <= 2020, reason="Online writer does not work with this version.")
 def test_tiff_tensor_online(tmpdir):
     fname = tmpdir / 'online.tiff'
 
