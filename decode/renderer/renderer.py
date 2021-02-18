@@ -5,6 +5,7 @@ import math
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from matplotlib.colors import hsv_to_rgb
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.ndimage import gaussian_filter
@@ -16,13 +17,14 @@ class Renderer(ABC):
 
     """
 
-    def __init__(self, xextent: tuple, yextent: tuple, px_size: float):
+    def __init__(self, plot_axis: tuple, xextent: tuple, yextent: tuple, px_size: float):
         super().__init__()
 
         self.xextent = xextent
         self.yextent = yextent
         self.px_size = px_size
-
+        self.plot_axis = plot_axis
+        
     @property
     def _npx_x(self):
         return math.ceil(se)
@@ -57,8 +59,8 @@ class Renderer2D(Renderer):
 
     """
 
-    def __init__(self, px_size, sigma_blur, xextent=None, yextent=None, clip_percentile=None):
-        super().__init__(xextent=xextent, yextent=yextent, px_size=px_size)
+    def __init__(self, px_size, sigma_blur, plot_axis = (0,1), xextent=None, yextent=None, clip_percentile=None):
+        super().__init__(plot_axis=plot_axis,xextent=xextent, yextent=yextent, px_size=px_size)
 
         self.sigma_blur = sigma_blur
         self.clip_percentile = clip_percentile
@@ -76,11 +78,11 @@ class Renderer2D(Renderer):
     def forward(self, em: emitter.EmitterSet) -> torch.Tensor:
 
         if self.xextent is None:
-            self.xextent = (em.xyz_nm[:, 0].min(), em.xyz_nm[:, 0].max())
+            self.xextent = (em.xyz_nm[:, self.plot_axis[0]].min(), em.xyz_nm[:, self.plot_axis[0]].max())
         if self.yextent is None:
-            self.yextent = (em.xyz_nm[:, 1].min(), em.xyz_nm[:, 1].max())
+            self.yextent = (em.xyz_nm[:, self.plot_axis[1]].min(), em.xyz_nm[:, self.plot_axis[1]].max())
 
-        hist = self._hist2d(em.xyz_nm[:, :2].numpy(), xextent=self.xextent, yextent=self.yextent, px_size=self.px_size)
+        hist = self._hist2d(em.xyz_nm[:, self.plot_axis].numpy(), xextent=self.xextent, yextent=self.yextent, px_size=self.px_size)
 
         if self.clip_percentile is not None:
             hist = np.clip(hist, 0., np.percentile(hist, self.clip_percentile))
@@ -100,70 +102,81 @@ class Renderer2D(Renderer):
 
         return hist
 
+    
+class Renderer3D(Renderer):
+    """
+    3D Renderer with constant gaussian.
 
-# ToDo: Not yet ready
-class RenderHist3D:
+    """
 
-    def __init__(self, size, z_range, pixel_size, sigma_blur, clip_percentile, gamma):
-        self.size = size
-        self.z_range = z_range
-        self.pixel_size = pixel_size
+    def __init__(self, px_size, sigma_blur, plot_axis = (0,1,2), xextent=None, yextent=None, zextent=None, clip_percentile=100, gamma=1):
+        super().__init__(plot_axis=plot_axis, xextent=xextent, yextent=yextent, px_size=px_size)
+
         self.sigma_blur = sigma_blur
         self.clip_percentile = clip_percentile
         self.gamma = gamma
+        self.zextent = zextent
 
-    def plot(self, xyz_nm, figsize=(10, 10), fontsize=(15)):
-        hist, z_hist = get_2d_hist(xyz_nm, self.size, self.pixel_size, self.z_range)
+    def render(self, em):
+
+        hist = self.forward(em).numpy()
+
+        ax = plt.gca()
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes('right', size=0.25, pad=-0.25)
+        colb = mpl.colorbar.ColorbarBase(cax, cmap=plt.get_cmap('hsv'), values=np.linspace(0,0.7,101), norm=mpl.colors.Normalize(0.,1.))
+        colb.outline.set_visible(False)
+        colb.ax.invert_yaxis()
+
+        cax.text(0.12, 0.04, f'{self.zextent[0]} nm', rotation=90, color='white', fontsize=15, transform=cax.transAxes)
+        cax.text(0.12, 0.88, f'{self.zextent[1]} nm', rotation=90, color='white', fontsize=15, transform=cax.transAxes)
+        cax.axis('off')
+
+        ax = ax.imshow(np.transpose(hist,[1,0,2]))
+        return ax
+
+    def forward(self, em: emitter.EmitterSet) -> torch.Tensor:
+
+        if self.xextent is None:
+            self.xextent = (em.xyz_nm[:, self.plot_axis[0]].min(), em.xyz_nm[:, self.plot_axis[0]].max())
+        if self.yextent is None:
+            self.yextent = (em.xyz_nm[:, self.plot_axis[1]].min(), em.xyz_nm[:, self.plot_axis[1]].max())
+        if self.zextent is None:
+            self.zextent = (em.xyz_nm[:, self.plot_axis[2]].min(), em.xyz_nm[:, self.plot_axis[2]].max())
+
+        int_hist, col_hist = self._hist2d(em.xyz_nm[:, self.plot_axis].numpy(), xextent=self.xextent, yextent=self.yextent, zextent=self.zextent, px_size=self.px_size)
         with np.errstate(divide='ignore', invalid='ignore'):
-            z_avg = z_hist / hist
-
-        hist = np.clip(hist, 0, np.percentile(hist, self.clip_percentile))
+            z_avg = col_hist / int_hist
+        
+        if self.clip_percentile is not None:
+            int_hist = np.clip(int_hist, 0., np.percentile(int_hist, self.clip_percentile))
         z_avg[np.isnan(z_avg)] = 0
-
-        val = (hist - hist.min()) / (hist.max() - hist.min())
-        sat = np.ones(hist.shape)
-        hue = z_avg
+            
+        val = (int_hist - int_hist.min()) / (int_hist.max() - int_hist.min())
+        sat = np.ones(int_hist.shape)
+        # Revert coloraxis to be closer to the paper figures
+        hue = -(z_avg * 0.65) + 0.65
 
         HSV = np.concatenate((hue[:, :, None], sat[:, :, None], val[:, :, None]), -1)
         RGB = hsv_to_rgb(HSV) ** (1 / self.gamma)
 
         if self.sigma_blur:
-            RGB = np.array([gaussian_filter(RGB[:, :, i], sigma=[self.sigma_blur / self.pixel_size,
-                                                                 self.sigma_blur / self.pixel_size]) for i in
-                            range(3)]).transpose(1, 2, 0)
+            RGB = np.array([gaussian_filter(RGB[:, :, i], sigma=[self.sigma_blur / self.px_size,
+                                                                 self.sigma_blur / self.px_size]) for i in range(3)]).transpose(1, 2, 0)
 
-        fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(111)
-        im = ax.imshow(RGB, cmap='hsv')
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes('right', size=0.25, pad=-0.25)
-        colb = plt.colorbar(im, cax=cax, orientation='vertical', ticks=[])
-        colb.outline.set_visible(False)
+        return torch.from_numpy(RGB)
 
-        cax.text(0.12, 0.04, f'{self.z_range[0]} nm', rotation=90, color='white', fontsize=15, transform=cax.transAxes)
-        cax.text(0.12, 0.88, f'{self.z_range[1]} nm', rotation=90, color='white', fontsize=15, transform=cax.transAxes)
+    @staticmethod
+    def _hist2d(xyz: np.array, xextent, yextent, zextent, px_size) -> np.array:
+        
+        hist_bins_x = np.arange(xextent[0], xextent[1] + px_size, px_size)
+        hist_bins_y = np.arange(yextent[0], yextent[1] + px_size, px_size)
 
-
-def get_2d_hist(xyz_nm, size=None, pixel_size=10, z_range=None):
-    xyz_pos = np.array(xyz_nm)
-    x_pos = xyz_pos[:, 0]
-    y_pos = xyz_pos[:, 1]
-    z_pos = xyz_pos[:, 2]
-
-    if z_range is None:
-        z_range = [z_pos.min(), z_pos.max()]
-
-    z_pos = np.clip(z_pos, z_range[0], z_range[1])
-    z_weight = ((z_pos - z_pos.min()) / (z_pos.max() - z_pos.min()))
-
-    if size is None:
-        hist_dim = int(x_pos.max() // pixel_size), int(y_pos.max() // pixel_size)
-    else:
-        hist_dim = int(size[0] // pixel_size), int(size[1] // pixel_size)
-
-    hist = \
-    np.histogram2d(x_pos, y_pos, bins=hist_dim, range=[[0, hist_dim[0] * pixel_size], [0, hist_dim[1] * pixel_size]])[0]
-    z_hist = \
-    np.histogram2d(x_pos, y_pos, bins=hist_dim, range=[[0, hist_dim[0] * pixel_size], [0, hist_dim[1] * pixel_size]],
-                   weights=z_weight)[0]
-    return hist, z_hist
+        int_hist, _, _ = np.histogram2d(xyz[:, 0], xyz[:, 1], bins=(hist_bins_x, hist_bins_y))
+        
+        z_pos = np.clip(xyz[:,2], zextent[0], zextent[1])
+        z_weight = ((z_pos - z_pos.min()) / (z_pos.max() - z_pos.min()))
+        
+        col_hist, _, _ = np.histogram2d(xyz[:, 0], xyz[:, 1], bins=(hist_bins_x, hist_bins_y), weights=z_weight)
+        
+        return int_hist, col_hist
