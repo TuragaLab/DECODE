@@ -56,12 +56,14 @@ class TestTrain:
 
         return device, model
 
+    @pytest.mark.skip("Segfault for low memory machines.")
     def test_iterate_batch(self, opt, loss, dataloader, logger, train_val_environment):
         device, model = train_val_environment
 
         model_before = copy.deepcopy(model)
 
         """Run"""
+        # ToDo: The following line causes segmentation fault on low memory machines
         train_val_impl.train(model, opt, loss, dataloader, False, False, 0, device, logger)
 
         assert not test_utils.same_weights(model_before, model)
