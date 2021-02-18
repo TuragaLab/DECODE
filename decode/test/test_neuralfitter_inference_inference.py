@@ -81,6 +81,7 @@ class TestLiveInfer(TestInfer):
     def infer(self, model):
         return inference.LiveInfer(
             model, ch_in=3, stream=None, time_wait=1,
+            safety_buffer=30,
             frame_proc=None, post_proc=post_processing.NoPostProcessing(),
             device='cuda' if torch.cuda.is_available() else 'cpu'
         )

@@ -152,11 +152,31 @@ class Infer:
 class LiveInfer(Infer):
     def __init__(self,
                  model, ch_in: int, *,
-                 stream, time_wait=5,
+                 stream, time_wait=5, safety_buffer: int = 20,
                  frame_proc=None, post_proc=None,
                  device: Union[str, torch.device] = 'cuda:0' if torch.cuda.is_available() else 'cpu',
                  batch_size: Union[int, str] = 'auto', num_workers: int = 0, pin_memory: bool = False,
                  forward_cat: Union[str, Callable] = 'emitter'):
+        """
+        Inference from memmory mapped tensor, where the mapped file is possibly live being written to.
+
+        Args:
+            model: pytorch model
+            ch_in: number of input channels
+            stream: output stream. Will typically get emitters (along with starting and stopping index)
+            time_wait: wait if length of mapped tensor has not changed
+            safety_buffer: buffer distance to end of tensor to avoid conflicts when the file is actively being
+            written to
+            frame_proc: frame pre-processing pipeline
+            post_proc: post-processing pipeline
+            device: device where to run inference
+            batch_size: batch-size or 'auto' if the batch size should be determined automatically (only use in combination with cuda)
+            num_workers: number of workers
+            pin_memory: pin memory in dataloader
+            forward_cat: method which concatenates the output batches. Can be string or Callable.
+            Use 'em' when the post-processor outputs an EmitterSet, or 'frames' when you don't use post-processing or if
+            the post-processor outputs frames.
+        """
 
         super().__init__(
             model=model, ch_in=ch_in, frame_proc=frame_proc, post_proc=post_proc,
@@ -165,6 +185,7 @@ class LiveInfer(Infer):
 
         self._stream = stream
         self._time_wait = time_wait
+        self._buffer_length = safety_buffer
 
     def forward(self, frames: Union[torch.Tensor, frames_io.TiffTensor]):
 
@@ -173,16 +194,21 @@ class LiveInfer(Infer):
         while n_waited <= 2:
             n = len(frames)
 
-            if n_fitted == n:
+            if n_fitted == n - self._buffer_length:
                 n_waited += 1
                 time.sleep(self._time_wait)  # wait
                 continue
 
-            out = super().forward(frames[n_fitted:n])
-            self._stream(out, n_fitted, n)
+            n_2fit = n - self._buffer_length
+            out = super().forward(frames[n_fitted:n_2fit])
+            self._stream(out, n_fitted, n_2fit)
 
-            n_fitted = n
+            n_fitted = n_2fit
             n_waited = 0
+
+        # fit remaining frames
+        out = super().forward(frames[n_fitted:n])
+        self._stream(out, n_fitted, n)
 
 
 if __name__ == '__main__':
