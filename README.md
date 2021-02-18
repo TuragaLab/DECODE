@@ -64,6 +64,7 @@ The data referred to in our paper can be accessed at the following locations:
 - Fig 5: By request from the authors Wesley R Legant, Lin Shao, Jonathan B Grimm, Timothy A Brown, Daniel E Milkie, Brian B Avants, Luke D Lavis & Eric Betzig, [**High-density three-dimensional localization microscopy across large volumes**](https://www.nature.com/articles/nmeth.3797), _Nature Methods_, *13*, pages 359–365 (2016).
 
 ## Contributors
+If you want to get in touch, the best way to get your questions answered is our [**GitHub discussions page**](https://github.com/TuragaLab/DECODE/discussions)
 - Artur Speiser ([@aspeiser](https://github.com/ASpeiser), arturspeiser@gmail.com)
 - Lucas-Raphael Müller ([@haydnspass](https://github.com/Haydnspass), lucasraphaelmueller@gmail.com)
 
