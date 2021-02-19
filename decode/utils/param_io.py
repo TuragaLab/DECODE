@@ -127,7 +127,7 @@ def load_reference() -> dict:
     return param_ref
 
 
-def autofill_dict(x: dict, reference: dict, mode_missing: str = 'exclude') -> dict:
+def autofill_dict(x: dict, reference: dict, mode_missing: str = 'include') -> dict:
     """
     Fill dict `x` with keys and values of reference if they are not present in x.
 
