@@ -88,7 +88,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                 experiment_id = experiment_id + '_' + log_comment
         else:
             from_ckpt = True
-            experiment_id = param.InOut.checkpoint
+            experiment_id = param.InOut.checkpoint.split('/')[-1]
     else:
         experiment_id = 'debug'
         from_ckpt = False
@@ -166,6 +166,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
         lr_scheduler.load_state_dict(ckpt.lr_sched_state)
         first_epoch = ckpt.step + 1
         model = model.train()
+        print(f'Resuming training from checkpoint ' + experiment_id)
     else:
         first_epoch = 0
         
