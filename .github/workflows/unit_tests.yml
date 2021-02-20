@@ -43,4 +43,4 @@ jobs:
       # Run the specific test
       - name: Run pytest (without big web and graphical output)
         run: |
-          pytest -m "not webbig" -m "not plot" decode/test
+          pytest -m "not (webbig or plot)" decode/test
