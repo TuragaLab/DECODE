@@ -20,7 +20,7 @@ class TestTrain:
                 self.a = torch.nn.Parameter(torch.Tensor([5]), requires_grad=True)
 
             def forward(self, x):
-                return self.a * torch.rand(x.size(0), 6, x.size(2), x.size(3))
+                return self.a * torch.rand(x.size(0), 6, x.size(2), x.size(3), device=x.device)
 
         return MockModel()
 
