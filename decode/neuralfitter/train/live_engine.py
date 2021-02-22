@@ -227,7 +227,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
         'DoubleMUnet': decode.neuralfitter.models.model_param.DoubleMUnet,
         'SimpleSMLMNet': decode.neuralfitter.models.model_param.SimpleSMLMNet,
     }
-
+    
     model = models_available[param.HyperParameter.architecture]
     model = model.parse(param)
 
