@@ -1,4 +1,4 @@
-name: Unit Tests (Stable)
+name: Unit Tests
 
 on:
   push:
@@ -17,11 +17,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - name: Set Python Version ${{ matrix.python-version }}
+        # hacky way to change the python version by temporariliy editing the environment file
+        run: |
+          sed -i -E 's/(python=)(.*)/\1'${{ matrix.python-version }}'/' ./environment_cpu.yaml
+          cat environment_cpu.yaml | grep python
 
-      - name: Set up test environment
-        uses: ./.github/actions/setup_test_env
+      - uses: conda-incubator/setup-miniconda@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          # mamba-version: "*"  # does not work reliably atm
+          # channels: turagalab/label/dev,turagalab,pytorch,conda-forge,defaults
+          channel-priority: strict
+          activate-environment: decode_dev_cpu
+          environment-file: environment_cpu.yaml
+
+      - name: Install backport of importlib_resources for Python 3.6
+        run: |
+          conda install -y importlib_resources
+        if: matrix.python-version <= '3.6'
 
       # Run the specific test
       - name: Run pytest (without big web and graphical output)
