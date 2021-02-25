@@ -7,9 +7,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-    - name: wemake-python-styleguide
-      uses: wemake-services/wemake-python-styleguide@0.15.1
-      with:
-        reporter: 'github-pr-check'
-      env:
-        GITHUB_TOKEN: ${{ secrets.github_token }}
+      - name: wemake-python-styleguide
+        uses: wemake-services/wemake-python-styleguide@0.15.1
+        with:
+          reporter: 'github-pr-check'
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
