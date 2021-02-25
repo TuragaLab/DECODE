@@ -1,0 +1,15 @@
+name: Manage Pull Requests
+on: [pull_request]
+
+jobs:
+  code_quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+    - name: wemake-python-styleguide
+      uses: wemake-services/wemake-python-styleguide@0.15.1
+      with:
+        reporter: 'github-pr-check'
+      env:
+        GITHUB_TOKEN: ${{ secrets.github_token }}
