@@ -1,4 +1,4 @@
-name: decode_dev_cpu
+name: decode_dev_cpu_py39
 
 channels:
   - turagalab/label/dev
@@ -21,10 +21,9 @@ dependencies:
   - sphinx_rtd_theme
 
   # actual package
-  - python=3.9
+  - python=3.8
   - pytorch=1.7.1
   - cpuonly  # fake package (aka flag) for pytorch, otherwise it installs a cudatoolkit
-  - torchvision
   - click
   - deprecated
   - gitpython>=3.1
