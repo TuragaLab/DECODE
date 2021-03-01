@@ -80,8 +80,7 @@ HyperParameter:
 InOut:
   calibration_file:  # spline calib
   experiment_out:  # main output dir
-  model_init:
-  checkpoint:
+  checkpoint_init:   # initialise from checkpoint (i.e. resume training)
 PostProcessing: NMS  # (blank) for no post-processing or LookUp, Consistency
 PostProcessingParam:
   raw_th: 0.5

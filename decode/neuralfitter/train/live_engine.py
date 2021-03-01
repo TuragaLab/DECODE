@@ -81,7 +81,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
 
     """Experiment ID"""
     if not debug:
-        if param.InOut.checkpoint is None:
+        if param.InOut.checkpoint_init is None:
             experiment_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
             from_ckpt = False
             if log_comment:
@@ -158,7 +158,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
         setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
 
     dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
-    
+
     if from_ckpt:
         ckpt = decode.utils.checkpoint.CheckPoint.load(ckpt_path)
         model.load_state_dict(ckpt.model_state)
@@ -169,7 +169,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
         print(f'Resuming training from checkpoint ' + experiment_id)
     else:
         first_epoch = 0
-        
+
     for i in range(first_epoch, param.HyperParameter.epochs):
         logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
 
@@ -244,8 +244,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     model = model.parse(param)
 
     model_ls = decode.utils.model_io.LoadSaveModel(model,
-                                                   output_file=model_out,
-                                                   input_file=param.InOut.model_init)
+                                                   output_file=model_out)
 
     model = model_ls.load_init()
     model = model.to(torch.device(device))
