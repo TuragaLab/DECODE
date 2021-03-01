@@ -31,9 +31,9 @@ class TestRenderer2D:
 
         rend.render(em)
         plt.show()
-        
-    
-class TestRenderer3D:
+
+
+class TestRenderer3D(TestRenderer2D):
 
     @pytest.fixture()
     def rend(self):
@@ -43,7 +43,7 @@ class TestRenderer3D:
     @pytest.fixture()
     def em(self):
         """Setup"""
-        xyz = torch.tensor([[10., 50., 100.]])
+        xyz = torch.rand(100, 3) * torch.Tensor([[100., 100., 1000.]])
         return emitter.CoordinateOnlyEmitter(xyz, xy_unit='nm')
 
     def test_forward(self, rend, em):
@@ -57,4 +57,3 @@ class TestRenderer3D:
 
         rend.render(em)
         plt.show()
-
