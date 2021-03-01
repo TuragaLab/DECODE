@@ -111,6 +111,7 @@ class TestEmitterPopperMultiframe(TestEmitterSamplerFrameIndependent):
 
         generator.sample()
 
+    @pytest.mark.slow()
     def test_uniformity(self, structure):
         """
         Tests whether there are approx. equal amount of fluorophores on all frames.
