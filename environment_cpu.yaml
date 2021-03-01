@@ -1,4 +1,4 @@
-name: decode_dev_cpu_py39
+name: decode_dev_cpu
 
 channels:
   - turagalab/label/dev

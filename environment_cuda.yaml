@@ -1,4 +1,4 @@
-name: decode_dev_cuda_pt_18
+name: decode_dev_cuda
 
 channels:
   - turagalab/label/dev
