@@ -67,7 +67,7 @@ Please execute the following command in your terminal/Anaconda prompt or do it v
     conda update -c turagalab -c pytorch -c conda-forge decode
 
 Import
-******* 
+*******
 
 In python you can import this package as simple as ``import decode``.
 You may continue with our tutorial.
@@ -88,6 +88,12 @@ You may continue with our tutorial.
    :caption: Tutorial
 
    tutorial
+
+.. toctree::
+   :maxdepth: 0
+   :caption: Logging
+
+   logging
 
 .. toctree::
    :maxdepth: 0
