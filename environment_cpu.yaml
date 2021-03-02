@@ -21,10 +21,9 @@ dependencies:
   - sphinx_rtd_theme
 
   # actual package
-  - python=3.9
+  - python=3.8
   - pytorch=1.7.1
   - cpuonly  # fake package (aka flag) for pytorch, otherwise it installs a cudatoolkit
-  - torchvision
   - click
   - deprecated
   - gitpython>=3.1
@@ -39,7 +38,7 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-  - spline>=0.10.alpha
+  - spline>=0.10.alpha.2
   - tensorboard
   - tifffile>=2020.2
   - tqdm

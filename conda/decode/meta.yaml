@@ -19,10 +19,9 @@ requirements:
     - numpy {{ numpy }}
 
   run:
-    - python >=3.6,<4
+    - python >=3.6,<3.9
     - {{ pin_compatible('numpy', max_pin='x.x') }}
     - pytorch=1.7.1
-    - torchvision
     - click
     - deprecated
     - gitpython>=3.1

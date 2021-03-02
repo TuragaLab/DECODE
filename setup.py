@@ -20,7 +20,6 @@ else:
         # as we can so that slight changes on colab do not break so fast
         # that's why we deviate from requirements.txt
         "torch",
-        "torchvision",
         "click",
         "deprecated",
         "gitpython>=3.1",
