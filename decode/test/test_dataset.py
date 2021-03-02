@@ -10,7 +10,7 @@ import decode.neuralfitter.target_generator
 from decode.neuralfitter import em_filter
 from decode.simulation.simulator import Simulation
 
-deepsmlm_root = pathlib.Path(decode.__file__).parent.parent  # 'repo' directory
+decode_root = pathlib.Path(decode.__file__).parent.parent  # 'repo' directory
 
 
 class TestDataset:

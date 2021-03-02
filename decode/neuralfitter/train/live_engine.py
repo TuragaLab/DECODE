@@ -46,7 +46,7 @@ def parse_args():
                         help='Set no log if you do not want to log the current run.')
 
     parser.add_argument('-l', '--log_folder', default='runs',
-                        help='Specify the (parent) folder you want to log to. If rel-path, relative to DeepSMLM root.')
+                        help='Specify the (parent) folder you want to log to. If rel-path, relative to DECODE root.')
 
     parser.add_argument('-c', '--log_comment', default=None,
                         help='Add a log_comment to the run.')
@@ -59,7 +59,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                       num_worker_override: int = None,
                       log_folder: str = 'runs', log_comment: str = None):
     """
-    Sets up the engine to train DeepSMLM. Includes sample simulation and the actual training.
+    Sets up the engine to train DECODE. Includes sample simulation and the actual training.
 
     Args:
         param_file: parameter file path
