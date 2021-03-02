@@ -18,6 +18,7 @@ dependencies:
   - recommonmark  # markdown for sphinx
   - sphinx
   - sphinx-autodoc-typehints
+  - sphinx-markdown-tables
   - sphinx_rtd_theme
 
   # actual package
