@@ -169,7 +169,7 @@ class EmitterSet:
     @property
     def xyz_sig_nm(self) -> torch.Tensor:
         return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='nm')
-    
+
     @property
     def meta(self) -> dict:
         """Return metadata of EmitterSet"""
@@ -245,7 +245,7 @@ class EmitterSet:
         elif file.suffix in ('.h5', '.hdf5'):
             emitter_io.save_h5(file, self.data, self.meta)
         elif file.suffix == '.csv':
-            emitter_io.save_csv(file, self.to_dict())
+            emitter_io.save_csv(file, self.data, self.meta)
         else:
             raise ValueError
 
@@ -270,7 +270,9 @@ class EmitterSet:
         elif file.suffix in ('.h5', '.hdf5'):
             em_dict, meta, _ = emitter_io.load_h5(file)
         elif file.suffix == '.csv':
-            raise NotImplementedError("For .csv files, please use 'decode.utils.emitter_io.load_csv' explicitly.")
+            warnings.warn("For .csv files, implicit usage of .load() is discouraged. "
+                          "Please use 'decode.utils.emitter_io.load_csv' explicitly.")
+            em_dict, meta, _ = emitter_io.load_csv(file)
         else:
             raise ValueError
 
@@ -681,8 +683,8 @@ class EmitterSet:
         Args:
             fraction: relative fraction of emitters remaining after filtering. Ranges from 0. to 1.
             dim: 2 or 3 for taking into account z. If None, it will be autodetermined.
-            return_low: 
-                if True return the fraction of emitter with the lowest sigma values. 
+            return_low:
+                if True return the fraction of emitter with the lowest sigma values.
                 if False return the (1-fraction) with the highest sigma values.
 
         """

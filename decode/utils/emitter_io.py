@@ -1,14 +1,22 @@
-import copy
+import json
 import pathlib
-from typing import Union, Tuple
 
+import copy
 import h5py
+import linecache
 import numpy as np
 import pandas as pd
 import torch
+from typing import Union, Tuple, Optional
 
 from decode.generic.emitter import EmitterSet
 from decode.utils import bookkeeping
+
+minimal_mapping = {k: k for k in ('x', 'y', 'z', 'phot', 'frame_ix')}
+
+default_mapping = dict(
+    minimal_mapping, **{k: k for k in ('x_cr', 'y_cr', 'z_cr', 'phot_cr', 'bg_cr',
+                                       'x_sig', 'y_sig', 'z_sig', 'phot_sig', 'bg_sig')})
 
 challenge_mapping = {'x': 'xnano',
                      'y': 'ynano',
@@ -25,115 +33,6 @@ def get_decode_meta() -> dict:
     return {
         'version': bookkeeping.decode_state()
     }
-
-
-def load_csv(file: (str, pathlib.Path), mapping: (None, dict) = None, **pd_csv_args) -> Tuple[dict, dict, dict]:
-    """
-    Loads a CSV file which does provide a header.
-
-    Args:
-        file: path to file
-        mapping: mapping dictionary with keys ('x', 'y', 'z', 'phot', 'id', 'frame_ix')
-        pd_csv_args: additional keyword arguments to be parsed to the pandas csv reader
-
-    Returns:
-        dict: dictionary which can readily be converted to an EmitterSet by EmitterSet(**out_dict)
-    """
-    if mapping is None:
-        mapping = {'x': 'x', 'y': 'y', 'z': 'z', 'phot': 'phot', 'frame_ix': 'frame_ix'}
-
-    chunks = pd.read_csv(file, chunksize=100000, **pd_csv_args)
-    data = pd.concat(chunks)
-
-    xyz = torch.stack((torch.from_numpy(data[mapping['x']].to_numpy()).float(),
-                       torch.from_numpy(data[mapping['y']].to_numpy()).float(),
-                       torch.from_numpy(data[mapping['z']].to_numpy()).float()), 1)
-
-    phot = torch.from_numpy(data[mapping['phot']].to_numpy()).float()
-    frame_ix = torch.from_numpy(data[mapping['frame_ix']].to_numpy()).long()
-
-    if 'id' in mapping.keys():
-        identifier = torch.from_numpy(data[mapping['id']].to_numpy()).long()
-    else:
-        identifier = None
-
-    return {'xyz': xyz, 'phot': phot, 'frame_ix': frame_ix, 'id': identifier}, None, None
-
-
-def save_csv(file: (str, pathlib.Path), data: dict) -> None:
-    def convert_dict_torch_numpy(data: dict) -> dict:
-        """Convert all torch tensors in dict to numpy."""
-        for k, v in data.items():
-            if isinstance(v, torch.Tensor):
-                data[k] = v.numpy()
-        return data
-
-    def change_to_one_dim(data: dict) -> dict:
-        """
-        Change xyz tensors to be one-dimensional.
-
-        Args:
-            data: emitterset as dictionary
-
-        """
-        xyz = data.pop('xyz')
-        xyz_cr = data.pop('xyz_cr')
-        xyz_sig = data.pop('xyz_sig')
-
-        data_one_dim = {'x': xyz[:, 0], 'y': xyz[:, 1], 'z': xyz[:, 2]}
-        data_one_dim.update(data)
-        data_one_dim.update({'x_cr': xyz_cr[:, 0], 'y_cr': xyz_cr[:, 1], 'z_cr': xyz_cr[:, 2]})
-        data_one_dim.update({'x_sig': xyz_sig[:, 0], 'y_sig': xyz_sig[:, 1], 'z_sig': xyz_sig[:, 2]})
-
-        return data_one_dim
-
-    """Change torch to numpy and convert 2D elements to 1D"""
-    data = copy.deepcopy(data)
-    data.pop('px_size')
-    data = change_to_one_dim(convert_dict_torch_numpy(data))
-
-    # create file and add metadata to it
-    with pathlib.Path(file).open('w+') as f:
-        f.write(f"# DECODE version: {bookkeeping.decode_state()}")
-
-    df = pd.DataFrame.from_dict(data)
-    df.to_csv(file, mode='a', index=False)
-
-
-def load_smap(file: (str, pathlib.Path), mapping: (dict, None) = None) -> Tuple[dict, dict, dict]:
-    """
-
-    Args:
-        file: .mat file
-        mapping (optional): mapping of matlab fields to emitter. Keys must be x,y,z,phot,frame_ix,bg
-        **emitter_kwargs: additional arguments to be parsed to the emitter initialisation
-
-    Returns:
-
-    """
-    if mapping is None:
-        mapping = {'x': 'xnm', 'y': 'ynm', 'z': 'znm',
-                   'phot': 'phot', 'frame_ix': 'frame', 'bg': 'bg'}
-
-    f = h5py.File(file, 'r')
-
-    loc_dict = f['saveloc']['loc']
-
-    emitter_dict = {
-        'xyz': torch.cat([
-            torch.from_numpy(np.array(loc_dict[mapping['x']])).permute(1, 0),  # will always be 2D
-            torch.from_numpy(np.array(loc_dict[mapping['y']])).permute(1, 0),
-            torch.from_numpy(np.array(loc_dict[mapping['z']])).permute(1, 0)
-        ], 1),
-
-        'phot': torch.from_numpy(np.array(loc_dict[mapping['phot']])).squeeze(),
-        'frame_ix': torch.from_numpy(np.array(loc_dict[mapping['frame_ix']])).squeeze().long(),
-        'bg': torch.from_numpy(np.array(loc_dict[mapping['bg']])).squeeze().float()
-    }
-
-    emitter_dict['frame_ix'] -= 1  # MATLAB starts at 1, python and all serious languages at 0
-
-    return emitter_dict, None, None
 
 
 def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict) -> None:
@@ -191,9 +90,9 @@ def load_h5(path) -> Tuple[dict, dict, dict]:
 def save_torch(path: Union[str, pathlib.Path], data: dict, metadata: dict):
     torch.save(
         {
-        'data': data,
-        'meta': metadata,
-        'decode': get_decode_meta(),
+            'data': data,
+            'meta': metadata,
+            'decode': get_decode_meta(),
         },
         path
     )
@@ -203,6 +102,154 @@ def load_torch(path) -> Tuple[dict, dict, dict]:
     """Loads a torch saved emitterset and returns data, metadata and decode meta."""
     out = torch.load(path)
     return out['data'], out['meta'], out['decode']
+
+
+def save_csv(path: (str, pathlib.Path), data: dict, metadata: dict) -> None:
+    def convert_dict_torch_list(data: dict) -> dict:
+        for k, v in data.items():
+            if isinstance(v, torch.Tensor):
+                data[k] = v.tolist()
+        return data
+
+    def convert_dict_torch_numpy(data: dict) -> dict:
+        """Convert all torch tensors in dict to numpy."""
+        for k, v in data.items():
+            if isinstance(v, torch.Tensor):
+                data[k] = v.numpy()
+        return data
+
+    def change_to_one_dim(data: dict) -> dict:
+        """
+        Change xyz tensors to be one-dimensional.
+
+        Args:
+            data: emitterset as dictionary
+
+        """
+        xyz = data.pop('xyz')
+        xyz_cr = data.pop('xyz_cr')
+        xyz_sig = data.pop('xyz_sig')
+
+        data_one_dim = {'x': xyz[:, 0], 'y': xyz[:, 1], 'z': xyz[:, 2]}
+        data_one_dim.update(data)
+        data_one_dim.update({'x_cr': xyz_cr[:, 0], 'y_cr': xyz_cr[:, 1], 'z_cr': xyz_cr[:, 2]})
+        data_one_dim.update({'x_sig': xyz_sig[:, 0], 'y_sig': xyz_sig[:, 1], 'z_sig': xyz_sig[:, 2]})
+
+        return data_one_dim
+
+    """Change torch to numpy and convert 2D elements to 1D"""
+    data = copy.deepcopy(data)
+    data = change_to_one_dim(convert_dict_torch_numpy(data))
+
+    decode_meta_json = json.dumps(get_decode_meta())
+    emitter_meta_json = json.dumps(convert_dict_torch_list(metadata))
+
+    assert "\n" not in decode_meta_json, "Failed to dump decode meta string."
+    assert "\n" not in emitter_meta_json, "Failed to dump emitter meta string."
+
+    # create file and add metadata to it
+    with pathlib.Path(path).open('w+') as f:
+        f.write(f"# DECODE EmitterSet\n# {decode_meta_json}\n# {emitter_meta_json}\n")
+
+    df = pd.DataFrame.from_dict(data)
+    df.to_csv(path, mode='a', index=False)
+
+
+def load_csv(path: (str, pathlib.Path), mapping: (None, dict) = default_mapping, skiprows: int = 3,
+             line_em_meta: Optional[int] = 2, line_decode_meta: Optional[int] = 1,
+             **pd_csv_args) -> Tuple[dict, dict, dict]:
+    """
+    Loads a CSV file which does provide a header.
+
+    Args:
+        path: path to file
+        mapping: mapping dictionary with keys at least ('x', 'y', 'z', 'phot', 'id', 'frame_ix')
+        skiprows: number of skipped rows before header
+        line_em_meta: line ix where metadata of emitters is present (set None for no meta data)
+        line_decode_meta: line ix where decode metadata is present(set None for no decode meta)
+        pd_csv_args: additional keyword arguments to be parsed to the pandas csv reader
+
+    Returns:
+        dict: dictionary which can readily be converted to an EmitterSet by EmitterSet(**out_dict)
+    """
+
+    chunks = pd.read_csv(path, chunksize=100000, skiprows=skiprows, **pd_csv_args)
+    data = pd.concat(chunks)
+
+    data_dict = {
+        'xyz': torch.stack((torch.from_numpy(data[mapping['x']].to_numpy()).float(),
+                            torch.from_numpy(data[mapping['y']].to_numpy()).float(),
+                            torch.from_numpy(data[mapping['z']].to_numpy()).float()), 1),
+        'phot': torch.from_numpy(data[mapping['phot']].to_numpy()).float(),
+        'frame_ix': torch.from_numpy(data[mapping['frame_ix']].to_numpy()).long(),
+        'id': None
+    }
+
+    if 'id' in mapping.keys():
+        data_dict['id'] = torch.from_numpy(data[mapping['id']].to_numpy()).long()
+
+    if 'x_cr' in mapping.keys():
+        data_dict['xyz_cr'] = torch.stack((torch.from_numpy(data[mapping['x_cr']].to_numpy()).float(),
+                                           torch.from_numpy(data[mapping['y_cr']].to_numpy()).float(),
+                                           torch.from_numpy(data[mapping['z_cr']].to_numpy()).float()), 1)
+
+    if 'x_sig' in mapping.keys():
+        data_dict['xyz_sig'] = torch.stack((torch.from_numpy(data[mapping['x_sig']].to_numpy()).float(),
+                                            torch.from_numpy(data[mapping['y_sig']].to_numpy()).float(),
+                                            torch.from_numpy(data[mapping['z_sig']].to_numpy()).float()), 1)
+
+    for k in ('phot_sig', 'bg_sig', 'phot_cr', 'bg_cr'):
+        if k in mapping.keys():
+            data_dict[k] = torch.from_numpy(data[mapping[k]].to_numpy()).float()
+
+    """Load metadata. For some reason linecache ix is off by one (as compared to my index)."""
+    if line_decode_meta is not None:
+        decode_meta = json.loads(linecache.getline(str(path), line_decode_meta + 1).strip('# '))
+    else:
+        decode_meta = None
+
+    if line_em_meta is not None:
+        em_meta = json.loads(linecache.getline(str(path), line_em_meta + 1).strip('# '))
+    else:
+        em_meta = None
+
+    return data_dict, em_meta, decode_meta
+
+
+def load_smap(path: (str, pathlib.Path), mapping: (dict, None) = None) -> Tuple[dict, dict, dict]:
+    """
+
+    Args:
+        path: .mat file
+        mapping (optional): mapping of matlab fields to emitter. Keys must be x,y,z,phot,frame_ix,bg
+        **emitter_kwargs: additional arguments to be parsed to the emitter initialisation
+
+    Returns:
+
+    """
+    if mapping is None:
+        mapping = {'x': 'xnm', 'y': 'ynm', 'z': 'znm',
+                   'phot': 'phot', 'frame_ix': 'frame', 'bg': 'bg'}
+
+    f = h5py.File(path, 'r')
+
+    loc_dict = f['saveloc']['loc']
+
+    emitter_dict = {
+        'xyz': torch.cat([
+            torch.from_numpy(np.array(loc_dict[mapping['x']])).permute(1, 0),  # will always be 2D
+            torch.from_numpy(np.array(loc_dict[mapping['y']])).permute(1, 0),
+            torch.from_numpy(np.array(loc_dict[mapping['z']])).permute(1, 0)
+        ], 1),
+
+        'phot': torch.from_numpy(np.array(loc_dict[mapping['phot']])).squeeze(),
+        'frame_ix': torch.from_numpy(np.array(loc_dict[mapping['frame_ix']])).squeeze().long(),
+        'bg': torch.from_numpy(np.array(loc_dict[mapping['bg']])).squeeze().float()
+    }
+
+    emitter_dict['frame_ix'] -= 1  # MATLAB starts at 1, python and all serious languages at 0
+
+    return emitter_dict, None, None
 
 
 class EmitterWriteStream:
