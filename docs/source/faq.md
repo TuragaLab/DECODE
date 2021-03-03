@@ -11,10 +11,10 @@
     We advise to update DECODE. See the update section below the installation instructions. You may need to redownload the most recent notebooks as well.
 
 - I get `CUDA out of memory` errors
-    > This might happen if your GPU is 
+    > This might happen if your GPU is
     > 1. Doing multiple things, i.e. used not only for computation but also for the display
     > 2. old or has to little memory
-    > 
+    >
     > If you have multiple GPU devices you may set: `device='cuda:1'` (where `1` corresponds to the respective index of the device, starting with 0). If you don't have multiple devices, you may want to reduce the batch size: `param.HyperParameter.batch_size`.
 
 - I get errors like `No CUDA capable device found` or CUDA driver issues.
@@ -23,7 +23,7 @@
     ```python
       import spline
       import torch
-      
+
       print(torch.cuda.is_available())
       print(spline.cuda_compiled)
       print(spline.cuda_is_available())
@@ -32,10 +32,10 @@
     driver issue.
 
 - Training breaks due to `multiprocessing` or `broken pipe` error.
-    > This can happen particularly often  for Windows and there is no 'one answer'. 
+    > This can happen particularly often  for Windows and there is no 'one answer'.
     You might want to decrease the number of CPU workers or disable multiprocessing at all.
-    For this you would start the training with changed number of workers workers by adding `-n [number of workers]` at the end of the python command. Specify `-n 0` for disabling multiprocessing if even 2 lead to an error.
+    For this you would start the training with changed number of workers workers by adding `-w [number of workers]` at the end of the python command. Specify `-w 0` for disabling multiprocessing if even 2 lead to an error.
     Alternitavely change the `.yaml` file here `param -> Hardware -> num_worker_train`.
     Note that this can slow down training.
     You can also try changing the multiprocessing strategy, which you can do in the .yaml file. `param -> Hardware -> torch_multiprocessing_sharing_strategy`. The sharing strategies depend on your
-    system. Please have a look at https://pytorch.org/docs/stable/multiprocessing.html
+    system. Please have a look at [Pytorch Multiprocessing](https://pytorch.org/docs/stable/multiprocessing.html)

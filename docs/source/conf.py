@@ -34,6 +34,10 @@ release = '0.9.a'
 
 # -- General configuration ---------------------------------------------------
 
+source_parsers = {
+    '.md': 'recommonmark.parser.CommonMarkParser',
+}
+
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
@@ -42,6 +46,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx_autodoc_typehints',
     'sphinx.ext.viewcode',
+    'sphinx_markdown_tables',
     'sphinx_rtd_theme',
     'recommonmark',
 ]

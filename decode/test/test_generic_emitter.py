@@ -297,12 +297,13 @@ class TestEmitterSet:
 
         assert em_start == em
 
-    @pytest.mark.parametrize("format", ['.pt', '.h5'])
+    @pytest.mark.parametrize("format", ['.pt', '.h5', '.csv'])
+    @pytest.mark.filterwarnings("ignore:.*For .csv files, implicit usage of .load()")
     def test_save_load(self, format, tmpdir):
 
         em = RandomEmitterSet(1000, xy_unit='nm', px_size=(100., 100.))
 
-        p = Path(tmpdir / f'em.{format}')
+        p = Path(tmpdir / f'em{format}')
         em.save(p)
         em_load = EmitterSet.load(p)
         assert em == em_load, "Reloaded emitterset is not equivalent to inital one."
@@ -335,7 +336,7 @@ class TestEmitterSet:
     def test_to_dict(self):
 
         em = RandomEmitterSet(100, xy_unit='nm', px_size=(100., 200.))
-        
+
         """Check whether doing one round of to_dict and back works"""
         em_clone = em.clone()
 
