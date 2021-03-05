@@ -2,7 +2,7 @@ name: decode_dev_cuda
 
 channels:
   - turagalab/label/dev
-  - pytorch-nightly
+  - pytorch
   - conda-forge
   - defaults
 
@@ -21,8 +21,8 @@ dependencies:
   - sphinx_rtd_theme
 
   # actual package
-  - python=3.8
-  - pytorch=1.7.1
+  - python=3.9
+  - pytorch=1.8
   - cudatoolkit
   - click
   - deprecated
