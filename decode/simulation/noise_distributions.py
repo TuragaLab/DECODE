@@ -55,7 +55,8 @@ class Gamma(NoiseDistribution):
         self.scale = scale
 
     def forward(self, x):
-        return torch.distributions.gamma.Gamma(x, 1 / self.scale).sample()
+        # disable validate_args because 0 is okay for sampling
+        return torch.distributions.gamma.Gamma(x, 1 / self.scale, validate_args=False).sample()
 
 
 class Gaussian(NoiseDistribution):
@@ -88,4 +89,5 @@ class Poisson(NoiseDistribution):
         super().__init__()
 
     def forward(self, x):
-        return torch.distributions.poisson.Poisson(x).sample()
+        # disable validate_args because 0 is okay for sampling
+        return torch.distributions.poisson.Poisson(x, validate_args=False).sample()

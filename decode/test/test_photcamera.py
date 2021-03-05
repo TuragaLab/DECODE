@@ -5,7 +5,7 @@ import decode.simulation.camera as camera
 from decode.generic import test_utils
 
 
-class TestPhotons2Camera:
+class TestPhoton2Camera:
 
     @pytest.fixture(scope='class')
     def cam_fix(self):
@@ -13,8 +13,12 @@ class TestPhotons2Camera:
                                     baseline=100, read_sigma=74.4, photon_units=False)
 
     def test_shape(self, cam_fix):
-        x = torch.ones((32, 3, 64, 64))
+        x = torch.rand((32, 3, 64, 64))
         assert x.size() == cam_fix.forward(x).size()
+
+    def test_edge_frames(self, cam_fix):
+
+        cam_fix.forward(torch.zeros((32, 3, 64, 64)))
 
     def test_photon_units(self, cam_fix):
         cam_fix.photon_units = True
@@ -24,11 +28,6 @@ class TestPhotons2Camera:
 
         tol = 0.01
         assert abs((x.mean() - out.mean()) / x.mean()) <= tol
-
-    def test_warning(self, cam_fix):
-        cam_fix.photon_units = True
-        x = torch.rand((32, 3, 64, 64))
-        out = cam_fix.backward(x)
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Shipping to CUDA makes only sense if CUDA is available.")
     @pytest.mark.parametrize("input_device", ["cpu", "cuda"])
@@ -43,7 +42,7 @@ class TestPhotons2Camera:
                == exp_device
 
 
-class TestPerfectCamera(TestPhotons2Camera):
+class TestPerfectCamera(TestPhoton2Camera):
 
     @pytest.fixture()
     def cam_fix(self):
@@ -59,7 +58,7 @@ class TestPerfectCamera(TestPhotons2Camera):
 
 
 @pytest.mark.skip(reason="Implementation not ready.")
-class TestSCMOS(TestPhotons2Camera):
+class TestSCMOS(TestPhoton2Camera):
 
     @pytest.fixture()
     def cam_fix(self):
