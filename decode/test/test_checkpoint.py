@@ -6,7 +6,7 @@ from ..utils import checkpoint
 
 class TestCheckpoint:
 
-    @pytest.yield_fixture()
+    @pytest.fixture()
     def ckpt(self):
         path = Path('dummy_ckpt.pt')
         yield checkpoint.CheckPoint(path)

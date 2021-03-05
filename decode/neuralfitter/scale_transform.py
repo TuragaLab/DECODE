@@ -274,7 +274,7 @@ class ParameterListRescale:
         self.z_max = z_max
         self.bg_max = bg_max
 
-    def forward(self, x: torch.Tensor, mask: torch.Tensor, bg: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor, bg: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
 
         if x.dim() not in (2, 3) or x.size(-1) != 4:
             raise ValueError(f"Unsupported shape of input {x.size()}")

@@ -1,7 +1,7 @@
-name: decode_cuda
+name: decode_dev_cuda
 
 channels:
-  - turagalab
+  - turagalab/label/dev
   - pytorch
   - conda-forge
   - defaults
@@ -17,15 +17,16 @@ dependencies:
   - recommonmark  # markdown for sphinx
   - sphinx
   - sphinx-autodoc-typehints
+  - sphinx-markdown-tables
   - sphinx_rtd_theme
 
   # actual package
-  - python=3.8
-  - pytorch=1.5.1
-  - cudatoolkit=10.1
-  - torchvision
+  - python=3.9
+  - pytorch=1.8
+  - cudatoolkit
   - click
   - deprecated
+  - gitpython>=3.1
   - h5py
   - line_profiler
   - matplotlib
@@ -37,9 +38,9 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-  - spline
+  - spline>=0.10.alpha.2
   - tensorboard
-  - tifffile
+  - tifffile>=2020.2
   - tqdm
 
   # add kernel to jupyter

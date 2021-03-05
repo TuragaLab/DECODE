@@ -46,7 +46,7 @@ def parse_args():
                         help='Set no log if you do not want to log the current run.')
 
     parser.add_argument('-l', '--log_folder', default='runs',
-                        help='Specify the (parent) folder you want to log to. If rel-path, relative to DeepSMLM root.')
+                        help='Specify the (parent) folder you want to log to. If rel-path, relative to DECODE root.')
 
     parser.add_argument('-c', '--log_comment', default=None,
                         help='Add a log_comment to the run.')
@@ -59,7 +59,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                       num_worker_override: int = None,
                       log_folder: str = 'runs', log_comment: str = None):
     """
-    Sets up the engine to train DeepSMLM. Includes sample simulation and the actual training.
+    Sets up the engine to train DECODE. Includes sample simulation and the actual training.
 
     Args:
         param_file: parameter file path
@@ -185,10 +185,11 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                                                      post_processor=post_processor, matcher=matcher, logger=logger,
                                                      step=i)
 
-        if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-            lr_scheduler.step(val_loss)
-        else:
-            lr_scheduler.step()
+        if i >= 1:
+            if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                lr_scheduler.step(val_loss)
+            else:
+                lr_scheduler.step()
 
         model_ls.save(model, None)
         if no_log:
@@ -246,11 +247,11 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     optimizer = optimizer(model.parameters(), **param.HyperParameter.opt_param)
 
     """Loss function."""
-    criterion = decode.neuralfitter.losscollection.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
-                                                                  yextent=param.Simulation.psf_extent[1],
-                                                                  img_shape=param.Simulation.img_size,
-                                                                  device=device,
-                                                                  chweight_stat=param.HyperParameter.chweight_stat)
+    criterion = decode.neuralfitter.loss.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
+                                                        yextent=param.Simulation.psf_extent[1],
+                                                        img_shape=param.Simulation.img_size,
+                                                        device=device,
+                                                        chweight_stat=param.HyperParameter.chweight_stat)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler_available = {
@@ -269,7 +270,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     """Log the model"""
     try:
         dummy = torch.rand((2, param.HyperParameter.channels_in,
-                            *param.Simulation.img_size), requires_grad=True).to(torch.device(device))
+                            *param.Simulation.img_size), requires_grad=False).to(torch.device(device))
         logger.add_graph(model, dummy)
 
     except:
@@ -367,9 +368,9 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
 
             decode.neuralfitter.coord_transform.Offset2Coordinate.parse(param),
 
-            decode.neuralfitter.post_processing.NMSPostProcessing(raw_th=param.PostProcessingParam.raw_th,
-                                                                  xy_unit='px',
-                                                                  px_size=param.Camera.px_size)
+            decode.neuralfitter.post_processing.SpatialIntegration(raw_th=param.PostProcessingParam.raw_th,
+                                                                   xy_unit='px',
+                                                                   px_size=param.Camera.px_size)
         ])
 
     else:

@@ -1,26 +1,24 @@
 ## Instructions for Developers
-Travis CI: [![Build Status](https://travis-ci.com/Haydnspass/DeepSMLM.svg?token=qb4PpCab8Gb7CDLAuNTY&branch=master)](https://travis-ci.com/Haydnspass/DeepSMLM)
 
 0. Clone the repository
 1. Install conda environment from file and activate it. Use the respective environment depending on whether you have a CUDA GPU or not.
 The cubic spline psf is pre-compiled in a different repo / as a separate package and will be installed automatically.
 
         # CUDA
-        conda env create -f environment_cuda102_py38_pt15.yml
-        conda activate decode_cuda_py38_pt15   
+        conda env create -f environment_cuda.yml
+        conda activate decode_dev_cuda 
 
         # CPU / macOS
-        conda env create -f environment_cpu_py38_pt15.yml
-        conda activate deepsmlm_cpu
+        conda env create -f environment_cpu.yml
+        conda activate decode_dev_cpu
 
-3. Test whether everything works as expected
+3. Test whether everything works as expected. Note that if you run all tests, all files from the gateway file will be downloaded but you can exclude these tests.
 
             # assuming you are in the repo folder
-            pytest decode/test
-
-            # or if you fancy some nice figures, depending on your IDE
-            # you might need to close popping up matplot figures
-            pytest decode/test --plot  
+            
+            pytest decode/test  # all tests
+            pytest -m "not webbig"  # without downloading the assets
+            pytest -m "not plot" decode/test  # without the tests that have graphical output
 
 4. The package can be used in python as
 

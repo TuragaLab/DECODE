@@ -137,6 +137,7 @@ class TestSimpleWeight(AbstractWeightGeneratorVerification):
             assert test_utils.tens_almeq(mask[:, 5], 1 / tar_frames[:, 5] ** 2.3, 1e-5), "BG CRLB estimate"
 
 
+@pytest.mark.skip("Not ready implementation.")
 class TestFourFoldWeight(AbstractWeightGeneratorVerification):
 
     @pytest.fixture()

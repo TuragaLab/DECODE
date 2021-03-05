@@ -131,47 +131,6 @@ class PPXYZBLoss(Loss):
         return tot_loss
 
 
-class FourFoldPPXYZ(Loss):
-    """
-    Four-fold implementation of PPXYZ Loss, i.e. half pixel shifted pointers.
-
-    """
-
-    def __init__(self, components):
-        """
-
-        Args:
-            components: respective PXYZ Loss instances
-
-        """
-        super().__init__()
-
-        self.com = components
-        self.bg_loss = torch.nn.MSELoss(reduction='none')
-
-    def __call__(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
-
-    def log(self, loss_val):
-        return loss_val.mean().item(), {}
-
-    def _forward_checks(output, target, weight):
-        pass
-
-    def forward(self, output, target, weight):
-        assert output.size(1) % len(self.com) == 1
-        n_ch_per_com = (output.size(1) - 1) // len(self.com)
-
-        loss = torch.cat(
-            [self.com[i].forward(output[:, c:c + n_ch_per_com],
-                                 target[:, c:c + n_ch_per_com],
-                                 weight[:, c:c + n_ch_per_com]) for i, c in enumerate(range(0, 20, 5))], 1)
-
-        loss = torch.cat((loss, self.bg_loss(output[:, [-1]], target[:, [-1]]) * weight[:, [-1]]), 1)
-
-        return loss
-
-
 class GaussianMMLoss(Loss):
     """
     Model output is a mean and sigma value which forms a gaussian mixture model.
@@ -256,7 +215,7 @@ class GaussianMMLoss(Loss):
         prob_normed = p / p.sum(-1).sum(-1).view(-1, 1, 1)
 
         """Hacky way to get all prob indices"""
-        p_inds = tuple((p + 1).nonzero().transpose(1, 0))
+        p_inds = tuple((p + 1).nonzero(as_tuple=False).transpose(1, 0))
         pxyz_mu = pxyz_mu[p_inds[0], :, p_inds[1], p_inds[2]]
 
         """Convert px shifts to absolute coordinates"""

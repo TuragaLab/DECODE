@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from deprecated import deprecated
 from typing import Union
 
 import torch
@@ -10,10 +11,7 @@ from . import target_generator
 
 
 class WeightGenerator(target_generator.TargetGenerator):
-    """
-    Abstract weight generator. A weight is something that is to be multiplied by the (non-reduced) loss, i.e. as
-
-    """
+    """Abstract weight generator. A weight is something that is to be multiplied by the (non-reduced) loss."""
 
     def __init__(self, ix_low: int = None, ix_high: int = None, squeeze_batch_dim: bool = False):
         super().__init__(xy_unit=None, ix_low=ix_low, ix_high=ix_high, squeeze_batch_dim=squeeze_batch_dim)
@@ -99,7 +97,6 @@ class SimpleWeight(WeightGenerator):
 
     def check_sanity(self):
 
-        """Sanity checks"""
         if self.weight_mode not in self._weight_bases_all:
             raise ValueError(f"Weight base must be in {self._weight_bases_all}.")
 
@@ -176,6 +173,7 @@ class SimpleWeight(WeightGenerator):
         return self._postprocess_output(weight_frames)
 
 
+@deprecated(reason="Preliminary implementation. Kept if usefuel in future.", version="0.9")
 class FourFoldSimpleWeight(WeightGenerator):
 
     def __init__(self, *, xextent: tuple, yextent: tuple, img_shape: tuple, roi_size: int,

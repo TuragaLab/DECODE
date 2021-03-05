@@ -169,7 +169,7 @@ class LookUpPostProcessing(PostProcessing):
         assert features.dim() == 4
         assert active_px.dim() == features.dim() - 1
 
-        batch_ix = active_px.nonzero()[:, 0]
+        batch_ix = active_px.nonzero(as_tuple=False)[:, 0]
         features_active = features.permute(1, 0, 2, 3)[:, active_px]
 
         return batch_ix, features_active
@@ -216,9 +216,9 @@ class LookUpPostProcessing(PostProcessing):
                           prob=prob.cpu(), xy_unit=self.xy_unit, px_size=self.px_size)
 
 
-class NMSPostProcessing(LookUpPostProcessing):
+class SpatialIntegration(LookUpPostProcessing):
     """
-    Non-Maximum Suppression post-processing.
+    Spatial Integration post processing.
     """
 
     _p_aggregations = ('sum', 'norm_sum')  # , 'max', 'pbinom_cdf', 'pbinom_pdf')
@@ -231,12 +231,12 @@ class NMSPostProcessing(LookUpPostProcessing):
         """
 
         Args:
-            raw_th:
-            xy_unit:
-            px_size:
-            pphotxyzbg_mapping:
-            photxyz_sigma_mapping:
-            p_aggregation:
+            raw_th: probability threshold from where detections are considered
+            xy_unit: unit of the xy coordinates
+            px_size: pixel size
+            pphotxyzbg_mapping: channel index mapping
+            photxyz_sigma_mapping: channel index mapping of sigma channels
+            p_aggregation: aggreation method to aggregate probabilities. can be 'sum', 'max', 'norm_sum'
         """
         super().__init__(raw_th=raw_th, xy_unit=xy_unit, px_size=px_size,
                          pphotxyzbg_mapping=pphotxyzbg_mapping,
@@ -276,7 +276,7 @@ class NMSPostProcessing(LookUpPostProcessing):
             p_ps1 = max_mask1 * conv
 
             """
-            In order do be able to identify two fluorophores in adjacent pixels we look for 
+            In order do be able to identify two fluorophores in adjacent pixels we look for
             probablity values > 0.6 that are not part of the first mask
             """
             p_copy *= (1 - max_mask1[:, 0])
@@ -427,7 +427,7 @@ class ConsistencyPostprocessing(PostProcessing):
     def _cluster_batch(self, p, features):
         """
         Cluster a batch of frames
-        
+
         Args:
             p (torch.Tensor): detections
             features (torch.Tensor): features

@@ -119,7 +119,9 @@ def log_dists(tp, tp_match, pred, px_border, px_size, logger, step):
 
     """Log prob dist"""
     f_prob, ax_prob = plt.subplots()
-    sns.distplot(pred.prob, bins=50, norm_hist=True, ax=ax_prob, kde=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sns.distplot(pred.prob, bins=50, norm_hist=True, ax=ax_prob, kde=False)
     logger.add_figure('dist/prob', f_prob, step)
 
 
@@ -144,7 +146,7 @@ def post_process_log_test(*, loss_cmp, loss_scalar, x, y_out, y_tar, weight, em_
     """Match and Evaluate"""
     tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="Non-Finite values encountered during fitting.")
+        warnings.simplefilter("ignore")
         result = evaluation.SMLMEvaluation(weighted_eval=WeightedErrors(mode='crlb', reduction='gaussian')).forward(tp, fp, fn, tp_match)
 
     """Log"""

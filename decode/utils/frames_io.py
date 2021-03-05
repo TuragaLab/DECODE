@@ -3,12 +3,12 @@ import warnings
 import torch
 import pathlib
 import tifffile
-from typing import Union, Tuple, Callable
+from typing import Union, Tuple, Callable, Iterable
 
 from tqdm import tqdm
 
 
-def load_tif(file: (str, pathlib.Path)) -> torch.Tensor:
+def load_tif(path: (str, pathlib.Path), multifile=True) -> torch.Tensor:
     """
     Reads the tif(f) files. When a folder is specified, potentially multiple files are loaded.
     Which are stacked into a new first axis.
@@ -16,14 +16,16 @@ def load_tif(file: (str, pathlib.Path)) -> torch.Tensor:
     not guarantee anything.
 
     Args:
-        file: path to the tiff / or folder
+        path: path to the tiff / or folder
+        multifile: auto-load multi-file tiff (for large frame stacks). When path is a directory, multifile is
+        automatically disabled.
 
     Returns:
         torch.Tensor: frames
 
     """
 
-    p = pathlib.Path(file)
+    p = pathlib.Path(path)
 
     """If dir, load multiple files and stack them if more than one found"""
     if p.is_dir():
@@ -31,7 +33,7 @@ def load_tif(file: (str, pathlib.Path)) -> torch.Tensor:
         file_list = sorted(p.glob('*.tif*'))  # load .tif or .tiff
         frames = []
         for f in tqdm(file_list, desc="Tiff loading"):
-            frames.append(torch.from_numpy(tifffile.imread(str(f)).astype('float32')))
+            frames.append(torch.from_numpy(tifffile.imread(str(f), multifile=False).astype('float32')))
 
         if frames.__len__() >= 2:
             frames = torch.stack(frames, 0)
@@ -39,7 +41,7 @@ def load_tif(file: (str, pathlib.Path)) -> torch.Tensor:
             frames = frames[0]
 
     else:
-        im = tifffile.imread(str(p))
+        im = tifffile.imread(str(p), multifile=multifile)
         frames = torch.from_numpy(im.astype('float32'))
 
     if frames.squeeze().ndim <= 2:
@@ -47,6 +49,43 @@ def load_tif(file: (str, pathlib.Path)) -> torch.Tensor:
                       f"or could only find a single frame.", ValueError)
 
     return frames
+
+
+class TiffTensor:
+    def __init__(self, file, dtype='float32'):
+        """
+        Memory-mapped tensor. Note that data is loaded only to the extent to which the object is accessed through brackets '[ ]'
+        Therefore, this tensor has no value and no state until it is sliced and then returns a torch tensor.
+        You can of course enforce loading the whole tiff by tiff_tensor[:]
+
+        Args:
+            file: path to tiff file
+            dtype: data type to which to convert
+        """
+        self._file = file
+        self._dtype = dtype
+
+    def __getitem__(self, pos) -> torch.Tensor:
+
+        # convert to tuple if not already
+        if not isinstance(pos, tuple):
+            pos = tuple([pos])
+
+        image = tifffile.imread(str(self._file), key=pos[0]).astype(self._dtype)
+
+        if len(pos) == 1:
+            return torch.from_numpy(image)
+
+        return torch.from_numpy(image).__getitem__(pos[1:])
+
+    def __setitem(self, key, value):
+        raise NotImplementedError
+
+    def __len__(self):
+        tiff = tifffile.TiffFile(self._file, mode='rb')
+        n = len(tiff.pages)
+        tiff.close()
+        return n
 
 
 class BatchFileLoader:

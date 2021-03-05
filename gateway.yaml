@@ -3,20 +3,12 @@
 # hashs are sha256
 
 code: https://github.com/TuragaLab/DECODE/archive/master.zip
-colab:
-  training: https://oc.embl.de/index.php/s/7xB0u8lwjvFSb9n/download
-  fit: https://oc.embl.de/index.php/s/PtaAHvxogOFfmhZ/download
-
-calib:
-  challenge_2d:
-  challenge_as:
-  challenge_dh:
 
 examples:
   package_1:
     name: package_1
     comment: experimental data, frames, trained model, all in one.
-    url: https://oc.embl.de/index.php/s/TPlwJGVAaT3NKzf/download
+    url: https://oc.embl.de/index.php/s/j2kCCILAS5oLO8B/download
     hash: 418aa36686ea52de47117946f9dd53eb449f4dad1a38948adc786a59efb34100
 
   package_2:
@@ -33,17 +25,24 @@ examples:
 
   colab_uhd_2020-07-23:
     name: uhd_2020-07-23
-    comment:
+    comment: Colab training data.
     url: https://oc.embl.de/index.php/s/7Duj5GOceYR3HqJ/download
     hash: 6d6abb86ac796c5290a0beaf1bb2056122feec2cbef3b28295f7d57ec3833bab
 
   colab_uhd_2020-07-23_fit:
     name: uhd_2020-07-23_fit
-    comment:
+    comment: Colab fitting data. Includes cropped version experimental data (of example package 1) and model.
     url: https://oc.embl.de/index.php/s/V6hdzqv9Erc2mtM/download
     hash: 411e1d455066323cc15b97e93683b822618d3b4aecdbca37d39d04e558641bec
+
+  bead_cal_2020-07-23:
+    name: beads_m2_2020-07-23
+    comment: raw beads
+    url: https://oc.embl.de/index.php/s/2pnyNbXZnegBIVs/download
+    hash: 7337d1fbc24363a5980031caf5356219a75e303738b50e61942d23c44321210f
 
 
 wheels:
   decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9.3/decode-0.9.3-py3-none-any.whl
   spline_py36: https://github.com/TuragaLab/SplinePSF/releases/download/v0.9/spline-0.9-cp36-cp36m-linux_x86_64.whl
+  spline_py37: https://github.com/TuragaLab/SplinePSF/releases/download/v0.9/spline-0.9-cp37-cp37m-linux_x86_64.whl

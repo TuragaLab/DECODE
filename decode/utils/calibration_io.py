@@ -20,7 +20,7 @@ class SMAPSplineCoefficient:
         self.dz = self.calib_mat.cspline.dz
         self.spline_roi_shape = self.coeff.shape[:3]
 
-    def init_spline(self, xextent, yextent, img_shape, cuda_kernel=torch.cuda.is_available(), **kwargs):
+    def init_spline(self, xextent, yextent, img_shape, device='cuda:0' if torch.cuda.is_available() else 'cpu', **kwargs):
         """
         Initializes the CubicSpline function
 
@@ -28,11 +28,12 @@ class SMAPSplineCoefficient:
             xextent:
             yextent:
             img_shape:
+            device: on which device to simulate
 
         Returns:
 
         """
         psf = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=self.ref0,
-                                        coeff=self.coeff, vx_size=(1., 1., self.dz), cuda_kernel=cuda_kernel, **kwargs)
+                                        coeff=self.coeff, vx_size=(1., 1., self.dz), device=device, **kwargs)
 
         return psf

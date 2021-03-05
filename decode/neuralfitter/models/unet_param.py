@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import warnings
 
 # by constantin pape
 # from https://github.com/constantinpape/mu-net
@@ -138,8 +139,10 @@ class UNetBase(nn.Module):
         shape_diff = tuple((ish - csh) // 2
                            for ish, csh in zip(input_shape, shape_to_crop))
         # if input_.size() == shape_to_crop:
-        if all(sd == 0 for sd in shape_diff):
-            return input_
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if all(sd == 0 for sd in shape_diff):
+                return input_
         # calculate the crop
         crop = tuple(slice(sd, sh - sd)
                      for sd, sh in zip(shape_diff, input_shape))

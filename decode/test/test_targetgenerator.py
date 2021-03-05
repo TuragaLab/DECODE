@@ -1,6 +1,5 @@
 import pytest
 import torch
-import matplotlib.pyplot as plt
 
 import decode.simulation.psf_kernel as psf_kernel
 from decode.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet, test_utils as tutil
@@ -171,8 +170,13 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
         """
 
         """Setup"""
-        n = 50000
+        n = 5000
         xyz = torch.rand(n, 3) * 100
+
+        # move them a bit away from zero for this test (otherwise it might fail)
+        ix_close_zero = xyz.abs() < 1e-6
+        xyz[ix_close_zero] = xyz[ix_close_zero] + 0.01
+
         phot = torch.rand_like(xyz[:, 0])
         frame_ix = torch.arange(n)
 
@@ -191,17 +195,6 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
                     ix_x = torch.clamp(non_zero_detect[i, -2] + x, 0, 63)
                     ix_y = torch.clamp(non_zero_detect[i, -1] + y, 0, 63)
                     assert out[ix_n, 2, ix_x, ix_y] != 0  # would only fail if either x or y are exactly % 1 == 0
-
-
-class TestJonasTarget(TestUnifiedEmbeddingTarget):
-
-    @pytest.fixture()
-    def targ(self):
-        xextent = (-0.5, 63.5)
-        yextent = (-0.5, 63.5)
-        img_shape = (64, 64)
-
-        return target_generator.OverlappingDetectionTarget(xextent, yextent, img_shape, roi_size=5, rim_max=0.6, ix_low=0, ix_high=5)
 
 
 class Test4FoldTarget(TestTargetGenerator):
@@ -293,7 +286,6 @@ class TestParameterListTarget(TestTargetGenerator):
         pass
 
     def test_shape(self, targ, fem):
-
         """Setup"""
         n_frames_tar = fem.frame_ix.unique().size(0)
 
@@ -305,7 +297,6 @@ class TestParameterListTarget(TestTargetGenerator):
         assert activation_tar.size() == torch.Size((n_frames_tar, targ.n_max)), "Wrong size of activation target."
 
     def test_forward(self, targ, fem):
-
         """Setup"""
         n_frames_tar = fem.frame_ix.unique().size(0)
 
