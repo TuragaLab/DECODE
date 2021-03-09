@@ -1,8 +1,7 @@
 # Centralized dependencies
 
 run:
-  - pytorch=1.7.1
-  - torchvision
+  - pytorch=1.8
   - numpy
   - deprecated
   - gitpython>=3.1
@@ -28,7 +27,7 @@ docs:
   - recommonmark  # markdown for sphinx
   - sphinx
   - sphinx-autodoc-typehints
-  - sphinx_rtd_theme
+  - pydata-sphinx-theme
 
 
 # Below are changes respective to the distribution platform

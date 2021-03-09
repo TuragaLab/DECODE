@@ -19,7 +19,7 @@ dependencies:
   - sphinx
   - sphinx-autodoc-typehints
   - sphinx-markdown-tables
-  - sphinx_rtd_theme
+  - pydata-sphinx-theme
 
   # actual package
   - python=3.9

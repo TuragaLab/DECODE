@@ -14,13 +14,6 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('../..'))
 
-# import pytorch_sphinx_theme
-import sphinx_rtd_theme
-
-# import guzzle_sphinx_theme
-# sys.path.insert(0, os.path.abspath('.'))
-
-
 # -- Project information -----------------------------------------------------
 import decode
 
@@ -47,7 +40,6 @@ extensions = [
     'sphinx_autodoc_typehints',
     'sphinx.ext.viewcode',
     'sphinx_markdown_tables',
-    'sphinx_rtd_theme',
     'recommonmark',
 ]
 
@@ -72,9 +64,6 @@ source_suffix = {
 
 # -- Options for HTML output -------------------------------------------------
 # Adds an HTML table visitor to apply Bootstrap table classes
-# html_translator_class = 'guzzle_sphinx_theme.HTMLTranslator'
-# html_theme_path = guzzle_sphinx_theme.html_theme_path()
-# html_theme = 'guzzle_sphinx_theme'
 
 # Register the theme as an extension to generate a sitemap.xml
 # extensions.append("guzzle_sphinx_theme")
@@ -83,12 +72,10 @@ source_suffix = {
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 
-html_theme = "sphinx_rtd_theme"
-# html_theme_path = ["/Users/lucasmueller/Repositories/pytorch_sphinx_theme"]
+html_theme = "pydata_sphinx_theme"
 
 html_theme_options = {
-    # Set the name of the project to appear in the sidebar
-    "project_nav_name": "DECODE",
+    "github_url": "https://github.com/turagalab/decode",
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
