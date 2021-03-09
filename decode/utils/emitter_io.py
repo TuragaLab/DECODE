@@ -36,6 +36,7 @@ def get_decode_meta() -> dict:
 
 
 def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict) -> None:
+
     def create_volatile_dataset(group, name, tensor):
         """Empty DS if all nan"""
         if torch.isnan(tensor).all():
@@ -71,8 +72,17 @@ def save_h5(path: Union[str, pathlib.Path], data: dict, metadata: dict) -> None:
 
 
 def load_h5(path) -> Tuple[dict, dict, dict]:
-    """Loads a hdf5 file and returns data, metadata and decode meta."""
+    """
+    Loads a hdf5 file and returns data, metadata and decode meta.
 
+    Returns:
+        (dict, dict, dict): Tuple of dicts containing
+
+            - **emitter_data** (*dict*): core emitter data
+            - **emitter_meta** (*dict*): emitter meta information
+            - **decode_meta** (*dict*): decode meta information
+
+    """
     with h5py.File(path, 'r') as h5:
         data = {
             k: torch.from_numpy(v[:]) for k, v in h5['data'].items() if v.shape is not None
@@ -99,7 +109,17 @@ def save_torch(path: Union[str, pathlib.Path], data: dict, metadata: dict):
 
 
 def load_torch(path) -> Tuple[dict, dict, dict]:
-    """Loads a torch saved emitterset and returns data, metadata and decode meta."""
+    """
+    Loads a torch saved emitterset and returns data, metadata and decode meta.
+
+    Returns:
+        (dict, dict, dict): Tuple of dicts containing
+
+            - **emitter_data** (*dict*): core emitter data
+            - **emitter_meta** (*dict*): emitter meta information
+            - **decode_meta** (*dict*): decode meta information
+
+    """
     out = torch.load(path)
     return out['data'], out['meta'], out['decode']
 
@@ -170,7 +190,12 @@ def load_csv(path: (str, pathlib.Path), mapping: (None, dict) = default_mapping,
         pd_csv_args: additional keyword arguments to be parsed to the pandas csv reader
 
     Returns:
-        dict: dictionary which can readily be converted to an EmitterSet by EmitterSet(**out_dict)
+        (dict, dict, dict): Tuple of dicts containing
+
+            - **emitter_data** (*dict*): core emitter data
+            - **emitter_meta** (*dict*): emitter meta information
+            - **decode_meta** (*dict*): decode meta information
+
     """
 
     chunks = pd.read_csv(path, chunksize=100000, skiprows=skiprows, **pd_csv_args)
@@ -225,6 +250,11 @@ def load_smap(path: (str, pathlib.Path), mapping: (dict, None) = None) -> Tuple[
         **emitter_kwargs: additional arguments to be parsed to the emitter initialisation
 
     Returns:
+        (dict, dict, dict): Tuple of dicts containing
+
+            - **emitter_data** (*dict*): core emitter data
+            - **emitter_meta** (*dict*): emitter meta information
+            - **decode_meta** (*dict*): decode meta information
 
     """
     if mapping is None:
