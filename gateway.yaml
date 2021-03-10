@@ -31,7 +31,7 @@ examples:
 
   colab_uhd_2020-07-23_rc:
     name: uhd_2020-07-23_fit_rc
-    comment: [RC] Colab fitting data. Includes cropped version experimental data (of example package 1) and model.
+    comment: RC Colab fitting data. Includes cropped version experimental data (of example package 1) and model.
     url: https://oc.embl.de/index.php/s/KVQ77pmWG9WGVXO/download
     hash:
 
@@ -43,7 +43,7 @@ examples:
 
   colab_uhd_2020-07-23_fit_rc:
     name: uhd_2020-07-23_fit_rc
-    comment: [RC] Colab fitting data. Includes cropped version experimental data (of example package 1) and model.
+    comment: RC Colab fitting data. Includes cropped version experimental data (of example package 1) and model.
     url: https://oc.embl.de/index.php/s/UGGCSRLgXfcPZ6K/download
     hash:
 
