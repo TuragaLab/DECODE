@@ -49,7 +49,7 @@ conda create --name build_clean conda-build anaconda bump2version -c conda-forge
 conda activate build_clean
 
 # bump version so that all versions get updated automatically, creates a git version tag automatically
-bump2version [major/minor/patch/release/build]  # --verbose --dry_run to see the effect
+bump2version [major/minor/patch/release/build]  # --verbose --dry-run to see the effect
 
 # upload git tag
 git push --tags
