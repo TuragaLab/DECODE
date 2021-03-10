@@ -44,5 +44,5 @@ examples:
 
 wheels:
   decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9.3/decode-0.9.3-py3-none-any.whl
-  spline_py36: https://github.com/TuragaLab/SplinePSF/releases/download/v0.9/spline-0.9-cp36-cp36m-linux_x86_64.whl
+  decode_rc: https://github.com/TuragaLab/DECODE/releases/download/v0.10.0.alpha.4/decode-0.10.0a4-py3-none-any.whl
   spline_py37: https://github.com/TuragaLab/SplinePSF/releases/download/v0.9/spline-0.9-cp37-cp37m-linux_x86_64.whl
