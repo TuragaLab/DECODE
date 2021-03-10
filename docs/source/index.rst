@@ -45,7 +45,7 @@ Depending on whether you have a CUDA capable GPU type:
     conda config --set channel_priority strict
 
     # CUDA capable GPU
-    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab ipykernel
+    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit jupyterlab ipykernel
 
     # macOS or no CUDA capable GPU
     conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab ipykernel
