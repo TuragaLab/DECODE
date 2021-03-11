@@ -20,6 +20,7 @@ The repeating pattern of working with this package is
 ### Training and Fit
 Please load the notebooks and start up JupyterLab by executing the following in the Terminal/Anaconda Prompt:
 
+
 ```bash
 conda activate decode_env
 
@@ -33,3 +34,13 @@ This will load the example files and open up a new brewser tab/window. Navigate 
 
 In case of trouble please refer to the [Instructions for JupyterLab](https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html).
 Note that these notebooks might change with different versions of DECODE and might be incompatible. In that case you may want to load the notebooks again (as stated above).
+
+# Video Tutorial
+As part of the virtual [I2K 2020](https://www.janelia.org/you-janelia/conferences/from-images-to-knowledge-with-imagej-friends) conference we oranized a workshop on DECODE. A video recording is available [here](http://www.youtube.com/watch?v=zoWsj3FCUJs).
+Be warned that DECODE is being actively developed, therefore the exact commands might change from those shown in the video.
+
+Timestamps for the different parts:
+  - [Presentation on DECODE](http://www.youtube.com/watch?v=zoWsj3FCUJs&t=1m45s)
+  - [Training and Fitting with DECODE in google colab](http://www.youtube.com/watch?v=zoWsj3FCUJs&t=37m10s)
+  - [Performing Bead Calibration in SMAP](http://www.youtube.com/watch?v=zoWsj3FCUJs&t=2h6m55s)
+  - [Training and Fitting with a local DECODE installation](http://www.youtube.com/watch?v=zoWsj3FCUJs&t=2h19m25s)
