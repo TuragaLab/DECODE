@@ -9,8 +9,6 @@ from matplotlib.colors import hsv_to_rgb
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.ndimage import gaussian_filter
 from matplotlib.colors import rgb_to_hsv
-import PIL
-
 from ..generic import emitter
 
 
@@ -34,10 +32,6 @@ class Renderer(ABC):
         self.contrast = contrast
         
         assert self.abs_clip is None or self.rel_clip is None, "Define either an absolute or a relative value for clipping, but not both"
-
-    @property
-    def _npx_x(self):
-        return math.ceil(self)
   
     def forward(self, em: emitter.EmitterSet) -> torch.Tensor:
         """
