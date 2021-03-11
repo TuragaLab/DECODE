@@ -79,6 +79,9 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
     # auto-set some parameters (will be stored in the backup copy)
     param = decode.utils.param_io.autoset_scaling(param)
 
+    # add meta information
+    param.Meta.version = decode.utils.bookkeeping.decode_state()
+
     """Experiment ID"""
     if not debug:
         experiment_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
@@ -215,6 +218,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
         logger:
         model_out:
         ckpt_path: path of checkpoint
+        device:
         param:
 
     Returns:
@@ -359,7 +363,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
                                                                      px_size=param.Camera.px_size)
         ])
 
-    elif param.PostProcessing == 'NMS':
+    elif param.PostProcessing in ('SpatialIntegration', 'NMS'):  # NMS as legacy support
         post_processor = decode.neuralfitter.utils.processing.TransformSequence([
 
             decode.neuralfitter.scale_transform.InverseParamListRescale(phot_max=param.Scaling.phot_max,

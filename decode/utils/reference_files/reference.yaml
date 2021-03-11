@@ -81,7 +81,9 @@ InOut:
   calibration_file:  # spline calib
   experiment_out:  # main output dir
   model_init:
-PostProcessing: NMS  # (blank) for no post-processing or LookUp, Consistency
+Meta:
+  version:
+PostProcessing: SpatialIntegration  # (blank) for no post-processing or LookUp
 PostProcessingParam:
   raw_th: 0.5
 Scaling:  # if some values are missing they will be auto-set as described in the respective comments below
