@@ -12,7 +12,7 @@ class TestRenderer2D:
     @pytest.fixture()
     def rend(self):
         return renderer.Renderer2D(plot_axis = (0,1), xextent=(0., 100.), yextent=(0., 100.), px_size=10., sigma_blur=10.,
-                                   clip_percentile=None)
+                                   rel_clip=None, abs_clip=None)
 
     @pytest.fixture()
     def em(self):
@@ -31,19 +31,19 @@ class TestRenderer2D:
 
         rend.render(em)
         plt.show()
-
-
-class TestRenderer3D(TestRenderer2D):
+        
+    
+class TestRenderer3D:
 
     @pytest.fixture()
     def rend(self):
         return renderer.Renderer3D(plot_axis = (0,1,2), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), px_size=10., sigma_blur=10.,
-                                   clip_percentile=None)
+                                   rel_clip=None, abs_clip=None)
 
     @pytest.fixture()
     def em(self):
         """Setup"""
-        xyz = torch.rand(100, 3) * torch.Tensor([[100., 100., 1000.]])
+        xyz = torch.tensor([[10., 50., 100.]])
         return emitter.CoordinateOnlyEmitter(xyz, xy_unit='nm')
 
     def test_forward(self, rend, em):
@@ -57,3 +57,4 @@ class TestRenderer3D(TestRenderer2D):
 
         rend.render(em)
         plt.show()
+
