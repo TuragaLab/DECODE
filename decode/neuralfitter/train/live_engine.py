@@ -1,12 +1,12 @@
 import argparse
-import copy
 import datetime
 import os
-import sys
 import shutil
 import socket
+import sys
 from pathlib import Path
 
+import copy
 import torch
 
 import decode.evaluation
@@ -27,9 +27,9 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description='Training Args')
 
-    parser.add_argument('-i', '--cuda_ix', default=None,
-                        help='Specify the cuda device index or set it to false.',
-                        type=int, required=False)
+    parser.add_argument('-i', '--device', default=None,
+                        help='Specify the device string (cpu, cuda, cuda:0) and overwrite param.',
+                        type=str, required=False)
 
     parser.add_argument('-p', '--param_file',
                         help='Specify your parameter file (.yml or .json).',
@@ -55,7 +55,7 @@ def parse_args():
     return args
 
 
-def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False, no_log: bool = False,
+def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool = False, no_log: bool = False,
                       num_worker_override: int = None,
                       log_folder: str = 'runs', log_comment: str = None):
     """
@@ -63,7 +63,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
 
     Args:
         param_file: parameter file path
-        cuda_ix: overwrite cuda index specified by param file
+        device_overwrite: overwrite cuda index specified by param file
         debug: activate debug mode (i.e. less samples) for fast testing
         no_log: disable logging
         num_worker_override: overwrite number of workers for dataloader
@@ -119,15 +119,21 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
         param.Hardware.num_worker_train = num_worker_override
 
     """Hardware / Server stuff."""
-    cuda_ix = int(param.Hardware.device_ix) if cuda_ix is None else cuda_ix
-    if torch.cuda.is_available():
-        torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
-        device = 'cuda'
-
+    if device_overwrite is not None:
+        device = device_overwrite
+        param.Hardware.device_simulation = device_overwrite  # lazy assumption
     else:
+        device = param.Hardware.device
+
+    if torch.cuda.is_available():
+        _, device_ix = decode.utils.hardware._specific_device_by_str(device)
+        if device_ix is not None:
+            # do this instead of set env variable, because torch is inevitably already imported
+            torch.cuda.set_device(device)
+    elif not torch.cuda.is_available():
         device = 'cpu'
 
-    if param.Hardware.torch_multiprocessing_sharing_strategy is not None:  # one some platforms you might have trouble and need to change
+    if param.Hardware.torch_multiprocessing_sharing_strategy is not None:
         torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
 
     if sys.platform in ('linux', 'darwin'):
@@ -426,5 +432,5 @@ def setup_dataloader(param, train_ds, test_ds=None):
 
 if __name__ == '__main__':
     args = parse_args()
-    live_engine_setup(args.param_file, args.cuda_ix, args.debug, args.no_log, args.num_worker_override, args.log_folder,
+    live_engine_setup(args.param_file, args.device, args.debug, args.no_log, args.num_worker_override, args.log_folder,
                       args.log_comment)
