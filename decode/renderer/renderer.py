@@ -14,7 +14,6 @@ from ..generic import emitter
 from tqdm import tqdm
 from torch.jit import script
 
-omb_hist = comb_hist[self.fs//2:-(self.fs//2+1), self.fs//2:-(self.fs//2+1)]
 class Renderer(ABC):
     """
     Renderer. Takes emitters and outputs a rendered image.
