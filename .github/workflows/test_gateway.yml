@@ -28,7 +28,7 @@ jobs:
       - run: pytest decode/test/test_gateway.py
 
       - name: Raise issue when test failed
-        if: failure()
+        if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/master'}}
         uses: alialaa/issue-action@v1.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
