@@ -14,7 +14,7 @@ from ..generic import emitter
 from tqdm import tqdm
 from torch.jit import script
 
-
+omb_hist = comb_hist[self.fs//2:-(self.fs//2+1), self.fs//2:-(self.fs//2+1)]
 class Renderer(ABC):
     """
     Renderer. Takes emitters and outputs a rendered image.
@@ -251,7 +251,6 @@ class Renderer2D_auto_sig(Renderer2D):
         super().__init__(px_size=px_size, sigma_blur=None, plot_axis=plot_axis, xextent=xextent,
                          yextent=yextent, zextent=zextent, abs_clip=abs_clip, rel_clip=rel_clip, contrast=contrast)
 
-        self.sigma_scale = sigma_scale
         self.bs = batch_size
         self.fs = filt_size
         self.device = device
@@ -307,7 +306,6 @@ class Renderer3D_auto_sig(Renderer3D):
         super().__init__(px_size=px_size, sigma_blur=None, plot_axis=plot_axis, xextent=xextent,
                          yextent=yextent, zextent=zextent, abs_clip=abs_clip, rel_clip=rel_clip, contrast=contrast)
 
-        self.sigma_scale = sigma_scale
         self.bs = batch_size
         self.fs = filt_size
         self.device = device
