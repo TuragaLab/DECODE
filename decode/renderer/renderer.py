@@ -14,6 +14,7 @@ from ..generic import emitter
 from tqdm import tqdm
 from torch.jit import script
 
+
 class Renderer(ABC):
     """
     Renderer. Takes emitters and outputs a rendered image.
