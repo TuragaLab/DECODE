@@ -23,7 +23,7 @@ dependencies:
 
   # actual package
   - python=3.9
-  - pytorch=1.8
+  - pytorch=1.7.1
   - cpuonly  # fake package (aka flag) for pytorch, otherwise it installs a cudatoolkit
   - click
   - deprecated
