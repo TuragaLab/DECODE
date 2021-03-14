@@ -1,0 +1,9 @@
+scanner:
+    diff_only: True
+    linter: flake8  # or flake8
+
+no_blank_comment: True
+descending_issues_order: False
+
+flake8:  # Same as scanner.linter value. Other option is flake8
+    max-line-length: 120

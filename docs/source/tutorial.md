@@ -36,11 +36,8 @@ In case of trouble please refer to the [Instructions for JupyterLab](https://jup
 Note that these notebooks might change with different versions of DECODE and might be incompatible. In that case you may want to load the notebooks again (as stated above).
 
 # Video Tutorial
-As part of the virtual [I2K 2020](https://www.janelia.org/you-janelia/conferences/from-images-to-knowledge-with-imagej-friends) conference we oranized a workshop on DECODE. A video recording is available [here](http://www.youtube.com/watch?v=zoWsj3FCUJs).
-Be warned that DECODE is being actively developed, therefore the exact commands might change from those shown in the video.
+As part of the virtual [I2K 2020](https://www.janelia.org/you-janelia/conferences/from-images-to-knowledge-with-imagej-friends) conference we organized a workshop on DECODE.
+Please find the video below.
+*DECODE is being actively developed, therefore the exact commands might differ from those shown in the video.*
 
-Timestamps for the different parts:
-  - [Presentation on DECODE](http://www.youtube.com/watch?v=zoWsj3FCUJs&t=1m45s)
-  - [Training and Fitting with DECODE in google colab](http://www.youtube.com/watch?v=zoWsj3FCUJs&t=37m10s)
-  - [Performing Bead Calibration in SMAP](http://www.youtube.com/watch?v=zoWsj3FCUJs&t=2h6m55s)
-  - [Training and Fitting with a local DECODE installation](http://www.youtube.com/watch?v=zoWsj3FCUJs&t=2h19m25s)
+<p style="text-align:center"><iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/zoWsj3FCUJs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></p>
