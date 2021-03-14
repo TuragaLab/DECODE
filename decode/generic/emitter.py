@@ -169,7 +169,15 @@ class EmitterSet:
     @property
     def xyz_sig_nm(self) -> torch.Tensor:
         return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='nm')
-
+    
+    @property
+    def tot_weighted_sig(self) -> torch.Tensor:
+        return self.calc_weighted_tot_sig(self.xyz_sig_nm)
+    
+    @property
+    def tot_sig(self) -> torch.Tensor:
+        return self.calc_tot_sig(self.xyz_sig_nm)
+    
     @property
     def meta(self) -> dict:
         """Return metadata of EmitterSet"""
@@ -675,6 +683,31 @@ class EmitterSet:
         k = chunks
         # https://stackoverflow.com/questions/2130016/splitting-a-list-into-n-parts-of-approximately-equal-length/37414115#37414115
         return [l[i * (n // k) + min(i, n % k):(i+1) * (n // k) + min(i+1, n % k)] for i in range(k)]
+    
+    def calc_weighted_tot_sig(self, xyz_sig, dim=None):
+
+        x_sig_var = torch.var(xyz_sig[:, 0])
+        y_sig_var = torch.var(xyz_sig[:, 1])
+        tot_var = xyz_sig[:, 0] ** 2 + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sig[:, 1]) ** 2
+
+        if dim is None:
+            is_3d = False if self.dim() == 2 else True
+        else:
+            is_3d = False if dim == 2 else True
+        
+        if is_3d:
+            z_sig_var = torch.var(xyz_sig[:, 2])
+            tot_var += (np.sqrt(x_sig_var / z_sig_var) * xyz_sig[:, 2]) ** 2        
+            
+        return np.sqrt(tot_var)
+    
+    def calc_tot_sig(self, xyz_sig):        
+            
+        tot_var = xyz_sig[:, 0] ** 2 + xyz_sig[:, 1] ** 2
+        if self.dim() == 3:
+             tot_var +=  xyz_sig[:, 2] ** 2 
+                
+        return np.sqrt(tot_var)
 
     def filter_by_sigma(self, fraction: float, dim: Optional[int] = None, return_low=True):
         """
@@ -688,29 +721,17 @@ class EmitterSet:
                 if False return the (1-fraction) with the highest sigma values.
 
         """
-        if dim is None:
-            is_3d = False if self.dim() == 2 else True
-        else:
-            is_3d = False if dim == 2 else True
 
         if fraction == 1.:
             return self
 
-        xyz_sig = self.xyz_sig
+        tot_sig = self.calc_weighted_tot_sig(self.xyz_sig_nm, dim)
 
-        x_sig_var = torch.var(xyz_sig[:, 0])
-        y_sig_var = torch.var(xyz_sig[:, 1])
-        z_sig_var = torch.var(xyz_sig[:, 2])
-        tot_var = xyz_sig[:, 0] ** 2 + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sig[:, 1]) ** 2
-
-        if is_3d:
-            tot_var += (np.sqrt(x_sig_var / z_sig_var) * xyz_sig[:, 2]) ** 2
-
-        max_s = np.percentile(tot_var.cpu().numpy(), fraction * 100.)
+        max_s = np.percentile(tot_sig.cpu().numpy(), fraction * 100.)
         if return_low:
-            filt_sig = torch.where(tot_var < max_s)
+            filt_sig = torch.where(tot_sig < max_s)
         else:
-            filt_sig = torch.where(tot_var > max_s)
+            filt_sig = torch.where(tot_sig > max_s)
 
         return self[filt_sig]
 
