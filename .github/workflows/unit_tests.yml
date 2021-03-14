@@ -28,8 +28,8 @@ jobs:
           # mamba-version: "*"  # does not work reliably atm
           # channels: turagalab/label/dev,turagalab,pytorch,conda-forge,defaults
           channel-priority: strict
-          activate-environment: decode_dev_cpu
-          environment-file: environment_cpu.yaml
+          activate-environment: decode_dev
+          environment-file: environment.yaml
 
       - name: Install backport of importlib_resources for Python 3.6
         run: |

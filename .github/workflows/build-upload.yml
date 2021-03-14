@@ -11,7 +11,7 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
 
-    env: 
+    env:
       FILENAMES: temp-filenames.txt
 
     steps:
@@ -24,12 +24,12 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: 3.8
-    
+
     - name: Install conda build libraries
       run: |
         $CONDA/bin/conda install conda-build anaconda-client
 
-    # build, then also store the file paths that were built    
+    # build, then also store the file paths that were built
     - name: Build DECODE
       run: |
         cd ./conda
@@ -42,7 +42,7 @@ jobs:
         ANACONDA_TOKEN: ${{ secrets.TURAGALAB_ANACONDA_TOKEN }}
       run: |
         cd ./conda
-        while read PATH; do 
+        while read PATH; do
           $CONDA/bin/anaconda -t $ANACONDA_TOKEN upload -u Turagalab $PATH
         done < $FILENAMES
 
@@ -63,11 +63,11 @@ jobs:
 
     - uses: conda-incubator/setup-miniconda@v2
       with:
-        environment-file: environment_cpu.yaml
+        environment-file: environment.yaml
         python-version: 3.8
         auto-activate-base: false
         activate-environment: pip-build
-    
+
     - name: Build DECODE (pip)
       id: pip-build
       shell: bash -l {0}

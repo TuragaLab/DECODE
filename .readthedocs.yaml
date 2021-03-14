@@ -2,7 +2,7 @@
 version: 2
 
 conda:
-  environment: environment_cpu.yaml
+  environment: environment.yaml
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
