@@ -100,17 +100,13 @@ class Renderer2D(Renderer):
         
         self.jet_hue = get_jet_cmap()
         
-    def get_extent(self, em, col_vec=None):
+    def get_extent(self, em):
 
         xextent = (em.xyz_nm[:, 0].min(), em.xyz_nm[:, 0].max()) if self.xextent is None else self.xextent
         yextent = (em.xyz_nm[:, 1].min(), em.xyz_nm[:, 1].max()) if self.yextent is None else self.yextent
         zextent = (em.xyz_nm[:, 2].min(), em.xyz_nm[:, 2].max()) if self.zextent is None else self.zextent
-        if col_vec is not None:
-            cextent = (col_vec.min(), col_vec.max()) if self.colextent is None else self.colextent
-        else:
-            cextent = None
 
-        return xextent, yextent, zextent, cextent
+        return xextent, yextent, zextent
 
     def render(self, em: emitter.EmitterSet, col_vec=None, ax=None):
 
@@ -141,17 +137,18 @@ class Renderer2D(Renderer):
 
     def forward(self, em: emitter.EmitterSet, col_vec=None) -> torch.Tensor:
         
-        xyzc_extent = self.get_extent(em, col_vec)
-        ind_mask = (em.xyz_nm[:, 0] > xyzc_extent[0][0]) * (em.xyz_nm[:, 0] < xyzc_extent[0][1]) * \
-        (em.xyz_nm[:, 1] > xyzc_extent[1][0]) * (em.xyz_nm[:, 1] < xyzc_extent[1][1]) * \
-        (em.xyz_nm[:, 2] > xyzc_extent[2][0]) * (em.xyz_nm[:, 2] < xyzc_extent[2][1])
+        xyz_extent = self.get_extent(em)
+        ind_mask = (em.xyz_nm[:, 0] > xyz_extent[0][0]) * (em.xyz_nm[:, 0] < xyz_extent[0][1]) * \
+        (em.xyz_nm[:, 1] > xyz_extent[1][0]) * (em.xyz_nm[:, 1] < xyz_extent[1][1]) * \
+        (em.xyz_nm[:, 2] > xyz_extent[2][0]) * (em.xyz_nm[:, 2] < xyz_extent[2][1])
 
         em_sub = em[ind_mask]   
         
         if col_vec is not None:
         
             col_vec = col_vec[ind_mask]
-            int_hist, col_hist = self.hist2d(em_sub, col_vec, xyzc_extent[self.plot_axis[0]], xyzc_extent[self.plot_axis[1]], xyzc_extent[-1])
+            self.colextent = (col_vec.min(), col_vec.max()) if self.colextent is None else self.colextent
+            int_hist, col_hist = self.hist2d(em_sub, col_vec, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]], self.colextent)
 
             with np.errstate(divide='ignore', invalid='ignore'):
                 c_avg = col_hist / int_hist
@@ -184,7 +181,7 @@ class Renderer2D(Renderer):
         
         else:
             
-            hist = self.hist2d(em_sub, None, xyzc_extent[self.plot_axis[0]], xyzc_extent[self.plot_axis[1]])
+            hist = self.hist2d(em_sub, None, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]])
 
             if self.rel_clip is not None:
                 hist = np.clip(hist, 0., hist.max()*self.rel_clip)
