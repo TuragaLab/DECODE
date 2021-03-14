@@ -76,7 +76,7 @@ class Renderer(ABC):
         
 class Renderer2D(Renderer):
     """
-    3D Renderer with constant gaussian.
+    2D histogram renderer with constant gaussian blur.
 
     Args:
         px_size: pixel size of the output image in nm
@@ -85,6 +85,7 @@ class Renderer2D(Renderer):
         xextent: extent in x in nm
         yextent: extent in y in nm
         zextent: extent in z in nm. 
+        cextent: extent of the color variable. Values outside of this range get clipped. 
         abs_clip: absolute clipping value of the histogram in counts
         rel_clip: clipping value relative to the maximum count. i.e. rel_clip = 0.8 clips at 0.8*hist.max()
         contrast: scaling factor to increase contrast
@@ -218,7 +219,22 @@ class Renderer2D(Renderer):
 
 
 class Renderer2D_auto_sig(Renderer2D):
+    """
+    2D histogram renderer. Each localization is individually rendered as a Gaussian with a two dimensional standard deviation equal to the predicted uncertainty.
 
+    Args:
+        px_size: pixel size of the output image in nm
+        batch_size: number of localization processed in parallel
+        filt_size: each gaussian is calculated as a patch with size filt_size*filt_size (in pixels)
+        plot_axis: determines which dimensions get plotted. 0,1,2 = x,y,z. (0,1,2) is x over y, colored by z.
+        xextent: extent in x in nm
+        yextent: extent in y in nm
+        zextent: extent in z in nm. 
+        cextent: extent of the color variable. Values outside of this range get clipped. 
+        abs_clip: absolute clipping value of the histogram in counts
+        rel_clip: clipping value relative to the maximum count. i.e. rel_clip = 0.8 clips at 0.8*hist.max()
+        contrast: scaling factor to increase contrast
+    """
     def __init__(self, px_size, batch_size=1000, filt_size=10, plot_axis=(0, 1), xextent=None, yextent=None, zextent=None, colextent=None,
                  abs_clip=None, rel_clip=None, contrast=1, device='cpu'):
         super().__init__(px_size=px_size, sigma_blur=None, plot_axis=plot_axis, xextent=xextent,
