@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 import decode.generic.emitter as em
 from decode.neuralfitter.dataset import InferenceDataset
-from decode.neuralfitter.utils.collate import smlm_collate
+from decode.neuralfitter.utils.dataloader_customs import smlm_collate
 
 
 @deprecated(reason="Depr. in favour of inference.Infer", version="0.1.dev")
