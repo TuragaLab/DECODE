@@ -689,17 +689,12 @@ class EmitterSet:
         x_sig_var = torch.var(xyz_sig[:, 0])
         y_sig_var = torch.var(xyz_sig[:, 1])
         tot_var = xyz_sig[:, 0] ** 2 + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sig[:, 1]) ** 2
-
-        if dim is None:
-            is_3d = False if self.dim() == 2 else True
-        else:
-            is_3d = False if dim == 2 else True
-        
-        if is_3d:
+       
+        if self.dim() == 3:
             z_sig_var = torch.var(xyz_sig[:, 2])
             tot_var += (np.sqrt(x_sig_var / z_sig_var) * xyz_sig[:, 2]) ** 2        
             
-        return np.sqrt(tot_var)
+        return torch.sqrt(tot_var)
     
     def calc_tot_sig(self, xyz_sig):        
             
@@ -707,7 +702,7 @@ class EmitterSet:
         if self.dim() == 3:
              tot_var +=  xyz_sig[:, 2] ** 2 
                 
-        return np.sqrt(tot_var)
+        return torch.sqrt(tot_var)
 
     def filter_by_sigma(self, fraction: float, dim: Optional[int] = None, return_low=True):
         """
