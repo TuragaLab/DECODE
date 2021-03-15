@@ -411,7 +411,7 @@ def setup_dataloader(param, train_ds, test_ds=None):
         shuffle=True,
         num_workers=param.Hardware.num_worker_train,
         pin_memory=True,
-        collate_fn=decode.neuralfitter.utils.collate.smlm_collate)
+        collate_fn=decode.neuralfitter.utils.dataloader_customs.smlm_collate)
 
     if test_ds is not None:
 
@@ -422,7 +422,7 @@ def setup_dataloader(param, train_ds, test_ds=None):
             shuffle=False,
             num_workers=param.Hardware.num_worker_train,
             pin_memory=False,
-            collate_fn=decode.neuralfitter.utils.collate.smlm_collate)
+            collate_fn=decode.neuralfitter.utils.dataloader_customs.smlm_collate)
     else:
 
         test_dl = None
