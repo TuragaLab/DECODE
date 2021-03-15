@@ -145,6 +145,14 @@ class EmitterSet:
         return self.xyz_cr_nm.sqrt()
 
     @property
+    def xyz_sig_tot_nm(self) -> torch.Tensor:
+        return (self.xyz_sig_nm ** 2).sum(1).sqrt()
+
+    @property
+    def xyz_sig_weighted_tot_nm(self) -> torch.Tensor:
+        return self._calc_weighted_total(self.xyz_sigma_nm, self.dim() == 3)
+
+    @property
     def phot_scr(self) -> torch.Tensor:  # sqrt cramer-rao of photon count
         return self.phot_cr.sqrt()
 
@@ -519,6 +527,18 @@ class EmitterSet:
 
         """
         return copy.deepcopy(self)
+
+    def _calc_sigma_weighted_total(self, xyz_sigma_nm, use_3d):
+
+        x_sig_var = torch.var(xyz_sigma_nm[:, 0])
+        y_sig_var = torch.var(xyz_sigma_nm[:, 1])
+        tot_var = xyz_sigma_nm[:, 0] ** 2 + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sigma_nm[:, 1]) ** 2
+
+        if use_3d:
+            z_sig_var = torch.var(xyz_sigma_nm[:, 2])
+            tot_var += (torch.sqrt(x_sig_var / z_sig_var) * xyz_sigma_nm[:, 2]) ** 2
+
+        return torch.sqrt(tot_var)
 
     @staticmethod
     def cat(emittersets: Iterable, remap_frame_ix: Union[None, torch.Tensor] = None, step_frame_ix: int = None):
