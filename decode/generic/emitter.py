@@ -1,7 +1,7 @@
+import copy
 import warnings
 from pathlib import Path
 from typing import Union, Optional, Iterable
-import copy
 
 import numpy as np
 import torch
@@ -169,15 +169,15 @@ class EmitterSet:
     @property
     def xyz_sig_nm(self) -> torch.Tensor:
         return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='nm')
-    
+
     @property
-    def tot_weighted_sig(self) -> torch.Tensor:
-        return self.calc_weighted_tot_sig(self.xyz_sig_nm)
-    
+    def xyz_sig_tot(self) -> torch.Tensor:
+        return self.calc_tot_sig(self.xyz_sig)
+
     @property
-    def tot_sig(self) -> torch.Tensor:
-        return self.calc_tot_sig(self.xyz_sig_nm)
-    
+    def xyz_sig_weighted_tot(self) -> torch.Tensor:
+        return self.calc_weighted_tot_sig(self.xyz_sig)
+
     @property
     def meta(self) -> dict:
         """Return metadata of EmitterSet"""
@@ -682,26 +682,28 @@ class EmitterSet:
         l = self
         k = chunks
         # https://stackoverflow.com/questions/2130016/splitting-a-list-into-n-parts-of-approximately-equal-length/37414115#37414115
-        return [l[i * (n // k) + min(i, n % k):(i+1) * (n // k) + min(i+1, n % k)] for i in range(k)]
-    
-    def calc_weighted_tot_sig(self, xyz_sig, dim=None):
+        return [l[i * (n // k) + min(i, n % k):(i + 1) * (n // k) + min(i + 1, n % k)] for i in range(k)]
+
+    def calc_weighted_tot_sig(self, xyz_sig, use_3d: bool = None) -> torch.Tensor:
 
         x_sig_var = torch.var(xyz_sig[:, 0])
         y_sig_var = torch.var(xyz_sig[:, 1])
         tot_var = xyz_sig[:, 0] ** 2 + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sig[:, 1]) ** 2
-       
-        if self.dim() == 3:
+
+        use_3d = self.dim() == 3 if use_3d is None else use_3d
+
+        if use_3d:
             z_sig_var = torch.var(xyz_sig[:, 2])
-            tot_var += (np.sqrt(x_sig_var / z_sig_var) * xyz_sig[:, 2]) ** 2        
-            
+            tot_var += (torch.sqrt(x_sig_var / z_sig_var) * xyz_sig[:, 2]) ** 2
+
         return torch.sqrt(tot_var)
-    
-    def calc_tot_sig(self, xyz_sig):        
-            
+
+    def calc_tot_sig(self, xyz_sig) -> torch.Tensor:
+
         tot_var = xyz_sig[:, 0] ** 2 + xyz_sig[:, 1] ** 2
         if self.dim() == 3:
-             tot_var +=  xyz_sig[:, 2] ** 2 
-                
+            tot_var += xyz_sig[:, 2] ** 2
+
         return torch.sqrt(tot_var)
 
     def filter_by_sigma(self, fraction: float, dim: Optional[int] = None, return_low=True):

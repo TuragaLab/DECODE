@@ -38,6 +38,15 @@ class TestEmitterSet:
                           phot=torch.rand(25),
                           frame_ix=frames)
 
+    @pytest.fixture()
+    def em3d_full(self, em3d):
+        em = em3d.clone()
+
+        em.xyz_sig = torch.rand_like(em.xyz)
+        em.xyz_cr = torch.rand_like(em.xyz)
+
+        return em
+
     def test_dim(self, em2d, em3d):
 
         assert em2d.dim() == 2
@@ -134,6 +143,21 @@ class TestEmitterSet:
         else:
             assert test_utils.tens_almeq(em.xyz_scr_nm, expct_nm)
 
+    def test_sigma_properties(self, em3d_full):
+        with mock.patch.object(emitter.EmitterSet, 'calc_tot_sig') as mock_sig:
+            em3d_full.xyz_sig_tot
+
+        assert mock_sig.called_once_with(em3d_full.xyz_sig)
+
+        with mock.patch.object(emitter.EmitterSet, 'calc_weighted_tot_sig') as mock_sig:
+            em3d_full.xyz_sig_weighted_tot
+
+        assert mock_sig.called_once_with(em3d_full.xyz_sig)
+
+    def test_calc_sigma(self):
+        # Todo: Add test
+        pass
+
     @mock.patch.object(emitter.EmitterSet, 'cat')
     def test_add(self, mock_add):
         em_0 = emitter.RandomEmitterSet(20)
@@ -227,7 +251,6 @@ class TestEmitterSet:
         assert em.xy_unit == 'px'
         assert (em.px_size == torch.tensor([100., 200.])).all()
 
-
     def test_split_cat(self):
         """
         Tests whether split and cat (and sort by ID) returns the same result as the original starting.
@@ -239,7 +262,7 @@ class TestEmitterSet:
         em.frame_ix = torch.randint_like(em.frame_ix, 100000)
 
         """Run"""
-        em_split = em.split_in_frames(0,  99999)
+        em_split = em.split_in_frames(0, 99999)
         em_re_merged = EmitterSet.cat(em_split)
 
         """Assertions"""
