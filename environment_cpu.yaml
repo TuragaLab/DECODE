@@ -1,0 +1,48 @@
+name: decode_dev_cpu
+
+channels:
+  - turagalab/label/dev
+  - turagalab
+  - pytorch
+  - conda-forge
+  - defaults
+
+dependencies:
+  # for building (decode and splinepsf)
+  - bump2version
+  - cmake=3.15
+  - ninja
+  - pybind11>=2.4
+
+  # docs
+  - recommonmark  # markdown for sphinx
+  - sphinx
+  - sphinx-autodoc-typehints
+  - sphinx-markdown-tables
+  - pydata-sphinx-theme
+
+  # actual package
+  - python=3.9
+  - pytorch=1.8
+  - cpuonly  # fake package (aka flag) for pytorch, otherwise it installs a cudatoolkit
+  - click
+  - deprecated
+  - gitpython>=3.1
+  - h5py
+  - line_profiler
+  - matplotlib
+  - pandas
+  - pytest
+  - pyyaml
+  - requests
+  - scipy
+  - seaborn=0.10
+  - scikit-image
+  - scikit-learn
+  - spline>=0.10.alpha.2
+  - tensorboard
+  - tifffile>=2020.2
+  - tqdm
+
+  # add kernel to jupyter
+  - ipykernel

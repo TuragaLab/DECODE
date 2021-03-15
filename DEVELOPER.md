@@ -4,13 +4,13 @@
 1. Install conda environment from file and activate it. Use the respective environment depending on whether you have a CUDA GPU or not.
 The cubic spline psf is pre-compiled in a different repo / as a separate package and will be installed automatically.
 
-        # CUDA (install cudatoolkit first, or add it to environment.yaml)
-        conda create -n decode_dev -c pytorch -c conda-forge cudatoolkit pytorch
-        conda env update -f environment.yaml
+        # CUDA
+        conda env create -f environment_cuda.yml
+        conda activate decode_dev_cuda 
 
         # CPU / macOS
-        conda env create -f environment.yaml
-        conda activate decode_dev
+        conda env create -f environment_cpu.yml
+        conda activate decode_dev_cpu
 
 3. Test whether everything works as expected. Note that if you run all tests, all files from the gateway file will be downloaded but you can exclude these tests.
 
@@ -29,8 +29,11 @@ Simulation heavily relies on the Cubic Spline PSF Implementation (Li, Y. et al. 
 It has been factored out in a seperate Repo to make life easier (see https://github.com/Haydnspass/SplinePSF). It'll be auto-installed.
 
 ### Building the Docs
-Install environment as described above
+For this we provide a conda environment for the sake of easy use. 
 ```bash
+conda env create -f environment_docs.yaml  # once
+conda activate decode_docs
+
 cd docs
 make html
 ```
