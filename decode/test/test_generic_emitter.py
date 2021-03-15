@@ -38,6 +38,17 @@ class TestEmitterSet:
                           phot=torch.rand(25),
                           frame_ix=frames)
 
+    @pytest.fixture
+    def em3d_full(self):
+        return EmitterSet(xyz=torch.rand((25, 3)),
+                          phot=torch.rand(25),
+                          frame_ix=torch.arange(25),
+                          id=torch.arange(25),
+                          xyz_sig=torch.rand((25, 3)),
+                          xyz_cr=torch.rand((25, 3)) ** 2,
+                          xy_unit='nm',
+                          px_size=(100., 200.))
+
     def test_dim(self, em2d, em3d):
 
         assert em2d.dim() == 2
@@ -134,6 +145,15 @@ class TestEmitterSet:
         else:
             assert test_utils.tens_almeq(em.xyz_scr_nm, expct_nm)
 
+    @pytest.mark.parametrize("attr,power", [('xyz', 1),
+                                            ('xyz_sig', 1),
+                                            ('xyz_cr', 2)])
+    def test_property_conversion(self, attr, power, em3d_full):
+        with mock.patch.object(emitter.EmitterSet, '_pxnm_conversion') as conversion:
+            getattr(em3d_full, attr + '_nm')
+
+        conversion.assert_called_once_with(getattr(em3d_full, attr), in_unit='nm', tar_unit='nm', power=power)
+
     @mock.patch.object(emitter.EmitterSet, 'cat')
     def test_add(self, mock_add):
         em_0 = emitter.RandomEmitterSet(20)
@@ -149,7 +169,6 @@ class TestEmitterSet:
         em_0 += em_1
         assert len(em_0) == 70
 
-    # @pytest.mark.skip("At the moment deprecated.")
     def test_chunk(self):
 
         big_em = RandomEmitterSet(100000)
@@ -227,19 +246,18 @@ class TestEmitterSet:
         assert em.xy_unit == 'px'
         assert (em.px_size == torch.tensor([100., 200.])).all()
 
-
     def test_split_cat(self):
         """
         Tests whether split and cat (and sort by ID) returns the same result as the original starting.
 
         """
 
-        em = RandomEmitterSet(10000)
+        em = RandomEmitterSet(1000)
         em.id = torch.arange(len(em))
-        em.frame_ix = torch.randint_like(em.frame_ix, 100000)
+        em.frame_ix = torch.randint_like(em.frame_ix, 10000)
 
         """Run"""
-        em_split = em.split_in_frames(0,  99999)
+        em_split = em.split_in_frames(0, 9999)
         em_re_merged = EmitterSet.cat(em_split)
 
         """Assertions"""
