@@ -3,6 +3,8 @@ name: Build DECODE and upload to Anaconda Cloud
 
 # use on: [push] for testing
 on:
+  push:
+  pull_request:
   release:
     types: [edited, published]
 
@@ -20,11 +22,6 @@ jobs:
       with:
         ref: ${{ github.ref }}
 
-    - name: Python 3.8
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.8
-
     - name: Install conda build libraries
       run: |
         $CONDA/bin/conda install conda-build anaconda-client
@@ -38,6 +35,7 @@ jobs:
 
     # upload to Anaconda Cloud; separate step to minimize exposure of the token
     - name: Upload to Anaconda Cloud
+      if: github.event.release
       env:
         ANACONDA_TOKEN: ${{ secrets.TURAGALAB_ANACONDA_TOKEN }}
       run: |
@@ -52,14 +50,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-      # this grabs the release commit
-      with:
-        ref: ${{ github.ref }}
-
-    - name: Python 3.8
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.8
 
     - uses: conda-incubator/setup-miniconda@v2
       with:
@@ -78,6 +68,7 @@ jobs:
         echo "::set-output name=wheel_filename::$WHEEL"
 
     - name: Upload to GitHub release
+      if: github.event.release
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
