@@ -1,18 +1,17 @@
-import math
 from abc import ABC
+from typing import Tuple
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from matplotlib.colors import hsv_to_rgb
+from matplotlib.colors import rgb_to_hsv
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.ndimage import gaussian_filter
-from matplotlib.colors import rgb_to_hsv
-from ..generic import emitter
-
 from tqdm import tqdm
-from torch.jit import script
+
+from ..generic import emitter
 
 
 def get_jet_cmap():
@@ -28,20 +27,9 @@ def get_jet_cmap():
 
 
 class Renderer(ABC):
-    def __init__(
-        self,
-        plot_axis: tuple,
-        xextent: tuple,
-        yextent: tuple,
-        zextent: tuple,
-        px_size: float,
-        abs_clip: float,
-        rel_clip: float,
-        contrast: float,
-    ):
-        """
-        Renderer. Takes emitters and outputs a rendered image.
-        """
+    def __init__(self, plot_axis: tuple, xextent: tuple, yextent: tuple, zextent: tuple,
+                 px_size: float, abs_clip: float, rel_clip: float, contrast: float):
+        """Renderer. Takes emitters and outputs a rendered image."""
         super().__init__()
 
         self.xextent = xextent
@@ -57,44 +45,38 @@ class Renderer(ABC):
         self.contrast = contrast
 
         assert (
-            self.abs_clip is None or self.rel_clip is None
+                self.abs_clip is None or self.rel_clip is None
         ), "Define either an absolute or a relative value for clipping, but not both"
 
     def forward(self, em: emitter.EmitterSet) -> torch.Tensor:
         """
         Forward emitterset through rendering and output rendered data.
+
         Args:
             em: emitter set
+
         """
         raise NotImplementedError
 
     def render(self, em: emitter.EmitterSet, ax=None):
         """
         Render emitters
+
         Args:
             em: emitter set
             ax: plot axis
-        Returns:
+
         """
         raise NotImplementedError
 
 
 class Renderer2D(Renderer):
-    def __init__(
-        self,
-        px_size,
-        sigma_blur,
-        plot_axis=(0, 1, 2),
-        xextent=None,
-        yextent=None,
-        zextent=None,
-        colextent=None,
-        abs_clip=None,
-        rel_clip=None,
-        contrast=1,
-    ):
+    def __init__(self, px_size, sigma_blur, plot_axis=(0, 1, 2),
+                 xextent=None, yextent=None, zextent=None, colextent=None,
+                 abs_clip=None, rel_clip=None, contrast=1):
         """
         2D histogram renderer with constant gaussian blur.
+
         Args:
             px_size: pixel size of the output image in nm
             sigma_blur: sigma of the gaussian blur applied in nm
@@ -106,6 +88,7 @@ class Renderer2D(Renderer):
             abs_clip: absolute clipping value of the histogram in counts
             rel_clip: clipping value relative to the maximum count. i.e. rel_clip = 0.8 clips at 0.8*hist.max()
             contrast: scaling factor to increase contrast
+
         """
         super().__init__(
             plot_axis=plot_axis,
@@ -122,14 +105,6 @@ class Renderer2D(Renderer):
         self.colextent = colextent
 
         self.jet_hue = get_jet_cmap()
-
-    def get_extent(self, em):
-
-        xextent = (em.xyz_nm[:, 0].min(), em.xyz_nm[:, 0].max()) if self.xextent is None else self.xextent
-        yextent = (em.xyz_nm[:, 1].min(), em.xyz_nm[:, 1].max()) if self.yextent is None else self.yextent
-        zextent = (em.xyz_nm[:, 2].min(), em.xyz_nm[:, 2].max()) if self.zextent is None else self.zextent
-
-        return xextent, yextent, zextent
 
     def render(self, em: emitter.EmitterSet, col_vec=None, ax=None):
         """
@@ -184,12 +159,12 @@ class Renderer2D(Renderer):
 
         xyz_extent = self.get_extent(em)
         ind_mask = (
-            (em.xyz_nm[:, 0] > xyz_extent[0][0])
-            * (em.xyz_nm[:, 0] < xyz_extent[0][1])
-            * (em.xyz_nm[:, 1] > xyz_extent[1][0])
-            * (em.xyz_nm[:, 1] < xyz_extent[1][1])
-            * (em.xyz_nm[:, 2] > xyz_extent[2][0])
-            * (em.xyz_nm[:, 2] < xyz_extent[2][1])
+                (em.xyz_nm[:, 0] > xyz_extent[0][0])
+                * (em.xyz_nm[:, 0] < xyz_extent[0][1])
+                * (em.xyz_nm[:, 1] > xyz_extent[1][0])
+                * (em.xyz_nm[:, 1] < xyz_extent[1][1])
+                * (em.xyz_nm[:, 2] > xyz_extent[2][0])
+                * (em.xyz_nm[:, 2] < xyz_extent[2][1])
         )
 
         em_sub = em[ind_mask]
@@ -198,7 +173,7 @@ class Renderer2D(Renderer):
 
             col_vec = col_vec[ind_mask]
             self.colextent = (col_vec.min(), col_vec.max()) if self.colextent is None else self.colextent
-            int_hist, col_hist = self.hist2d(
+            int_hist, col_hist = self._hist2d(
                 em_sub, col_vec, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]], self.colextent
             )
 
@@ -238,7 +213,7 @@ class Renderer2D(Renderer):
 
         else:
 
-            hist = self.hist2d(em_sub, None, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]])
+            hist = self._hist2d(em_sub, None, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]])
 
             if self.rel_clip is not None:
                 hist = np.clip(hist, 0.0, hist.max() * self.rel_clip)
@@ -251,7 +226,15 @@ class Renderer2D(Renderer):
             hist = np.clip(hist, 0, hist.max() / self.contrast)
             return torch.from_numpy(hist)
 
-    def hist2d(self, em, col_vec, x_hist_ext, y_hist_ext, c_range=None):
+    def get_extent(self, em) -> Tuple[tuple, tuple, tuple]:
+
+        xextent = (em.xyz_nm[:, 0].min(), em.xyz_nm[:, 0].max()) if self.xextent is None else self.xextent
+        yextent = (em.xyz_nm[:, 1].min(), em.xyz_nm[:, 1].max()) if self.yextent is None else self.yextent
+        zextent = (em.xyz_nm[:, 2].min(), em.xyz_nm[:, 2].max()) if self.zextent is None else self.zextent
+
+        return xextent, yextent, zextent
+
+    def _hist2d(self, em: emitter.EmitterSet, col_vec, x_hist_ext, y_hist_ext, c_range=None):
 
         xy = em.xyz_nm[:, self.plot_axis].numpy()
 
@@ -275,25 +258,13 @@ class Renderer2D(Renderer):
 
 
 class RendererIndividual2D(Renderer2D):
-    def __init__(
-        self,
-        px_size,
-        batch_size=1000,
-        filt_size=10,
-        plot_axis=(0, 1),
-        xextent=None,
-        yextent=None,
-        zextent=None,
-        colextent=None,
-        abs_clip=None,
-        rel_clip=None,
-        contrast=1,
-        intensity_field="sigma",
-        device="cpu",
-    ):
+    def __init__(self, px_size, batch_size=1000, filt_size=10, plot_axis=(0, 1),
+                 xextent=None, yextent=None, zextent=None, colextent=None,
+                 abs_clip=None, rel_clip=None, contrast=1, intensity_field="sigma", device="cpu"):
         """
         2D histogram renderer. Each localization is individually rendered as a 2D Gaussian corresponding to a
         respective field.
+
         Args:
             px_size: pixel size of the output image in nm
             batch_size: number of localization processed in parallel
@@ -307,6 +278,8 @@ class RendererIndividual2D(Renderer2D):
             rel_clip: clipping value relative to the maximum count. i.e. rel_clip = 0.8 clips at 0.8*hist.max()
             contrast: scaling factor to increase contrast
             intensity_field: field of emitter that should be used for rendering
+            device: render on cpu or cuda
+
         """
         super().__init__(
             px_size=px_size,
@@ -336,21 +309,22 @@ class RendererIndividual2D(Renderer2D):
 
         return W / torch.clamp_min(W.sum(-1).sum(-1), 1.0)[:, None, None]
 
-    @script
-    def place_gaussians(int_hist, inds, W, fs):
+    @torch.jit.script
+    def _place_gaussians(int_hist, inds, W, fs):
         for i in range(len(W)):
-            int_hist[inds[i, 1] : inds[i, 1] + fs, inds[i, 0] : inds[i, 0] + fs] += W[i]
+            int_hist[inds[i, 1]: inds[i, 1] + fs, inds[i, 0]: inds[i, 0] + fs] += W[i]
+
         return int_hist
 
-    @script
-    def place_gaussians_weighted(comb_hist, inds, weights, W, fs):
+    @torch.jit.script
+    def _place_gaussians_weighted(comb_hist, inds, weights, W, fs):
         for i in range(len(W)):
-            comb_hist[inds[i, 1] : inds[i, 1] + fs, inds[i, 0] : inds[i, 0] + fs] += torch.stack(
-                [W[i], W[i] * weights[i]], -1
-            )
+            comb_hist[inds[i, 1]: inds[i, 1] + fs, inds[i, 0]: inds[i, 0] + fs] \
+                += torch.stack([W[i], W[i] * weights[i]], -1)
+
         return comb_hist
 
-    def hist2d(self, em, col_vec, x_hist_ext, y_hist_ext, c_range=None):
+    def _hist2d(self, em: emitter.EmitterSet, col_vec, x_hist_ext, y_hist_ext, c_range=None):
 
         ym, xm = torch.meshgrid(
             torch.linspace(-(self.fs // 2), self.fs // 2, self.fs, device=self.device),
@@ -377,14 +351,13 @@ class RendererIndividual2D(Renderer2D):
             comb_hist = torch.zeros([h + self.fs, w + self.fs, 2], device=self.device, dtype=torch.float)
 
             for i in tqdm(range(len(xy_mus) // self.bs)):
-
-                sl = np.s_[i * self.bs : (i + 1) * self.bs]
+                sl = np.s_[i * self.bs: (i + 1) * self.bs]
                 sub_inds = s_inds[sl]
                 W = self.calc_gaussians(xy_mus[sl], xy_sigs[sl], mesh)
                 c_ws = c_weight[sl]
-                comb_hist = self.place_gaussians_weighted(comb_hist, sub_inds, c_ws, W, torch.tensor(self.fs))
+                comb_hist = self._place_gaussians_weighted(comb_hist, sub_inds, c_ws, W, torch.tensor(self.fs))
 
-            comb_hist = comb_hist[self.fs // 2 : -(self.fs // 2 + 1), self.fs // 2 : -(self.fs // 2 + 1)]
+            comb_hist = comb_hist[self.fs // 2: -(self.fs // 2 + 1), self.fs // 2: -(self.fs // 2 + 1)]
             int_hist = comb_hist[:, :, 0]
             col_hist = comb_hist[:, :, 1]
 
@@ -395,12 +368,11 @@ class RendererIndividual2D(Renderer2D):
             int_hist = torch.zeros([h + self.fs, w + self.fs], device=self.device, dtype=torch.float)
 
             for i in tqdm(range(len(xy_mus) // self.bs)):
-
-                sl = np.s_[i * self.bs : (i + 1) * self.bs]
+                sl = np.s_[i * self.bs: (i + 1) * self.bs]
                 sub_inds = s_inds[sl]
                 W = self.calc_gaussians(xy_mus[sl], xy_sigs[sl], mesh)
-                int_hist = self.place_gaussians(int_hist, sub_inds, W, torch.tensor(self.fs))
+                int_hist = self._place_gaussians(int_hist, sub_inds, W, torch.tensor(self.fs))
 
-            int_hist = int_hist[self.fs // 2 : -(self.fs // 2 + 1), self.fs // 2 : -(self.fs // 2 + 1)]
+            int_hist = int_hist[self.fs // 2: -(self.fs // 2 + 1), self.fs // 2: -(self.fs // 2 + 1)]
 
             return int_hist.T.numpy()
