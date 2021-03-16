@@ -72,8 +72,8 @@ class Renderer(ABC):
 
         """
         raise NotImplementedError
-        
-        
+
+
 class Renderer2D(Renderer):
     """
     2D histogram renderer with constant gaussian blur.
@@ -98,9 +98,9 @@ class Renderer2D(Renderer):
 
         self.sigma_blur = sigma_blur
         self.colextent = colextent
-        
+
         self.jet_hue = get_jet_cmap()
-        
+
     def get_extent(self, em):
 
         xextent = (em.xyz_nm[:, 0].min(), em.xyz_nm[:, 0].max()) if self.xextent is None else self.xextent
@@ -110,12 +110,20 @@ class Renderer2D(Renderer):
         return xextent, yextent, zextent
 
     def render(self, em: emitter.EmitterSet, col_vec=None, ax=None):
+        """
+        Forward emitterset through rendering and output rendered data.
 
+        Args:
+            em: emitter set
+            col_vec: torch tensor (1 dim) with the same length as em
+            ax: plot axis
+
+        """
         hist = self.forward(em, col_vec).numpy()
 
         if ax is None:
             ax = plt.gca()
-            
+
         if col_vec is not None:
 
             divider = make_axes_locatable(ax)
@@ -124,32 +132,45 @@ class Renderer2D(Renderer):
                                              norm=mpl.colors.Normalize(0., 1.))
             colb.outline.set_visible(False)
 
-            cax.text(0.12, 0.04, f'{self.colextent[0]}', rotation=90, color='white', fontsize=15, transform=cax.transAxes)
-            cax.text(0.12, 0.88, f'{self.colextent[1]}', rotation=90, color='white', fontsize=15, transform=cax.transAxes)
+            cax.text(0.12, 0.04, f'{self.colextent[0]}', rotation=90,
+                     color='white', fontsize=15, transform=cax.transAxes)
+            cax.text(0.12, 0.88, f'{self.colextent[1]}', rotation=90,
+                     color='white', fontsize=15, transform=cax.transAxes)
             cax.axis('off')
 
             ax.imshow(np.transpose(hist, [1, 0, 2]))
-            
+
         else:
-            
+
             ax.imshow(np.transpose(hist), cmap='gray')  # because imshow use different ordering
-        
+
         return ax
 
     def forward(self, em: emitter.EmitterSet, col_vec=None) -> torch.Tensor:
-        
+        """
+        Forward emitterset through rendering and output rendered data.
+
+        Args:
+            em: emitter set
+            col_vec: torch tensor (1 dim) with the same length as em
+
+        """
+
         xyz_extent = self.get_extent(em)
         ind_mask = (em.xyz_nm[:, 0] > xyz_extent[0][0]) * (em.xyz_nm[:, 0] < xyz_extent[0][1]) * \
-        (em.xyz_nm[:, 1] > xyz_extent[1][0]) * (em.xyz_nm[:, 1] < xyz_extent[1][1]) * \
-        (em.xyz_nm[:, 2] > xyz_extent[2][0]) * (em.xyz_nm[:, 2] < xyz_extent[2][1])
+            (em.xyz_nm[:, 1] > xyz_extent[1][0]) * (em.xyz_nm[:, 1] < xyz_extent[1][1]) * \
+            (em.xyz_nm[:, 2] > xyz_extent[2][0]) * (em.xyz_nm[:, 2] < xyz_extent[2][1])
 
-        em_sub = em[ind_mask]   
-        
+        em_sub = em[ind_mask]
+
         if col_vec is not None:
-        
+
+            assert len(em) == len(col_vec), 'The emitterset and color vector have to have the same length'
+
             col_vec = col_vec[ind_mask]
             self.colextent = (col_vec.min(), col_vec.max()) if self.colextent is None else self.colextent
-            int_hist, col_hist = self.hist2d(em_sub, col_vec, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]], self.colextent)
+            int_hist, col_hist = self.hist2d(
+                em_sub, col_vec, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]], self.colextent)
 
             with np.errstate(divide='ignore', invalid='ignore'):
                 c_avg = col_hist / int_hist
@@ -179,9 +200,9 @@ class Renderer2D(Renderer):
 
             RGB = np.clip(RGB, 0, 1)
             return torch.from_numpy(RGB)
-        
+
         else:
-            
+
             hist = self.hist2d(em_sub, None, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]])
 
             if self.rel_clip is not None:
@@ -193,7 +214,7 @@ class Renderer2D(Renderer):
                 hist = gaussian_filter(hist, sigma=[self.sigma_blur / self.px_size, self.sigma_blur / self.px_size])
 
             hist = np.clip(hist, 0, hist.max()/self.contrast)
-            return torch.from_numpy(hist)            
+            return torch.from_numpy(hist)
 
     def hist2d(self, em, col_vec, x_hist_ext, y_hist_ext, c_range=None):
 
@@ -205,16 +226,16 @@ class Renderer2D(Renderer):
         int_hist, _, _ = np.histogram2d(xy[:, 0], xy[:, 1], bins=(hist_bins_x, hist_bins_y))
 
         if col_vec is not None:
-        
+
             c_pos = np.clip(col_vec, c_range[0], c_range[1])
             c_weight = ((c_pos - c_range[0]) / (c_range[1] - c_range[0]))
 
             col_hist, _, _ = np.histogram2d(xy[:, 0], xy[:, 1], bins=(hist_bins_x, hist_bins_y), weights=c_weight)
 
             return int_hist, col_hist
-        
+
         else:
-            
+
             return int_hist
 
 
@@ -234,7 +255,9 @@ class Renderer2D_auto_sig(Renderer2D):
         abs_clip: absolute clipping value of the histogram in counts
         rel_clip: clipping value relative to the maximum count. i.e. rel_clip = 0.8 clips at 0.8*hist.max()
         contrast: scaling factor to increase contrast
+        device: device to perform the histogram function on
     """
+
     def __init__(self, px_size, batch_size=1000, filt_size=10, plot_axis=(0, 1), xextent=None, yextent=None, zextent=None, colextent=None,
                  abs_clip=None, rel_clip=None, contrast=1, device='cpu'):
         super().__init__(px_size=px_size, sigma_blur=None, plot_axis=plot_axis, xextent=xextent,
@@ -253,7 +276,7 @@ class Renderer2D_auto_sig(Renderer2D):
         W = torch.exp(dist.log_prob(mesh[:, :, None]).sum(-1)).permute(2, 0, 1)
 
         return (W/torch.clamp_min(W.sum(-1).sum(-1), 1.)[:, None, None])
-    
+
     @script
     def place_gaussians(int_hist, inds, W, fs):
         for i in range(len(W)):
@@ -281,12 +304,12 @@ class Renderer2D_auto_sig(Renderer2D):
 
         s_inds = ((xy_mus - torch.Tensor([x_hist_ext[0], y_hist_ext[0]]
                                          ).to(self.device)) // self.px_size).type(torch.LongTensor)
-        
+
         if col_vec is not None:
-            
+
             c_pos = torch.clip(col_vec, c_range[0], c_range[1])
             c_weight = ((c_pos - c_range[0]) / (c_range[1] - c_range[0])).to(self.device)
-        
+
             comb_hist = torch.zeros([h+self.fs, w+self.fs, 2], device=self.device, dtype=torch.float)
 
             for i in tqdm(range(len(xy_mus)//self.bs)):
@@ -302,11 +325,11 @@ class Renderer2D_auto_sig(Renderer2D):
             col_hist = comb_hist[:, :, 1]
 
             return int_hist.T.numpy(), col_hist.T.numpy()
-        
+
         else:
-        
+
             int_hist = torch.zeros([h+self.fs, w+self.fs], device=self.device, dtype=torch.float)
-            
+
             for i in tqdm(range(len(xy_mus)//self.bs)):
 
                 sl = np.s_[i*self.bs:(i+1)*self.bs]
@@ -316,4 +339,4 @@ class Renderer2D_auto_sig(Renderer2D):
 
             int_hist = int_hist[self.fs//2:-(self.fs//2+1), self.fs//2:-(self.fs//2+1)]
 
-            return int_hist.T.numpy()        
+            return int_hist.T.numpy()
