@@ -6,6 +6,22 @@ from unittest.mock import patch, Mock
 from decode.utils import hardware
 
 
+@pytest.mark.parametrize("device_str,device,ix", [('cpu', 'cpu', None),
+                                                  ('cuda', 'cuda', None),
+                                                  ('cuda:1', 'cuda', 1),
+                                                  ('cud:1', 'err', None)])
+def test__specific_device_by_str(device_str, device, ix):
+
+    if device != 'err':
+        device_out, ix_out = hardware._specific_device_by_str(device_str)
+        assert device_out == device
+        assert ix_out == ix
+
+    else:
+        with pytest.raises(ValueError):
+            hardware._specific_device_by_str(device_str)
+
+
 @pytest.mark.parametrize("device_cap, device_cap_str", [((3, 5), "3.5"), ((7, 5), "7.5")])
 def test_get_device_capability(device_cap, device_cap_str):
 

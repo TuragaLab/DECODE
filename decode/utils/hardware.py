@@ -3,6 +3,21 @@ from typing import Tuple, Union
 import torch
 
 
+def _specific_device_by_str(device) -> Tuple[str, str]:
+    """Converts torch compatible device string to device name and device index"""
+    if device != 'cpu' and device[:4] != 'cuda':
+        raise ValueError
+
+    if device == 'cpu':
+        return 'cpu', None
+
+    elif len(device) == 4:
+        return 'cuda', None
+
+    else:
+        return 'cuda', int(device.split(':')[-1])
+
+
 def get_device_capability() -> str:
     capability = torch.cuda.get_device_capability()
     return f'{capability[0]}.{capability[1]}'

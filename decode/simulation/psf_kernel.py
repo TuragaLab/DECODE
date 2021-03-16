@@ -344,7 +344,7 @@ class CubicSplinePSF(PSF):
             ref0 (tuple): zero reference point in implementation units
             vx_size (tuple): pixel / voxel size
             roi_size (tuple, None, optional): roi_size. optional. can be determined from dimension of coefficients.
-            cuda_kernel: use cuda implementation
+            device: specify the device for the implementation to run on. Must be like ('cpu', 'cuda', 'cuda:1')
             max_roi_chunk (int): max number of rois to be processed at a time via the cuda kernel. If you run into
                 memory allocation errors, decrease this number or free some space on your CUDA device.
         """
@@ -362,8 +362,7 @@ class CubicSplinePSF(PSF):
 
         self.ref_re = self._shift_ref(ref_re, roi_auto_center)
 
-        self._device = device
-        self._device_ix = None if 'cpu' == device else int(device.split(':')[-1])
+        self._device, self._device_ix = decode.utils.hardware._specific_device_by_str(device)
         self.max_roi_chunk = max_roi_chunk
 
         self._init_spline_impl()
@@ -392,10 +391,15 @@ class CubicSplinePSF(PSF):
 
         """
         if 'cuda' in self._device:
+            if self._device_ix is None:
+                device_ix = 0
+            else:
+                device_ix = self._device_ix
+
             self._spline_impl = spline.PSFWrapperCUDA(self._coeff.shape[0], self._coeff.shape[1],
                                                       self._coeff.shape[2],
                                                       self.roi_size_px[0], self.roi_size_px[1],
-                                                      self._coeff.numpy(), self._device_ix)
+                                                      self._coeff.numpy(), device_ix)
         elif 'cpu' == self._device:
             self._spline_impl = spline.PSFWrapperCPU(self._coeff.shape[0], self._coeff.shape[1],
                                                      self._coeff.shape[2],
@@ -488,7 +492,7 @@ class CubicSplinePSF(PSF):
         Returns a copy of this object with implementation in CUDA. If already on CUDA and selected device, return original object.
 
         Args:
-            ix: device index 
+            ix: device index
 
         Returns:
             CubicSplinePSF instance

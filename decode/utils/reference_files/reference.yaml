@@ -19,8 +19,7 @@ Evaluation:
   dist_vol:
   match_dims: 3
 Hardware:
-  device: cuda
-  device_ix: 0
+  device: cuda:0
   device_simulation: cuda:0
   num_worker_train: 4
   torch_threads: 4
@@ -81,7 +80,10 @@ InOut:
   calibration_file:  # spline calib
   experiment_out:  # main output dir
   checkpoint_init:   # initialise from checkpoint (i.e. resume training)
-PostProcessing: NMS  # (blank) for no post-processing or LookUp, Consistency
+  model_init:
+Meta:
+  version:
+PostProcessing: SpatialIntegration  # (blank) for no post-processing or LookUp
 PostProcessingParam:
   raw_th: 0.5
 Scaling:  # if some values are missing they will be auto-set as described in the respective comments below

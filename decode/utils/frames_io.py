@@ -65,7 +65,7 @@ class TiffTensor:
         self._file = file
         self._dtype = dtype
 
-    def __getitem__(self, pos):
+    def __getitem__(self, pos) -> torch.Tensor:
 
         # convert to tuple if not already
         if not isinstance(pos, tuple):

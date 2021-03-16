@@ -1,4 +1,4 @@
-name: decode_dev_cpu
+name: decode_dev
 
 channels:
   - turagalab/label/dev
@@ -18,13 +18,13 @@ dependencies:
   - recommonmark  # markdown for sphinx
   - sphinx
   - sphinx-autodoc-typehints
-  - sphinx_rtd_theme
+  - sphinx-markdown-tables
+  - pydata-sphinx-theme
 
   # actual package
   - python=3.9
   - pytorch=1.7.1
   - cpuonly  # fake package (aka flag) for pytorch, otherwise it installs a cudatoolkit
-  - torchvision
   - click
   - deprecated
   - gitpython>=3.1
@@ -39,9 +39,9 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-  - spline>=0.10.alpha
+  - spline>=0.10.0.alpha.2
   - tensorboard
-  - tifffile>=2021.1
+  - tifffile>=2020.2
   - tqdm
 
   # add kernel to jupyter

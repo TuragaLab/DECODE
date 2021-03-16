@@ -171,3 +171,4 @@ decode/test/assets/7_dataset.pt
 decode/test/assets/8_dataset.pt
 decode/test/assets/9_dataset.pt
 /decode/cpp_src/lib/eigen/
+.DS_Store

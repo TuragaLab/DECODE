@@ -135,7 +135,7 @@ class SMLMStaticDataset(SMLMDataset):
         """
 
         Args:
-            frames (torch.Tensor): frames. N x C x H x W
+            frames (torch.Tensor): frames. N x H x W
             em (list of EmitterSets): ground-truth emitter-sets
             frame_proc: frame processing function
             em_proc: emitter processing / filter function

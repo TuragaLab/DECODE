@@ -170,8 +170,13 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
         """
 
         """Setup"""
-        n = 50000
+        n = 5000
         xyz = torch.rand(n, 3) * 100
+
+        # move them a bit away from zero for this test (otherwise it might fail)
+        ix_close_zero = xyz.abs() < 1e-6
+        xyz[ix_close_zero] = xyz[ix_close_zero] + 0.01
+
         phot = torch.rand_like(xyz[:, 0])
         frame_ix = torch.arange(n)
 

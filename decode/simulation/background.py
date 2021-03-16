@@ -111,7 +111,7 @@ class UniformBackground(Background):
         Args:
             bg_uniform (float or tuple of floats): background value or background range. If tuple (bg range) the value
                 will be sampled from a random uniform.
-            bg_sampler (function): a custom bg sampler function
+            bg_sampler (function): a custom bg sampler function that can take a sample_shape argument
 
         """
         super().__init__(forward_return=forward_return)
@@ -120,10 +120,11 @@ class UniformBackground(Background):
             raise ValueError("You must either specify bg_uniform XOR a bg_distribution")
 
         if bg_sampler is None:
-            if not (isinstance(bg_uniform, tuple) or isinstance(bg_uniform, list)):
-                bg_uniform = [bg_uniform, bg_uniform]  # const. value
+            if isinstance(bg_uniform, (list, tuple)):
+                self._bg_distribution = torch.distributions.uniform.Uniform(*bg_uniform).sample
+            else:
+                self._bg_distribution = _get_delta_sampler(bg_uniform)
 
-            self._bg_distribution = torch.distributions.uniform.Uniform(*bg_uniform).sample
         else:
             self._bg_distribution = bg_sampler
 
@@ -143,6 +144,13 @@ class UniformBackground(Background):
             bg = bg.view(-1, *((1,) * (len(size) - 1)))
 
         return bg.to(device) * torch.ones(size, device=device)
+
+
+def _get_delta_sampler(val: float):
+    def delta_sampler(sample_shape) -> float:
+        return val * torch.ones(sample_shape)
+
+    return delta_sampler
 
 
 class BgPerEmitterFromBgFrame:

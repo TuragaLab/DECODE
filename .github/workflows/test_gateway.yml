@@ -21,8 +21,8 @@ jobs:
           # mamba-version: "*"  # does not work reliably atm
           # channels: turagalab/label/dev,turagalab,pytorch,conda-forge,defaults
           channel-priority: strict
-          activate-environment: decode_dev_cpu
-          environment-file: environment_cpu.yaml
+          activate-environment: decode_dev
+          environment-file: environment.yaml
 
       # Run the specific test
       - run: pytest decode/test/test_gateway.py
