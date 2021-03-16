@@ -24,10 +24,10 @@ In the following we will make a conda environment and install decode.
 
 System Requirements (TLDR)
 **************************
-* GPU: CUDA with compute capability >= 3.7 (highly recommended)
-* OS: Linux (GPU accelerated), Windows (GPU accelerated), macOS (CPU only)
+* GPU: CUDA with RAM >= 4GB and compute capability >= 3.7 (both highly recommended)
 * RAM: >= 8 GB
 * CPU: Multi-Core recommended
+* OS: Linux (GPU accelerated), Windows (GPU accelerated), macOS (CPU only)
 * Software: conda, anaconda
 
 Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)

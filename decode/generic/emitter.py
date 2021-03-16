@@ -1,7 +1,7 @@
+import copy
 import warnings
 from pathlib import Path
 from typing import Union, Optional, Iterable
-import copy
 
 import numpy as np
 import torch
@@ -30,6 +30,7 @@ class EmitterSet:
                 can not be accessed
     """
     _eq_precision = 1E-8
+    _power_auto_conversion_attrs = {'xyz_cr': 2, 'xyz_sig': 1}
     _xy_units = ('px', 'nm')
 
     def __init__(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.LongTensor,
@@ -106,7 +107,7 @@ class EmitterSet:
         """
         Returns xyz in pixel coordinates and performs respective transformations if needed.
         """
-        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='px')
+        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='px', power=1.)
 
     @xyz_px.setter
     def xyz_px(self, xyz):
@@ -118,7 +119,7 @@ class EmitterSet:
         """
         Returns xyz in nanometres and performs respective transformations if needed.
         """
-        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='nm')
+        return self._pxnm_conversion(self.xyz, in_unit=self.xy_unit, tar_unit='nm', power=1.)
 
     @xyz_nm.setter
     def xyz_nm(self, xyz):  # xyz in nanometres
@@ -133,13 +134,6 @@ class EmitterSet:
         return self.xyz_cr.sqrt()
 
     @property
-    def xyz_cr_px(self) -> torch.Tensor:
-        """
-        Cramer-Rao of xyz in px units.
-        """
-        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='px', power=2)
-
-    @property
     def xyz_scr_px(self) -> torch.Tensor:
         """
         Square-Root cramer rao of xyz in px units.
@@ -147,12 +141,16 @@ class EmitterSet:
         return self.xyz_cr_px.sqrt()
 
     @property
-    def xyz_cr_nm(self) -> torch.Tensor:
-        return self._pxnm_conversion(self.xyz_cr, in_unit=self.xy_unit, tar_unit='nm', power=2)
-
-    @property
     def xyz_scr_nm(self) -> torch.Tensor:
         return self.xyz_cr_nm.sqrt()
+
+    @property
+    def xyz_sig_tot_nm(self) -> torch.Tensor:
+        return (self.xyz_sig_nm ** 2).sum(1).sqrt()
+
+    @property
+    def xyz_sig_weighted_tot_nm(self) -> torch.Tensor:
+        return self._calc_weighted_total(self.xyz_sigma_nm, self.dim() == 3)
 
     @property
     def phot_scr(self) -> torch.Tensor:  # sqrt cramer-rao of photon count
@@ -162,13 +160,22 @@ class EmitterSet:
     def bg_scr(self) -> torch.Tensor:  # sqrt cramer-rao of bg count
         return self.bg_cr.sqrt()
 
-    @property
-    def xyz_sig_px(self) -> torch.Tensor:
-        return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='px')
+    def __getattr__(self, item):
+        """Auto unit convert a couple of attributes by trailing unit specification"""
+        attr_base = item.rstrip('_nm').rstrip('_px')
 
-    @property
-    def xyz_sig_nm(self) -> torch.Tensor:
-        return self._pxnm_conversion(self.xyz_sig, in_unit=self.xy_unit, tar_unit='nm')
+        if attr_base in self._power_auto_conversion_attrs.keys():
+            tar_unit = item[-2:]
+            if tar_unit not in ('nm', 'px'):
+                raise NotImplementedError
+
+            return self._pxnm_conversion(
+                getattr(self, attr_base),
+                in_unit=self.xy_unit,
+                tar_unit=tar_unit,
+                power=self._power_auto_conversion_attrs[attr_base])
+
+        raise AttributeError
 
     @property
     def meta(self) -> dict:
@@ -521,6 +528,18 @@ class EmitterSet:
         """
         return copy.deepcopy(self)
 
+    def _calc_sigma_weighted_total(self, xyz_sigma_nm, use_3d):
+
+        x_sig_var = torch.var(xyz_sigma_nm[:, 0])
+        y_sig_var = torch.var(xyz_sigma_nm[:, 1])
+        tot_var = xyz_sigma_nm[:, 0] ** 2 + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sigma_nm[:, 1]) ** 2
+
+        if use_3d:
+            z_sig_var = torch.var(xyz_sigma_nm[:, 2])
+            tot_var += (torch.sqrt(x_sig_var / z_sig_var) * xyz_sigma_nm[:, 2]) ** 2
+
+        return torch.sqrt(tot_var)
+
     @staticmethod
     def cat(emittersets: Iterable, remap_frame_ix: Union[None, torch.Tensor] = None, step_frame_ix: int = None):
         """
@@ -674,7 +693,7 @@ class EmitterSet:
         l = self
         k = chunks
         # https://stackoverflow.com/questions/2130016/splitting-a-list-into-n-parts-of-approximately-equal-length/37414115#37414115
-        return [l[i * (n // k) + min(i, n % k):(i+1) * (n // k) + min(i+1, n % k)] for i in range(k)]
+        return [l[i * (n // k) + min(i, n % k):(i + 1) * (n // k) + min(i + 1, n % k)] for i in range(k)]
 
     def filter_by_sigma(self, fraction: float, dim: Optional[int] = None, return_low=True):
         """
