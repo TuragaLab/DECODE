@@ -37,14 +37,14 @@ class TestRendererIndividual2D:
 
     @pytest.fixture()
     def rend(self):
-        return renderer.RendererIndividual2D(plot_axis = (0,1,2), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), colextent=(0.,100.), px_size=10., filt_size=20,
+        return renderer.RendererIndividual2D(plot_axis = (0,1), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), colextent=(0.,100.), px_size=10., filt_size=20,
                                    rel_clip=None, abs_clip=None)
 
     @pytest.fixture()
     def em(self):
         """Setup"""
         xyz = torch.rand(100, 3) * torch.Tensor([[100., 100., 1000.]])
-        return emitter.CoordinateOnlyEmitter(xyz, xy_unit='nm')
+        return emitter.EmitterSet(xyz, xyz_sig=xyz*0.1, phot=torch.ones(100), frame_ix=torch.arange(100), xy_unit='nm')
 
     def test_forward(self, rend, em):
         histogram = rend.forward(em, torch.arange(len(em)))
