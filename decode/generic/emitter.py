@@ -150,7 +150,7 @@ class EmitterSet:
 
     @property
     def xyz_sig_weighted_tot_nm(self) -> torch.Tensor:
-        return self._calc_weighted_total(self.xyz_sigma_nm, self.dim() == 3)
+        return self._calc_sigma_weighted_total(self.xyz_sig_nm, self.dim() == 3)
 
     @property
     def phot_scr(self) -> torch.Tensor:  # sqrt cramer-rao of photon count

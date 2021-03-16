@@ -33,11 +33,11 @@ class TestRenderer2D:
         plt.show()
 
 
-class TestRenderer3D(TestRenderer2D):
+class TestRenderer2D_auto_sig:
 
     @pytest.fixture()
     def rend(self):
-        return renderer.Renderer3D(plot_axis = (0,1,2), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), px_size=10., sigma_blur=10.,
+        return renderer.Renderer2D_auto_sig(plot_axis = (0,1,2), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), cextent=(0.,100.), px_size=10., filt_size=20,
                                    rel_clip=None, abs_clip=None)
 
     @pytest.fixture()
@@ -47,7 +47,7 @@ class TestRenderer3D(TestRenderer2D):
         return emitter.CoordinateOnlyEmitter(xyz, xy_unit='nm')
 
     def test_forward(self, rend, em):
-        histogram = rend.forward(em)
+        histogram = rend.forward(em, torch.arange(len(em)))
         assert histogram.size() == torch.Size([10, 10, 3])
 
     @pytest.mark.plot
@@ -55,5 +55,5 @@ class TestRenderer3D(TestRenderer2D):
         PlotFrameCoord(torch.zeros((101, 101)), em.xyz_nm).plot()
         plt.show()
 
-        rend.render(em)
+        rend.render(em, torch.arange(len(em)))
         plt.show()
