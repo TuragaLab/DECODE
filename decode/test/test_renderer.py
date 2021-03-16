@@ -37,7 +37,7 @@ class TestRendererIndividual2D:
 
     @pytest.fixture()
     def rend(self):
-        return renderer.RendererIndividual2D(plot_axis = (0,1,2), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), cextent=(0.,100.), px_size=10., filt_size=20,
+        return renderer.RendererIndividual2D(plot_axis = (0,1,2), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), colextent=(0.,100.), px_size=10., filt_size=20,
                                    rel_clip=None, abs_clip=None)
 
     @pytest.fixture()
