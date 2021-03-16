@@ -30,8 +30,8 @@ jobs:
     - name: Build DECODE
       run: |
         cd ./conda
-        $CONDA/bin/conda-build -c turagalab -c pytorch -c conda-forge decode
-        $CONDA/bin/conda-build -c turagalab -c pytorch -c conda-forge decode --output > $FILENAMES
+        $CONDA/bin/conda-build -c turagalab -c turagalab/label/dev -c pytorch -c conda-forge decode
+        $CONDA/bin/conda-build -c turagalab -c turagalab/label/dev -c pytorch -c conda-forge decode --output > $FILENAMES
 
     # upload to Anaconda Cloud; separate step to minimize exposure of the token
     - name: Upload to Anaconda Cloud

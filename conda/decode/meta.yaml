@@ -36,7 +36,7 @@ requirements:
     - seaborn=0.10
     - scikit-image
     - scikit-learn
-    - spline>=0.10.alpha
+    - spline>=0.10.0.alpha.2
     - tensorboard
     - tifffile>=2021.1
     - tqdm
@@ -50,7 +50,7 @@ requirements:
 
 about:
     home: https://github.com/turagaLab/decode
-    # dev_url: github url 
+    # dev_url: github url
     # doc_url: doc url
     # license: GPL-3.0
     # license_family: GPL
