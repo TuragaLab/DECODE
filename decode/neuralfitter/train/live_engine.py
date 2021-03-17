@@ -91,13 +91,17 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
                 experiment_id = experiment_id + '_' + log_comment
         else:
             from_ckpt = True
-            experiment_id = param.InOut.checkpoint_init.split('/')[-1]
+            experiment_id = Path(param.InOut.checkpoint_init).parent.name
     else:
         experiment_id = 'debug'
         from_ckpt = False
 
     """Set up unique folder for experiment"""
-    experiment_path = Path(param.InOut.experiment_out) / Path(experiment_id)
+    if not from_ckpt:
+        experiment_path = Path(param.InOut.experiment_out) / Path(experiment_id)
+    else:
+        experiment_path = Path(param.InOut.checkpoint_init).parent
+    
     if not experiment_path.parent.exists():
         experiment_path.parent.mkdir()
 
@@ -108,7 +112,7 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
             experiment_path.mkdir(exist_ok=False)
 
     model_out = experiment_path / Path('model.pt')
-    ckpt_path = model_out.parent / Path('ckpt.pt')
+    ckpt_path = experiment_path / Path('ckpt.pt')
 
     # Backup the parameter file under the network output path with the experiments ID
     param_backup_in = experiment_path / Path('param_run_in').with_suffix(param_file.suffix)
@@ -169,7 +173,7 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
     dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
 
     if from_ckpt:
-        ckpt = decode.utils.checkpoint.CheckPoint.load(ckpt_path)
+        ckpt = decode.utils.checkpoint.CheckPoint.load(param.InOut.checkpoint_init)
         model.load_state_dict(ckpt.model_state)
         optimizer.load_state_dict(ckpt.optimizer_state)
         lr_scheduler.load_state_dict(ckpt.lr_sched_state)
