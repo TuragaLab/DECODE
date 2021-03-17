@@ -11,18 +11,25 @@ class TestRenderer2D:
 
     @pytest.fixture()
     def rend(self):
-        return renderer.Renderer2D(plot_axis = (0,1), xextent=(0., 100.), yextent=(0., 100.), px_size=10., sigma_blur=10.,
-                                   clip_percentile=None)
+        return renderer.Renderer2D(
+            plot_axis=(0, 1), xextent=(0., 100.), yextent=(0., 100.),
+            px_size=10., sigma_blur=None, rel_clip=None, abs_clip=None)
 
     @pytest.fixture()
     def em(self):
         """Setup"""
         xyz = torch.tensor([[10., 50., 100.]])
-        return emitter.CoordinateOnlyEmitter(xyz, xy_unit='nm')
+        em = emitter.CoordinateOnlyEmitter(xyz, xy_unit='nm')
+        em.phot = torch.ones_like(em.phot)
+
+        return em
 
     def test_forward(self, rend, em):
         histogram = rend.forward(em)
+
         assert histogram.size() == torch.Size([10, 10])
+        assert histogram[1, 5] != 0 
+        assert histogram.sum() == histogram[1, 5]
 
     @pytest.mark.plot
     def test_plot_frame_render_visual(self, rend, em):
@@ -33,27 +40,31 @@ class TestRenderer2D:
         plt.show()
 
 
-class TestRenderer3D(TestRenderer2D):
+class TestRendererIndividual2D:
 
     @pytest.fixture()
     def rend(self):
-        return renderer.Renderer3D(plot_axis = (0,1,2), xextent=(0., 100.), yextent=(0., 100.), zextent=(-100., 100.), px_size=10., sigma_blur=10.,
-                                   clip_percentile=None)
+        return renderer.RendererIndividual2D(
+            plot_axis = (0,1), xextent=(0., 100.), yextent=(0., 100.),
+            zextent=(0.,1000.), colextent=(0.,100.), px_size=10.,
+            filt_size=20, rel_clip=None, abs_clip=None)
 
     @pytest.fixture()
     def em(self):
         """Setup"""
         xyz = torch.rand(100, 3) * torch.Tensor([[100., 100., 1000.]])
-        return emitter.CoordinateOnlyEmitter(xyz, xy_unit='nm')
+        return emitter.EmitterSet(xyz, xyz_sig=xyz*0.1, phot=torch.ones(100), frame_ix=torch.arange(100), xy_unit='nm')
 
     def test_forward(self, rend, em):
-        histogram = rend.forward(em)
+        histogram = rend.forward(em, torch.arange(len(em)))
+
         assert histogram.size() == torch.Size([10, 10, 3])
+        assert histogram.sum() > 0.
 
     @pytest.mark.plot
     def test_plot_frame_render_visual(self, rend, em):
         PlotFrameCoord(torch.zeros((101, 101)), em.xyz_nm).plot()
         plt.show()
 
-        rend.render(em)
+        rend.render(em, torch.arange(len(em)))
         plt.show()
