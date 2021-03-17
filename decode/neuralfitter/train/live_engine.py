@@ -91,7 +91,7 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
                 experiment_id = experiment_id + '_' + log_comment
         else:
             from_ckpt = True
-            experiment_id = param.InOut.checkpoint.split('/')[-1]
+            experiment_id = param.InOut.checkpoint_init.split('/')[-1]
     else:
         experiment_id = 'debug'
         from_ckpt = False
