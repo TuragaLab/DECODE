@@ -159,12 +159,12 @@ class Renderer2D(Renderer):
 
         xyz_extent = self.get_extent(em)
         ind_mask = (
-                (em.xyz_nm[:, 0] > xyz_extent[0][0])
-                * (em.xyz_nm[:, 0] < xyz_extent[0][1])
-                * (em.xyz_nm[:, 1] > xyz_extent[1][0])
-                * (em.xyz_nm[:, 1] < xyz_extent[1][1])
-                * (em.xyz_nm[:, 2] > xyz_extent[2][0])
-                * (em.xyz_nm[:, 2] < xyz_extent[2][1])
+                (em.xyz_nm[:, 0] >= xyz_extent[0][0])
+                * (em.xyz_nm[:, 0] <= xyz_extent[0][1])
+                * (em.xyz_nm[:, 1] >= xyz_extent[1][0])
+                * (em.xyz_nm[:, 1] <= xyz_extent[1][1])
+                * (em.xyz_nm[:, 2] >= xyz_extent[2][0])
+                * (em.xyz_nm[:, 2] <= xyz_extent[2][1])
         )
 
         em_sub = em[ind_mask]
@@ -350,7 +350,7 @@ class RendererIndividual2D(Renderer2D):
 
             comb_hist = torch.zeros([h + self.fs, w + self.fs, 2], device=self.device, dtype=torch.float)
 
-            for i in tqdm(range(len(xy_mus) // self.bs)):
+            for i in tqdm(range(len(xy_mus) // self.bs + 1)):
                 sl = np.s_[i * self.bs: (i + 1) * self.bs]
                 sub_inds = s_inds[sl]
                 W = self.calc_gaussians(xy_mus[sl], xy_sigs[sl], mesh)
@@ -360,14 +360,13 @@ class RendererIndividual2D(Renderer2D):
             comb_hist = comb_hist[self.fs // 2: -(self.fs // 2 + 1), self.fs // 2: -(self.fs // 2 + 1)]
             int_hist = comb_hist[:, :, 0]
             col_hist = comb_hist[:, :, 1]
-
             return int_hist.T.numpy(), col_hist.T.numpy()
 
         else:
 
             int_hist = torch.zeros([h + self.fs, w + self.fs], device=self.device, dtype=torch.float)
 
-            for i in tqdm(range(len(xy_mus) // self.bs)):
+            for i in tqdm(range(len(xy_mus) // self.bs + 1)):
                 sl = np.s_[i * self.bs: (i + 1) * self.bs]
                 sub_inds = s_inds[sl]
                 W = self.calc_gaussians(xy_mus[sl], xy_sigs[sl], mesh)

@@ -13,7 +13,7 @@ class TestRenderer2D:
     def rend(self):
         return renderer.Renderer2D(
             plot_axis=(0, 1), xextent=(0., 100.), yextent=(0., 100.),
-            px_size=10., sigma_blur=10., rel_clip=None, abs_clip=None)
+            px_size=10., sigma_blur=None, rel_clip=None, abs_clip=None)
 
     @pytest.fixture()
     def em(self):
@@ -28,8 +28,8 @@ class TestRenderer2D:
         histogram = rend.forward(em)
 
         assert histogram.size() == torch.Size([10, 10])
-        assert histogram[1, 5] != 0  # Todo: Could also be histogram[5, 1] but this fails as well
-        assert histogram.abs().sum() == histogram[1, 5]
+        assert histogram[1, 5] != 0 
+        assert histogram.sum() == histogram[1, 5]
 
     @pytest.mark.plot
     def test_plot_frame_render_visual(self, rend, em):
@@ -46,7 +46,7 @@ class TestRendererIndividual2D:
     def rend(self):
         return renderer.RendererIndividual2D(
             plot_axis = (0,1), xextent=(0., 100.), yextent=(0., 100.),
-            zextent=(-100., 100.), colextent=(0.,100.), px_size=10.,
+            zextent=(0.,1000.), colextent=(0.,100.), px_size=10.,
             filt_size=20, rel_clip=None, abs_clip=None)
 
     @pytest.fixture()
