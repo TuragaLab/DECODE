@@ -84,26 +84,35 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
 
     """Experiment ID"""
     if not debug:
-        experiment_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
-
-        if log_comment:
-            experiment_id = experiment_id + '_' + log_comment
-
+        if param.InOut.checkpoint_init is None:
+            experiment_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
+            from_ckpt = False
+            if log_comment:
+                experiment_id = experiment_id + '_' + log_comment
+        else:
+            from_ckpt = True
+            experiment_id = Path(param.InOut.checkpoint_init).parent.name
     else:
         experiment_id = 'debug'
+        from_ckpt = False
 
     """Set up unique folder for experiment"""
-    experiment_path = Path(param.InOut.experiment_out) / Path(experiment_id)
+    if not from_ckpt:
+        experiment_path = Path(param.InOut.experiment_out) / Path(experiment_id)
+    else:
+        experiment_path = Path(param.InOut.checkpoint_init).parent
+    
     if not experiment_path.parent.exists():
         experiment_path.parent.mkdir()
 
-    if debug:
-        experiment_path.mkdir(exist_ok=True)
-    else:
-        experiment_path.mkdir(exist_ok=False)
+    if not from_ckpt:
+        if debug:
+            experiment_path.mkdir(exist_ok=True)
+        else:
+            experiment_path.mkdir(exist_ok=False)
 
     model_out = experiment_path / Path('model.pt')
-    ckpt_path = model_out.parent / Path('ckpt.pt')
+    ckpt_path = experiment_path / Path('ckpt.pt')
 
     # Backup the parameter file under the network output path with the experiments ID
     param_backup_in = experiment_path / Path('param_run_in').with_suffix(param_file.suffix)
@@ -163,8 +172,16 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
 
     dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
 
-    # useful if we restart a training
-    first_epoch = param.HyperParameter.epoch_0 if param.HyperParameter.epoch_0 is not None else 0
+    if from_ckpt:
+        ckpt = decode.utils.checkpoint.CheckPoint.load(param.InOut.checkpoint_init)
+        model.load_state_dict(ckpt.model_state)
+        optimizer.load_state_dict(ckpt.optimizer_state)
+        lr_scheduler.load_state_dict(ckpt.lr_sched_state)
+        first_epoch = ckpt.step + 1
+        model = model.train()
+        print(f'Resuming training from checkpoint ' + experiment_id)
+    else:
+        first_epoch = 0
 
     for i in range(first_epoch, param.HyperParameter.epochs):
         logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
@@ -241,8 +258,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     model = model.parse(param)
 
     model_ls = decode.utils.model_io.LoadSaveModel(model,
-                                                   output_file=model_out,
-                                                   input_file=param.InOut.model_init)
+                                                   output_file=model_out)
 
     model = model_ls.load_init()
     model = model.to(torch.device(device))
