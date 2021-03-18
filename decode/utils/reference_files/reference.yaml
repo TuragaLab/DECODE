@@ -59,7 +59,7 @@ HyperParameter:
   disabled_attributes:
   ds_lifetime:
   epoch_0:
-  epochs: 10000
+  epochs: 1000
   fgbg_factor:
   grad_mod: true
   emitter_label_photon_min: 100.0
