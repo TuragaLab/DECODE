@@ -24,7 +24,7 @@ We recommend to set the conda channel_priority to strict. This does two things: 
 
 Depending on whether you have a CUDA capable GPU type:
 
-    ```bash
+    ```
     # (optional, recommended, only do once) weight channel hierarchy more than package version
     conda config --set channel_priority strict
 
@@ -41,7 +41,7 @@ Depending on whether you have a CUDA capable GPU type:
 ## Installation as package in current environment
 Installing the package without creating a new environment (or in a fresh environment) is possible as
 
-    ```bash
+    ```
     conda install -c turagalab -c pytorch -c conda-forge decode
     ```
 
@@ -49,7 +49,7 @@ Updating
 ***********
 Please execute the following command in your terminal/Anaconda prompt or do it via the Anaconda Navigator GUI.
 
-    ```bash
+    ```
     conda update -c turagalab -c pytorch -c conda-forge decode
     ```
 
