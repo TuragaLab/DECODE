@@ -14,7 +14,6 @@ To try out the package we recommend the Google Colab notebooks which comprise tr
 DECODE tutorial
 ######################
 For detailed instructions you can watch the tutorial we held at the I2K 2020 workshop:
-|youtube_embedded|
 
-.. |youtube_embedded| raw:: html
+.. raw:: html
     <p style="text-align:center"><iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/zoWsj3FCUJs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></p>
