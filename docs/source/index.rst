@@ -11,12 +11,13 @@ To try out the package we recommend the Google Colab notebooks which comprise tr
 Google Colab Notebooks
 ######################
 We prepared two example notebooks on Google Colab so you can test DECODE without the need to install it locally.
+
 * `Training <https://colab.research.google.com/drive/18V1TLLu63CXSWihwoGX7ZQ5wj0Qk7GnD?usp=sharing>`_ of the model based on your data
 * `Fitting <https://colab.research.google.com/drive/1O0mjuOjaOl0wnLZ11Xo92IsWrgqtXL17?usp=sharing>`_ of your high density localization microscopy data
 
 Local installation
 ######################
-Instructions for local installation can be found `here <./installation.md>`_.
+Instructions for local installation can be found `here <./installation.html>`_.
 
 .. _tutorial:
 

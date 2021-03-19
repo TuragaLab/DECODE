@@ -57,4 +57,4 @@ Import
 *******
 
 In python you can import this package as simple as ``import decode``.
-You may continue with our [tutorial](./index.html#tutorial).
+You may continue with our [tutorial](./tutorial.html).
