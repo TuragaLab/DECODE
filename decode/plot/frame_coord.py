@@ -40,7 +40,7 @@ def connect_point_set(set0, set1, threeD=False, ax=None):
 
 class PlotFrame:
     def __init__(self, frame: torch.Tensor, extent: Optional[tuple] = None, clim=None,
-                 plot_colorbar=False, axes_order: Optional[str] = None):
+                 plot_colorbar: bool = False, axes_order: Optional[str] = None):
         """
         Plots a frame.
 
@@ -248,7 +248,9 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
                  extent=None, coord_limit=None,
                  norm=None, clim=None,
                  match_lines=False, labels=None,
+                 plot_colorbar_frame: bool = False,
                  axes_order: Optional[str] = None):
+
         PlotCoordinates.__init__(self,
                                  pos_tar=pos_tar,
                                  phot_tar=phot_tar,
@@ -261,7 +263,8 @@ class PlotFrameCoord(PlotCoordinates, PlotFrame):
                                  labels=labels,
                                  axes_order=axes_order)
 
-        PlotFrame.__init__(self, frame, extent, norm, clim, axes_order=axes_order)
+        PlotFrame.__init__(self, frame, extent, clim,
+                           plot_colorbar=plot_colorbar_frame, axes_order=axes_order)
 
     def plot(self):
         PlotFrame.plot(self)
