@@ -61,7 +61,7 @@ As part of the virtual [I2K 2020](https://www.janelia.org/you-janelia/conference
 Please find the video below.
 *DECODE is being actively developed, therefore the exact commands might differ from those shown in the video.*
 
-<p style="text-align:center"><iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/zoWsj3FCUJs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></p>
+[![DECODE Video Tutorial](https://img.youtube.com/vi/zoWsj3FCUJs/0.jpg)](https://www.youtube.com/watch?v=zoWsj3FCUJs)
 
 ## Paper
 This is the *official* implementation of the [preprint](https://www.biorxiv.org/content/10.1101/2020.10.26.355164v1).
