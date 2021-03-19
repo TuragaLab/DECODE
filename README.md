@@ -9,7 +9,7 @@ DECODE works by training a DEep COntext DEpendent (DECODE) neural network to det
 
 ## Getting started
 
-The easiest way to try out the algorithm is to have a look at the Google Colab Notebooks we provide for training our algorithm and fitting experimental data. For installation instructions and further information please **refer to our** [**docs**](https://decode.readthedocs.io). 
+The easiest way to try out the algorithm is to have a look at the Google Colab Notebooks we provide for training our algorithm and fitting experimental data. For installation instructions and further information please **refer to our** [**docs**](https://decode.readthedocs.io).
 You can find these here:
 - DECODE Training [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18V1TLLu63CXSWihwoGX7ZQ5wj0Qk7GnD?usp=sharing)
 - DECODE Fitting [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1O0mjuOjaOl0wnLZ11Xo92IsWrgqtXL17?usp=sharing)
@@ -22,6 +22,8 @@ You can find these here:
 We highly recommend using [Anaconda Python](http://anaconda.org) for installing DECODE and its dependencies, including [Pytorch](http://pytorch.org/). While a CUDA-compatible GPU is not essential, it is strongly recommended, as it significantly speeds up the training and analysis steps.
 
 ### Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
+<details>
+    <summary>Open details</summary>
 On macOS and Linux please open your terminal, on Windows open Anaconda Prompt. We recommend to set the conda channel_priority to strict. This does two things: Installation is faster, packages are used from the same channel if present. Depending on whether you have a CUDA capable GPU type:
 
     # (optional, recommended, only do once) weight channel hierarchy more than package version
@@ -35,6 +37,7 @@ On macOS and Linux please open your terminal, on Windows open Anaconda Prompt. W
 
     # after previous command (all platforms)
     conda activate decode_env
+</details>
 
 ### Installation as package in current environment
 Installing the package without creating a new environment (or in a fresh environment) is possible as
@@ -52,6 +55,13 @@ Installing the package without creating a new environment (or in a fresh environ
 
 Please refer to our [docs](https://decode.readthedocs.io) for more information on other options for installation.
 
+
+## Video Tutorial
+As part of the virtual [I2K 2020](https://www.janelia.org/you-janelia/conferences/from-images-to-knowledge-with-imagej-friends) conference we organized a workshop on DECODE.
+Please find the video below.
+*DECODE is being actively developed, therefore the exact commands might differ from those shown in the video.*
+
+<p style="text-align:center"><iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/zoWsj3FCUJs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></p>
 
 ## Paper
 This is the *official* implementation of the [preprint](https://www.biorxiv.org/content/10.1101/2020.10.26.355164v1).
@@ -71,4 +81,3 @@ If you want to get in touch, the best way to get your questions answered is our 
 
 ### Acknowledgements
 - Don Olbris ([@olbris](https://github.com/olbris), olbrisd@janelia.hhmi.org) for help with python packaging.
-
