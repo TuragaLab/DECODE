@@ -215,7 +215,7 @@ class GaussianMMLoss(Loss):
         prob_normed = p / p.sum(-1).sum(-1).view(-1, 1, 1)
 
         """Hacky way to get all prob indices"""
-        p_inds = tuple((p + 1).nonzero().transpose(1, 0))
+        p_inds = tuple((p + 1).nonzero(as_tuple=False).transpose(1, 0))
         pxyz_mu = pxyz_mu[p_inds[0], :, p_inds[1], p_inds[2]]
 
         """Convert px shifts to absolute coordinates"""

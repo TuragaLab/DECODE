@@ -10,33 +10,62 @@ from decode.generic import test_utils
 from decode.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet
 
 
+@pytest.fixture()
+def em2d():
+    """Effectively 2D EmitterSet"""
+
+    return EmitterSet(xyz=torch.rand((25, 2)),
+                      phot=torch.rand(25),
+                      frame_ix=torch.zeros(25, dtype=torch.long))
+
+
+@pytest.fixture()
+def em3d():
+    """Most basic (i.e. all necessary fields) 3D EmitterSet"""
+
+    frames = torch.arange(25, dtype=torch.long)
+    frames[[0, 1, 2]] = 1
+    return EmitterSet(xyz=torch.rand((25, 3)),
+                      phot=torch.rand(25),
+                      frame_ix=frames)
+
+
+@pytest.fixture
+def em3d_full(em3d):
+    return EmitterSet(xyz=em3d.xyz,
+                      phot=em3d.phot,
+                      bg=torch.rand_like(em3d.phot) * 100,
+                      frame_ix=em3d.frame_ix,
+                      id=em3d.id,
+                      xyz_sig=torch.rand_like(em3d.xyz),
+                      phot_sig=torch.rand_like(em3d.phot) * em3d.phot.sqrt(),
+                      xyz_cr=torch.rand_like(em3d.xyz) ** 2,
+                      phot_cr=torch.rand_like(em3d.phot) * em3d.phot.sqrt() * 1.5,
+                      bg_cr=torch.rand_like(em3d.phot),
+                      xy_unit='nm',
+                      px_size=(100., 200.))
+
+
 class TestEmitterSet:
 
-    @pytest.fixture()
-    def em2d(self):
-        """
-        Fixture 2D EmitterSet.
+    def test_properties(self, em2d, em3d, em3d_full):
 
-        Returns:
-            EmitterSet
+        for em in (em2d, em3d, em3d_full):
+            em.phot_scr
+            em.bg_scr
 
-        """
-        return EmitterSet(xyz=torch.rand((25, 2)),
-                          phot=torch.rand(25),
-                          frame_ix=torch.zeros(25).int())
+            if em.px_size is not None and em.xy_unit is not None:
+                em.xyz_px
+                em.xyz_nm
+                em.xyz_scr
+                em.xyz_scr_px
+                em.xyz_scr_nm
+                em.xyz_sig_px
+                em.xyz_sig_nm
+                em.xyz_sig_tot_nm
+                em.xyz_sig_weighted_tot_nm
 
-    @pytest.fixture()
-    def em3d(self):
-        """
-        3D EmitterSet.
-        Returns:
-            EmitterSet
-        """
-        frames = torch.arange(25)
-        frames[[0, 1, 2]] = 1
-        return EmitterSet(xyz=torch.rand((25, 3)),
-                          phot=torch.rand(25),
-                          frame_ix=frames)
+        # ToDo: Test auto conversion
 
     def test_dim(self, em2d, em3d):
 
@@ -134,6 +163,15 @@ class TestEmitterSet:
         else:
             assert test_utils.tens_almeq(em.xyz_scr_nm, expct_nm)
 
+    @pytest.mark.parametrize("attr,power", [('xyz', 1),
+                                            ('xyz_sig', 1),
+                                            ('xyz_cr', 2)])
+    def test_property_conversion(self, attr, power, em3d_full):
+        with mock.patch.object(emitter.EmitterSet, '_pxnm_conversion') as conversion:
+            getattr(em3d_full, attr + '_nm')
+
+        conversion.assert_called_once_with(getattr(em3d_full, attr), in_unit='nm', tar_unit='nm', power=power)
+
     @mock.patch.object(emitter.EmitterSet, 'cat')
     def test_add(self, mock_add):
         em_0 = emitter.RandomEmitterSet(20)
@@ -149,7 +187,6 @@ class TestEmitterSet:
         em_0 += em_1
         assert len(em_0) == 70
 
-    # @pytest.mark.skip("At the moment deprecated.")
     def test_chunk(self):
 
         big_em = RandomEmitterSet(100000)
@@ -227,19 +264,18 @@ class TestEmitterSet:
         assert em.xy_unit == 'px'
         assert (em.px_size == torch.tensor([100., 200.])).all()
 
-
     def test_split_cat(self):
         """
         Tests whether split and cat (and sort by ID) returns the same result as the original starting.
 
         """
 
-        em = RandomEmitterSet(10000)
+        em = RandomEmitterSet(1000)
         em.id = torch.arange(len(em))
-        em.frame_ix = torch.randint_like(em.frame_ix, 100000)
+        em.frame_ix = torch.randint_like(em.frame_ix, 10000)
 
         """Run"""
-        em_split = em.split_in_frames(0,  99999)
+        em_split = em.split_in_frames(0, 9999)
         em_re_merged = EmitterSet.cat(em_split)
 
         """Assertions"""
@@ -297,12 +333,13 @@ class TestEmitterSet:
 
         assert em_start == em
 
-    @pytest.mark.parametrize("format", ['.pt', '.h5'])
+    @pytest.mark.parametrize("format", ['.pt', '.h5', '.csv'])
+    @pytest.mark.filterwarnings("ignore:.*For .csv files, implicit usage of .load()")
     def test_save_load(self, format, tmpdir):
 
         em = RandomEmitterSet(1000, xy_unit='nm', px_size=(100., 100.))
 
-        p = Path(tmpdir / f'em.{format}')
+        p = Path(tmpdir / f'em{format}')
         em.save(p)
         em_load = EmitterSet.load(p)
         assert em == em_load, "Reloaded emitterset is not equivalent to inital one."
@@ -335,7 +372,7 @@ class TestEmitterSet:
     def test_to_dict(self):
 
         em = RandomEmitterSet(100, xy_unit='nm', px_size=(100., 200.))
-        
+
         """Check whether doing one round of to_dict and back works"""
         em_clone = em.clone()
 

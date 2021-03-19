@@ -1,6 +1,6 @@
 package:
   name: decode
-  version: "0.10.0.alpha.3"  # do not modify by hand set and sync with bumpversion
+  version: "0.10.0.alpha.4"  # do not modify by hand set and sync with bumpversion
 
 source:
      - path: ../..
@@ -19,10 +19,9 @@ requirements:
     - numpy {{ numpy }}
 
   run:
-    - python >=3.6,<4
+    - python >=3.6,<3.9
     - {{ pin_compatible('numpy', max_pin='x.x') }}
     - pytorch=1.7.1
-    - torchvision
     - click
     - deprecated
     - gitpython>=3.1
@@ -37,7 +36,7 @@ requirements:
     - seaborn=0.10
     - scikit-image
     - scikit-learn
-    - spline>=0.10.alpha
+    - spline>=0.10.0.alpha.2
     - tensorboard
     - tifffile>=2021.1
     - tqdm
@@ -51,7 +50,7 @@ requirements:
 
 about:
     home: https://github.com/turagaLab/decode
-    # dev_url: github url 
+    # dev_url: github url
     # doc_url: doc url
     # license: GPL-3.0
     # license_family: GPL

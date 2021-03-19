@@ -24,10 +24,10 @@ In the following we will make a conda environment and install decode.
 
 System Requirements (TLDR)
 **************************
-* GPU: CUDA with compute capability >= 3.7 (highly recommended)
-* OS: Linux (GPU accelerated), Windows (GPU accelerated), macOS (CPU only)
+* GPU: CUDA with RAM >= 4GB and compute capability >= 3.7 (both highly recommended)
 * RAM: >= 8 GB
 * CPU: Multi-Core recommended
+* OS: Linux (GPU accelerated), Windows (GPU accelerated), macOS (CPU only)
 * Software: conda, anaconda
 
 Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
@@ -45,7 +45,7 @@ Depending on whether you have a CUDA capable GPU type:
     conda config --set channel_priority strict
 
     # CUDA capable GPU
-    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab ipykernel
+    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit jupyterlab ipykernel
 
     # macOS or no CUDA capable GPU
     conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab ipykernel
@@ -67,7 +67,7 @@ Please execute the following command in your terminal/Anaconda prompt or do it v
     conda update -c turagalab -c pytorch -c conda-forge decode
 
 Import
-******* 
+*******
 
 In python you can import this package as simple as ``import decode``.
 You may continue with our tutorial.
@@ -88,6 +88,12 @@ You may continue with our tutorial.
    :caption: Tutorial
 
    tutorial
+
+.. toctree::
+   :maxdepth: 0
+   :caption: Logging
+
+   logging
 
 .. toctree::
    :maxdepth: 0

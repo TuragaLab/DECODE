@@ -24,16 +24,21 @@ def em_all_attrs(em_rand):
     return em_rand
 
 
-def test_save_load_h5py(em_rand, em_all_attrs, tmpdir):
-    path = tmpdir / 'emitter.h5'
+@pytest.mark.parametrize("save_fn,load_fn,extension", [
+    (emitter_io.save_h5, emitter_io.load_h5, '.h5'),
+    (emitter_io.save_torch, emitter_io.load_torch, '.pt'),
+    (emitter_io.save_csv, emitter_io.load_csv, '.csv')
+])
+def test_save_load_h5py(em_rand, em_all_attrs, save_fn, load_fn, extension, tmpdir):
+    path = str(tmpdir / f'emitter{extension}')
 
     for em in (em_rand, em_all_attrs):
-        emitter_io.save_h5(path, em.data, em.meta)
+        save_fn(path, em.data, em.meta)
 
-        data, meta, decode_meta = emitter_io.load_h5(path)
-        em_h5 = emitter.EmitterSet(**data, **meta)
+        data, meta, decode_meta = load_fn(path)
+        em_reloaded = emitter.EmitterSet(**data, **meta)
 
-        assert em == em_h5  # if equality check is wrong, this is wrong as well
+        assert em == em_reloaded  # if equality check is wrong, this is wrong as well
         assert decode_meta['version'][0] == 'v'
 
 

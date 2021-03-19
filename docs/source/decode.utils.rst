@@ -4,6 +4,14 @@ decode.utils package
 Submodules
 ----------
 
+decode.utils.bookkeeping module
+-----------------------------------
+
+.. automodule:: decode.utils.bookkeeping
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 decode.utils.calibration\_io module
 -----------------------------------
 
@@ -64,6 +72,14 @@ decode.utils.model\_io module
 -----------------------------
 
 .. automodule:: decode.utils.model_io
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+decode.utils.notebooks module
+-----------------------------
+
+.. automodule:: decode.utils.notebooks
    :members:
    :undoc-members:
    :show-inheritance:

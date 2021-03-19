@@ -1,12 +1,12 @@
 import argparse
-import copy
 import datetime
 import os
-import sys
 import shutil
 import socket
+import sys
 from pathlib import Path
 
+import copy
 import torch
 
 import decode.evaluation
@@ -19,16 +19,16 @@ from decode.neuralfitter.train.random_simulation import setup_random_simulation
 from decode.neuralfitter.utils import log_train_val_progress
 from decode.utils.checkpoint import CheckPoint
 
+
 def parse_args():
     """
     Parse input arguments
-
     """
     parser = argparse.ArgumentParser(description='Training Args')
 
-    parser.add_argument('-i', '--cuda_ix', default=None,
-                        help='Specify the cuda device index or set it to false.',
-                        type=int, required=False)
+    parser.add_argument('-i', '--device', default=None,
+                        help='Specify the device string (cpu, cuda, cuda:0) and overwrite param.',
+                        type=str, required=False)
 
     parser.add_argument('-p', '--param_file',
                         help='Specify your parameter file (.yml or .json).',
@@ -45,7 +45,7 @@ def parse_args():
                         help='Set no log if you do not want to log the current run.')
 
     parser.add_argument('-l', '--log_folder', default='runs',
-                        help='Specify the (parent) folder you want to log to. If rel-path, relative to DeepSMLM root.')
+                        help='Specify the (parent) folder you want to log to. If rel-path, relative to DECODE root.')
 
     parser.add_argument('-c', '--log_comment', default=None,
                         help='Add a log_comment to the run.')
@@ -54,21 +54,19 @@ def parse_args():
     return args
 
 
-def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False, no_log: bool = False,
+def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool = False, no_log: bool = False,
                       num_worker_override: int = None,
                       log_folder: str = 'runs', log_comment: str = None):
     """
-    Sets up the engine to train DeepSMLM. Includes sample simulation and the actual training.
-
+    Sets up the engine to train DECODE. Includes sample simulation and the actual training.
     Args:
         param_file: parameter file path
-        cuda_ix: overwrite cuda index specified by param file
+        device_overwrite: overwrite cuda index specified by param file
         debug: activate debug mode (i.e. less samples) for fast testing
         no_log: disable logging
         num_worker_override: overwrite number of workers for dataloader
         log_folder: folder for logging (where tensorboard puts its stuff)
         log_comment: comment to the experiment
-
     """
 
     """Load Parameters and back them up to the network output directory"""
@@ -78,28 +76,40 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
     # auto-set some parameters (will be stored in the backup copy)
     param = decode.utils.param_io.autoset_scaling(param)
 
+    # add meta information
+    param.Meta.version = decode.utils.bookkeeping.decode_state()
+
     """Experiment ID"""
     if not debug:
-        experiment_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
-
-        if log_comment:
-            experiment_id = experiment_id + '_' + log_comment
-
+        if param.InOut.checkpoint_init is None:
+            experiment_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
+            from_ckpt = False
+            if log_comment:
+                experiment_id = experiment_id + '_' + log_comment
+        else:
+            from_ckpt = True
+            experiment_id = Path(param.InOut.checkpoint_init).parent.name
     else:
         experiment_id = 'debug'
+        from_ckpt = False
 
     """Set up unique folder for experiment"""
-    experiment_path = Path(param.InOut.experiment_out) / Path(experiment_id)
+    if not from_ckpt:
+        experiment_path = Path(param.InOut.experiment_out) / Path(experiment_id)
+    else:
+        experiment_path = Path(param.InOut.checkpoint_init).parent
+    
     if not experiment_path.parent.exists():
         experiment_path.parent.mkdir()
 
-    if debug:
-        experiment_path.mkdir(exist_ok=True)
-    else:
-        experiment_path.mkdir(exist_ok=False)
+    if not from_ckpt:
+        if debug:
+            experiment_path.mkdir(exist_ok=True)
+        else:
+            experiment_path.mkdir(exist_ok=False)
 
     model_out = experiment_path / Path('model.pt')
-    ckpt_path = model_out.parent / Path('ckpt.pt')
+    ckpt_path = experiment_path / Path('ckpt.pt')
 
     # Backup the parameter file under the network output path with the experiments ID
     param_backup_in = experiment_path / Path('param_run_in').with_suffix(param_file.suffix)
@@ -115,15 +125,21 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
         param.Hardware.num_worker_train = num_worker_override
 
     """Hardware / Server stuff."""
-    cuda_ix = int(param.Hardware.device_ix) if cuda_ix is None else cuda_ix
-    if torch.cuda.is_available():
-        torch.cuda.set_device(cuda_ix)  # do this instead of set env variable, because torch is inevitably already imported
-        device = 'cuda'
-
+    if device_overwrite is not None:
+        device = device_overwrite
+        param.Hardware.device_simulation = device_overwrite  # lazy assumption
     else:
+        device = param.Hardware.device
+
+    if torch.cuda.is_available():
+        _, device_ix = decode.utils.hardware._specific_device_by_str(device)
+        if device_ix is not None:
+            # do this instead of set env variable, because torch is inevitably already imported
+            torch.cuda.set_device(device)
+    elif not torch.cuda.is_available():
         device = 'cpu'
 
-    if param.Hardware.torch_multiprocessing_sharing_strategy is not None:  # one some platforms you might have trouble and need to change
+    if param.Hardware.torch_multiprocessing_sharing_strategy is not None:
         torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
 
     if sys.platform in ('linux', 'darwin'):
@@ -147,20 +163,27 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                                                                          "dphot_red_mu", "dphot_red_sig"]),
              decode.neuralfitter.utils.logger.DictLogger()])
 
-    sim_train, sim_test = setup_random_simulation(param)
-
-    # useful if we restart a training
-    first_epoch = param.HyperParameter.epoch_0 if param.HyperParameter.epoch_0 is not None else 0
     n_training_starts = 0
     
-    while n_training_starts <= param.HyperParameter.auto_restart_params.nr_restarts:
-        
+    sim_train, sim_test = setup_random_simulation(param)
+    ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
+        setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
+    dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
+    
+    if from_ckpt:
+        ckpt = decode.utils.checkpoint.CheckPoint.load(param.InOut.checkpoint_init)
+        model.load_state_dict(ckpt.model_state)
+        optimizer.load_state_dict(ckpt.optimizer_state)
+        lr_scheduler.load_state_dict(ckpt.lr_sched_state)
+        first_epoch = ckpt.step + 1
+        model = model.train()
+        print(f'Resuming training from checkpoint ' + experiment_id)
+    else:
+        first_epoch = 0    
+    
+    while n_training_starts <= param.HyperParameter.auto_restart_params.nr_restarts:    
+    
         n_training_starts += 1
-        
-        ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
-            setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
-
-        dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
 
         for i in range(first_epoch, param.HyperParameter.epochs):
             logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
@@ -168,7 +191,7 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
             if i >= 1:
                 train_loss = decode.neuralfitter.train_val_impl.train(
                     model=model,
-                    optimizer=optimizer,
+                    optimizer=optimizer, 
                     loss=criterion,
                     dataloader=dl_train,
                     grad_rescale=param.HyperParameter.moeller_gradient_rescale,
@@ -182,15 +205,19 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                                                                          epoch=i,
                                                                          device=torch.device(device))
             
-    
             if i == 1:
                 
                 per_em_gmm_loss = test_out.loss[:, 0].mean() / param.Simulation.emitter_av
                 
                 if per_em_gmm_loss > param.HyperParameter.auto_restart_params.restart_treshold:
                     if n_training_starts <= param.HyperParameter.auto_restart_params.nr_restarts:
-                        print(f'The model will be reinitialized and training restarted due to a pathological loss. ' \
-                              '{int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_params.restart_treshold}')
+                        print(f'The model will be reinitialized and training restarted due to a pathological loss. '
+                              f'{int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_params.restart_treshold}')
+                        
+                        ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
+                            setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)   
+                        dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
+            
                     else:
                         print(f'Training aborted after {param.HyperParameter.auto_restart_params.nr_restarts} restarts. ' \
                         'You can try to reduce the learning rate by a factor of 2. It is also possible that the simulated data is to challenging. ' \
@@ -208,10 +235,11 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
                                                          post_processor=post_processor, matcher=matcher, logger=logger,
                                                          step=i)
 
-            if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                lr_scheduler.step(val_loss)
-            else:
-                lr_scheduler.step()
+            if i >= 1:
+                if isinstance(lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    lr_scheduler.step(val_loss)
+                else:
+                    lr_scheduler.step()
 
             model_ls.save(model, None)
             if no_log:
@@ -229,7 +257,6 @@ def live_engine_setup(param_file: str, cuda_ix: int = None, debug: bool = False,
 
 def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path, device, param):
     """
-
     Args:
         device:
         simulator_train:
@@ -237,10 +264,9 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
         logger:
         model_out:
         ckpt_path: path of checkpoint
+        device:
         param:
-
     Returns:
-
     """
     """Set model, optimiser, loss and schedulers"""
     models_available = {
@@ -253,8 +279,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     model = model.parse(param)
 
     model_ls = decode.utils.model_io.LoadSaveModel(model,
-                                                   output_file=model_out,
-                                                   input_file=param.InOut.model_init)
+                                                   output_file=model_out)
 
     model = model_ls.load_init()
     model = model.to(torch.device(device))
@@ -292,7 +317,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     """Log the model"""
     try:
         dummy = torch.rand((2, param.HyperParameter.channels_in,
-                            *param.Simulation.img_size), requires_grad=True).to(torch.device(device))
+                            *param.Simulation.img_size), requires_grad=False).to(torch.device(device))
         logger.add_graph(model, dummy)
 
     except:
@@ -381,7 +406,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
                                                                      px_size=param.Camera.px_size)
         ])
 
-    elif param.PostProcessing == 'NMS':
+    elif param.PostProcessing in ('SpatialIntegration', 'NMS'):  # NMS as legacy support
         post_processor = decode.neuralfitter.utils.processing.TransformSequence([
 
             decode.neuralfitter.scale_transform.InverseParamListRescale(phot_max=param.Scaling.phot_max,
@@ -407,14 +432,11 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
 def setup_dataloader(param, train_ds, test_ds=None):
     """
     Set's up dataloader
-
     Args:
         param:
         train_ds:
         test_ds:
-
     Returns:
-
     """
     train_dl = torch.utils.data.DataLoader(
         dataset=train_ds,
@@ -423,7 +445,7 @@ def setup_dataloader(param, train_ds, test_ds=None):
         shuffle=True,
         num_workers=param.Hardware.num_worker_train,
         pin_memory=True,
-        collate_fn=decode.neuralfitter.utils.collate.smlm_collate)
+        collate_fn=decode.neuralfitter.utils.dataloader_customs.smlm_collate)
 
     if test_ds is not None:
 
@@ -434,7 +456,7 @@ def setup_dataloader(param, train_ds, test_ds=None):
             shuffle=False,
             num_workers=param.Hardware.num_worker_train,
             pin_memory=False,
-            collate_fn=decode.neuralfitter.utils.collate.smlm_collate)
+            collate_fn=decode.neuralfitter.utils.dataloader_customs.smlm_collate)
     else:
 
         test_dl = None
@@ -444,5 +466,5 @@ def setup_dataloader(param, train_ds, test_ds=None):
 
 if __name__ == '__main__':
     args = parse_args()
-    live_engine_setup(args.param_file, args.cuda_ix, args.debug, args.no_log, args.num_worker_override, args.log_folder,
+    live_engine_setup(args.param_file, args.device, args.debug, args.no_log, args.num_worker_override, args.log_folder,
                       args.log_comment)

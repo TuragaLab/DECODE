@@ -169,7 +169,7 @@ class LookUpPostProcessing(PostProcessing):
         assert features.dim() == 4
         assert active_px.dim() == features.dim() - 1
 
-        batch_ix = active_px.nonzero()[:, 0]
+        batch_ix = active_px.nonzero(as_tuple=False)[:, 0]
         features_active = features.permute(1, 0, 2, 3)[:, active_px]
 
         return batch_ix, features_active

@@ -1,8 +1,8 @@
-import torch
-import pathlib
 import hashlib
-
+import pathlib
 from typing import Union
+
+import torch
 
 
 def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8, nan: bool = False) -> bool:
@@ -78,3 +78,11 @@ def file_loadable(path: Union[str, pathlib.Path], reader=None, mode=None, except
 
         except exceptions:
             return False
+
+
+def same_weights(model1, model2) -> bool:
+    """Tests whether model1 and 2 have the same weights."""
+    for p1, p2 in zip(model1.parameters(), model2.parameters()):
+        if p1.data.ne(p2.data).sum() > 0:
+            return False
+    return True
