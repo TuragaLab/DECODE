@@ -24,34 +24,34 @@ We recommend to set the conda channel_priority to strict. This does two things: 
 
 Depending on whether you have a CUDA capable GPU type:
 
-    ```
-    # (optional, recommended, only do once) weight channel hierarchy more than package version
-    conda config --set channel_priority strict
+```bash
+# (optional, recommended, only do once) weight channel hierarchy more than package version
+conda config --set channel_priority strict
 
-    # CUDA capable GPU
-    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit jupyterlab ipykernel
+# CUDA capable GPU
+conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit jupyterlab ipykernel
 
-    # macOS or no CUDA capable GPU
-    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab ipykernel
+# macOS or no CUDA capable GPU
+conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab ipykernel
 
-    # after previous command (all platforms)
-    conda activate decode_env
-    ```
+# after previous command (all platforms)
+conda activate decode_env
+```
 
 ## Installation as package in current environment
 Installing the package without creating a new environment (or in a fresh environment) is possible as
 
-    ```
-    conda install -c turagalab -c pytorch -c conda-forge decode
-    ```
+```bash
+conda install -c turagalab -c pytorch -c conda-forge decode
+```
 
 Updating
 ***********
 Please execute the following command in your terminal/Anaconda prompt or do it via the Anaconda Navigator GUI.
 
-    ```
-    conda update -c turagalab -c pytorch -c conda-forge decode
-    ```
+```bash
+conda update -c turagalab -c pytorch -c conda-forge decode
+```
 
 Import
 *******
