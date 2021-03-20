@@ -29,7 +29,7 @@ examples:
     url: https://oc.embl.de/index.php/s/7Duj5GOceYR3HqJ/download
     hash: 6d6abb86ac796c5290a0beaf1bb2056122feec2cbef3b28295f7d57ec3833bab
 
-  colag_train_experimental_rc:
+  colab_train_experimental_rc:
     name: colag_train_experimental_rc
     comment: RC Colab data for training.
     url: https://oc.embl.de/index.php/s/KVQ77pmWG9WGVXO/download
