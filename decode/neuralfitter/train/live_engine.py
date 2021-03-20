@@ -1,4 +1,5 @@
 import argparse
+import copy
 import datetime
 import os
 import shutil
@@ -6,7 +7,6 @@ import socket
 import sys
 from pathlib import Path
 
-import copy
 import torch
 
 import decode.evaluation
@@ -21,9 +21,6 @@ from decode.utils.checkpoint import CheckPoint
 
 
 def parse_args():
-    """
-    Parse input arguments
-    """
     parser = argparse.ArgumentParser(description='Training Args')
 
     parser.add_argument('-i', '--device', default=None,
@@ -54,11 +51,13 @@ def parse_args():
     return args
 
 
-def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool = False, no_log: bool = False,
+def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool = False,
+                      no_log: bool = False,
                       num_worker_override: int = None,
                       log_folder: str = 'runs', log_comment: str = None):
     """
     Sets up the engine to train DECODE. Includes sample simulation and the actual training.
+
     Args:
         param_file: parameter file path
         device_overwrite: overwrite cuda index specified by param file
@@ -67,6 +66,7 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
         num_worker_override: overwrite number of workers for dataloader
         log_folder: folder for logging (where tensorboard puts its stuff)
         log_comment: comment to the experiment
+
     """
 
     """Load Parameters and back them up to the network output directory"""
@@ -82,7 +82,8 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
     """Experiment ID"""
     if not debug:
         if param.InOut.checkpoint_init is None:
-            experiment_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
+            experiment_id = datetime.datetime.now().strftime(
+                "%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
             from_ckpt = False
             if log_comment:
                 experiment_id = experiment_id + '_' + log_comment
@@ -98,7 +99,7 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
         experiment_path = Path(param.InOut.experiment_out) / Path(experiment_id)
     else:
         experiment_path = Path(param.InOut.checkpoint_init).parent
-    
+
     if not experiment_path.parent.exists():
         experiment_path.parent.mkdir()
 
@@ -140,7 +141,8 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
         device = 'cpu'
 
     if param.Hardware.torch_multiprocessing_sharing_strategy is not None:
-        torch.multiprocessing.set_sharing_strategy(param.Hardware.torch_multiprocessing_sharing_strategy)
+        torch.multiprocessing.set_sharing_strategy(
+            param.Hardware.torch_multiprocessing_sharing_strategy)
 
     if sys.platform in ('linux', 'darwin'):
         os.nice(param.Hardware.unix_niceness)
@@ -158,18 +160,21 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
 
         logger = decode.neuralfitter.utils.logger.MultiLogger(
             [decode.neuralfitter.utils.logger.SummaryWriter(log_dir=log_folder,
-                                                            filter_keys=["dx_red_mu", "dx_red_sig", "dy_red_mu",
-                                                                         "dy_red_sig", "dz_red_mu", "dz_red_sig",
-                                                                         "dphot_red_mu", "dphot_red_sig"]),
+                                                            filter_keys=["dx_red_mu", "dx_red_sig",
+                                                                         "dy_red_mu",
+                                                                         "dy_red_sig", "dz_red_mu",
+                                                                         "dz_red_sig",
+                                                                         "dphot_red_mu",
+                                                                         "dphot_red_sig"]),
              decode.neuralfitter.utils.logger.DictLogger()])
 
     n_training_starts = 0
-    
+
     sim_train, sim_test = setup_random_simulation(param)
     ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
         setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
     dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
-    
+
     if from_ckpt:
         ckpt = decode.utils.checkpoint.CheckPoint.load(param.InOut.checkpoint_init)
         model.load_state_dict(ckpt.model_state)
@@ -179,19 +184,19 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
         model = model.train()
         print(f'Resuming training from checkpoint ' + experiment_id)
     else:
-        first_epoch = 0    
-    
-    while n_training_starts <= param.HyperParameter.auto_restart_params.nr_restarts:    
-    
+        first_epoch = 0
+
+    while n_training_starts <= param.HyperParameter.auto_restart_param.num_restarts:
+
         n_training_starts += 1
 
         for i in range(first_epoch, param.HyperParameter.epochs):
             logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
 
             if i >= 1:
-                train_loss = decode.neuralfitter.train_val_impl.train(
+                _ = decode.neuralfitter.train_val_impl.train(
                     model=model,
-                    optimizer=optimizer, 
+                    optimizer=optimizer,
                     loss=criterion,
                     dataloader=dl_train,
                     grad_rescale=param.HyperParameter.moeller_gradient_rescale,
@@ -201,38 +206,52 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
                     logger=logger
                 )
 
-            val_loss, test_out = decode.neuralfitter.train_val_impl.test(model=model, loss=criterion, dataloader=dl_test,
-                                                                         epoch=i,
-                                                                         device=torch.device(device))
-            
-            if i == 1:
-                
+            val_loss, test_out = decode.neuralfitter.train_val_impl.test(
+                model=model,
+                loss=criterion,
+                dataloader=dl_test,
+                epoch=i,
+                device=torch.device(device))
+
+            if i == 1:  # check restart after first epoch
+
                 per_em_gmm_loss = test_out.loss[:, 0].mean() / param.Simulation.emitter_av
-                
-                if per_em_gmm_loss > param.HyperParameter.auto_restart_params.restart_treshold:
-                    if n_training_starts <= param.HyperParameter.auto_restart_params.nr_restarts:
-                        print(f'The model will be reinitialized and training restarted due to a pathological loss. '
-                              f'{int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_params.restart_treshold}')
-                        
+
+                if per_em_gmm_loss > param.HyperParameter.auto_restart_param.restart_treshold:
+                    if n_training_starts <= param.HyperParameter.auto_restart_param.num_restarts:
+                        print(
+                            f"The model will be reinitialized and training restarted due to a pathological loss. "
+                            f"{int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_param.restart_treshold}")
+
                         ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
-                            setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)   
+                            setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device,
+                                          param)
                         dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
-            
+
                     else:
-                        print(f'Training aborted after {param.HyperParameter.auto_restart_params.nr_restarts} restarts. ' \
-                        'You can try to reduce the learning rate by a factor of 2. It is also possible that the simulated data is to challenging. ' \
-                        'Check if your background and intensity values are correct and possibly lower the average number of emitters.')
+                        print(
+                            f'Training aborted after {param.HyperParameter.auto_restart_param.num_restarts} restarts. '
+                            'You can try to reduce the learning rate by a factor of 2. '
+                            'It is also possible that the simulated data is to challenging. '
+                            'Check if your background and intensity values are correct '
+                            'and possibly lower the average number of emitters.')
                     break
-                    
+
                 else:
-                    print(f"Restart check passed. {int(per_em_gmm_loss)} < {param.HyperParameter.auto_restart_params.restart_treshold}")
+                    print(
+                        f"Loss convergence check passed. Per emitter loss ({int(per_em_gmm_loss)}) smaller than "
+                        f"threshold ({param.HyperParameter.auto_restart_param.restart_treshold})")
 
             """Post-Process and Evaluate"""
-            log_train_val_progress.post_process_log_test(loss_cmp=test_out.loss, loss_scalar=val_loss,
-                                                         x=test_out.x, y_out=test_out.y_out, y_tar=test_out.y_tar,
-                                                         weight=test_out.weight, em_tar=ds_test.emitter,
+            log_train_val_progress.post_process_log_test(loss_cmp=test_out.loss,
+                                                         loss_scalar=val_loss,
+                                                         x=test_out.x, y_out=test_out.y_out,
+                                                         y_tar=test_out.y_tar,
+                                                         weight=test_out.weight,
+                                                         em_tar=ds_test.emitter,
                                                          px_border=-0.5, px_size=1.,
-                                                         post_processor=post_processor, matcher=matcher, logger=logger,
+                                                         post_processor=post_processor,
+                                                         matcher=matcher, logger=logger,
                                                          step=i)
 
             if i >= 1:
@@ -243,7 +262,8 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
 
             model_ls.save(model, None)
             if no_log:
-                ckpt.dump(model.state_dict(), optimizer.state_dict(), lr_scheduler.state_dict(), step=i)
+                ckpt.dump(model.state_dict(), optimizer.state_dict(), lr_scheduler.state_dict(),
+                          step=i)
             else:
                 ckpt.dump(model.state_dict(), optimizer.state_dict(), lr_scheduler.state_dict(),
                           log=logger.logger[1].log_dict, step=i)
@@ -256,18 +276,6 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
 
 
 def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path, device, param):
-    """
-    Args:
-        device:
-        simulator_train:
-        simulator_test:
-        logger:
-        model_out:
-        ckpt_path: path of checkpoint
-        device:
-        param:
-    Returns:
-    """
     """Set model, optimiser, loss and schedulers"""
     models_available = {
         'SigmaMUNet': decode.neuralfitter.models.SigmaMUNet,
@@ -294,11 +302,12 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     optimizer = optimizer(model.parameters(), **param.HyperParameter.opt_param)
 
     """Loss function."""
-    criterion = decode.neuralfitter.loss.GaussianMMLoss(xextent=param.Simulation.psf_extent[0],
-                                                        yextent=param.Simulation.psf_extent[1],
-                                                        img_shape=param.Simulation.img_size,
-                                                        device=device,
-                                                        chweight_stat=param.HyperParameter.chweight_stat)
+    criterion = decode.neuralfitter.loss.GaussianMMLoss(
+        xextent=param.Simulation.psf_extent[0],
+        yextent=param.Simulation.psf_extent[1],
+        img_shape=param.Simulation.img_size,
+        device=device,
+        chweight_stat=param.HyperParameter.chweight_stat)
 
     """Learning Rate and Simulation Scheduling"""
     lr_scheduler_available = {
@@ -317,7 +326,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     """Log the model"""
     try:
         dummy = torch.rand((2, param.HyperParameter.channels_in,
-                            *param.Simulation.img_size), requires_grad=False).to(torch.device(device))
+                            *param.Simulation.img_size), requires_grad=False).to(
+            torch.device(device))
         logger.add_graph(model, dummy)
 
     except:
@@ -329,7 +339,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     bg_frame_proc = None
 
     if param.HyperParameter.emitter_label_photon_min is not None:
-        em_filter = decode.neuralfitter.em_filter.PhotonFilter(param.HyperParameter.emitter_label_photon_min)
+        em_filter = decode.neuralfitter.em_filter.PhotonFilter(
+            param.HyperParameter.emitter_label_photon_min)
     else:
         em_filter = decode.neuralfitter.em_filter.NoEmitterFilter()
 
@@ -339,18 +350,20 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     """Setup Target generator consisting possibly multiple steps in a transformation sequence."""
     tar_gen = decode.neuralfitter.utils.processing.TransformSequence(
         [
-            decode.neuralfitter.target_generator.ParameterListTarget(n_max=param.HyperParameter.max_number_targets,
-                                                                     xextent=param.Simulation.psf_extent[0],
-                                                                     yextent=param.Simulation.psf_extent[1],
-                                                                     ix_low=tar_frame_ix_train[0],
-                                                                     ix_high=tar_frame_ix_train[1],
-                                                                     squeeze_batch_dim=True),
+            decode.neuralfitter.target_generator.ParameterListTarget(
+                n_max=param.HyperParameter.max_number_targets,
+                xextent=param.Simulation.psf_extent[0],
+                yextent=param.Simulation.psf_extent[1],
+                ix_low=tar_frame_ix_train[0],
+                ix_high=tar_frame_ix_train[1],
+                squeeze_batch_dim=True),
 
             decode.neuralfitter.target_generator.DisableAttributes.parse(param),
 
-            decode.neuralfitter.scale_transform.ParameterListRescale(phot_max=param.Scaling.phot_max,
-                                                                     z_max=param.Scaling.z_max,
-                                                                     bg_max=param.Scaling.bg_max)
+            decode.neuralfitter.scale_transform.ParameterListRescale(
+                phot_max=param.Scaling.phot_max,
+                z_max=param.Scaling.z_max,
+                bg_max=param.Scaling.bg_max)
         ])
 
     # setup target for test set in similar fashion, however test-set is static.
@@ -361,28 +374,37 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     tar_gen_test.com[0].sanity_check()
 
     if param.Simulation.mode == 'acquisition':
-        train_ds = decode.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator_train, em_proc=em_filter,
-                                                               frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
-                                                               tar_gen=tar_gen, weight_gen=None,
-                                                               frame_window=param.HyperParameter.channels_in,
-                                                               pad=None, return_em=False)
+        train_ds = decode.neuralfitter.dataset.SMLMLiveDataset(
+            simulator=simulator_train,
+            em_proc=em_filter,
+            frame_proc=frame_proc,
+            bg_frame_proc=bg_frame_proc,
+            tar_gen=tar_gen, weight_gen=None,
+            frame_window=param.HyperParameter.channels_in,
+            pad=None, return_em=False)
 
         train_ds.sample(True)
 
     elif param.Simulation.mode == 'samples':
-        train_ds = decode.neuralfitter.dataset.SMLMLiveSampleDataset(simulator=simulator_train, em_proc=em_filter,
-                                                                     frame_proc=frame_proc,
-                                                                     bg_frame_proc=bg_frame_proc,
-                                                                     tar_gen=tar_gen, weight_gen=None,
-                                                                     frame_window=param.HyperParameter.channels_in,
-                                                                     return_em=False,
-                                                                     ds_len=param.HyperParameter.pseudo_ds_size)
+        train_ds = decode.neuralfitter.dataset.SMLMLiveSampleDataset(
+            simulator=simulator_train,
+            em_proc=em_filter,
+            frame_proc=frame_proc,
+            bg_frame_proc=bg_frame_proc,
+            tar_gen=tar_gen,
+            weight_gen=None,
+            frame_window=param.HyperParameter.channels_in,
+            return_em=False,
+            ds_len=param.HyperParameter.pseudo_ds_size)
 
-    test_ds = decode.neuralfitter.dataset.SMLMAPrioriDataset(simulator=simulator_test, em_proc=em_filter,
-                                                             frame_proc=frame_proc, bg_frame_proc=bg_frame_proc,
-                                                             tar_gen=tar_gen_test, weight_gen=None,
-                                                             frame_window=param.HyperParameter.channels_in,
-                                                             pad=None, return_em=False)
+    test_ds = decode.neuralfitter.dataset.SMLMAPrioriDataset(
+        simulator=simulator_test,
+        em_proc=em_filter,
+        frame_proc=frame_proc,
+        bg_frame_proc=bg_frame_proc,
+        tar_gen=tar_gen_test, weight_gen=None,
+        frame_window=param.HyperParameter.channels_in,
+        pad=None, return_em=False)
 
     test_ds.sample(True)
 
@@ -394,30 +416,34 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     elif param.PostProcessing == 'LookUp':
         post_processor = decode.neuralfitter.utils.processing.TransformSequence([
 
-            decode.neuralfitter.scale_transform.InverseParamListRescale(phot_max=param.Scaling.phot_max,
-                                                                        z_max=param.Scaling.z_max,
-                                                                        bg_max=param.Scaling.bg_max),
+            decode.neuralfitter.scale_transform.InverseParamListRescale(
+                phot_max=param.Scaling.phot_max,
+                z_max=param.Scaling.z_max,
+                bg_max=param.Scaling.bg_max),
 
             decode.neuralfitter.coord_transform.Offset2Coordinate.parse(param),
 
-            decode.neuralfitter.post_processing.LookUpPostProcessing(raw_th=param.PostProcessingParam.raw_th,
-                                                                     pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
-                                                                     xy_unit='px',
-                                                                     px_size=param.Camera.px_size)
+            decode.neuralfitter.post_processing.LookUpPostProcessing(
+                raw_th=param.PostProcessingParam.raw_th,
+                pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
+                xy_unit='px',
+                px_size=param.Camera.px_size)
         ])
 
     elif param.PostProcessing in ('SpatialIntegration', 'NMS'):  # NMS as legacy support
         post_processor = decode.neuralfitter.utils.processing.TransformSequence([
 
-            decode.neuralfitter.scale_transform.InverseParamListRescale(phot_max=param.Scaling.phot_max,
-                                                                        z_max=param.Scaling.z_max,
-                                                                        bg_max=param.Scaling.bg_max),
+            decode.neuralfitter.scale_transform.InverseParamListRescale(
+                phot_max=param.Scaling.phot_max,
+                z_max=param.Scaling.z_max,
+                bg_max=param.Scaling.bg_max),
 
             decode.neuralfitter.coord_transform.Offset2Coordinate.parse(param),
 
-            decode.neuralfitter.post_processing.SpatialIntegration(raw_th=param.PostProcessingParam.raw_th,
-                                                                   xy_unit='px',
-                                                                   px_size=param.Camera.px_size)
+            decode.neuralfitter.post_processing.SpatialIntegration(
+                raw_th=param.PostProcessingParam.raw_th,
+                xy_unit='px',
+                px_size=param.Camera.px_size)
         ])
 
     else:
@@ -430,14 +456,8 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
 
 
 def setup_dataloader(param, train_ds, test_ds=None):
-    """
-    Set's up dataloader
-    Args:
-        param:
-        train_ds:
-        test_ds:
-    Returns:
-    """
+    """Set's up dataloader"""
+
     train_dl = torch.utils.data.DataLoader(
         dataset=train_ds,
         batch_size=param.HyperParameter.batch_size,
@@ -466,5 +486,6 @@ def setup_dataloader(param, train_ds, test_ds=None):
 
 if __name__ == '__main__':
     args = parse_args()
-    live_engine_setup(args.param_file, args.device, args.debug, args.no_log, args.num_worker_override, args.log_folder,
+    live_engine_setup(args.param_file, args.device, args.debug, args.no_log,
+                      args.num_worker_override, args.log_folder,
                       args.log_comment)

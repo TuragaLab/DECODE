@@ -50,6 +50,9 @@ HyperParameter:
     up_mode: upsample
     use_last_nl:
   architecture: SigmaMUNet
+  auto_restart_param:
+    num_restarts: 5
+    restart_treshold: 100
   batch_size: 64
   channels_in: 3
   channels_out:
@@ -68,9 +71,6 @@ HyperParameter:
   learning_rate_scheduler_param:
     step_size: 10
     gamma: 0.9
-  auto_restart_params:
-    nr_restarts: 5
-    restart_treshold: 100
   max_number_targets: 250
   moeller_gradient_rescale: false
   opt_param:
