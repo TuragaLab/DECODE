@@ -41,6 +41,7 @@ jobs:
         echo "ANACONDA_LABEL=pre" >> $GITHUB_ENV
 
     - name: Upload to Anaconda Cloud
+      if: ${{ github.event.release || github.ref == 'refs/heads/master' }}
       env:
         ANACONDA_TOKEN: ${{ secrets.TURAGALAB_ANACONDA_TOKEN }}
       run: |
