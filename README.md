@@ -18,12 +18,12 @@ You can find these here:
 
 
 ## Local Installation
-
+<details>
+    <summary>Show details</summary>
 We highly recommend using [Anaconda Python](http://anaconda.org) for installing DECODE and its dependencies, including [Pytorch](http://pytorch.org/). While a CUDA-compatible GPU is not essential, it is strongly recommended, as it significantly speeds up the training and analysis steps.
 
 ### Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
-<details>
-    <summary>Open details</summary>
+
 On macOS and Linux please open your terminal, on Windows open Anaconda Prompt. We recommend to set the conda channel_priority to strict. This does two things: Installation is faster, packages are used from the same channel if present. Depending on whether you have a CUDA capable GPU type:
 
     # (optional, recommended, only do once) weight channel hierarchy more than package version
@@ -37,7 +37,6 @@ On macOS and Linux please open your terminal, on Windows open Anaconda Prompt. W
 
     # after previous command (all platforms)
     conda activate decode_env
-</details>
 
 ### Installation as package in current environment
 Installing the package without creating a new environment (or in a fresh environment) is possible as
@@ -54,7 +53,7 @@ Installing the package without creating a new environment (or in a fresh environ
 
 
 Please refer to our [docs](https://decode.readthedocs.io) for more information on other options for installation.
-
+</details>
 
 ## Video Tutorial
 As part of the virtual [I2K 2020](https://www.janelia.org/you-janelia/conferences/from-images-to-knowledge-with-imagej-friends) conference we organized a workshop on DECODE.
