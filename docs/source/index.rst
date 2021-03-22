@@ -16,4 +16,46 @@ DECODE tutorial
 For detailed instructions you can watch the tutorial we held at the I2K 2020 workshop:
 
 .. raw:: html
+
     <p style="text-align:center"><iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/zoWsj3FCUJs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></p>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Contents
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: DECODE API
+
+   decode
+
+.. toctree::
+   :maxdepth: 0
+   :caption: Tutorial
+
+   tutorial
+
+.. toctree::
+   :maxdepth: 0
+   :caption: Logging
+
+   logging
+
+.. toctree::
+   :maxdepth: 0
+   :caption: FAQ
+
+   faq
+
+.. toctree::
+   :maxdepth: 0
+   :caption: Installation
+
+   installation
+
+.. toctree::
+   :maxdepth: 0
+   :caption: Appendix
+
+   genindex
