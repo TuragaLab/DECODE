@@ -25,10 +25,10 @@ Contents
 .. toctree::
    :maxdepth: 0
 
+   installation
    tutorial
    logging
    faq
-   installation
 
 .. toctree::
    :maxdepth: 1
