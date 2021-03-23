@@ -26,7 +26,12 @@ Bead calibration with SMAP
 3. In SMAP, use the plugin *Analyze / calibrate3DSplinePSF* to generate the
    calibration file. The plugin can be found either via tabs *Analyze / sr3D /
    calibrate3DsplinePSF* or menu *Plugins / Analyze / sr3D / calibrate3DsplinePSF*.
-   More details about the process can be found in the `User Guide of SMAP <https://www.embl.de/download/ries/Documentation/SMAP_UserGuide.pdf#page=9>`__ in section 5.4, in the `Step by Step Guide for SMAP <https://www.embl.de/download/ries/Documentation/Example_SMAP_Step_by_step.pdf#page=2>`__, and in the original publication `Li et al., Nature Methods (2018) <https://doi.org/10.1038/nmeth.4661>`__.
+   More details about the process can be found in the `User Guide of SMAP
+   <https://www.embl.de/download/ries/Documentation/SMAP_UserGuide.pdf#page=9>`__
+   in section 5.4, in the `Step by Step Guide for SMAP
+   <https://www.embl.de/download/ries/Documentation/Example_SMAP_Step_by_step.pdf#page=2>`__,
+   and in the original publication `Li et al., Nature Methods (2018)
+   <https://doi.org/10.1038/nmeth.4661>`__.
 
 Determine training parameters with SMAP
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
