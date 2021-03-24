@@ -1,6 +1,6 @@
 package:
   name: decode
-  version: "0.10.0.rc.1"  # do not modify by hand set and sync with bumpversion
+  version: "0.10.0.rc.1"  # do not modify by hand; set and sync with bumpversion
 
 source:
      - path: ../..
@@ -36,7 +36,7 @@ requirements:
     - seaborn=0.10
     - scikit-image
     - scikit-learn
-    - spline>=0.10.0.alpha.2
+    - spline>=0.10.0.rc.2
     - tensorboard
     - tifffile>=2021.1
     - tqdm
@@ -50,10 +50,5 @@ requirements:
 
 about:
     home: https://github.com/turagaLab/decode
-    # dev_url: github url
-    # doc_url: doc url
-    # license: GPL-3.0
-    # license_family: GPL
-    # license_file: {{ SRC_DIR }}/LICENSE
     summary: "High-Density 3D Single-Molecule Localisation Microscopy using Convolutional Neural Networks."
     description: "Installation must add the respective channels for the dependencies (i.e. PyTorch and the spline package): ```conda install decode -c turagalab -c pytorch -c conda-forge```"

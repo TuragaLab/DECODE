@@ -1,8 +1,9 @@
-name: decode_dev
+name: decode_dev_src
 
 channels:
-  - turagalab/label/dev
   - turagalab
+  - turagalab/label/rc
+  - turagalab/label/dev
   - pytorch
   - conda-forge
   - defaults
@@ -39,7 +40,7 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-  - spline>=0.10.0.alpha.2
+  - spline>=0.10.0.rc.2
   - tensorboard
   - tifffile>=2020.2
   - tqdm

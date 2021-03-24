@@ -16,9 +16,9 @@ else:
     # pip needs requirements here; keep in sync with meta.yaml!
     requirements = [
         "numpy",
-        # HACK: We omit torch version to be as flexible to the torchversion
+        # HACK: We omit torch version to be as flexible to the version
         # as we can so that slight changes on colab do not break so fast
-        # that's why we deviate from requirements.txt
+        # that's why we deviate from enviornment.yaml
         "torch",
         "click",
         "deprecated",
