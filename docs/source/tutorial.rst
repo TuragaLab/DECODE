@@ -31,12 +31,16 @@ Bead calibration with SMAP
    in section 5.4, in the `Step by Step Guide for SMAP
    <https://www.embl.de/download/ries/Documentation/Example_SMAP_Step_by_step.pdf#page=2>`__,
    and in the original publication `Li et al., Nature Methods (2018)
-   <https://doi.org/10.1038/nmeth.4661>`__.
+   <https://doi.org/10.1038/nmeth.4661>`__. Even for two-dimensional data you
+   need a bead calibration, in this case make sure to make the `bi dir`ectional
+   fit.
 
 Determine training parameters with SMAP
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1. Use the bead calibration to fit your SMLM data.
+1. Use the bead calibration to fit your SMLM data. Detailed instructions can be
+   found in the `SMAP user guide
+   <https://www.embl.de/download/ries/Documentation/SMAP_UserGuide.pdf#page=6>`__.
 2. Use the plugin: *DECODE\_training\_estimates* to estimate the photo-physical
    parameters of the experiment and to save them into a parameter file. Consult the
    information of the plugin (accessible via the Info button) for further information.
