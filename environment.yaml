@@ -1,4 +1,4 @@
-name: decode_dev_src
+name: decode_dev
 
 channels:
   - turagalab
