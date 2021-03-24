@@ -11,9 +11,9 @@ DECODE works by training a DEep COntext DEpendent (DECODE) neural network to det
 
 The easiest way to try out the algorithm is to have a look at the Google Colab Notebooks we provide for training our algorithm and fitting experimental data. For installation instructions and further information please **refer to our** [**docs**](https://decode.readthedocs.io).
 You can find these here:
-- DECODE Training (**NEW: v0.10rc**) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]()
+- DECODE Training (**NEW: v0.10rc**) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1uQ7w1zaqpy9EIjUdaLyte99FJIhJ6N8E?usp=sharing)
 - DECODE Training (v0.9) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/18V1TLLu63CXSWihwoGX7ZQ5wj0Qk7GnD?usp=sharing)
-- DECODE Fitting (**NEW: v0.10rc**) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]()
+- DECODE Fitting (**NEW: v0.10rc**) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1HAvJUL29vVuCHMZHMbU9jxd4fbLIPdhZ?usp=sharing)
 - DECODE Fitting (v0.9) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1O0mjuOjaOl0wnLZ11Xo92IsWrgqtXL17?usp=sharing)
 - [Documentation](https://decode.readthedocs.io)
 
