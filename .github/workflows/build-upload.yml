@@ -38,7 +38,7 @@ jobs:
     - name: Change anaconda label on prerelease
       if: "github.event.release.prerelease"
       run: |
-        echo "ANACONDA_LABEL=pre" >> $GITHUB_ENV
+        echo "ANACONDA_LABEL=rc" >> $GITHUB_ENV
 
     - name: Upload to Anaconda Cloud
       if: ${{ github.event.release || github.ref == 'refs/heads/master' }}
