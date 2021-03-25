@@ -12,8 +12,8 @@ Performance
    the learning rate by setting ``param.HyperParameter.opt_param.lr``. You may
    try it in steps of decreasing the learning rate by a factor of 0.5.
 
-Errors
-------
+Errors and Software Issues
+--------------------------
 
 -  I get errors when going through the example notebooks.
 
@@ -34,8 +34,20 @@ Errors
 
    If you have multiple GPU devices you may set: ``device='cuda:1'`` (where
    ``1`` corresponds to the respective index of the device, starting with 0). If
-   you don't have multiple devices, you may want to reduce the batch size:
+   you don't have multiple devices, you may should try to reduce the batch size:
    ``param.HyperParameter.batch_size``.
+
+
+- I get other CUDA errors, e.g. ``CUDA error: unspecified launch failure``
+
+    Please check whether you have a somewhat up to date CUDA driver. It's always
+    a good idea to update it. Moreover you can try to check which cudatoolkit
+    version was installed by checking in the Terminal / Anaconda prompt
+    ``conda list``
+
+    You can also try to pin the cudatoolkit version to another one by setting
+    `cudatoolkit=10.1` instead of plain `cudatoolkit` without version
+    in the installation of the decode environment.
 
 -  I get errors like ``No CUDA capable device found`` or CUDA driver issues.
 
