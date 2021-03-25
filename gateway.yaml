@@ -29,10 +29,10 @@ examples:
     url: https://oc.embl.de/index.php/s/7Duj5GOceYR3HqJ/download
     hash: 6d6abb86ac796c5290a0beaf1bb2056122feec2cbef3b28295f7d57ec3833bab
 
-  colab_fit_experimental_rc:
-    name: colab_fit_experimental_rc
-    comment: RC Colab fitting data. Includes cropped version experimental data (of example package 1) and model.
-    url: https://oc.embl.de/index.php/s/Xhsin2EfyoCREVM/download
+  colab_train_experimental_rc:
+    name: colab_train_experimental
+    comment: RC Colab data for training.
+    url: https://oc.embl.de/index.php/s/KVQ77pmWG9WGVXO/download
     hash:
 
   colab_uhd_2020-07-23_fit:
@@ -56,6 +56,6 @@ examples:
 
 wheels:
   decode: https://github.com/TuragaLab/DECODE/releases/download/v0.9.3/decode-0.9.3-py3-none-any.whl
-  decode_rc: https://github.com/TuragaLab/DECODE/releases/download/v0.10.0.alpha.4/decode-0.10.0a4-py3-none-any.whl
+  decode_rc: https://github.com/TuragaLab/DECODE/releases/download/v0.10.0.rc.1/decode-0.10.0rc1-py3-none-any.whl
   spline_py37: https://github.com/TuragaLab/SplinePSF/releases/download/v0.9/spline-0.9-cp37-cp37m-linux_x86_64.whl
   spline_py37_rc: https://github.com/TuragaLab/SplinePSF/releases/download/v0.10.0.alpha.2/spline-0.10.0a2-cp37-cp37m-linux_x86_64.whl

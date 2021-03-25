@@ -10,44 +10,62 @@ from decode.generic import test_utils
 from decode.generic.emitter import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet
 
 
+@pytest.fixture()
+def em2d():
+    """Effectively 2D EmitterSet"""
+
+    return EmitterSet(xyz=torch.rand((25, 2)),
+                      phot=torch.rand(25),
+                      frame_ix=torch.zeros(25, dtype=torch.long))
+
+
+@pytest.fixture()
+def em3d():
+    """Most basic (i.e. all necessary fields) 3D EmitterSet"""
+
+    frames = torch.arange(25, dtype=torch.long)
+    frames[[0, 1, 2]] = 1
+    return EmitterSet(xyz=torch.rand((25, 3)),
+                      phot=torch.rand(25),
+                      frame_ix=frames)
+
+
+@pytest.fixture
+def em3d_full(em3d):
+    return EmitterSet(xyz=em3d.xyz,
+                      phot=em3d.phot,
+                      bg=torch.rand_like(em3d.phot) * 100,
+                      frame_ix=em3d.frame_ix,
+                      id=em3d.id,
+                      xyz_sig=torch.rand_like(em3d.xyz),
+                      phot_sig=torch.rand_like(em3d.phot) * em3d.phot.sqrt(),
+                      xyz_cr=torch.rand_like(em3d.xyz) ** 2,
+                      phot_cr=torch.rand_like(em3d.phot) * em3d.phot.sqrt() * 1.5,
+                      bg_cr=torch.rand_like(em3d.phot),
+                      xy_unit='nm',
+                      px_size=(100., 200.))
+
+
 class TestEmitterSet:
 
-    @pytest.fixture()
-    def em2d(self):
-        """
-        Fixture 2D EmitterSet.
+    def test_properties(self, em2d, em3d, em3d_full):
 
-        Returns:
-            EmitterSet
+        for em in (em2d, em3d, em3d_full):
+            em.phot_scr
+            em.bg_scr
 
-        """
-        return EmitterSet(xyz=torch.rand((25, 2)),
-                          phot=torch.rand(25),
-                          frame_ix=torch.zeros(25).int())
+            if em.px_size is not None and em.xy_unit is not None:
+                em.xyz_px
+                em.xyz_nm
+                em.xyz_scr
+                em.xyz_scr_px
+                em.xyz_scr_nm
+                em.xyz_sig_px
+                em.xyz_sig_nm
+                em.xyz_sig_tot_nm
+                em.xyz_sig_weighted_tot_nm
 
-    @pytest.fixture()
-    def em3d(self):
-        """
-        3D EmitterSet.
-        Returns:
-            EmitterSet
-        """
-        frames = torch.arange(25)
-        frames[[0, 1, 2]] = 1
-        return EmitterSet(xyz=torch.rand((25, 3)),
-                          phot=torch.rand(25),
-                          frame_ix=frames)
-
-    @pytest.fixture
-    def em3d_full(self):
-        return EmitterSet(xyz=torch.rand((25, 3)),
-                          phot=torch.rand(25),
-                          frame_ix=torch.arange(25),
-                          id=torch.arange(25),
-                          xyz_sig=torch.rand((25, 3)),
-                          xyz_cr=torch.rand((25, 3)) ** 2,
-                          xy_unit='nm',
-                          px_size=(100., 200.))
+        # ToDo: Test auto conversion
 
     def test_dim(self, em2d, em3d):
 

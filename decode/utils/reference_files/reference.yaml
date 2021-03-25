@@ -50,6 +50,9 @@ HyperParameter:
     up_mode: upsample
     use_last_nl:
   architecture: SigmaMUNet
+  auto_restart_param:
+    num_restarts: 5
+    restart_treshold: 100
   batch_size: 64
   channels_in: 3
   channels_out:
@@ -79,6 +82,7 @@ HyperParameter:
 InOut:
   calibration_file:  # spline calib
   experiment_out:  # main output dir
+  checkpoint_init:   # initialise from checkpoint (i.e. resume training)
   model_init:
 Meta:
   version:

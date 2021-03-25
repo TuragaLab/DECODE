@@ -1,7 +1,5 @@
 name: Build DECODE and upload to Anaconda Cloud
 
-
-# use on: [push] for testing
 on:
   push:
   pull_request:
@@ -9,16 +7,15 @@ on:
     types: [edited, published]
 
 jobs:
-  # this is a pure Python noarch build; we use Linux for convenience
   build-linux:
     runs-on: ubuntu-latest
 
     env:
       FILENAMES: temp-filenames.txt
+      ANACONDA_LABEL: dev
 
     steps:
     - uses: actions/checkout@v2
-      # this grabs the release commit
       with:
         ref: ${{ github.ref }}
 
@@ -33,15 +30,24 @@ jobs:
         $CONDA/bin/conda-build -c turagalab -c turagalab/label/dev -c pytorch -c conda-forge decode
         $CONDA/bin/conda-build -c turagalab -c turagalab/label/dev -c pytorch -c conda-forge decode --output > $FILENAMES
 
-    # upload to Anaconda Cloud; separate step to minimize exposure of the token
-    - name: Upload to Anaconda Cloud
+    - name: Change anaconda label on release
       if: github.event.release
+      run: |
+        echo "ANACONDA_LABEL=main" >> $GITHUB_ENV
+
+    - name: Change anaconda label on prerelease
+      if: "github.event.release.prerelease"
+      run: |
+        echo "ANACONDA_LABEL=pre" >> $GITHUB_ENV
+
+    - name: Upload to Anaconda Cloud
+      if: ${{ github.event.release || github.ref == 'refs/heads/master' }}
       env:
         ANACONDA_TOKEN: ${{ secrets.TURAGALAB_ANACONDA_TOKEN }}
       run: |
         cd ./conda
         while read PATH; do
-          $CONDA/bin/anaconda -t $ANACONDA_TOKEN upload -u Turagalab $PATH
+          $CONDA/bin/anaconda -t $ANACONDA_TOKEN upload --force -l ${{ env.ANACONDA_LABEL }} -u Turagalab $PATH
         done < $FILENAMES
 
 
