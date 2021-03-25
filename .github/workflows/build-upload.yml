@@ -62,7 +62,7 @@ jobs:
         environment-file: environment.yaml
         python-version: 3.8
         auto-activate-base: false
-        activate-environment: pip-build
+        activate-environment: decode_dev
 
     - name: Build DECODE (pip)
       id: pip-build
