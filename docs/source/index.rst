@@ -8,8 +8,8 @@ Google Colab Notebooks
 ######################
 To try out the package we recommend the Google Colab notebooks which comprise training a model and fitting experimental data.
 
-* `Training <https://colab.research.google.com/drive/18V1TLLu63CXSWihwoGX7ZQ5wj0Qk7GnD?usp=sharing>`_ of the model based on your data
-* `Fitting <https://colab.research.google.com/drive/1O0mjuOjaOl0wnLZ11Xo92IsWrgqtXL17?usp=sharing>`_ of your high density localization microscopy data
+* `Training <https://colab.research.google.com/drive/1uQ7w1zaqpy9EIjUdaLyte99FJIhJ6N8E?usp=sharing>`_ of the model based on your data
+* `Fitting <https://colab.research.google.com/drive/1HAvJUL29vVuCHMZHMbU9jxd4fbLIPdhZ?usp=sharing>`_ of your high density localization microscopy data
 
 DECODE tutorial
 ###############
