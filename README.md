@@ -18,42 +18,8 @@ You can find these here:
 
 
 ## Local Installation
-<details>
-    <summary>Show details</summary>
-We highly recommend using [Anaconda Python](http://anaconda.org) for installing DECODE and its dependencies, including [Pytorch](http://pytorch.org/). While a CUDA-compatible GPU is not essential, it is strongly recommended, as it significantly speeds up the training and analysis steps.
 
-### Installation in Terminal (macOS, Linux, Anaconda Prompt on Windows)
-
-On macOS and Linux please open your terminal, on Windows open Anaconda Prompt. We recommend to set the conda channel_priority to strict. This does two things: Installation is faster, packages are used from the same channel if present. Depending on whether you have a CUDA capable GPU type:
-
-    # (optional, recommended, only do once) weight channel hierarchy more than package version
-    conda config --set channel_priority strict
-
-    # CUDA capable GPU
-    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode cudatoolkit=10.1 jupyterlab ipykernel
-
-    # macOS or no CUDA capable GPU
-    conda create -n decode_env -c turagalab -c pytorch -c conda-forge decode jupyterlab ipykernel
-
-    # after previous command (all platforms)
-    conda activate decode_env
-
-### Installation as package in current environment
-Installing the package without creating a new environment (or in a fresh environment) is possible as
-
-    conda install -c turagalab -c pytorch -c conda-forge decode
-
-*Note:* Python 3.6 users will need to add importlib_resources at the end of the above command.
-
-
-### Updating
- Please execute the following command in your terminal/Anaconda prompt or do it via the Anaconda Navigator GUI.
-
-    conda update -c turagalab -c pytorch -c conda-forge decode
-
-
-Please refer to our [docs](https://decode.readthedocs.io) for more information on other options for installation.
-</details>
+Details about the installation can be found in the [documentation](https://decode.readthedocs.io).
 
 ## Video Tutorial
 As part of the virtual [I2K 2020](https://www.janelia.org/you-janelia/conferences/from-images-to-knowledge-with-imagej-friends) conference we organized a workshop on DECODE.
