@@ -221,8 +221,9 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
                 device=torch.device(device))
 
             if not conv_check(test_out.loss[:, 0].mean(), i):
-                print(
-                    f"The model will be reinitialized and training restarted due to a pathological loss.")
+                print(f"The model will be reinitialized and retrained due to a pathological loss."
+                      f"The max. allowed loss per emitter is {conv_check.threshold:.1f} vs."
+                      f" {(test_out.loss[:, 0].mean() / conv_check.emitter_avg):.1f} (observed).")
 
                 ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
                     setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
