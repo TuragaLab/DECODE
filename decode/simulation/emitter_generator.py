@@ -40,7 +40,7 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
     def __init__(self, *, structure: structure_prior.StructurePrior, photon_range: tuple,
                  density: float = None, em_avg: float = None, xy_unit: str, px_size: tuple):
         """
-        
+
         Args:
             structure: structure to sample from
             photon_range: range of photon value to sample from (uniformly)
@@ -69,6 +69,10 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
             self._em_avg = em_avg
         else:
             self._em_avg = self._density * self.area
+
+    @property
+    def em_avg(self) -> float:
+        return self._em_avg
 
     def sample(self) -> decode.generic.emitter.EmitterSet:
         """

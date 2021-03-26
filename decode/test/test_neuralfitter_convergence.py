@@ -4,14 +4,14 @@ import pytest
 from decode.neuralfitter.utils import convergence
 
 
-class TestConvergenceCheck:
+class TestProgressCheck:
 
     @pytest.fixture()
     def checker(self):
         return convergence.NoCheck()
 
     def test_call(self, checker):
-        with mock.patch.object(checker, 'check_convergence') as impl:
+        with mock.patch.object(checker, 'check_progress') as impl:
             checker()
 
         impl.assert_called_once()
@@ -20,7 +20,7 @@ class TestConvergenceCheck:
         assert checker()
 
 
-class TestHeuristicCheck(TestConvergenceCheck):
+class TestHeuristicCheck(TestProgressCheck):
 
     @pytest.fixture()
     def checker(self):

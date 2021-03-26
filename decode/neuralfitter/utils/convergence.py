@@ -1,41 +1,45 @@
 from abc import ABC, abstractmethod
 
 
-class ConvergenceCheck(ABC):
+class ProgressCheck(ABC):
 
     def __call__(self, *args, **kwargs) -> bool:
-        return self.check_convergence(*args, **kwargs)
+        return self.check_progress(*args, **kwargs)
 
     @abstractmethod
-    def check_convergence(self) -> bool:
+    def check_progress(self) -> bool:
         """Returns true when convergence seems okay."""
         raise NotImplementedError
 
 
-class NoCheck(ConvergenceCheck):
+class NoCheck(ProgressCheck):
 
-    def check_convergence(self) -> bool:
+    def check_progress(self) -> bool:
         return True
 
 
-class GMMHeuristicCheck(ConvergenceCheck):
-    def __init__(self, ref_epoch: int, emitter_avg: float, threshold: float = 100.):
+class GMMHeuristicCheck(ProgressCheck):
+    def __init__(self, emitter_avg: float, threshold: float = 100., ref_epoch: int = 1):
         """
-        Checks convergence of training by some heuristics.
+        Validates progress of training by some heuristics.
 
         Args:
+
             emitter_avg: Expected number of emitters per frame
+            threshold: maximum loss per emitter after reference epoch
+            ref_epoch: reference epoch
 
         """
 
         super().__init__()
-        self.ref_epoch = ref_epoch
+
         self.emitter_avg = emitter_avg
         self.threshold = threshold
+        self.ref_epoch = ref_epoch
 
         self._prev_converged = None  # has already set to converged
 
-    def check_convergence(self, gmm_loss, epoch) -> bool:
+    def check_progress(self, gmm_loss, epoch) -> bool:
         if self._prev_converged is not None:  # do not check if checked before in ref epoch
             return self._prev_converged
 

@@ -168,9 +168,6 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
                                                                          "dphot_red_sig"]),
              decode.neuralfitter.utils.logger.DictLogger()])
 
-    n_training_starts = 0
-    losscheck_passed = False
-
     sim_train, sim_test = setup_random_simulation(param)
     ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
         setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
@@ -187,9 +184,18 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
     else:
         first_epoch = 0
 
-    while n_training_starts <= param.HyperParameter.auto_restart_param.num_restarts and not losscheck_passed:
+    converges = False
+    n = 0
+    n_max = param.HyperParameter.auto_restart_param.num_restarts
 
-        n_training_starts += 1
+    while not converges and n < n_max:
+        n += 1
+
+        conv_check = decode.neuralfitter.utils.convergence.GMMHeuristicCheck(
+            ref_epoch=1,
+            emitter_avg=sim_train.em_sampler.em_avg,
+            threshold=param.HyperParameter.auto_restart_param.restart_treshold,
+        )
 
         for i in range(first_epoch, param.HyperParameter.epochs):
             logger.add_scalar('learning/learning_rate', optimizer.param_groups[0]['lr'], i)
@@ -214,36 +220,19 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
                 epoch=i,
                 device=torch.device(device))
 
-            if i == 1:  # check restart after first epoch
+            if not conv_check(test_out.loss[:, 0].mean(), i):
+                print(
+                    f"The model will be reinitialized and training restarted due to a pathological loss.")
 
-                per_em_gmm_loss = test_out.loss[:, 0].mean() / param.Simulation.emitter_av
+                ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
+                    setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device, param)
+                dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
 
-                if param.HyperParameter.auto_restart_param.num_restarts:
-                    if per_em_gmm_loss > param.HyperParameter.auto_restart_param.restart_treshold:
-                        if n_training_starts <= param.HyperParameter.auto_restart_param.num_restarts:
-                            print(
-                                f"The model will be reinitialized and training restarted due to a pathological loss. "
-                                f"{int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_param.restart_treshold}")
+                converges = False
+                break
 
-                            ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
-                                setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device,
-                                              param)
-                            dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
-
-                        else:
-                            print(
-                                f'Training aborted after {param.HyperParameter.auto_restart_param.num_restarts} restarts. '
-                                'You can try to reduce the learning rate by a factor of 2. '
-                                'It is also possible that the simulated data is to challenging. '
-                                'Check if your background and intensity values are correct '
-                                'and possibly lower the average number of emitters.')
-                        break
-
-                    else:
-                        losscheck_passed = True
-                        print(
-                            f"Loss convergence check passed. Per emitter loss ({int(per_em_gmm_loss)}) smaller than "
-                            f"threshold ({param.HyperParameter.auto_restart_param.restart_treshold})")
+            else:
+                converges = True
 
             """Post-Process and Evaluate"""
             log_train_val_progress.post_process_log_test(loss_cmp=test_out.loss,
@@ -276,6 +265,15 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
                 ds_train.sample(True)
             elif param.Simulation.mode != 'samples':
                 raise ValueError
+
+    if converges:
+        print("Training finished after reaching maximum number of epochs.")
+    else:
+        raise ValueError(f"Training aborted after {n_max} restarts. "
+                         "You can try to reduce the learning rate by a factor of 2."
+                         "\nIt is also possible that the simulated data is to challenging. "
+                         "Check if your background and intensity values are correct "
+                         "and possibly lower the average number of emitters.")
 
 
 def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path, device, param):
