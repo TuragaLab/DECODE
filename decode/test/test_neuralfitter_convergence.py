@@ -1,14 +1,14 @@
 from unittest import mock
 import pytest
 
-from decode.neuralfitter.utils import convergence
+from decode.neuralfitter.utils import progress
 
 
 class TestProgressCheck:
 
     @pytest.fixture()
     def checker(self):
-        return convergence.NoCheck()
+        return progress.NoCheck()
 
     def test_call(self, checker):
         with mock.patch.object(checker, 'check_progress') as impl:
@@ -24,7 +24,7 @@ class TestHeuristicCheck(TestProgressCheck):
 
     @pytest.fixture()
     def checker(self):
-        return convergence.GMMHeuristicCheck(ref_epoch=1, emitter_avg=1.)
+        return progress.GMMHeuristicCheck(ref_epoch=1, emitter_avg=1.)
 
     @pytest.mark.parametrize("loss, epoch, converges", [
         ([1e8, 1e7, 1e6], (0, 1, 2), (True, False, False)),
