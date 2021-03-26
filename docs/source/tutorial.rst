@@ -1,25 +1,26 @@
 Tutorial
 ========
 
-If you are planning to use the Python standalone of DECODE (i.e. this package)
-going through this document is 10 minutes well worthy.
+If you are planning to use the Python standalone of DECODE (i.e. this package) going through this document is 10 minutes well worthy. The workflow described here is for local execution, if you want to test DECODE without installation you can check out the Google Colab notebooks linked on the `starting page <index.html#google-colab-notebooks>`__ of this documentation.
 
 Workflow
 --------
 
 A typical workflow for fitting high-density SMLM data with this package is
 
-1. Bead calibration and extraction of spline coefficients (e.g. in SMAP)
-2. Set training parameters by a pre-fitting procedure or reasonable guess.
-3. Training of the Model
-4. Fitting of the experimental data
-5. Visualization and analysis of fitted data
+1. :ref:`Bead calibration <Bead calibration>` and extraction of spline coefficients (e.g. in SMAP)
+2. Set :ref:`training parameters <Training parameters>` by a pre-fitting procedure or reasonable guess.
+3. :ref:`Training <Training and Fit>` of the model
+4. :ref:`Fitting <Training and Fit>` of the experimental data
+5. :ref:`Visualization <Visualization>` and analysis of fitted data
 
 The first two steps involving SMAP can be skipped and you can start right away
 with the :ref:`notebooks <Training and Fit>` in case you want to work with our
 example data, as we provide the intermediate result files. If you are working
 with your own data or want to go through the whole workflow, just start from the
 beginning.
+
+.. _Bead calibration:
 
 Bead calibration with SMAP
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -42,6 +43,8 @@ Bead calibration with SMAP
    need a bead calibration, in this case make sure to make the *bi directional
    fit*.
 
+.. _Training parameters:
+
 Determine training parameters with SMAP
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -57,9 +60,7 @@ Determine training parameters with SMAP
 Training and Fit
 ^^^^^^^^^^^^^^^^
 
-If you are working locally, please load the notebooks and start up JupyterLab by
-executing the following in the Terminal/Anaconda Prompt. If you want to test
-DECODE without installation, you can run the Google Colab Notebooks linked below.
+The training and fit are performed in Jupyter notebooks. Please load the notebooks and start up JupyterLab by executing the following in the Terminal/Anaconda Prompt.
 
 .. code:: bash
 
@@ -93,6 +94,8 @@ The most up-to-date notebooks are linked on the
 `README <https://github.com/TuragaLab/DECODE>`__ of the DECODE GitHub
 repository. They have been tested with our example data but due to limited
 hardware we cannot guarantee that they also work with your own raw data.
+
+.. _Visualization:
 
 Export of data and import in SMAP for visualization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
