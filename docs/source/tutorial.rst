@@ -82,14 +82,10 @@ might be incompatible. In that case you may want to load the notebooks again
 
 There are four different notebooks:
 
-- **Introduction** contains a general introduction to DECODE and helps you to
-  get familiar with the framework.
-- **Training** guides you through the model training based on the emitter
-  characteristics determined previously (or provided by the example).
-- **Fitting** localizes the single molecules in the high-density data based on
-  the model.
-- **Evaluation** gives you an introduction to the post-processing capabilities
-  of DECODE.
+- **Introduction** contains a general introduction to DECODE and helps you to get familiar with the framework.
+- **Training** guides you through the model training based on the emitter characteristics determined previously (or provided by the example).
+- **Fitting** localizes the single molecules in the high-density data based on the model.
+- **Evaluation** gives you an introduction to the post-processing capabilities of DECODE.
 
 The Training and Fitting notebooks are also available on Google Colab to test
 DECODE without installation. They contain example data and step by step guides.
@@ -100,8 +96,10 @@ hardware we cannot guarantee that they also work with your own raw data.
 
 Export of data and import in SMAP for visualization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-DECODE has basic rendering functions but for detailed visualization and analysis
-you should export your data and load it into SMAP.
+DECODE has basic rendering functions but for detailed visualization and analysis you should export your data and load it into SMAP or another SMLM visualization software of your choice.
+
+For loading the data in SMAP, you can export your emitter set as h5 file at the end of the fitting notebook. For easier input in other software we recommend exporting as csv.
+Under the *File* tab in SMAP, change the *auto loader* to *Import DECODE .csv/.h5* and **Load** the exported data. For detailed instructions on post-processing (grouping, filtering, drift correction,...) please consult the `SMAP Documentation <https://www.embl.de/download/ries/Documentation/>`__, more specifically from point 5 onwards in the `Getting Started Guide <https://www.embl.de/download/ries/Documentation/Getting_Started.pdf#page=4>`__ and from point 6 on in the `SMAP User Guide <https://www.embl.de/download/ries/Documentation/SMAP_UserGuide.pdf#page=11>`__.
 
 Video Tutorial
 --------------

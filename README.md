@@ -15,8 +15,6 @@ You can find these here:
 - DECODE Fitting [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1O0mjuOjaOl0wnLZ11Xo92IsWrgqtXL17?usp=sharing)
 - [Documentation](https://decode.readthedocs.io)
 
-
-
 ## Local Installation
 
 Details about the installation can be found in the [documentation](https://decode.readthedocs.io).
