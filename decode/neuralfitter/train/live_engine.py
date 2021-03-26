@@ -169,6 +169,7 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
              decode.neuralfitter.utils.logger.DictLogger()])
 
     n_training_starts = 0
+    losscheck_passed = False
 
     sim_train, sim_test = setup_random_simulation(param)
     ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
@@ -186,7 +187,7 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
     else:
         first_epoch = 0
 
-    while n_training_starts <= param.HyperParameter.auto_restart_param.num_restarts:
+    while n_training_starts <= param.HyperParameter.auto_restart_param.num_restarts and not losscheck_passed:
 
         n_training_starts += 1
 
@@ -217,30 +218,32 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
 
                 per_em_gmm_loss = test_out.loss[:, 0].mean() / param.Simulation.emitter_av
 
-                if per_em_gmm_loss > param.HyperParameter.auto_restart_param.restart_treshold:
-                    if n_training_starts <= param.HyperParameter.auto_restart_param.num_restarts:
-                        print(
-                            f"The model will be reinitialized and training restarted due to a pathological loss. "
-                            f"{int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_param.restart_treshold}")
+                if param.HyperParameter.auto_restart_param.num_restarts:
+                    if per_em_gmm_loss > param.HyperParameter.auto_restart_param.restart_treshold:
+                        if n_training_starts <= param.HyperParameter.auto_restart_param.num_restarts:
+                            print(
+                                f"The model will be reinitialized and training restarted due to a pathological loss. "
+                                f"{int(per_em_gmm_loss)} > {param.HyperParameter.auto_restart_param.restart_treshold}")
 
-                        ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
-                            setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device,
-                                          param)
-                        dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
+                            ds_train, ds_test, model, model_ls, optimizer, criterion, lr_scheduler, grad_mod, post_processor, matcher, ckpt = \
+                                setup_trainer(sim_train, sim_test, logger, model_out, ckpt_path, device,
+                                              param)
+                            dl_train, dl_test = setup_dataloader(param, ds_train, ds_test)
+
+                        else:
+                            print(
+                                f'Training aborted after {param.HyperParameter.auto_restart_param.num_restarts} restarts. '
+                                'You can try to reduce the learning rate by a factor of 2. '
+                                'It is also possible that the simulated data is to challenging. '
+                                'Check if your background and intensity values are correct '
+                                'and possibly lower the average number of emitters.')
+                        break
 
                     else:
+                        losscheck_passed = True
                         print(
-                            f'Training aborted after {param.HyperParameter.auto_restart_param.num_restarts} restarts. '
-                            'You can try to reduce the learning rate by a factor of 2. '
-                            'It is also possible that the simulated data is to challenging. '
-                            'Check if your background and intensity values are correct '
-                            'and possibly lower the average number of emitters.')
-                    break
-
-                else:
-                    print(
-                        f"Loss convergence check passed. Per emitter loss ({int(per_em_gmm_loss)}) smaller than "
-                        f"threshold ({param.HyperParameter.auto_restart_param.restart_treshold})")
+                            f"Loss convergence check passed. Per emitter loss ({int(per_em_gmm_loss)}) smaller than "
+                            f"threshold ({param.HyperParameter.auto_restart_param.restart_treshold})")
 
             """Post-Process and Evaluate"""
             log_train_val_progress.post_process_log_test(loss_cmp=test_out.loss,
