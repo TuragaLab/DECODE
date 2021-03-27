@@ -12,6 +12,11 @@ Performance
    the learning rate by setting ``param.HyperParameter.opt_param.lr``. You may
    try it in steps of decreasing the learning rate by a factor of 0.5.
 
+-   What is the deal with ``Mirror2D``?
+
+    Please refer to our extensive note on this in the Fitting notebook which you
+    get by following the instructions in the `Tutorial <tutorial.html>`__.
+
 Errors and Software Issues
 --------------------------
 
