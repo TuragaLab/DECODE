@@ -64,8 +64,8 @@ Determine training parameters with SMAP
 Training and Fit
 ^^^^^^^^^^^^^^^^
 
-The training and fit are performed in Jupyter notebooks.
-Please load the notebooks and start up JupyterLab by executing the following in the
+The training and fit procecure are described in Jupyter notebooks.
+Please load the notebooks and start up JupyterLab by executing the following in your
 Terminal/Anaconda Prompt.
 
 .. code:: bash
@@ -90,7 +90,8 @@ might be incompatible. In that case you may want to load the notebooks again
 There are four different notebooks:
 
 - **Introduction** contains a general introduction to DECODE and helps you to get familiar with the framework.
-- **Training** guides you through the model training based on the emitter characteristics determined previously (or provided by the example).
+- **Training** guides you through creating a parameter file that you need for training the model.
+It is based on emitter characteristics determined previously (or provided by the example).
 - **Fitting** localizes the single molecules in the high-density data based on the model.
 - **Evaluation** gives you an introduction to the post-processing capabilities of DECODE.
 
@@ -118,15 +119,22 @@ Example Data
 
 We provide experimental data for you to try out DECODE. If you want to do the whole pipeline, i.e.
 including your own bead calibration and training parametrization
-(i.e. :ref:`steps 1 and 2 <Workflow>`) you can download the example data from our
+(i.e. :ref:`steps 1 and 2 <Workflow>`) you can download example data from our
 `gateway <https://github.com/TuragaLab/DECODE/blob/master/gateway.yaml>`__.
-If you want to omit the :ref:`steps 1 and 2 <Workflow>` and try out DECODE directly, the training
+If you want to omit the :ref:`steps 1 and 2 <Workflow>` and try out DECODE directly, the
 data will be downloaded automatically in the respective Jupyter Notebooks.
 
-Note that we have taken quite some measures to ensure the availability of the example data. If
-you still encounter a dead link, please notify us by
+Note that we have taken quite some measures to ensure the availability of the example data.
+If you still encounter a dead link, please notify us by
 `opening an issue <https://github.com/TuragaLab/DECODE/issues>`__.
 
+Experimental data
+^^^^^^^^^^^^^^^^^
+We provide the RAW data, RAW beads, training parametrization and converged model to reproduce
+Figure 4 of our preprint. The notebooks automatically download this package.
+For manual download the link can be found in our
+`gateway <https://github.com/TuragaLab/DECODE/blob/master/gateway.yaml>`__
+(experimental_data_workflow).
 
 SMLM Challenge data
 ^^^^^^^^^^^^^^^^^^^

@@ -4,14 +4,24 @@ DECODE Manual
 =============
 This is the documentation of the DECODE Deep Learning for Superresolution Localization Microscopy.
 
+Get Started
+###########
+To try out DECODE we recommend to first have a look at the Google Colab notebooks.
 
 DECODE on Google Colab
-^^^^^^^^^^^^^^^^^^^^^^
-To try out DECODE we recommend to have a look at the Google Colab notebooks which comprise training
-a model, fitting experimental data and exporting the fitted localizations.
+""""""""""""""""""""""
+Our notebooks below comprise training a model, fitting experimental data and exporting the
+fitted localizations.
 
-* `Training <https://colab.research.google.com/drive/1uQ7w1zaqpy9EIjUdaLyte99FJIhJ6N8E?usp=sharing>`_ of the model based on your data
-* `Fitting <https://colab.research.google.com/drive/1HAvJUL29vVuCHMZHMbU9jxd4fbLIPdhZ?usp=sharing>`_ of your high density localization microscopy data
+* `Training a DECODE model <https://colab.research.google.com/drive/1uQ7w1zaqpy9EIjUdaLyte99FJIhJ6N8E?usp=sharing>`_
+* `Fitting high-density data <https://colab.research.google.com/drive/1HAvJUL29vVuCHMZHMbU9jxd4fbLIPdhZ?usp=sharing>`_
+
+DECODE on your machine
+""""""""""""""""""""""
+The installation is described in detail here `installation instructions. <installation.html>`__
+
+Once you have installed DECODE on your local machine, please follow our
+`Tutorial. <installation.html>`__
 
 Video tutorial
 ###############
