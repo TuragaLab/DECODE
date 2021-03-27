@@ -16,7 +16,7 @@ A typical workflow for fitting high-density SMLM data with this package is
 2. :ref:`Set training parameters <Training parameters>` by a pre-fitting procedure or reasonableguess.
 3. :ref:`Training <Training and Fit>` of the model
 4. :ref:`Fitting <Training and Fit>` of the experimental data
-5. :ref:`Export, visualization and analysis <Visualization>`of fitted data
+5. :ref:`Export, visualization and analysis <Visualization>` of fitted data
 
 The first two steps involving SMAP can be skipped and you can start right away
 with the :ref:`notebooks <Training and Fit>` in case you want to work with our
