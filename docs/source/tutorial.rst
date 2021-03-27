@@ -1,18 +1,26 @@
 Tutorial
 ========
 
-If you are planning to use the Python standalone of DECODE (i.e. this package)
-going through this document is 10 minutes well worthy.
+If you are planning to use the Python standalone of DECODE (i.e. this package) going through this document is 10 minutes well worthy. The workflow described here is for local execution, if you want to test DECODE without installation you can check out the Google Colab notebooks linked on the `starting page <index.html#google-colab-notebooks>`__ of this documentation.
 
 Workflow
 --------
 
-The repeating pattern of working with this package is
+A typical workflow for fitting high-density SMLM data with this package is
 
-1. Bead calibration and extraction of spline coefficients (e.g. in SMAP)
-2. Set training parameters by a pre-fitting procedure or reasonable guess.
-3. Training of the Model
-4. Fitting of the experimental data
+1. :ref:`Bead calibration <Bead calibration>` and extraction of spline coefficients (e.g. in SMAP)
+2. Set :ref:`training parameters <Training parameters>` by a pre-fitting procedure or reasonable guess.
+3. :ref:`Training <Training and Fit>` of the model
+4. :ref:`Fitting <Training and Fit>` of the experimental data
+5. :ref:`Visualization <Visualization>` and analysis of fitted data
+
+The first two steps involving SMAP can be skipped and you can start right away
+with the :ref:`notebooks <Training and Fit>` in case you want to work with our
+example data, as we provide the intermediate result files. If you are working
+with your own data or want to go through the whole workflow, just start from the
+beginning.
+
+.. _Bead calibration:
 
 Bead calibration with SMAP
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -32,8 +40,10 @@ Bead calibration with SMAP
    <https://www.embl.de/download/ries/Documentation/Example_SMAP_Step_by_step.pdf#page=2>`__,
    and in the original publication `Li et al., Nature Methods (2018)
    <https://doi.org/10.1038/nmeth.4661>`__. Even for two-dimensional data you
-   need a bead calibration, in this case make sure to make the `bi dir`ectional
-   fit.
+   need a bead calibration, in this case make sure to make the *bi directional
+   fit*.
+
+.. _Training parameters:
 
 Determine training parameters with SMAP
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -45,11 +55,12 @@ Determine training parameters with SMAP
    parameters of the experiment and to save them into a parameter file. Consult the
    information of the plugin (accessible via the Info button) for further information.
 
+.. _Training and Fit:
+
 Training and Fit
 ^^^^^^^^^^^^^^^^
 
-Please load the notebooks and start up JupyterLab by executing the following in
-the Terminal/Anaconda Prompt:
+The training and fit are performed in Jupyter notebooks. Please load the notebooks and start up JupyterLab by executing the following in the Terminal/Anaconda Prompt.
 
 .. code:: bash
 
@@ -69,6 +80,29 @@ In case of trouble please refer to the `Instructions for JupyterLab
 Note that these notebooks might change with different versions of DECODE and
 might be incompatible. In that case you may want to load the notebooks again
 (as stated above).
+
+There are four different notebooks:
+
+- **Introduction** contains a general introduction to DECODE and helps you to get familiar with the framework.
+- **Training** guides you through the model training based on the emitter characteristics determined previously (or provided by the example).
+- **Fitting** localizes the single molecules in the high-density data based on the model.
+- **Evaluation** gives you an introduction to the post-processing capabilities of DECODE.
+
+The Training and Fitting notebooks are also available on Google Colab to test
+DECODE without installation. They contain example data and step by step guides.
+The most up-to-date notebooks are linked on the
+`README <https://github.com/TuragaLab/DECODE>`__ of the DECODE GitHub
+repository. They have been tested with our example data but due to limited
+hardware we cannot guarantee that they also work with your own raw data.
+
+.. _Visualization:
+
+Export of data and import in SMAP for visualization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+DECODE has basic rendering functions but for detailed visualization and analysis you should export your data and load it into SMAP or another SMLM visualization software of your choice.
+
+For loading the data in SMAP, you can export your emitter set as h5 file at the end of the fitting notebook. For easier input in other software we recommend exporting as csv.
+Under the *File* tab in SMAP, change the *auto loader* to *Import DECODE .csv/.h5* and **Load** the exported data. For detailed instructions on post-processing (grouping, filtering, drift correction,...) please consult the `SMAP Documentation <https://www.embl.de/download/ries/Documentation/>`__, more specifically from point 5 onwards in the `Getting Started Guide <https://www.embl.de/download/ries/Documentation/Getting_Started.pdf#page=4>`__ and from point 6 on in the `SMAP User Guide <https://www.embl.de/download/ries/Documentation/SMAP_UserGuide.pdf#page=11>`__.
 
 Video Tutorial
 --------------
