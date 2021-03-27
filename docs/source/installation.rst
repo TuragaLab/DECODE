@@ -11,8 +11,8 @@ install DECODE, is by using conda. If you don't have conda (chances are you have
 it when you have used python) you may download it from https://anaconda.org. In
 the following we will make a conda environment and install decode.
 
-System Requirements (TLDR)
---------------------------
+System Requirements
+-------------------
 
 -  GPU: CUDA with RAM >= 4GB and compute capability >= 3.7 (both highly recommended)
 -  RAM: >= 8 GB
@@ -48,27 +48,42 @@ Depending on whether you have a CUDA capable GPU type:
     # after previous command (all platforms)
     conda activate decode_env
 
-Installation as package in current environment
-----------------------------------------------
+Please now get the DECODE Jupyter Notebooks
 
-Installing the package without creating a new environment (or in a fresh
-environment) is possible as
+.. _notebook_install:
+
+DECODE Jupyter Notebooks
+""""""""""""""""""""""""
+
+Before you start using DECODE locally you should make sure to check get our Jupyter notebooks
+to familiarise yourself with DECODE.
+You can get the notebooks and start up JupyterLab by executing the following in your
+Terminal/Anaconda Prompt:
 
 .. code:: bash
 
-    conda install -c turagalab -c pytorch -c conda-forge decode
+    conda activate decode_env
 
-*Note:* Python 3.6 users will need to add importlib_resources at the end of the above command.
+    # get the example notebooks
+    python -m decode.utils.notebooks [Destination Path of the Notebooks, e.g. /Users/RainerZufall/Downloads]
+
+In case of trouble please refer to the `Instructions for JupyterLab <https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html>`__.
+You are now all set to start the `DECODE tutorial. <tutorial.html>`__
+
 
 Updating
 ^^^^^^^^
 
-Please execute the following command in your terminal/Anaconda prompt or do it
-via the Anaconda Navigator GUI.
+Please execute the following command in your terminal/Anaconda prompt.
 
 .. code:: bash
 
-    conda update -c turagalab -c pytorch -c conda-forge decode
+    conda update -n decode_env -c turagalab -c pytorch -c conda-forge decode
+
+The Jupyter notebooks are coupled to the version of DECODE you have installed. A version mismatch
+might lead to non-functional notebooks. Please get a fresh copy of the notebooks by simply
+running following the :ref:`instructions to get the DECODE notebooks.<notebook_install>`
+
 
 Import
 ^^^^^^
