@@ -1,7 +1,11 @@
 Tutorial
 ========
 
-If you are planning to use the Python standalone of DECODE (i.e. this package) going through this document is 10 minutes well worthy. The workflow described here is for local execution, if you want to test DECODE without installation you can check out the Google Colab notebooks linked on the `starting page <index.html#google-colab-notebooks>`__ of this documentation.
+Here we describe how to use DECODE locally, i.e. when you want to use it on a regular basis.
+If you want to test DECODE without installation you can check out the Google Colab notebooks
+linked on the `starting page <index.html#google-colab-notebooks>`__ of this documentation.
+
+.. _Workflow:
 
 Workflow
 --------
@@ -9,16 +13,16 @@ Workflow
 A typical workflow for fitting high-density SMLM data with this package is
 
 1. :ref:`Bead calibration <Bead calibration>` and extraction of spline coefficients (e.g. in SMAP)
-2. Set :ref:`training parameters <Training parameters>` by a pre-fitting procedure or reasonable guess.
+2. :ref:`Set training parameters <Training parameters>` by a pre-fitting procedure or reasonableguess.
 3. :ref:`Training <Training and Fit>` of the model
 4. :ref:`Fitting <Training and Fit>` of the experimental data
-5. :ref:`Visualization <Visualization>` and analysis of fitted data
+5. :ref:`Export, visualization and analysis <Visualization>`of fitted data
 
 The first two steps involving SMAP can be skipped and you can start right away
 with the :ref:`notebooks <Training and Fit>` in case you want to work with our
-example data, as we provide the intermediate result files. If you are working
-with your own data or want to go through the whole workflow, just start from the
-beginning.
+example data, as we provide the intermediate result files (i.e. the calibration and the training
+parametrization). If you are working with your own data or want to go through the whole workflow,
+just start from the beginning.
 
 .. _Bead calibration:
 
@@ -60,7 +64,9 @@ Determine training parameters with SMAP
 Training and Fit
 ^^^^^^^^^^^^^^^^
 
-The training and fit are performed in Jupyter notebooks. Please load the notebooks and start up JupyterLab by executing the following in the Terminal/Anaconda Prompt.
+The training and fit are performed in Jupyter notebooks.
+Please load the notebooks and start up JupyterLab by executing the following in the
+Terminal/Anaconda Prompt.
 
 .. code:: bash
 
@@ -97,22 +103,38 @@ hardware we cannot guarantee that they also work with your own raw data.
 
 .. _Visualization:
 
-Export of data and import in SMAP for visualization
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Export from DECODE and import in SMAP for visualization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 DECODE has basic rendering functions but for detailed visualization and analysis you should export your data and load it into SMAP or another SMLM visualization software of your choice.
 
 For loading the data in SMAP, you can export your emitter set as h5 file at the end of the fitting notebook. For easier input in other software we recommend exporting as csv.
 Under the *File* tab in SMAP, change the *auto loader* to *Import DECODE .csv/.h5* and **Load** the exported data. For detailed instructions on post-processing (grouping, filtering, drift correction,...) please consult the `SMAP Documentation <https://www.embl.de/download/ries/Documentation/>`__, more specifically from point 5 onwards in the `Getting Started Guide <https://www.embl.de/download/ries/Documentation/Getting_Started.pdf#page=4>`__ and from point 6 on in the `SMAP User Guide <https://www.embl.de/download/ries/Documentation/SMAP_UserGuide.pdf#page=11>`__.
 
-Video Tutorial
---------------
 
-As part of the virtual `I2K 2020
-<https://www.janelia.org/you-janelia/conferences/from-images-to-knowledge-with-imagej-friends>`__
-conference we organized a workshop on DECODE. Please find the video below.
-*DECODE is being actively developed, therefore the exact commands might differ
-from those shown in the video.*
+.. _Example Data:
 
-.. raw:: html
+Example Data
+------------
 
-   <p style="text-align:center"><iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/zoWsj3FCUJs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></p>
+We provide experimental data for you to try out DECODE. If you want to do the whole pipeline, i.e.
+including your own bead calibration and training parametrization
+(i.e. :ref:`steps 1 and 2 <Workflow>`) you can download the example data from our
+`gateway <https://github.com/TuragaLab/DECODE/blob/master/gateway.yaml>`__.
+If you want to omit the :ref:`steps 1 and 2 <Workflow>` and try out DECODE directly, the training
+data will be downloaded automatically in the respective Jupyter Notebooks.
+
+
+SMLM Challenge data
+^^^^^^^^^^^^^^^^^^^
+If you want to reproduce our results for the SMLM challenge, you can download the respective
+datasets on the `SMLM Challenge Website <http://bigwww.epfl.ch/smlm/datasets/index.html>`__.
+Other than that you can follow the exact same steps as described in the workflow above.
+To get you started right away, please note the following:
+
+Camera Parameters
+"""""""""""""""""
+
+**[TBD PUT TABLE HERE]**
+
+Moreover, for this data *Mirroring must be turned off* in the Fitting notebook (see the details
+there).

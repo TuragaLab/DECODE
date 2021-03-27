@@ -15,13 +15,16 @@ a model, fitting experimental data and exporting the fitted localizations.
 
 Video tutorial
 ###############
-We held a workshop at the I2K 2020 conference. You can find the recording below.
-Please note that the development of DECODE is ongoing and the code shown in the video might slightly
-differ from the current version. Refer to the notebooks described in the Tutorial.
+As part of the virtual `I2K 2020
+<https://www.janelia.org/you-janelia/conferences/from-images-to-knowledge-with-imagej-friends>`__
+conference we organized a workshop on DECODE. Please find the video below.
+*DECODE is being actively developed, therefore the exact commands might differ
+from those shown in the video.*
 
 .. raw:: html
 
-    <p style="text-align:center"><iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/zoWsj3FCUJs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></p>
+   <p style="text-align:center"><iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/zoWsj3FCUJs" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></p>
+
 
 Contents
 ########
