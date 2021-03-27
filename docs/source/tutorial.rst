@@ -134,7 +134,28 @@ To get you started right away, please note the following:
 Camera Parameters
 """""""""""""""""
 
-**[TBD PUT TABLE HERE]**
++---------------------+-------------+-------------+
+| Parameters\Modality | 3D AS       | 3D DH       |
++---------------------+-------------+-------------+
+| baseline            | 100.0       | 100.0       |
++---------------------+-------------+-------------+
+| e_per_adu           | 45.0        | 45.0        |
++---------------------+-------------+-------------+
+| em_gain             | 300         | 300         |
++---------------------+-------------+-------------+
+| qe                  | 1. :sup:`†` | 1. :sup:`†` |
++---------------------+-------------+-------------+
+| read_sigma          | 74.4        | 74.4        |
++---------------------+-------------+-------------+
+| spur_noise          | 0.002       | 0.002       |
++---------------------+-------------+-------------+
+| px_size             | [100, 100]  | [100, 00]   |
++---------------------+-------------+-------------+
+
+:sup:`†` we typically use a *quantum efficiency* of 1. and refer to the photons as *detected
+photons.*
+For direct challenge comparison, the photon count must then be adjusted by 1/ 0.9 (where 0.9 is the
+quantum efficiency of the camera for the simulated 3D AS/DH data).
 
 Moreover, for this data *Mirroring must be turned off* both in SMAP (Camera Parameters) as well
 as in the Fitting notebook (see the details there).
