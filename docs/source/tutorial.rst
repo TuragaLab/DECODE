@@ -123,6 +123,10 @@ including your own bead calibration and training parametrization
 If you want to omit the :ref:`steps 1 and 2 <Workflow>` and try out DECODE directly, the training
 data will be downloaded automatically in the respective Jupyter Notebooks.
 
+Note that we have taken quite some measures to ensure the availability of the example data. If
+you still encounter a dead link, please notify us by
+`opening an issue <https://github.com/TuragaLab/DECODE/issues>`__.
+
 
 SMLM Challenge data
 ^^^^^^^^^^^^^^^^^^^
