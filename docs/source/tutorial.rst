@@ -1,3 +1,4 @@
+========
 Tutorial
 ========
 
@@ -12,8 +13,9 @@ copy of the DECODE jupyter notebooks. If this is not the case for you, please re
 
 .. _Workflow:
 
+********
 Workflow
---------
+********
 
 A typical workflow for fitting high-density SMLM data with this package is
 
@@ -33,7 +35,7 @@ just start from the beginning.
 .. _Bead calibration:
 
 Bead calibration with SMAP
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+==========================
 
 1. Install the stand-alone version of SMAP from
    `rieslab.de <https://rieslab.de/#software>`__ or if you have MATLAB, download
@@ -57,7 +59,7 @@ Bead calibration with SMAP
 .. _Training parameters:
 
 Determine training parameters with SMAP
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+=======================================
 
 1. Use the bead calibration to fit your SMLM data. Detailed instructions can be
    found in the `SMAP user guide
@@ -70,7 +72,7 @@ Determine training parameters with SMAP
 .. _Training:
 
 Training a DECODE model
-^^^^^^^^^^^^^^^^^^^^^^^
+=======================
 
 The basis for training DECODE is a parametrization of training procedure. This parametrization is
 described in a simple `.yaml` file which holds a couple of paths (e.g. the calibration file and
@@ -81,7 +83,7 @@ creating such a `.yaml` file that can subsequently used to start the actual trai
 .. _First time:
 
 First time Using DECODE
-=======================
+-----------------------
 
 To get you up and running, we provide several notebooks that introduce DECODE to you.
 In total, there are four different notebooks:
@@ -105,7 +107,7 @@ Introduction notebook, followed by Training and Fitting.
 
 
 Regular workflow
-================
+----------------
 
 In practice you can either write such a `.yaml` file directly, i.e. by educated guessing your
 emitter characteristics, or follow the pre-fit routine using SMAP that will auto-generate it.
@@ -123,7 +125,7 @@ your Terminal/Anaconda prompt
 .. _Fit:
 
 Fit
-^^^
+===
 
 Please refer to the :ref:`First Time using DECODE instructions. <First time>`
 
@@ -131,7 +133,8 @@ Please refer to the :ref:`First Time using DECODE instructions. <First time>`
 .. _Visualization:
 
 Export from DECODE and import in SMAP for visualization
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+=======================================================
+
 DECODE has basic rendering functions but for detailed visualization and analysis you should export
 your data and load it into SMAP or another SMLM visualization software of your choice.
 
@@ -148,8 +151,9 @@ and from point 6 on in the
 
 .. _Example Data:
 
+************
 Example Data
-------------
+************
 
 We provide experimental data for you to try out DECODE. If you want to do the whole pipeline, i.e.
 including your own bead calibration and training parametrization
@@ -163,7 +167,8 @@ If you still encounter a dead link, please notify us by
 `opening an issue <https://github.com/TuragaLab/DECODE/issues>`__.
 
 Experimental data
-^^^^^^^^^^^^^^^^^
+=================
+
 We provide the RAW data, RAW beads, training parametrization and converged model to reproduce
 Figure 4 of our preprint. The notebooks automatically download this package.
 For manual download the link can be found in our
@@ -171,7 +176,8 @@ For manual download the link can be found in our
 (experimental_data_workflow).
 
 SMLM Challenge data
-^^^^^^^^^^^^^^^^^^^
+===================
+
 If you want to reproduce our results for the SMLM challenge, you can download the respective
 datasets on the `SMLM Challenge Website <http://bigwww.epfl.ch/smlm/datasets/index.html>`__.
 Other than that you can follow the exact same steps as described in the workflow above.
