@@ -11,17 +11,11 @@ examples:
     url: https://oc.embl.de/index.php/s/j2kCCILAS5oLO8B/download
     hash: 418aa36686ea52de47117946f9dd53eb449f4dad1a38948adc786a59efb34100
 
-  package_2:
-    name: package_smlm2016_AS_low_snr
-    comment: Astigmatic PSF, SMLM Challenge
-    url: https://oc.embl.de/index.php/s/7gbVuYS98spSv66/download
-    hash: 395204d90391571a9eb930043aadc32562143f4afb904f7db84c51b8b356be92
-
-  package_3:
-    name: package_smlm2016_dh_low_snr
-    comment: Double Helix, SMLM Challenge
-    url: https://oc.embl.de/index.php/s/5IdOHl0KIHLSRm5/download
-    hash: 43492bff05fed4e33f1e61fd4f801f8598f53b439fece2931dfe0872cdefe0ab
+  smlm_challenge:
+    name: smlm_challenge
+    comment: 3D Astigmatic and Double-Helix PSF and parameters, SMLM Challenge
+    url: https://oc.embl.de/index.php/s/dHxddIZ5zA0DDwx/download
+    hash:
 
   colab_uhd_2020-07-23:
     name: uhd_2020-07-23
@@ -46,12 +40,6 @@ examples:
     comment: RC Colab fitting data. Includes cropped version experimental data (of example package 1) and model.
     url: https://oc.embl.de/index.php/s/Xhsin2EfyoCREVM/download
     hash:
-
-  bead_cal_2020-07-23:
-    name: beads_m2_2020-07-23
-    comment: raw beads
-    url: https://oc.embl.de/index.php/s/2pnyNbXZnegBIVs/download
-    hash: 7337d1fbc24363a5980031caf5356219a75e303738b50e61942d23c44321210f
 
 
 wheels:
