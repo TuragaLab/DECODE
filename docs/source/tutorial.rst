@@ -77,8 +77,13 @@ Training a DECODE model
 The basis for training DECODE is a parametrization of training procedure. This parametrization is
 described in a simple `.yaml` file which holds a couple of paths (e.g. the calibration file and
 your output directory) as well as the parametrization of the simulation that should somewhat
-match the data you want to fit. In our Training notebook we guide you through the process of
-creating such a `.yaml` file that can subsequently used to start the actual training.
+match the data you want to fit.
+
+In our Training notebook we guide you through the process of creating such a `.yaml` file that can
+subsequently used to start the actual training.
+
+If you have gone through the notebooks already and generated your own `param.yaml` file, you can skip
+the following section and go to the :ref:`regular workflow <Regular workflow>` directly.
 
 .. _First time:
 
@@ -89,8 +94,7 @@ To get you up and running, we provide several notebooks that introduce DECODE to
 In total, there are four different notebooks:
 
 - **Introduction** contains a general introduction to DECODE and helps you to get familiar with the framework.
-- **Training** guides you through creating a parameter file that you need for training the model.
-It is based on emitter characteristics determined previously (or provided by the example).
+- **Training** guides you through creating a parameter file that you need for training the model. It is based on emitter characteristics determined previously (or provided by the example).
 - **Fitting** localizes the single molecules in the high-density data based on the model.
 - **Evaluation** gives you an introduction to the post-processing capabilities of DECODE.
 
@@ -105,6 +109,7 @@ This will load the example files and opens up a new browser tab/window. Navigate
 to the path where you saved the notebooks and go through them. We recommend to start with the
 Introduction notebook, followed by Training and Fitting.
 
+.. _Regular workflow:
 
 Regular workflow
 ----------------
