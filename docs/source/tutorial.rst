@@ -136,5 +136,5 @@ Camera Parameters
 
 **[TBD PUT TABLE HERE]**
 
-Moreover, for this data *Mirroring must be turned off* in the Fitting notebook (see the details
-there).
+Moreover, for this data *Mirroring must be turned off* both in SMAP (Camera Parameters) as well
+as in the Fitting notebook (see the details there).
