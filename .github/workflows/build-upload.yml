@@ -27,8 +27,8 @@ jobs:
     - name: Build DECODE
       run: |
         cd ./conda
-        $CONDA/bin/conda-build -c turagalab -c turagalab/label/dev -c pytorch -c conda-forge decode
-        $CONDA/bin/conda-build -c turagalab -c turagalab/label/dev -c pytorch -c conda-forge decode --output > $FILENAMES
+        $CONDA/bin/conda-build -c turagalab -c turagalab/label/rc -c turagalab/label/dev -c pytorch -c conda-forge decode
+        $CONDA/bin/conda-build -c turagalab -c turagalab/label/rc -c turagalab/label/dev -c pytorch -c conda-forge decode --output > $FILENAMES
 
     - name: Change anaconda label on release
       if: github.event.release
@@ -38,7 +38,7 @@ jobs:
     - name: Change anaconda label on prerelease
       if: "github.event.release.prerelease"
       run: |
-        echo "ANACONDA_LABEL=pre" >> $GITHUB_ENV
+        echo "ANACONDA_LABEL=rc" >> $GITHUB_ENV
 
     - name: Upload to Anaconda Cloud
       if: ${{ github.event.release || github.ref == 'refs/heads/master' }}
@@ -62,7 +62,7 @@ jobs:
         environment-file: environment.yaml
         python-version: 3.8
         auto-activate-base: false
-        activate-environment: pip-build
+        activate-environment: decode_dev
 
     - name: Build DECODE (pip)
       id: pip-build
@@ -83,4 +83,3 @@ jobs:
         asset_path: ./dist/${{ steps.pip-build.outputs.wheel_filename }}
         asset_name: ${{ steps.pip-build.outputs.wheel_filename }}
         asset_content_type: binary/octet-stream
-

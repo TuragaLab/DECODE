@@ -80,7 +80,7 @@ class Renderer2D(Renderer):
         Args:
             px_size: pixel size of the output image in nm
             sigma_blur: sigma of the gaussian blur applied in nm
-            plot_axis: determines which dimensions get plotted. 0,1,2 = x,y,z. (0,1,2) is x over y, colored by z.
+            plot_axis: determines which dimensions get plotted. 0,1,2 = x,y,z. (0,1) is x over y.
             xextent: extent in x in nm
             yextent: extent in y in nm
             zextent: extent in z in nm.
@@ -269,7 +269,7 @@ class RendererIndividual2D(Renderer2D):
             px_size: pixel size of the output image in nm
             batch_size: number of localization processed in parallel
             filt_size: each gaussian is calculated as a patch with size filt_size*filt_size (in pixels)
-            plot_axis: determines which dimensions get plotted. 0,1,2 = x,y,z. (0,1,2) is x over y, colored by z.
+            plot_axis: determines which dimensions get plotted. 0,1,2 = x,y,z. (0,1) is x over y.
             xextent: extent in x in nm
             yextent: extent in y in nm
             zextent: extent in z in nm.
