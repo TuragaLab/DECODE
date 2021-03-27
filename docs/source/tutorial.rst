@@ -133,7 +133,11 @@ SMLM Challenge data
 If you want to reproduce our results for the SMLM challenge, you can download the respective
 datasets on the `SMLM Challenge Website <http://bigwww.epfl.ch/smlm/datasets/index.html>`__.
 Other than that you can follow the exact same steps as described in the workflow above.
-To get you started right away, please note the following:
+You can find our parameter files for the challenge in our
+`gateway <https://github.com/TuragaLab/DECODE/blob/master/gateway.yaml>`__
+(smlm_challenge package).
+
+The camera parameters are as follows:
 
 Camera Parameters
 """""""""""""""""
