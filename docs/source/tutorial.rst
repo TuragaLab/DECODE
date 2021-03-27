@@ -105,9 +105,9 @@ To start going through the notebooks execute the following command in your Termi
     # fire up jupyter
     jupyter lab
 
-This will load the example files and opens up a new browser tab/window. Navigate
-to the path where you saved the notebooks and go through them. We recommend to start with the
-Introduction notebook, followed by Training and Fitting.
+This will open up a new browser tab/window. Navigate to the path where you saved the notebooks and
+go through them. We recommend to start with the Introduction notebook, followed by
+Training and Fitting.
 
 .. _Regular workflow:
 
