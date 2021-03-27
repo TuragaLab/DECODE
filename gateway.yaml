@@ -5,6 +5,12 @@
 code: https://github.com/TuragaLab/DECODE/archive/master.zip
 
 examples:
+  experimental_data_workflow:
+    name: experimental_data_workflow
+    comment: experimental data, i.e. frames, raw beads, spline calib., prefit, model, param
+    url: https://oc.embl.de/index.php/s/q952kfh2lKjR52J/download
+    hash: 5582980564c0c6406230a9078cc991e5836abf8456405ec1056b2cdb7afa747a
+
   package_1:
     name: package_1
     comment: experimental data, frames, trained model, all in one.

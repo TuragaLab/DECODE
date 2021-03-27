@@ -64,3 +64,14 @@ anaconda upload -u [your username] [path as provided at the end of the conda-bui
 After this you may test the build in a clean environment.
 You may update the link to the wheels in the `gateway.yaml` file in order to let Colab download the respective version.
 As we want to have this tested first, we did not automate this.
+
+
+## Gateway
+Notebooks and Colab depend on `gateway.yaml`. The only relevant version is the one in the master 
+branch. That means, in master you need to keep all packages that are potentially used.
+
+```bash
+# hashing a new .zip package
+shasum -a 256 [.zip file]
+
+```
