@@ -65,7 +65,7 @@ Terminal/Anaconda Prompt:
     conda activate decode_env
 
     # get the example notebooks
-    python -m decode.utils.notebooks [Destination Path of the Notebooks, e.g. /Users/RainerZufall/Downloads]
+    python -m decode.utils.notebooks [directory where you want the notebooks, e.g. /Users/RainerZufall/Downloads]
 
 In case of trouble please refer to the `Instructions for JupyterLab <https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html>`__.
 You are now all set to start the `DECODE tutorial. <tutorial.html>`__
