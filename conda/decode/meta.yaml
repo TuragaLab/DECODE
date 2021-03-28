@@ -36,7 +36,7 @@ requirements:
     - seaborn=0.10
     - scikit-image
     - scikit-learn
-    - spline>=0.10.0.rc.2
+    - spline=0.10.0
     - tensorboard
     - tifffile>=2021.1
     - tqdm
