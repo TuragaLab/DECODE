@@ -128,6 +128,16 @@ your Terminal/Anaconda prompt
     python -m decode.neuralfitter.train.live_engine -p [path to your param].yaml
 
 
+To monitor the training progress you can open up a new Terminal window/Anaconda prompt, navigate
+to the respective folder from before and start tensorboard. This optional and does not have an
+influence on the training. Note that Tensorboard can be quite slow sometimes.
+
+.. code:: bash
+
+    conda activate decode_env  # if not already activated
+    tensorboard --samples_per_plugin images=100 --port=6006 --logdir=runs
+
+
 
 .. _Fit:
 
