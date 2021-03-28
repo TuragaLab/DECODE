@@ -30,6 +30,7 @@ with the :ref:`notebooks <First time>` in case you want to work with our
 example data, as we provide the intermediate result files (i.e. the calibration and the training
 parametrization). If you are working with your own data or want to go through the whole workflow,
 just start from the beginning.
+You can find an overview of our data in `Data <data.html>`__.
 
 
 .. _Bead calibration:
@@ -102,9 +103,7 @@ To start going through the notebooks execute the following command in your Termi
 
 .. code:: bash
 
-    conda activate decode_env  # if not done already
-
-    # fire up jupyter
+    conda activate decode_env  # if not already activated
     jupyter lab
 
 This will open up a new browser tab/window. Navigate to the path where you saved the notebooks and
@@ -124,7 +123,7 @@ your Terminal/Anaconda prompt
 
 .. code:: bash
 
-    conda activate decode_env
+    conda activate decode_env  # if not already activated
     python -m decode.neuralfitter.train.live_engine -p [path to your param].yaml
 
 
@@ -154,71 +153,3 @@ more specifically from point 5 onwards in the
 `Getting Started Guide <https://www.embl.de/download/ries/Documentation/Getting_Started.pdf#page=4>`__
 and from point 6 on in the
 `SMAP User Guide <https://www.embl.de/download/ries/Documentation/SMAP_UserGuide.pdf#page=11>`__.
-
-
-.. _Example Data:
-
-************
-Example Data
-************
-
-We provide experimental data for you to try out DECODE. If you want to do the whole pipeline, i.e.
-including your own bead calibration and training parametrization
-(i.e. :ref:`steps 1 and 2 <Workflow>`) you can download example data from our
-`gateway <https://github.com/TuragaLab/DECODE/blob/master/gateway.yaml>`__.
-If you want to omit the :ref:`steps 1 and 2 <Workflow>` and try out DECODE directly, the
-data will be downloaded automatically in the respective Jupyter Notebooks.
-
-Note that we have taken quite some measures to ensure the availability of the example data.
-If you still encounter a dead link, please notify us by
-`opening an issue <https://github.com/TuragaLab/DECODE/issues>`__.
-
-Experimental data
-=================
-
-We provide the RAW data, RAW beads, training parametrization and converged model to reproduce
-Figure 4 of our preprint. The notebooks automatically download this package.
-For manual download the link can be found in our
-`gateway <https://github.com/TuragaLab/DECODE/blob/master/gateway.yaml>`__
-(experimental_data_workflow).
-
-SMLM Challenge data
-===================
-
-If you want to reproduce our results for the SMLM challenge, you can download the respective
-datasets on the `SMLM Challenge Website <http://bigwww.epfl.ch/smlm/datasets/index.html>`__.
-Other than that you can follow the exact same steps as described in the workflow above.
-You can find our parameter files for the challenge in our
-`gateway <https://github.com/TuragaLab/DECODE/blob/master/gateway.yaml>`__
-(smlm_challenge package).
-
-The camera parameters are as follows:
-
-Camera Parameters
-"""""""""""""""""
-
-+---------------------+-------------+-------------+
-|                     | 3D AS       | 3D DH       |
-+---------------------+-------------+-------------+
-| baseline            | 100.0       | 100.0       |
-+---------------------+-------------+-------------+
-| e_per_adu           | 45.0        | 45.0        |
-+---------------------+-------------+-------------+
-| em_gain             | 300         | 300         |
-+---------------------+-------------+-------------+
-| qe                  | 1. :sup:`†` | 1. :sup:`†` |
-+---------------------+-------------+-------------+
-| read_sigma          | 74.4        | 74.4        |
-+---------------------+-------------+-------------+
-| spur_noise          | 0.002       | 0.002       |
-+---------------------+-------------+-------------+
-| px_size             | [100, 100]  | [100, 00]   |
-+---------------------+-------------+-------------+
-
-:sup:`†` we typically use a *quantum efficiency* of 1. and refer to the photons as *detected
-photons.*
-For direct challenge comparison, the photon count must then be adjusted by 1/ 0.9 (where 0.9 is the
-quantum efficiency of the camera for the simulated 3D AS/DH data).
-
-Moreover, for this data *Mirroring must be turned off* both in SMAP (Camera Parameters) as well
-as in the Fitting notebook (see the details there).

@@ -44,6 +44,7 @@ Contents
 
    installation
    tutorial
+   data
    logging
    faq
 
