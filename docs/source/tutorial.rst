@@ -65,7 +65,8 @@ Determine training parameters with SMAP
 1. Use the bead calibration to fit your SMLM data. Detailed instructions can be
    found in the `SMAP user guide
    <https://www.embl.de/download/ries/Documentation/SMAP_UserGuide.pdf#page=6>`__.
-2. Use the plugin: *DECODE\_training\_estimates* to estimate the photo-physical
+2. Use the plugin: *Plugins / calibrate / DECODE\_training\_estimates* to estimate
+   the photo-physical
    parameters of the experiment and to save them into a parameter file. Consult the
    information of the plugin (accessible via the Info button) for further information.
 
