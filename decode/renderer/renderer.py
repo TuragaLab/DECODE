@@ -14,18 +14,6 @@ from tqdm import tqdm
 from ..generic import emitter
 
 
-def get_jet_cmap():
-    lin_hue = np.linspace(0, 1, 256)
-    cmap = plt.get_cmap("jet", lut=256)
-    cmap = cmap(lin_hue)
-    cmap_hsv = rgb_to_hsv(cmap[:, :3])
-    jet_hue = cmap_hsv[:, 0]
-    _, b = np.unique(jet_hue, return_index=True)
-    jet_hue = [jet_hue[index] for index in sorted(b)]
-    jet_hue = np.interp(np.linspace(0, len(jet_hue), 256), np.arange(len(jet_hue)), jet_hue)
-    return jet_hue
-
-
 class Renderer(ABC):
     def __init__(self, plot_axis: tuple, xextent: tuple, yextent: tuple, zextent: tuple,
                  px_size: float, abs_clip: float, rel_clip: float, contrast: float):
@@ -104,7 +92,7 @@ class Renderer2D(Renderer):
         self.sigma_blur = sigma_blur
         self.colextent = colextent
 
-        self.jet_hue = get_jet_cmap()
+        self.jet_hue = self._get_jet_cmap()
 
     def render(self, em: emitter.EmitterSet, col_vec=None, ax=None):
         """
@@ -126,15 +114,18 @@ class Renderer2D(Renderer):
             divider = make_axes_locatable(ax)
             cax = divider.append_axes("right", size=0.25, pad=-0.25)
             colb = mpl.colorbar.ColorbarBase(
-                cax, cmap=plt.get_cmap("jet"), values=np.linspace(0, 1.0, 101), norm=mpl.colors.Normalize(0.0, 1.0)
+                cax, cmap=plt.get_cmap("jet"), values=np.linspace(0, 1.0, 101),
+                norm=mpl.colors.Normalize(0.0, 1.0)
             )
             colb.outline.set_visible(False)
 
             cax.text(
-                0.12, 0.04, f"{self.colextent[0]}", rotation=90, color="white", fontsize=15, transform=cax.transAxes
+                0.12, 0.04, f"{self.colextent[0]}", rotation=90, color="white", fontsize=15,
+                transform=cax.transAxes
             )
             cax.text(
-                0.12, 0.88, f"{self.colextent[1]}", rotation=90, color="white", fontsize=15, transform=cax.transAxes
+                0.12, 0.88, f"{self.colextent[1]}", rotation=90, color="white", fontsize=15,
+                transform=cax.transAxes
             )
             cax.axis("off")
 
@@ -172,9 +163,11 @@ class Renderer2D(Renderer):
         if col_vec is not None:
 
             col_vec = col_vec[ind_mask]
-            self.colextent = (col_vec.min(), col_vec.max()) if self.colextent is None else self.colextent
+            self.colextent = (
+            col_vec.min(), col_vec.max()) if self.colextent is None else self.colextent
             int_hist, col_hist = self._hist2d(
-                em_sub, col_vec, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]], self.colextent
+                em_sub, col_vec, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]],
+                self.colextent
             )
 
             with np.errstate(divide="ignore", invalid="ignore"):
@@ -202,7 +195,8 @@ class Renderer2D(Renderer):
                 RGB = np.array(
                     [
                         gaussian_filter(
-                            RGB[:, :, i], sigma=[self.sigma_blur / self.px_size, self.sigma_blur / self.px_size]
+                            RGB[:, :, i],
+                            sigma=[self.sigma_blur / self.px_size, self.sigma_blur / self.px_size]
                         )
                         for i in range(3)
                     ]
@@ -213,7 +207,8 @@ class Renderer2D(Renderer):
 
         else:
 
-            hist = self._hist2d(em_sub, None, xyz_extent[self.plot_axis[0]], xyz_extent[self.plot_axis[1]])
+            hist = self._hist2d(em_sub, None, xyz_extent[self.plot_axis[0]],
+                                xyz_extent[self.plot_axis[1]])
 
             if self.rel_clip is not None:
                 hist = np.clip(hist, 0.0, hist.max() * self.rel_clip)
@@ -221,16 +216,20 @@ class Renderer2D(Renderer):
                 hist = np.clip(hist, 0.0, self.abs_clip)
 
             if self.sigma_blur is not None:
-                hist = gaussian_filter(hist, sigma=[self.sigma_blur / self.px_size, self.sigma_blur / self.px_size])
+                hist = gaussian_filter(hist, sigma=[self.sigma_blur / self.px_size,
+                                                    self.sigma_blur / self.px_size])
 
             hist = np.clip(hist, 0, hist.max() / self.contrast)
             return torch.from_numpy(hist)
 
     def get_extent(self, em) -> Tuple[tuple, tuple, tuple]:
 
-        xextent = (em.xyz_nm[:, 0].min(), em.xyz_nm[:, 0].max()) if self.xextent is None else self.xextent
-        yextent = (em.xyz_nm[:, 1].min(), em.xyz_nm[:, 1].max()) if self.yextent is None else self.yextent
-        zextent = (em.xyz_nm[:, 2].min(), em.xyz_nm[:, 2].max()) if self.zextent is None else self.zextent
+        xextent = (
+        em.xyz_nm[:, 0].min(), em.xyz_nm[:, 0].max()) if self.xextent is None else self.xextent
+        yextent = (
+        em.xyz_nm[:, 1].min(), em.xyz_nm[:, 1].max()) if self.yextent is None else self.yextent
+        zextent = (
+        em.xyz_nm[:, 2].min(), em.xyz_nm[:, 2].max()) if self.zextent is None else self.zextent
 
         return xextent, yextent, zextent
 
@@ -248,13 +247,26 @@ class Renderer2D(Renderer):
             c_pos = np.clip(col_vec, c_range[0], c_range[1])
             c_weight = (c_pos - c_range[0]) / (c_range[1] - c_range[0])
 
-            col_hist, _, _ = np.histogram2d(xy[:, 0], xy[:, 1], bins=(hist_bins_x, hist_bins_y), weights=c_weight)
+            col_hist, _, _ = np.histogram2d(xy[:, 0], xy[:, 1], bins=(hist_bins_x, hist_bins_y),
+                                            weights=c_weight)
 
             return int_hist, col_hist
 
         else:
 
             return int_hist
+
+    @staticmethod
+    def _get_jet_cmap():
+        lin_hue = np.linspace(0, 1, 256)
+        cmap = plt.get_cmap("jet", lut=256)
+        cmap = cmap(lin_hue)
+        cmap_hsv = rgb_to_hsv(cmap[:, :3])
+        jet_hue = cmap_hsv[:, 0]
+        _, b = np.unique(jet_hue, return_index=True)
+        jet_hue = [jet_hue[index] for index in sorted(b)]
+        jet_hue = np.interp(np.linspace(0, len(jet_hue), 256), np.arange(len(jet_hue)), jet_hue)
+        return jet_hue
 
 
 class RendererIndividual2D(Renderer2D):
@@ -339,7 +351,8 @@ class RendererIndividual2D(Renderer2D):
         w = int((x_hist_ext[1] - x_hist_ext[0]) // self.px_size + 1)
         h = int((y_hist_ext[1] - y_hist_ext[0]) // self.px_size + 1)
 
-        s_inds = ((xy_mus - torch.Tensor([x_hist_ext[0], y_hist_ext[0]]).to(self.device)) // self.px_size).type(
+        s_inds = ((xy_mus - torch.Tensor([x_hist_ext[0], y_hist_ext[0]]).to(
+            self.device)) // self.px_size).type(
             torch.LongTensor
         )
 
@@ -348,23 +361,28 @@ class RendererIndividual2D(Renderer2D):
             c_pos = torch.clip(col_vec, c_range[0], c_range[1])
             c_weight = ((c_pos - c_range[0]) / (c_range[1] - c_range[0])).to(self.device)
 
-            comb_hist = torch.zeros([h + self.fs, w + self.fs, 2], device=self.device, dtype=torch.float)
+            comb_hist = torch.zeros([h + self.fs, w + self.fs, 2], device=self.device,
+                                    dtype=torch.float)
 
             for i in tqdm(range(len(xy_mus) // self.bs + 1)):
                 sl = np.s_[i * self.bs: (i + 1) * self.bs]
                 sub_inds = s_inds[sl]
                 W = self.calc_gaussians(xy_mus[sl], xy_sigs[sl], mesh)
                 c_ws = c_weight[sl]
-                comb_hist = self._place_gaussians_weighted(comb_hist, sub_inds, c_ws, W, torch.tensor(self.fs))
+                comb_hist = self._place_gaussians_weighted(comb_hist, sub_inds, c_ws, W,
+                                                           torch.tensor(self.fs))
 
-            comb_hist = comb_hist[self.fs // 2: -(self.fs // 2 + 1), self.fs // 2: -(self.fs // 2 + 1)]
+            comb_hist = comb_hist[self.fs // 2: -(self.fs // 2 + 1),
+                        self.fs // 2: -(self.fs // 2 + 1)]
             int_hist = comb_hist[:, :, 0]
             col_hist = comb_hist[:, :, 1]
-            return int_hist.T.numpy(), col_hist.T.numpy()
+
+            return int_hist.T.cpu().numpy(), col_hist.T.cpu().numpy()
 
         else:
 
-            int_hist = torch.zeros([h + self.fs, w + self.fs], device=self.device, dtype=torch.float)
+            int_hist = torch.zeros([h + self.fs, w + self.fs], device=self.device,
+                                   dtype=torch.float)
 
             for i in tqdm(range(len(xy_mus) // self.bs + 1)):
                 sl = np.s_[i * self.bs: (i + 1) * self.bs]
@@ -372,6 +390,7 @@ class RendererIndividual2D(Renderer2D):
                 W = self.calc_gaussians(xy_mus[sl], xy_sigs[sl], mesh)
                 int_hist = self._place_gaussians(int_hist, sub_inds, W, torch.tensor(self.fs))
 
-            int_hist = int_hist[self.fs // 2: -(self.fs // 2 + 1), self.fs // 2: -(self.fs // 2 + 1)]
+            int_hist = int_hist[self.fs // 2: -(self.fs // 2 + 1),
+                       self.fs // 2: -(self.fs // 2 + 1)]
 
-            return int_hist.T.numpy()
+            return int_hist.T.cpu().numpy()

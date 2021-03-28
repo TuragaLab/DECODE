@@ -1,8 +1,11 @@
+import copy
+
 import matplotlib.pyplot as plt
 import pytest
 import torch
 
 from decode.generic import emitter
+from decode.generic import test_utils
 from decode.plot import PlotFrameCoord
 from decode.renderer import renderer
 
@@ -28,7 +31,7 @@ class TestRenderer2D:
         histogram = rend.forward(em)
 
         assert histogram.size() == torch.Size([10, 10])
-        assert histogram[1, 5] != 0 
+        assert histogram[1, 5] != 0
         assert histogram.sum() == histogram[1, 5]
 
     @pytest.mark.plot
@@ -60,6 +63,17 @@ class TestRendererIndividual2D:
 
         assert histogram.size() == torch.Size([10, 10, 3])
         assert histogram.sum() > 0.
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Requires CUDA")
+    def test_forward(self, rend, em):
+        rend_cpu = copy.deepcopy(rend)
+        rend_cuda = rend
+        rend_cuda.device = 'cuda:0'
+
+        assert test_utils.tens_almeq(
+            rend_cuda.forward(em, torch.arange(len(em))),
+            rend_cpu.forward(em, torch.arange(len(em))),
+            1e-4)
 
     @pytest.mark.plot
     def test_plot_frame_render_visual(self, rend, em):
