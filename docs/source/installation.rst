@@ -1,3 +1,4 @@
+============
 Installation
 ============
 
@@ -72,7 +73,7 @@ You are now all set to start the `DECODE tutorial. <tutorial.html>`__
 
 
 Updating
-^^^^^^^^
+--------
 
 Please execute the following command in your terminal/Anaconda prompt.
 
@@ -86,7 +87,7 @@ running following the :ref:`instructions to get the DECODE notebooks.<notebook_i
 
 
 Import
-^^^^^^
+------
 
 In python you can import this package as simple as ``import decode``. You may
 continue with our `tutorial <./tutorial.html>`__.
