@@ -144,7 +144,8 @@ influence on the training. Note that Tensorboard can be quite slow sometimes.
 Fit
 ===
 
-Please refer to the :ref:`First Time using DECODE instructions. <First time>`
+Please refer to the Fit notebook which is described above in
+:ref:`First Time using DECODE instructions. <First time>`
 
 
 .. _Visualization:
