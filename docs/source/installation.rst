@@ -57,15 +57,15 @@ DECODE Jupyter Notebooks
 
 Before you start using DECODE locally you should make sure to check get our Jupyter notebooks
 to familiarise yourself with DECODE.
-You can get the notebooks and start up JupyterLab by executing the following in your
-Terminal/Anaconda Prompt:
+You can get the notebooks by specifying the directory where you want the notebooks to be saved following this
+command in your Terminal/Anaconda Prompt:
 
 .. code:: bash
 
     conda activate decode_env
 
     # get the example notebooks
-    python -m decode.utils.notebooks [directory where you want the notebooks, e.g. /Users/RainerZufall/Downloads]
+    python -m decode.utils.notebooks [e.g. /Users/RainerZufall/Downloads]
 
 In case of trouble please refer to the `Instructions for JupyterLab <https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html>`__.
 You are now all set to start the `DECODE tutorial. <tutorial.html>`__
