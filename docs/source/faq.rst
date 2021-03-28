@@ -33,22 +33,22 @@ Errors and Software Issues
 
    This might happen if your GPU is
 
-      1. Doing multiple things, i.e. used not only for computation but also for
+      1. doing multiple things, i.e., used not only for computation but also for
          the display
       2. old or has to little memory
 
    If you have multiple GPU devices you may set: ``device='cuda:1'`` (where
    ``1`` corresponds to the respective index of the device, starting with 0). If
-   you don't have multiple devices, you may should try to reduce the batch size:
+   you don't have multiple devices, you should try to reduce the batch size:
    ``param.HyperParameter.batch_size``.
 
 
-- I get other CUDA errors, e.g. ``CUDA error: unspecified launch failure``
+- I get other CUDA errors, e.g., ``CUDA error: unspecified launch failure``
 
     Please check whether you have a somewhat up to date CUDA driver. It's always
-    a good idea to update it. Moreover you can try to check which cudatoolkit
+    a good idea to update it. Moreover, you can try to check which cudatoolkit
     version was installed by checking in the Terminal / Anaconda prompt
-    ``conda list``
+    ``conda list``.
 
     You can also try to pin the cudatoolkit version to another one by setting
     `cudatoolkit=10.1` instead of plain `cudatoolkit` without version
@@ -75,12 +75,12 @@ Errors and Software Issues
 
    This can happen particularly often for Windows and there is no 'one answer'.
    You might want to decrease the number of CPU workers or disable
-   multiprocessing at all. For this you would start the training with changed
-   number of workers workers by adding ``-w [number of workers]`` at the end of
+   multiprocessing at all. For this you would start the training with a changed
+   number of workers by adding ``-w [number of workers]`` at the end of
    the python command. Specify ``-w 0`` for disabling multiprocessing if even 2
-   lead to an error. Alternatively change the ``.yaml`` file here ``param ->
+   lead to an error. Alternatively change the ``.yaml`` file here: ``param ->
    Hardware -> num_worker_train``. Note that this can slow down training. You
    can also try changing the multiprocessing strategy, which you can do in the
-   .yaml file. ``param -> Hardware -> torch_multiprocessing_sharing_strategy``.
+   .yaml file: ``param -> Hardware -> torch_multiprocessing_sharing_strategy``.
    The sharing strategies depend on your system. Please have a look at `Pytorch
    Multiprocessing <https://pytorch.org/docs/stable/multiprocessing.html>`__.
