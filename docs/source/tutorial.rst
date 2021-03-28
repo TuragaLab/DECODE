@@ -102,6 +102,8 @@ To start going through the notebooks execute the following command in your Termi
 
 .. code:: bash
 
+    conda activate decode_env  # if not done already
+
     # fire up jupyter
     jupyter lab
 
