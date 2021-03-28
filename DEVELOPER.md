@@ -4,13 +4,8 @@
 1. Install conda environment from file and activate it. Use the respective environment depending on whether you have a CUDA GPU or not.
 The cubic spline psf is pre-compiled in a different repo / as a separate package and will be installed automatically.
 
-        # CUDA (install cudatoolkit first, or add it to environment.yaml)
-        conda create -n decode_dev -c pytorch -c conda-forge cudatoolkit pytorch
-        conda env update -f environment.yaml
-
-        # CPU / macOS
+        # for CUDA (change cpuonly to cudatoolkit in environment.yaml)
         conda env create -f environment.yaml
-        conda activate decode_dev
 
 3. Test whether everything works as expected. Note that if you run all tests, all files from the gateway file will be downloaded but you can exclude these tests.
 
