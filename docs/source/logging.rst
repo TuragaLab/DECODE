@@ -4,9 +4,9 @@ Logging
 Currently we support monitoring the training progress in Tensorboard while basic
 metrics are reported to the console as well. All metrics that include comparison
 to ground truth emitters are based on the parameters (implicitly) provided in
-the configuration .yaml file. Those include match dimensionality (i.e. in 2D or
-3D), max. allowed distances. The threshold on the detection filters the
-detections before matching.
+the configuration .yaml file. Those include match dimensionality (i.e., in 2D or
+3D) and max. allowed distances. The threshold on the detection filters the
+detections prior to matching.
 
 Tensorboard
 -----------
@@ -17,7 +17,7 @@ Metrics
 +----------------+-------------------------+------------------------------------------------------------------+
 | Abbreviation   | Name                    | Description                                                      |
 +================+=========================+==================================================================+
-| pred           | Precision               | Number of true positives over all detections                     |
+| prec           | Precision               | Number of true positives over all detections                     |
 +----------------+-------------------------+------------------------------------------------------------------+
 | rec            | Recall                  | Number of true positives over all (ground truth) localizations   |
 +----------------+-------------------------+------------------------------------------------------------------+

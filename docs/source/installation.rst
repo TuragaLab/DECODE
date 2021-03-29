@@ -2,7 +2,7 @@
 Installation
 ============
 
-For regular use, of course we recommend to install and use the framework on your
+For regular use, we advise you to install and use the framework on your
 local machine. We strongly recommend using a machine with a modern GPU, e.g. an
 RTX 2080, in particular for training. To make use of your GPU it requires a CUDA
 capability of 3.7 or higher (see here to check if your GPU is valid:
@@ -49,14 +49,14 @@ Depending on whether you have a CUDA capable GPU type:
     # after previous command (all platforms)
     conda activate decode_env
 
-Please now get the DECODE Jupyter Notebooks
+Please now get the DECODE Jupyter Notebooks.
 
 .. _notebook_install:
 
 DECODE Jupyter Notebooks
 """"""""""""""""""""""""
 
-Before you start using DECODE locally you should make sure to check get our Jupyter notebooks
+Before you start using DECODE locally, you should make sure to check out our Jupyter notebooks
 to familiarise yourself with DECODE.
 You can get the notebooks by specifying the directory where you want the notebooks to be saved following this
 command in your Terminal/Anaconda Prompt:

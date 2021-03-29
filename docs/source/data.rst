@@ -3,8 +3,8 @@ Data
 ============
 
 We provide experimental data for you to try out DECODE. If you want to go through the whole
-pipeline, i.e. including your own bead calibration and training parametrization
-(i.e. :ref:`bead calibration and prefit; steps 1 and 2 <Workflow>`) you can find the URLs to
+pipeline, i.e., including your own bead calibration and training parametrization
+(i.e., :ref:`bead calibration and prefit; steps 1 and 2 <Workflow>`) you can find the URLs to
 download example data from our
 `gateway <https://github.com/TuragaLab/DECODE/blob/master/gateway.yaml>`__.
 If you want to omit these steps and try out DECODE directly, the
@@ -31,7 +31,7 @@ If you want to fit your own data, there are few small points you need to be awar
 Experimental data
 =================
 
-We provide the RAW data, RAW beads, training parametrization and converged model to reproduce
+We provide the raw data, raw beads, training parametrization and converged model to reproduce
 Figure 4 of our preprint. The notebooks automatically download this package.
 For manual download the link can be found in our
 `gateway <https://github.com/TuragaLab/DECODE/blob/master/gateway.yaml>`__
@@ -67,12 +67,12 @@ Camera Parameters
 +---------------------+-------------+-------------+
 | spur_noise          | 0.002       | 0.002       |
 +---------------------+-------------+-------------+
-| px_size             | [100, 100]  | [100, 00]   |
+| px_size             | [100, 100]  | [100, 100]  |
 +---------------------+-------------+-------------+
 
 :sup:`†` we typically use a *quantum efficiency* of 1. and refer to the photons as *detected
 photons.*
-For direct challenge comparison, the photon count must then be adjusted by 1/ 0.9 (where 0.9 is the
+For direct challenge comparison, the photon count then has to be adjusted by 1/ 0.9 (where 0.9 is the
 quantum efficiency of the camera for the simulated 3D AS/DH data).
 
 Moreover, for this data *Mirroring must be turned off* both in SMAP (Camera Parameters) as well
