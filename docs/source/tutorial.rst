@@ -159,8 +159,7 @@ Export from DECODE and import in SMAP for visualization
 DECODE has basic rendering functions but for detailed visualization and analysis you should export
 your data and load it into SMAP or another SMLM visualization software of your choice.
 
-For loading the data in SMAP, you can export your emitter set as h5 file at the end of the fitting notebook.
-For easier input in other software, we recommend exporting as csv.
+For loading the data in SMAP, you should save your emitters as an h5 file at the end of the fitting notebook.
 Under the *File* tab in SMAP, change the *auto loader* to *Import DECODE .csv/.h5* and **Load** the exported data.
 For detailed instructions on post-processing (grouping, filtering, drift correction,...)
 please consult the `SMAP Documentation <https://www.embl.de/download/ries/Documentation/>`__,
@@ -168,3 +167,5 @@ more specifically from section 5 onwards in the
 `Getting Started Guide <https://www.embl.de/download/ries/Documentation/Getting_Started.pdf#page=4>`__
 and from section 6 on in the
 `SMAP User Guide <https://www.embl.de/download/ries/Documentation/SMAP_UserGuide.pdf#page=11>`__.
+While we recommend using the h5 format in general, for a prototypic input to other software we
+allow exporting as self-explanatory csv.
