@@ -36,7 +36,7 @@ jobs:
         echo "ANACONDA_LABEL=main" >> $GITHUB_ENV
 
     - name: Change anaconda label on prerelease
-      if: "github.event.release.prerelease"
+      if: github.event.release.prerelease
       run: |
         echo "ANACONDA_LABEL=rc" >> $GITHUB_ENV
 
@@ -74,7 +74,7 @@ jobs:
         echo "::set-output name=wheel_filename::$WHEEL"
 
     - name: Upload to GitHub release
-      if: github.event.release
+      if: ${{ github.event.release || github.event.release.prerelease }}
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
