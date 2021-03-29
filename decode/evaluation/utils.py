@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 from scipy import stats
 from scipy.stats import gaussian_kde
+import warnings
 
 
 def kde_sorted(x: torch.Tensor, y: torch.Tensor, plot=False, ax=None, band_with=None, sub_sample: (None, int) = None,
@@ -43,10 +44,12 @@ def kde_sorted(x: torch.Tensor, y: torch.Tensor, plot=False, ax=None, band_with=
 
     elif nan_inf_ignore:
         try:
-            if band_with:
-                z = gaussian_kde(xy_in, bw_method=band_with)(xy_in)
-            else:
-                z = gaussian_kde(xy_in)(xy_in)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                if band_with:
+                    z = gaussian_kde(xy_in, bw_method=band_with)(xy_in)
+                else:
+                    z = gaussian_kde(xy_in)(xy_in)
 
         except (np.linalg.LinAlgError, ValueError):  # ToDo: replace by robust kde
             z = np.ones_like(xy_in[0]) * float('nan')
