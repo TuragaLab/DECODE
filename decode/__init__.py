@@ -4,7 +4,7 @@ This software package implements a DeepLearning based framework for high-density
 
 """
 
-__version__ = '0.10.0dev1'  # do not modify by hand set and sync with bumpversion
+__version__ = '0.10.0'  # do not modify by hand set and sync with bumpversion
 __author__ = 'Lucas-Raphael Mueller, Artur Speiser'
 __repo__ = 'https://github.com/TuragaLab/DECODE/master/gateway.yaml'  # main repo
 __gateway__ = 'https://raw.githubusercontent.com/TuragaLab/DECODE/master/gateway.yaml'  # gateway
