@@ -70,3 +70,32 @@ branch. That means, in master you need to keep all packages that are potentially
 shasum -a 256 [.zip file]
 
 ```
+
+## Hdf5 structure
+The h5 structure of decode EmitterSets is as follows (example shows a random emitter):
+```bash
+{'data': {
+    'bg': array([nan, nan, nan], dtype=float32),
+    'bg_cr': None,
+    'bg_sig': None,
+    'frame_ix': array([0, 0, 0]),
+    'id': array([-1, -1, -1]),
+    'phot': array([1., 1., 1.], dtype=float32),
+    'phot_cr': None,
+    'phot_sig': None,
+    'prob': array([1., 1., 1.], dtype=float32),
+    'xyz': array([[23.236893 , 13.064125 , 25.711937 ],
+                  [ 9.199045 ,  7.3632336, 28.120571 ],
+                  [21.179623 , 25.227995 , 25.280546 ]], dtype=float32),
+    'xyz_cr': None,
+    'xyz_sig': None
+    },
+ 'decode': {
+    'version': '0.10.0'
+    },
+ 'meta': {
+   'px_size': array([100., 100.], dtype=float32), 
+   'xy_unit': 'px'
+   }
+}
+```
