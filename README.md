@@ -3,9 +3,18 @@
 [![Unit Tests](https://github.com/TuragaLab/DECODE/actions/workflows/unit_tests.yml/badge.svg)](https://github.com/TuragaLab/DECODE/actions/workflows/unit_tests.yml)
 [![Docs](https://readthedocs.org/projects/decode/badge/?version=master)](https://decode.readthedocs.io/en/master/?badge=master)
 
-DECODE is a Python and [Pytorch](http://pytorch.org/) based deep learning tool for single molecule localization microscopy (SMLM). It has high accuracy for a large range of imaging modalities and conditions. On the public [SMLM 2016](http://bigwww.epfl.ch/smlm/challenge2016/) software benchmark competition, it [outperformed](http://bigwww.epfl.ch/smlm/challenge2016/leaderboard.html) all other fitters on 12 out of 12 data-sets when comparing both detection accuracy and localization error, often by a substantial margin. DECODE enables live-cell SMLM data with reduced light exposure in just 3 seconds and to image microtubules at ultra-high labeling density.
+DECODE is a Python and [Pytorch](http://pytorch.org/) based deep learning tool for single molecule 
+localization microscopy (SMLM). It has high accuracy for a large range of imaging modalities and 
+conditions. 
+On the public [SMLM 2016](http://bigwww.epfl.ch/smlm/challenge2016/) software benchmark competition,
+it [outperformed](http://bigwww.epfl.ch/smlm/challenge2016/leaderboard.html) all other fitters on 
+12 out of 12 data-sets when comparing both detection accuracy and localization error, often by a 
+substantial margin. DECODE enables live-cell SMLM data with reduced light exposure in just 3 
+seconds and to image microtubules at ultra-high labeling density.
 
-DECODE works by training a DEep COntext DEpendent (DECODE) neural network to detect and localize emitters at sub-pixel resolution. Notably, DECODE also predict detection and localization uncertainties, which can be used to generate superior super-resolution reconstructions.
+DECODE works by training a DEep COntext DEpendent (DECODE) neural network to detect and localize 
+emitters at sub-pixel resolution. Notably, DECODE also predict detection and localization 
+uncertainties, which can be used to generate superior super-resolution reconstructions.
 
 ## Getting started
 
