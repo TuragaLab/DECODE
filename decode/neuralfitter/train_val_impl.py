@@ -17,6 +17,8 @@ def train(model, optimizer, loss, dataloader, grad_rescale, grad_mod, epoch, dev
     t0 = time.time()
     loss_epoch = MetricMeter()
 
+    scaler = torch.cuda.amp.GradScaler()
+
     """Actual Training"""
     for batch_num, (x, y_tar, weight) in enumerate(tqdm_enum):  # model input (x), target (yt), weights (w)
 
@@ -30,21 +32,23 @@ def train(model, optimizer, loss, dataloader, grad_rescale, grad_mod, epoch, dev
         y_out = model(x)
 
         """Reset the optimiser, compute the loss and backprop it"""
-        loss_val = loss(y_out, y_tar, weight)
+        with torch.cuda.amp.autocast():
+            loss_val = loss(y_out, y_tar, weight)
 
         if grad_rescale:  # rescale gradients so that they are in the same order for the last layer
             weight, _, _ = model.rescale_last_layer_grad(loss_val, optimizer)
             loss_val = loss_val * weight
 
         optimizer.zero_grad()
-        loss_val.mean().backward()
+        scaler.scale(loss_val.mean()).backward()
 
         """Gradient Modification"""
         if grad_mod:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.03, norm_type=2)
 
         """Update model parameters"""
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
 
         """Monitor overall time"""
         t_batch = time.time() - t0
