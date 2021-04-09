@@ -27,12 +27,11 @@ def train(model, optimizer, loss, dataloader, grad_rescale, grad_mod, epoch, dev
 
         """Ship the data to the correct device"""
         x, y_tar, weight = ship_device([x, y_tar, weight], device)
-        
-        """Forward the data"""
-        y_out = model(x)
 
-        """Reset the optimiser, compute the loss and backprop it"""
         with torch.cuda.amp.autocast():
+            """Forward the data"""
+            y_out = model(x)
+            """Reset the optimiser, compute the loss and backprop it"""
             loss_val = loss(y_out, y_tar, weight)
 
         if grad_rescale:  # rescale gradients so that they are in the same order for the last layer
