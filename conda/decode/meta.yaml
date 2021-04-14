@@ -42,11 +42,12 @@ requirements:
     - tqdm
 
   test:
+    imports:
+      - decode
     requires:
-      - python >=3.6,<4
       - pytest
     commands:
-      - pytest -m "not webbig" -m "not slow" --pyargs decode
+      - pytest -m "not (webbig or plot)" --pyargs decode
 
 about:
     home: https://github.com/turagaLab/decode
