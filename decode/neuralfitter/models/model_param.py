@@ -132,7 +132,7 @@ class DoubleMUnet(nn.Module):
     def __init__(self, ch_in, ch_out, ext_features=0, depth_shared=3, depth_union=3, initial_features=64,
                  inter_features=64,
                  activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
-                 norm_head_groups=None, pool_mode='Conv2d', upsample_mode='bilinear', skip_gn_level=None):
+                 norm_head_groups=None, pool_mode='Conv2d', upsample_mode='bilinear', skip_gn_level=None, disabled_attributes=None):
         super().__init__()
 
         self.unet_shared = unet_param.UNet2d(1 + ext_features, inter_features, depth=depth_shared, pad_convs=True,
@@ -162,6 +162,12 @@ class DoubleMUnet(nn.Module):
         self.phot_nl = torch.sigmoid
         self.xyz_nl = torch.tanh
         self.bg_nl = torch.sigmoid
+        
+        # convert to list
+        if disabled_attributes is None or isinstance(disabled_attributes, (tuple, list)):
+            self.disabled_attr_ix = disabled_attributes
+        else:
+            self.disabled_attr_ix = [disabled_attributes]   
 
     @classmethod
     def parse(cls, param, **kwargs):
@@ -183,6 +189,7 @@ class DoubleMUnet(nn.Module):
             pool_mode=param.HyperParameter.arch_param.pool_mode,
             upsample_mode=param.HyperParameter.arch_param.upsample_mode,
             skip_gn_level=param.HyperParameter.arch_param.skip_gn_level,
+            disabled_attributes=param.HyperParameter.disabled_attributes,
             **kwargs
         )
 
