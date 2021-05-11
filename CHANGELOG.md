@@ -1,6 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [0.11.0]
+### Added
+- New console script entrypoint for training. Write `decode.train` instead of `python -m decode.neuralfitter.train.live_engine`
+
+### Changed
+
+### Removed
+
+
 ## [0.10.0]
 ### Added
 - EmitterSet now implements "+" operator which concatenates EmitterSets

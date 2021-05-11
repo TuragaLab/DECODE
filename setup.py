@@ -45,6 +45,11 @@ setup(
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=requirements,
+    entry_points={
+        'console_scripts': [
+            'decode.train = decode.neuralfitter.train.live_engine:main',
+        ],
+    },
     zip_safe=False,
     url='https://rieslab.de',
     license='GPL3',

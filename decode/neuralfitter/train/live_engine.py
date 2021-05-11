@@ -486,8 +486,12 @@ def setup_dataloader(param, train_ds, test_ds=None):
     return train_dl, test_dl
 
 
-if __name__ == '__main__':
+def main():
     args = parse_args()
     live_engine_setup(args.param_file, args.device, args.debug, args.no_log,
                       args.num_worker_override, args.log_folder,
                       args.log_comment)
+
+
+if __name__ == '__main__':
+    main()
