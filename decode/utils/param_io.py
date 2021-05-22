@@ -111,6 +111,12 @@ def load_reference() -> dict:
 def autofill_dict(x: dict, reference: dict, mode_missing: str = 'include') -> dict:
     """
     Fill dict `x` with keys and values of reference if they are not present in x.
+    Function can also be used to change individual but possibly deep elements of a nested dict.
+
+    Examples:
+        >>>change = {'a': {'b': 42} }
+        >>>original = {'a': {'b': 2, 'c': 5} }
+        >>>param = autofill_dict(change, original)
 
     Args:
         x: input dict to be filled
@@ -124,7 +130,7 @@ def autofill_dict(x: dict, reference: dict, mode_missing: str = 'include') -> di
         out = {}
     elif mode_missing == 'include':
         out = x
-    else:
+    else:  # ToDo: Add mode_missing 'raise', but since this is a recursive func, I don't dare atm
         raise ValueError
 
     for k, v in reference.items():
