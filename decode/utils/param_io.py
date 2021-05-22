@@ -98,14 +98,21 @@ def convert_param_debug(param):
     param.InOut.model_out = 'network/debug.pt'
 
 
-def load_reference() -> dict:
-    """Loads the static reference .yaml file (full set of variables there)."""
-
+def load_reference_file(filename) -> dict:
     from . import reference_files
-    param_ref = pkg_resources.open_text(reference_files, 'reference.yaml')
+    param_ref = pkg_resources.open_text(reference_files, filename)
     param_ref = yaml.load(param_ref, Loader=yaml.SafeLoader)
 
     return param_ref
+
+
+def load_reference() -> dict:
+    """Loads the static reference .yaml file (full set of variables there)."""
+    return load_reference_file('reference.yaml')
+
+
+def load_fit_cfg() -> dict:
+    return load_reference_file('fit.yaml')
 
 
 def autofill_dict(x: dict, reference: dict, mode_missing: str = 'include') -> dict:

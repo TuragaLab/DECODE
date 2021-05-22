@@ -1,0 +1,21 @@
+# config for fitting
+model_path:
+param_path:
+param:  # overwrite model param
+  Camera:
+    em_gain: 50
+
+
+# specify files / dirs etc.
+inferences:
+  - path: a/b/c.tiff
+    param:  # specific overwrite for this very file
+      Camera:
+        em_gain: 200
+
+  - path: a/b/c
+    suffix: .tiff
+
+  - path: a/b/c/
+    pattern: '*[^1-9].tiff'  # some special characters must only be inside '
+#    pattern: \w+[^1-9].tiff  # e.g. matches abc.tiff but not abc_1.tiff

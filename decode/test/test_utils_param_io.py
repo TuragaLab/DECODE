@@ -32,6 +32,13 @@ def test_load_reference_param():
     assert param['Evaluation']['dist_ax'] == 500.0
 
 
+def test_load_fit_cfg():
+    cfg = wlp.load_fit_cfg()
+
+    assert isinstance(cfg, dict)
+    assert cfg['inferences'][-1]['pattern'] == '*[^1-9].tiff'
+
+
 def test_load_by_reference_param():
     """
     Check that param that misses values is filled as the reference file is.
