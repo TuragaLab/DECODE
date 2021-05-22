@@ -7,7 +7,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- auto-fill of parameters must be made explicit, i.e. `load_params(param_path, autofill=True)`. Otherwise reference is not included.
+
 ### Removed
+
+- class based param handling deprecated
 
 
 ## [0.10.0]

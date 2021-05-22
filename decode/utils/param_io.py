@@ -13,112 +13,93 @@ import yaml
 from .types import RecursiveNamespace
 
 
-class ParamHandling:
-    file_extensions = ('.json', '.yml', '.yaml')
+_file_extensions = ('.json', '.yml', '.yaml')
 
-    def __init__(self):
 
-        self.params_dict = None
-        self.params_dot = None
+def _check_return_extension( filename):
+    """
+    Checks the specified file suffix as to whether it is in the allowed list
 
-    def _check_return_extension(self, filename):
-        """
-        Checks the specified file suffix as to whether it is in the allowed list
+    Args:
+        filename
 
-        Args:
-            filename
+    """
+    extension = pathlib.PurePath(filename).suffix
+    if extension not in _file_extensions:
+        raise ValueError(f"Filename must be in {_file_extensions}")
 
-        """
-        extension = pathlib.PurePath(filename).suffix
-        if extension not in self.file_extensions:
-            raise ValueError(f"Filename must be in {self.file_extensions}")
+    return extension
 
-        return extension
 
-    def load_params(self, filename: str) -> RecursiveNamespace:
-        """
-        Load parameters from file
+def load_params(path: str, autofill: bool = False) -> RecursiveNamespace:
+    """
+    Load parameters from file
 
-        Args:
-            filename:
+    Args:
+        path: path to param file
+        autofill: fill parameter fill with reference
 
-        Returns:
+    """
 
-        """
+    extension = _check_return_extension(path)
+    if extension == '.json':
+        with open(path) as json_file:
+            params_dict = json.load(json_file)
 
-        extension = self._check_return_extension(filename)
-        if extension == '.json':
-            with open(filename) as json_file:
-                params_dict = json.load(json_file)
+    elif extension in ('.yml', '.yaml'):
+        with open(path) as yaml_file:
+            params_dict = yaml.safe_load(yaml_file)
 
-        elif extension in ('.yml', '.yaml'):
-            with open(filename) as yaml_file:
-                params_dict = yaml.safe_load(yaml_file)
-
+    if autofill:
         params_ref = load_reference()
         params_dict = autofill_dict(params_dict, params_ref)
-        params = RecursiveNamespace(**params_dict)
 
-        self.params_dict = params_dict
-        self.params_dot = params
+    params = RecursiveNamespace(**params_dict)
 
-        return params
-
-    def write_params(self, filename: Union[str, pathlib.Path], param: Union[dict, RecursiveNamespace]):
-        """
-        Write parameter file to path
-
-        Args:
-            filename:
-            param:
-
-        """
-        filename = filename if isinstance(filename, pathlib.Path) else pathlib.Path(filename)
-
-        extension = self._check_return_extension(filename)
-
-        if isinstance(param, RecursiveNamespace):
-            param = param.to_dict()
-
-        """Create Folder if not exists."""
-        p = pathlib.Path(filename)
-        try:
-            pathlib.Path(p.parents[0]).mkdir(parents=False, exist_ok=True)
-        except FileNotFoundError:
-            raise FileNotFoundError("I will only create the last folder for parameter saving. "
-                                    "But the path you specified lacks more folders or is completely wrong.")
-
-        if extension == '.json':
-            with filename.open('w') as write_file:
-                json.dump(param, write_file, indent=4)
-        elif extension in ('.yml', '.yaml'):
-            with filename.open('w') as yaml_file:
-                yaml.dump(param, yaml_file)
-
-    def convert_param_file(self, file_in, file_out):
-        """
-        Simple wrapper to convert file from and to json / yaml
-        """
-
-        params = self.load_params(file_in)
-        self.write_params(file_out, params)
-
-    @staticmethod
-    def convert_param_debug(param):
-        param.HyperParameter.pseudo_ds_size = 1024
-        param.TestSet.test_size = 128
-        param.InOut.model_out = 'network/debug.pt'
+    return params
 
 
-def load_params(file):  # alias
-    return ParamHandling().load_params(file)
+def save_params(path: Union[str, pathlib.Path], param: Union[dict, RecursiveNamespace]):
+    """
+    Write parameter file to path
+
+    Args:
+        path:
+        param:
+
+    """
+    path = path if isinstance(path, pathlib.Path) else pathlib.Path(path)
+
+    extension = _check_return_extension(path)
+
+    if isinstance(param, RecursiveNamespace):
+        param = param.to_dict()
+
+    """Create Folder if not exists."""
+    p = pathlib.Path(path)
+    try:
+        pathlib.Path(p.parents[0]).mkdir(parents=False, exist_ok=True)
+    except FileNotFoundError:
+        raise FileNotFoundError("I will only create the last folder for parameter saving. "
+                                "But the path you specified lacks more folders or is completely wrong.")
+
+    if extension == '.json':
+        with path.open('w') as write_file:
+            json.dump(param, write_file, indent=4)
+    elif extension in ('.yml', '.yaml'):
+        with path.open('w') as yaml_file:
+            yaml.dump(param, yaml_file)
+
+
+def convert_param_debug(param):
+    """Set a couple of parameters to low values for easy and fast debugging"""
+    param.HyperParameter.pseudo_ds_size = 1024
+    param.TestSet.test_size = 128
+    param.InOut.model_out = 'network/debug.pt'
 
 
 def load_reference() -> dict:
-    """
-    Loads the static reference .yaml file because there we have the full sets and default values.
-
-    """
+    """Loads the static reference .yaml file (full set of variables there)."""
 
     from . import reference_files
     param_ref = pkg_resources.open_text(reference_files, 'reference.yaml')
@@ -134,8 +115,9 @@ def autofill_dict(x: dict, reference: dict, mode_missing: str = 'include') -> di
     Args:
         x: input dict to be filled
         reference: reference dictionary
-        mode_missing:
-
+        mode_missing: if keys are in x but not in reference they are
+            'include': included in the output
+            'exclude': excluded in the output
     """
 
     if mode_missing == 'exclude':  # create new dict and copy
@@ -156,11 +138,8 @@ def autofill_dict(x: dict, reference: dict, mode_missing: str = 'include') -> di
     return out
 
 
-def save_params(file, param):  # alias
-    ParamHandling().write_params(file, param)
-
-
 def autoset_scaling(param):
+    """Set scale values to reasonable defaults."""
     def set_if_none(var, value):
         if var is None:
             var = value
@@ -185,31 +164,6 @@ def autoset_scaling(param):
             param.Scaling.bg_max = param.Simulation.bg_uniform * 1.2
 
     return param
-
-
-def add_root_relative(path: (str, Path), root: (str, Path)):
-    """
-    Adds the root to a path if the path is not absolute
-
-    Args:
-        path (str, Path): path to file
-        root (str, Path): root path
-
-    Returns:
-        Path: absolute path to file
-
-    """
-    if not isinstance(path, Path):
-        path = Path(path)
-
-    if not isinstance(root, Path):
-        root = Path(root)
-
-    if path.is_absolute():
-        return path
-
-    else:
-        return root / path
 
 
 def copy_reference_param(path: Union[str, Path]):
