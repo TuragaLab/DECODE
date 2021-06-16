@@ -5,6 +5,7 @@ channels:
   - turagalab/label/rc
   - turagalab
   - pytorch
+  - nvidia
   - conda-forge
 
 dependencies:
