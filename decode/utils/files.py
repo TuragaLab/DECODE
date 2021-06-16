@@ -1,9 +1,6 @@
 from dataclasses import dataclass
-import itertools
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Union, Optional, List
-import yaml
 
 from . import param_io
 
@@ -26,6 +23,7 @@ def _load_default_cfg(cfg: param_io.RecursiveNamespace) -> _InferenceAtom:
     return _InferenceAtom(
         frame_path=None,
         model_path=cfg.model_path,
+        output_path=cfg.output_suffix,  # this is a slight abuse of notation
         param=param,
     )
 
@@ -47,15 +45,40 @@ def get_file_list(path: Union[str, Path], suffix: Optional = None, pattern: Opti
     return sorted(path.rglob(pattern))
 
 
-def compile_fit(cfg) -> _InferenceAtom:
+def compile_fit(cfg: param_io.RecursiveNamespace) -> List[_InferenceAtom]:
+    # get default
+    default = _load_default_cfg(cfg)
 
-    # get defaults
-
+    # ToDo: flatten directories to files
 
     # loop over files
-    frame_files = []
+    inferences = []
     for p in cfg.inferences:
-        # todo add suffix etc.
-        frame_files.append(p.path)
+        p = p.to_dict()
 
-    # loop over dirs
+        path = Path(p.pop('path'))
+        if not path.is_file():
+            raise FileNotFoundError(f"File in path {path} not found.")
+
+        if len(p) == 0:
+            continue
+
+        if len(p) >= 1 or 'param' not in p:
+            raise NotImplementedError("Currently it is only supported to overwrite params. "
+                                      "Not model_path or param_path.")
+
+        param = param_io.RecursiveNamespace(
+            **param_io.autofill_dict(
+                p.pop('param'),
+                default.param.to_dict()
+            )
+        )
+
+        inferences.append(_InferenceAtom(
+            frame_path=path,
+            model_path=default.model_path,
+            output_path=path.with_name(path.stem + '_decode_fit' + default.output_path),
+            param=param,
+        ))
+
+    return inferences

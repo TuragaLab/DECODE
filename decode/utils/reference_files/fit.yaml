@@ -1,6 +1,7 @@
 # config for fitting
 model_path:
 param_path:
+output_suffix: .h5
 param:  # overwrite model param
   Camera:
     em_gain: 50
@@ -18,4 +19,3 @@ inferences:
 
   - path: a/b/c/
     pattern: '*[^1-9].tiff'  # some special characters must only be inside '
-#    pattern: \w+[^1-9].tiff  # e.g. matches abc.tiff but not abc_1.tiff

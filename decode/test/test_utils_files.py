@@ -45,6 +45,10 @@ def test_load_default_cfg():
 
     assert default.frame_path is None
     assert default.model_path == fit_cfg.model_path
-    assert default.output_path is None
+    assert default.output_path == '.h5'
     assert default.param.Camera.em_gain == 50
     assert default.param.Camera.dfg == 42
+
+
+def test_compile_fit():
+    pass
