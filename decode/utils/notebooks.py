@@ -29,7 +29,7 @@ def load_examples(path: Union[str, Path]):
 
     path = path if isinstance(path, Path) else Path(path)
 
-    for f in ['Introduction.ipynb', 'Evaluation.ipynb', 'Training.ipynb', 'Fit.ipynb']:
+    for f in ['Introduction.ipynb', 'Evaluation.ipynb', 'Training.ipynb', 'Fitting.ipynb']:
         copy_pkg_file(examples, f, path)
 
 

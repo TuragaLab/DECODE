@@ -15,7 +15,7 @@ def test_load_notebooks():
         assert (test_notebook_folder / 'Introduction.ipynb').exists()
         assert (test_notebook_folder / 'Evaluation.ipynb').exists()
         assert (test_notebook_folder / 'Training.ipynb').exists()
-        assert (test_notebook_folder / 'Fit.ipynb').exists()
+        assert (test_notebook_folder / 'Fitting.ipynb').exists()
 
 
 def test_copy_pkg_file():

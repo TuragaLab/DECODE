@@ -21,7 +21,7 @@ requirements:
   run:
     - python >=3.6,<3.9
     - {{ pin_compatible('numpy', max_pin='x.x') }}
-    - pytorch=1.7.1
+    - pytorch>=1.7.1
     - click
     - deprecated
     - gitpython>=3.1
