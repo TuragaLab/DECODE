@@ -16,6 +16,8 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE
       - uses: actions/checkout@v2
+        with:
+          ref: 'master'
       - uses: conda-incubator/setup-miniconda@v2
         with:
           # mamba-version: "*"  # does not work reliably atm
