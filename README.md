@@ -39,9 +39,9 @@ Please find the video below.
 [![DECODE Video Tutorial](https://img.youtube.com/vi/zoWsj3FCUJs/0.jpg)](https://www.youtube.com/watch?v=zoWsj3FCUJs)
 
 ## Paper
-This is the *official* implementation of the [preprint](https://www.biorxiv.org/content/10.1101/2020.10.26.355164v1).
+This is the *official* implementation of the [publication](https://rdcu.be/cw7uV).
 
-Artur Speiser*, Lucas-Raphael Müller*, Ulf Matti, Christopher J. Obara, Wesley R. Legant, Anna Kreshuk, Jakob H. Macke†, Jonas Ries†, and Srinivas C. Turaga†, **Deep learning enables fast and dense single-molecule localization with high accuracy**, [*bioRxiv* 2020.10.26.355164](https://www.biorxiv.org/content/10.1101/2020.10.26.355164v1).
+Artur Speiser*, Lucas-Raphael Müller*, Philipp Hoess, Ulf Matti, Christopher J. Obara, Wesley R. Legant, Anna Kreshuk, Jakob H. Macke†, Jonas Ries†, and Srinivas C. Turaga†, **Deep learning enables fast and dense single-molecule localization with high accuracy.** Nat Methods (2021). https://doi.org/10.1038/s41592-021-01236-x
 
 ### Data availability
 The data referred to in our paper can be accessed at the following locations:
