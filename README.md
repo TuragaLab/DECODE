@@ -54,5 +54,8 @@ If you want to get in touch, the best way to get your questions answered is our 
 - Artur Speiser ([@aspeiser](https://github.com/ASpeiser), arturspeiser@gmail.com)
 - Lucas-Raphael Müller ([@haydnspass](https://github.com/Haydnspass), lucasraphaelmueller@gmail.com)
 
+### Join us
+We offer several open positions. Please take a look at the [pdf](https://www.embl.de/download/ries/other/Simalesam_ad.pdf) on how to apply.
+
 ### Acknowledgements
 - Don Olbris ([@olbris](https://github.com/olbris), olbrisd@janelia.hhmi.org) for help with python packaging.
