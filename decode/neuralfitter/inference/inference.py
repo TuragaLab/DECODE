@@ -235,10 +235,9 @@ if __name__ == '__main__':
     parse.add_argument('--device', help='Device on which to do inference (e.g. "cpu" or "cuda:0"')
     parse.add_argument('--emitter_path', help='Output path for the fitted emitters. '
                                             'Format will be determined by specified file extension.')
-    parse.add_argument('-o', '--online', action='store_true', help='Future.')
 
     args = parse.parse_args()
-    online = args.o
+    online = False
 
     # ToDo: This is a massive code duplication of the Fitting Notebook. PLEASE CLEAN UP!
 
