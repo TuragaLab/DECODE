@@ -14,7 +14,8 @@ from ...utils import hardware, frames_io
 class Infer:
 
     def __init__(self, model, ch_in: int, frame_proc, post_proc, device: Union[str, torch.device],
-                 batch_size: Union[int, str] = 'auto', num_workers: int = 0, pin_memory: bool = False,
+                 batch_size: Union[int, str] = 'auto', num_workers: int = 0,
+                 pin_memory: bool = False,
                  forward_cat: Union[str, Callable] = 'emitter'):
         """
         Convenience class for inference.
@@ -46,8 +47,9 @@ class Infer:
         self._forward_cat_mode = forward_cat
 
         if str(self.device) == 'cpu' and self.batch_size == 'auto':
-            warnings.warn("Automatically determining the batch size does not make sense on cpu device. "
-                          "Falling back to reasonable value.")
+            warnings.warn(
+                "Automatically determining the batch size does not make sense on cpu device. "
+                "Falling back to reasonable value.")
             self.batch_size = 64
 
     def forward(self, frames: torch.Tensor) -> emitter.EmitterSet:
@@ -64,7 +66,8 @@ class Infer:
         model.eval()
 
         """Form Dataset and Dataloader"""
-        ds = dataset.InferenceDataset(frames=frames, frame_proc=self.frame_proc, frame_window=self.ch_in)
+        ds = dataset.InferenceDataset(frames=frames, frame_proc=self.frame_proc,
+                                      frame_window=self.ch_in)
 
         if self.batch_size == 'auto':
             # include safety factor of 20%
@@ -126,7 +129,7 @@ class Infer:
         """
         Get maximum batch size for inference.
 
-        Args: 
+        Args:
             model: model on correct device
             frame_size: size of frames (without batch dimension)
             limit_low: lower batch size limit
@@ -145,7 +148,8 @@ class Infer:
         assert next(model.parameters()).is_cuda, \
             "Auto determining the max batch size makes only sense when running on CUDA device."
 
-        return hardware.get_max_batch_size(model_forward_no_grad, frame_size, next(model.parameters()).device,
+        return hardware.get_max_batch_size(model_forward_no_grad, frame_size,
+                                           next(model.parameters()).device,
                                            limit_low, limit_high)
 
 
@@ -154,8 +158,10 @@ class LiveInfer(Infer):
                  model, ch_in: int, *,
                  stream, time_wait=5, safety_buffer: int = 20,
                  frame_proc=None, post_proc=None,
-                 device: Union[str, torch.device] = 'cuda:0' if torch.cuda.is_available() else 'cpu',
-                 batch_size: Union[int, str] = 'auto', num_workers: int = 0, pin_memory: bool = False,
+                 device: Union[
+                     str, torch.device] = 'cuda:0' if torch.cuda.is_available() else 'cpu',
+                 batch_size: Union[int, str] = 'auto', num_workers: int = 0,
+                 pin_memory: bool = False,
                  forward_cat: Union[str, Callable] = 'emitter'):
         """
         Inference from memmory mapped tensor, where the mapped file is possibly live being written to.
@@ -221,15 +227,20 @@ if __name__ == '__main__':
     parse = argparse.ArgumentParser(
         description="Inference. This uses the default, suggested implementation. "
                     "For anything else, consult the fitting notebook and make your changes there.")
-    parse.add_argument('frame_path', help='Path to the tiff file of the frames')
-    parse.add_argument('frame_meta_path', help='Path to the meta of the tiff (i.e. camera parameters)')
-    parse.add_argument('model_path', help='Path to the model file')
-    parse.add_argument('param_path', help='Path to the parameters of the training')
-    parse.add_argument('device', help='Device on which to do inference (e.g. "cpu" or "cuda:0"')
-    parse.add_argument('-o', '--online', action='store_true')
+    parse.add_argument('--frame_path', help='Path to the tiff file of the frames')
+    parse.add_argument('--frame_meta_path',
+                       help='Path to the meta of the tiff (i.e. camera parameters)')
+    parse.add_argument('--model_path', help='Path to the model file')
+    parse.add_argument('--param_path', help='Path to the parameters of the training')
+    parse.add_argument('--device', help='Device on which to do inference (e.g. "cpu" or "cuda:0"')
+    parse.add_argument('--emitter_path', help='Output path for the fitted emitters. '
+                                            'Format will be determined by specified file extension.')
+    parse.add_argument('-o', '--online', action='store_true', help='Future.')
 
     args = parse.parse_args()
     online = args.o
+
+    # ToDo: This is a massive code duplication of the Fitting Notebook. PLEASE CLEAN UP!
 
     """Load the model"""
     param = decode.utils.param_io.load_params(args.param_path)
@@ -242,13 +253,15 @@ if __name__ == '__main__':
     if not online:
         frames = decode.utils.frames_io.load_tif(args.frame_path)
     else:
+        raise NotImplementedError
         frames = decode.utils.frames_io.TiffTensor(args.frame_path)
 
     # load meta
     with open(args.frame_meta_path) as meta:
         meta = yaml.safe_load(meta)
 
-    param = decode.utils.param_io.autofill_dict(meta['Camera'], param.to_dict(), mode_missing='include')
+    param = decode.utils.param_io.autofill_dict(meta['Camera'], param.to_dict(),
+                                                mode_missing='include')
     param = decode.utils.param_io.RecursiveNamespace(**param)
 
     camera = decode.simulation.camera.Photon2Camera.parse(param)
@@ -256,7 +269,44 @@ if __name__ == '__main__':
 
     """Prepare Pre and post-processing"""
 
+    frame_proc = [
+        decode.neuralfitter.utils.processing.wrap_callable(camera.backward),
+        decode.neuralfitter.frame_processing.AutoCenterCrop(8),
+        decode.neuralfitter.scale_transform.AmplitudeRescale.parse(param)
+    ]
+    if param.Camera.mirror_dim is not None:
+        frame_proc.insert(2, decode.neuralfitter.frame_processing.Mirror2D(
+            dims=param.Camera.mirror_dim))
+
+    # setup frame processing as by the parameter with which the model was trained
+    frame_proc = decode.neuralfitter.utils.processing.TransformSequence(frame_proc)
+
+    # determine extent of frame and its dimension after frame_processing
+    size_procced = decode.neuralfitter.frame_processing.get_frame_extent(frames.unsqueeze(1).size(),
+                                                                         frame_proc.forward)  # frame size after processing
+    frame_extent = ((-0.5, size_procced[-2] - 0.5), (-0.5, size_procced[-1] - 0.5))
+
+    # Setup post-processing
+    # It's a sequence of backscaling, relative to abs. coord conversion and frame2emitter conversion
+    post_proc = decode.neuralfitter.utils.processing.TransformSequence([
+
+        decode.neuralfitter.scale_transform.InverseParamListRescale.parse(param),
+
+        decode.neuralfitter.coord_transform.Offset2Coordinate(xextent=frame_extent[0],
+                                                              yextent=frame_extent[1],
+                                                              img_shape=size_procced[-2:]),
+
+        decode.neuralfitter.post_processing.SpatialIntegration(raw_th=0.1,
+                                                               xy_unit='px',
+                                                               px_size=param.Camera.px_size)
+
+    ])
+
     """Fit"""
+    infer = decode.neuralfitter.Infer(model=model, ch_in=param.HyperParameter.channels_in,
+                                      frame_proc=frame_proc, post_proc=post_proc,
+                                      device=device, num_workers=worker)
 
-    """Return"""
-
+    emitter = infer.forward(frames[:])
+    emitter.save(args.emitter_path)
+    print(f"Fit done and emitters saved to {args.emitter_path}")
