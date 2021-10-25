@@ -227,39 +227,46 @@ if __name__ == '__main__':
     parse = argparse.ArgumentParser(
         description="Inference. This uses the default, suggested implementation. "
                     "For anything else, consult the fitting notebook and make your changes there.")
-    parse.add_argument('--frame_path', help='Path to the tiff file of the frames')
-    parse.add_argument('--frame_meta_path',
-                       help='Path to the meta of the tiff (i.e. camera parameters)')
-    parse.add_argument('--model_path', help='Path to the model file')
-    parse.add_argument('--param_path', help='Path to the parameters of the training')
-    parse.add_argument('--device', help='Device on which to do inference (e.g. "cpu" or "cuda:0"')
-    parse.add_argument('--emitter_path', help='Output path for the fitted emitters. '
-                                            'Format will be determined by specified file extension.')
-
+    parse.add_argument('--fit_meta_path', '-p', help='Path to the fit meta file that specifies all '
+                                                     'following options in a yaml file')
     args = parse.parse_args()
+
+    """Meta file"""
+    if args.fit_meta_path is not None:
+        with open(args.fit_meta_path) as f:
+            meta = yaml.safe_load(f)
+
+        device = meta['Hardware']['device']
+
+        frame_path = meta['Frames']['path']
+        frame_meta = meta['Camera']
+
+        model_path = meta['Model']['path']
+        model_param_path = meta['Model']['param_path']
+
+        output = meta['Output']['path']
+
     online = False
 
     # ToDo: This is a massive code duplication of the Fitting Notebook. PLEASE CLEAN UP!
 
     """Load the model"""
-    param = decode.utils.param_io.load_params(args.param_path)
+    param = decode.utils.param_io.load_params(model_param_path)
 
     model = decode.neuralfitter.models.SigmaMUNet.parse(param)
     model = decode.utils.model_io.LoadSaveModel(
-        model, input_file=args.model_path, output_file=None).load_init(args.device)
+        model, input_file=model_path, output_file=None).load_init(device)
 
     """Load the frame"""
     if not online:
-        frames = decode.utils.frames_io.load_tif(args.frame_path)
+        frames = decode.utils.frames_io.load_tif(frame_path)
     else:
         raise NotImplementedError
-        frames = decode.utils.frames_io.TiffTensor(args.frame_path)
+        frames = decode.utils.frames_io.TiffTensor(frame_path)
 
     # load meta
-    with open(args.frame_meta_path) as meta:
-        meta = yaml.safe_load(meta)
 
-    param = decode.utils.param_io.autofill_dict(meta['Camera'], param.to_dict(),
+    param = decode.utils.param_io.autofill_dict(frame_meta, param.to_dict(),
                                                 mode_missing='include')
     param = decode.utils.param_io.RecursiveNamespace(**param)
 
@@ -307,5 +314,5 @@ if __name__ == '__main__':
                                       device=device, num_workers=worker)
 
     emitter = infer.forward(frames[:])
-    emitter.save(args.emitter_path)
-    print(f"Fit done and emitters saved to {args.emitter_path}")
+    emitter.save(output)
+    print(f"Fit done and emitters saved to {output}")
