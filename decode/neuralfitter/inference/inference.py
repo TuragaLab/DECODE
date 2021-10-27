@@ -237,7 +237,7 @@ if __name__ == '__main__':
             meta = yaml.safe_load(f)
 
         device = meta['Hardware']['device']
-        worker = meta['Hardware']['worker']
+        worker = meta['Hardware']['worker'] if meta['Hardware']['worker'] is not None else 4
 
         frame_path = meta['Frames']['path']
         frame_meta = meta['Camera']
