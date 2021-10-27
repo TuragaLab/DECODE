@@ -237,6 +237,7 @@ if __name__ == '__main__':
             meta = yaml.safe_load(f)
 
         device = meta['Hardware']['device']
+        worker = meta['Hardware']['worker']
 
         frame_path = meta['Frames']['path']
         frame_meta = meta['Camera']
@@ -245,6 +246,8 @@ if __name__ == '__main__':
         model_param_path = meta['Model']['param_path']
 
         output = meta['Output']['path']
+    else:
+        raise ValueError
 
     online = False
 
@@ -311,7 +314,7 @@ if __name__ == '__main__':
     """Fit"""
     infer = decode.neuralfitter.Infer(model=model, ch_in=param.HyperParameter.channels_in,
                                       frame_proc=frame_proc, post_proc=post_proc,
-                                      device=device, num_workers=param.Hardware.worker)
+                                      device=device, num_workers=worker)
 
     emitter = infer.forward(frames[:])
     emitter.save(output)
