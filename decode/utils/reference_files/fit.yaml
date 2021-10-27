@@ -6,6 +6,7 @@ Camera:
 
 Hardware:
   device: cuda:0
+  worker: 4
 
 Frames:
   path:

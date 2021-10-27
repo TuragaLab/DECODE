@@ -311,7 +311,7 @@ if __name__ == '__main__':
     """Fit"""
     infer = decode.neuralfitter.Infer(model=model, ch_in=param.HyperParameter.channels_in,
                                       frame_proc=frame_proc, post_proc=post_proc,
-                                      device=device, num_workers=worker)
+                                      device=device, num_workers=param.Hardware.worker)
 
     emitter = infer.forward(frames[:])
     emitter.save(output)
