@@ -54,6 +54,10 @@ If you want to get in touch, the best way to get your questions answered is our 
 - Artur Speiser ([@aspeiser](https://github.com/ASpeiser), arturspeiser@gmail.com)
 - Lucas-Raphael Müller ([@haydnspass](https://github.com/Haydnspass), lucasraphaelmueller@gmail.com)
 
+## Support
+
+We acknowledge support by the [ADIMEM grant](https://fit.uni-tuebingen.de/Project/Details?id=9199) grant, project A. ADIMEM is a BMBF grant awarded to groups at the Technical University of Munich, University of Tübingen and Research Center caesar of the Max Planck Gesellschaft.
+
 ### Join us
 We offer several open positions. Please take a look at the [pdf](https://www.embl.de/download/ries/other/Simalesam_ad.pdf) on how to apply.
 
