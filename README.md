@@ -56,8 +56,8 @@ If you want to get in touch, the best way to get your questions answered is our 
 
 ## Support
 
-Jakob H. Macke and Artur Speiser were supported by the German Research Foundation (DFG) through Germany’s Excellence Strategy (EXC-Number 2064/1, project no. 390727645) and the German Federal Ministry of Education and Research (BMBF, project no. ‘ADMIMEM’, FKZ 01IS18052). 
-[ADIMEM](https://fit.uni-tuebingen.de/Project/Details?id=9199) is a BMBF grant awarded to groups at the Technical University of Munich, University of Tübingen and Research Center caesar of the Max Planck Gesellschaft. Srinivas C. Turaga is supported by the Howard Hughes Medical Institute. Jonas Ries, Lucas-Raphael Mueller and Philipp Hoess were supported by the European Molecular Biology Laboratory, the European Research Council (grant no. CoG-724489 to Jonas Ries) and the National Institutes of Health Common Fund 4D Nucleome Program (grant no. U01 EB021223 to Jonas Ries). 
+Jakob H. Macke and Artur Speiser were supported by the German Research Foundation (DFG) through Germany’s Excellence Strategy (EXC-Number 2064/1, project no. 390727645) and the German Federal Ministry of Education and Research (BMBF, project no. [ADIMEM](https://fit.uni-tuebingen.de/Project/Details?id=9199), FKZ 01IS18052). 
+Srinivas C. Turaga is supported by the Howard Hughes Medical Institute. Jonas Ries, Lucas-Raphael Mueller and Philipp Hoess were supported by the European Molecular Biology Laboratory, the European Research Council (grant no. CoG-724489 to Jonas Ries) and the National Institutes of Health Common Fund 4D Nucleome Program (grant no. U01 EB021223 to Jonas Ries). 
 
 ### Join us
 We offer several open positions. Please take a look at the [pdf](https://www.embl.de/download/ries/other/Simalesam_ad.pdf) on how to apply.
