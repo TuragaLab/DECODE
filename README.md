@@ -56,7 +56,8 @@ If you want to get in touch, the best way to get your questions answered is our 
 
 ## Support
 
-We acknowledge support by the [ADIMEM grant](https://fit.uni-tuebingen.de/Project/Details?id=9199) grant, project A. ADIMEM is a BMBF grant awarded to groups at the Technical University of Munich, University of Tübingen and Research Center caesar of the Max Planck Gesellschaft.
+Part of this work was supported by the German Research Foundation (DFG) through Germany’s Excellence Strategy (EXC-Number 2064/1, project no. 390727645) and the German Federal Ministry of Education and Research (BMBF, project no. ‘ADMIMEM’, FKZ 01IS18052).
+[ADIMEM](https://fit.uni-tuebingen.de/Project/Details?id=9199) is a BMBF grant awarded to groups at the Technical University of Munich, University of Tübingen and Research Center caesar of the Max Planck Gesellschaft.
 
 ### Join us
 We offer several open positions. Please take a look at the [pdf](https://www.embl.de/download/ries/other/Simalesam_ad.pdf) on how to apply.
