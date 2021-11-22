@@ -90,7 +90,7 @@ class Infer:
                 # compute output
                 y_out = model(x_in)
 
-                """In post processing we need to make sure that we get a single Emitterset for each batch, 
+                """In post processing we need to make sure that we get a single Emitterset for each batch,
                 so that we can easily concatenate."""
                 if self.post_proc is not None:
                     out.append(self.post_proc.forward(y_out))
@@ -267,17 +267,15 @@ if __name__ == '__main__':
         raise NotImplementedError
         frames = decode.utils.frames_io.TiffTensor(frame_path)
 
-    # load meta
-
-    param = decode.utils.param_io.autofill_dict(frame_meta, param.to_dict(),
-                                                mode_missing='include')
-    param = decode.utils.param_io.RecursiveNamespace(**param)
+    # overwrite camera with meta
+    param.Camera = decode.utils.param_io.autofill_dict(frame_meta, param.Camera.to_dict(),
+                                                       mode_missing='include')
+    param.Camera = decode.utils.param_io.RecursiveNamespace(**param.Camera)
 
     camera = decode.simulation.camera.Photon2Camera.parse(param)
     camera.device = 'cpu'
 
     """Prepare Pre and post-processing"""
-
     frame_proc = [
         decode.neuralfitter.utils.processing.wrap_callable(camera.backward),
         decode.neuralfitter.frame_processing.AutoCenterCrop(8),
