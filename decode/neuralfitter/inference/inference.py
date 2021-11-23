@@ -261,11 +261,11 @@ if __name__ == '__main__':
         model, input_file=model_path, output_file=None).load_init(device)
 
     """Load the frame"""
+    frames = decode.utils.frames_io.TiffTensor(frame_path)
     if not online:
-        frames = decode.utils.frames_io.load_tif(frame_path)
+        frames = frames[:]
     else:
         raise NotImplementedError
-        frames = decode.utils.frames_io.TiffTensor(frame_path)
 
     # overwrite camera with meta
     param.Camera = decode.utils.param_io.autofill_dict(frame_meta, param.Camera.to_dict(),
