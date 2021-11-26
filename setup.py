@@ -48,6 +48,7 @@ setup(
     entry_points={
         'console_scripts': [
             'decode.train = decode.neuralfitter.train.live_engine:main',
+            'decode.fit = decode.neuralfitter.inference.inference:main',
         ],
     },
     zip_safe=False,

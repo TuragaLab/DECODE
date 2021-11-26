@@ -9,6 +9,7 @@ Camera:
   convert2photons: true
   e_per_adu:
   em_gain:
+  mirror_dim:   # this field is only active during fitting per inference .py file
   px_size:
   qe: 1.0
   read_sigma:
