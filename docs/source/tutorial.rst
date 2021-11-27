@@ -128,7 +128,7 @@ your Terminal/Anaconda prompt
 .. code:: bash
 
     conda activate decode_env  # if not already activated
-    python -m decode.neuralfitter.train.live_engine -p [path to your param].yaml
+    python -m decode.train -p [path to your param].yaml
 
 
 To monitor the training progress, you can open up a new Terminal window/Anaconda prompt, navigate
@@ -147,8 +147,13 @@ influence on the training. Note that Tensorboard can be quite slow sometimes.
 Fitting
 =======
 
-Please refer to the Fitting notebook which is described above in
-:ref:`First Time using DECODE instructions. <First time>`
+In a regular workflow, you might want to fit from command line instead of using the fitting notebook.
+Use the `fit.yaml` file to specify the necessary paths and parameters.
+
+.. code:: bash
+
+    conda activate decode_env  # if not already activated
+    python -m decode.fit -p [path to your fit param file].yaml
 
 
 .. _Visualization:

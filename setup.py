@@ -47,8 +47,9 @@ setup(
     install_requires=requirements,
     entry_points={
         'console_scripts': [
-            'decode.train = decode.neuralfitter.train.live_engine:main',
-            'decode.fit = decode.neuralfitter.inference.inference:main',
+            'decode.train = decode.neuralfitter.train.train:main',
+            'decode.fit = decode.neuralfitter.inference.infer:main',
+            'decode.infer = decode.neuralfitter.inference.infer:main',
         ],
     },
     zip_safe=False,
