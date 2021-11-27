@@ -1,7 +1,6 @@
 import argparse
 import yaml
 
-import decode.neuralfitter.models
 import decode.utils
 
 
@@ -23,6 +22,7 @@ if __name__ == '__main__':
 
         frame_path = meta['Frames']['path']
         frame_meta = meta['Camera']
+        frame_range = meta['Frames']['range']
 
         model_path = meta['Model']['path']
         model_param_path = meta['Model']['param_path']
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     """Load the frame"""
     frames = decode.utils.frames_io.TiffTensor(frame_path)
     if not online:
-        frames = frames[:]
+        frames = frames[slice(*frame_range)]
     else:
         raise NotImplementedError
 

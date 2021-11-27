@@ -10,6 +10,7 @@ Hardware:
 
 Frames:
   path:
+  range:  # leave empty for all frames or specify tuple (python indexing, e.g. [0, 3] which will fit frames 0, 1, 2
 
 Model:
   path:
