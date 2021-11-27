@@ -44,8 +44,9 @@ if __name__ == '__main__':
 
     """Load the frame"""
     frames = decode.utils.frames_io.TiffTensor(frame_path)
+    frame_range = slice(*frame_range) if frame_range is not None else slice(None)
     if not online:
-        frames = frames[slice(*frame_range)]
+        frames = frames[frame_range]
     else:
         raise NotImplementedError
 
