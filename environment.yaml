@@ -1,8 +1,8 @@
 name: decode_dev
 
 channels:
-  - turagalab/label/dev
-  - turagalab/label/rc
+#  - turagalab/label/dev
+#  - turagalab/label/rc
   - turagalab
   - pytorch
   - nvidia
