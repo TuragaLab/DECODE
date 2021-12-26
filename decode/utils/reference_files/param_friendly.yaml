@@ -10,7 +10,8 @@ Camera:  # camera specs, exemplary shown are the values of the camera used in th
   spur_noise: 0.002
 InOut:
   calibration_file:  # path to 3d calibration
-  experiment_out:  # place your path to the output folder here
+  log_dir:  # path to the output log
+  model_dir:  # place your path to the output folder here
 Simulation:
   bg_uniform:  # background range to sample from. You can also specify a const. value as 'bg_uniform: 100'
     - 90

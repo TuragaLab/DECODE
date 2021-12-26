@@ -26,6 +26,7 @@ else:
         "h5py",
         "importlib_resources",
         "matplotlib",
+        "omegaconf",
         "pandas",
         "pytest",
         "pyyaml",

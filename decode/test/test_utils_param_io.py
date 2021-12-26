@@ -1,3 +1,4 @@
+import omegaconf
 from pathlib import Path
 
 import pytest
@@ -13,11 +14,9 @@ test_dir = str(Path(__file__).resolve().parent)
 def test_load_params():
     filename = test_dir / Path('assets/test_param_for_load.json')
     asset_handler.AssetHandler().auto_load(filename)
-    _ = wlp.ParamHandling().load_params(filename)
 
-    with pytest.raises(FileNotFoundError):
-        filename = test_dir / Path('assets/test_param_for_load2.json')
-        _ = wlp.ParamHandling().load_params(filename)
+    p = wlp.Param.load(filename)
+    assert isinstance(p, omegaconf.DictConfig)
 
 
 def test_load_reference_param():
@@ -25,9 +24,8 @@ def test_load_reference_param():
     Depends on reference.yaml in utils/references_files
 
     """
-    param = wlp.load_reference()
+    param = wlp.Param.load_ref()
 
-    assert isinstance(param, dict)
     assert param['CameraPreset'] is None
     assert param['Evaluation']['dist_ax'] == 500.0
 

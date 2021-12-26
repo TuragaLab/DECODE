@@ -5,6 +5,8 @@ import os
 import shutil
 import socket
 import sys
+from typing import Optional
+from omegaconf import OmegaConf
 from pathlib import Path
 
 import torch
@@ -21,11 +23,7 @@ from decode.utils.checkpoint import CheckPoint
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Training Args')
-
-    parser.add_argument('-i', '--device', default=None,
-                        help='Specify the device string (cpu, cuda, cuda:0) and overwrite param.',
-                        type=str, required=False)
+    parser = argparse.ArgumentParser(description='Training Arguments')
 
     parser.add_argument('-p', '--param_file',
                         help='Specify your parameter file (.yml or .json).',
@@ -34,47 +32,42 @@ def parse_args():
     parser.add_argument('-d', '--debug', default=False, action='store_true',
                         help='Debug the specified parameter file. Will reduce ds size for example.')
 
-    parser.add_argument('-w', '--num_worker_override',
-                        help='Override the number of workers for the dataloaders.',
-                        type=int)
-
     parser.add_argument('-n', '--no_log', default=False, action='store_true',
                         help='Set no log if you do not want to log the current run.')
 
-    parser.add_argument('-l', '--log_folder', default='runs',
-                        help='Specify the (parent) folder you want to log to. If rel-path, relative to DECODE root.')
-
-    parser.add_argument('-c', '--log_comment', default=None,
-                        help='Add a log_comment to the run.')
+    parser.add_argument('-o', '--overwrites', default=None, required=False, type=str,
+                        help='Arbitrary overwrites to the parameter file, if multiple overwrites,' \
+                             'please wrap with quotation marks. Overwrites can not contain whitespaces.')
 
     args = parser.parse_args()
     return args
 
 
-def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool = False,
+def live_engine_setup(param_file: str,
+                      debug: bool = False,
                       no_log: bool = False,
-                      num_worker_override: int = None,
-                      log_folder: str = 'runs', log_comment: str = None):
+                      overwrites: Optional[str] = None):
     """
     Sets up the engine to train DECODE. Includes sample simulation and the actual training.
 
     Args:
         param_file: parameter file path
-        device_overwrite: overwrite cuda index specified by param file
         debug: activate debug mode (i.e. less samples) for fast testing
         no_log: disable logging
-        num_worker_override: overwrite number of workers for dataloader
-        log_folder: folder for logging (where tensorboard puts its stuff)
-        log_comment: comment to the experiment
-
+        overwrites: arbitrary overwrites to the config file
     """
 
     """Load Parameters and back them up to the network output directory"""
     param_file = Path(param_file)
-    param = decode.utils.param_io.ParamHandling().load_params(param_file)
+    param = decode.utils.param_io.Param.load(param_file)
 
     # auto-set some parameters (will be stored in the backup copy)
     param = decode.utils.param_io.autoset_scaling(param)
+
+    # overwrites
+    overwrites = overwrites.split(" ") if overwrites is not None else []
+    overwrites = OmegaConf.from_cli(overwrites)
+    param.merge_with(overwrites)
 
     # add meta information
     param.Meta.version = decode.utils.bookkeeping.decode_state()
@@ -82,11 +75,12 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
     """Experiment ID"""
     if not debug:
         if param.InOut.checkpoint_init is None:
-            experiment_id = datetime.datetime.now().strftime(
-                "%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
+            if param.InOut.run_id is not None:
+                experiment_id = param.InOut.run_id
+            else:
+                experiment_id = datetime.datetime.now().strftime(
+                    "%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
             from_ckpt = False
-            if log_comment:
-                experiment_id = experiment_id + '_' + log_comment
         else:
             from_ckpt = True
             experiment_id = Path(param.InOut.checkpoint_init).parent.name
@@ -96,7 +90,7 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
 
     """Set up unique folder for experiment"""
     if not from_ckpt:
-        experiment_path = Path(param.InOut.experiment_out) / Path(experiment_id)
+        experiment_path = Path(param.InOut.experiment_out) / experiment_id
     else:
         experiment_path = Path(param.InOut.checkpoint_init).parent
 
@@ -122,21 +116,12 @@ def live_engine_setup(param_file: str, device_overwrite: str = None, debug: bool
     if debug:
         decode.utils.param_io.ParamHandling.convert_param_debug(param)
 
-    if num_worker_override is not None:
-        param.Hardware.num_worker_train = num_worker_override
-
     """Hardware / Server stuff."""
-    if device_overwrite is not None:
-        device = device_overwrite
-        param.Hardware.device_simulation = device_overwrite  # lazy assumption
-    else:
-        device = param.Hardware.device
-
     if torch.cuda.is_available():
-        _, device_ix = decode.utils.hardware._specific_device_by_str(device)
+        _, device_ix = decode.utils.hardware._specific_device_by_str(param.Hardware.device)
         if device_ix is not None:
             # do this instead of set env variable, because torch is inevitably already imported
-            torch.cuda.set_device(device)
+            torch.cuda.set_device(param.Hardware.device)
     elif not torch.cuda.is_available():
         device = 'cpu'
 
@@ -488,9 +473,10 @@ def setup_dataloader(param, train_ds, test_ds=None):
 
 def main():
     args = parse_args()
-    live_engine_setup(args.param_file, args.device, args.debug, args.no_log,
-                      args.num_worker_override, args.log_folder,
-                      args.log_comment)
+    live_engine_setup(args.param_file,
+                      args.debug,
+                      args.no_log,
+                      args.overwrites)
 
 
 if __name__ == '__main__':

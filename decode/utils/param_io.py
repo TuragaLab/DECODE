@@ -1,6 +1,6 @@
 import json
-# import copy
 import pathlib
+from omegaconf import OmegaConf
 from pathlib import Path
 from typing import Union
 try:
@@ -11,6 +11,26 @@ except ImportError:  # Try backported to PY<37 `importlib_resources`.
 import yaml
 
 from .types import RecursiveNamespace
+
+
+class Param(OmegaConf):
+
+    @classmethod
+    def load(cls, f, fill: bool = True):
+        p = super().load(f)
+        if fill:
+            p.merge_with(cls.load_ref())
+
+        return p
+
+    @classmethod
+    def load_ref(cls):
+        from . import reference_files
+
+        p = pkg_resources.open_text(reference_files, 'reference.yaml')
+        return super().load(p)
+
+
 
 
 class ParamHandling:
@@ -112,19 +132,6 @@ class ParamHandling:
 
 def load_params(file):  # alias
     return ParamHandling().load_params(file)
-
-
-def load_reference() -> dict:
-    """
-    Loads the static reference .yaml file because there we have the full sets and default values.
-
-    """
-
-    from . import reference_files
-    param_ref = pkg_resources.open_text(reference_files, 'reference.yaml')
-    param_ref = yaml.load(param_ref, Loader=yaml.SafeLoader)
-
-    return param_ref
 
 
 def autofill_dict(x: dict, reference: dict, mode_missing: str = 'include') -> dict:

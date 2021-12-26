@@ -82,9 +82,10 @@ HyperParameter:
   pseudo_ds_size: 10000
 InOut:
   calibration_file:  # spline calib
-  experiment_out:  # main output dir
   checkpoint_init:   # initialise from checkpoint (i.e. resume training)
-  model_init:
+  run_id:  # subdir name, leave blank for auto
+  model_dir:  # model output dir (parent of subdir named run_id)
+  log_dir:  # log output dir (parent of subdir named run_id)
 Meta:
   version:
 PostProcessing: SpatialIntegration  # (blank) for no post-processing or LookUp
