@@ -1,8 +1,8 @@
 FROM gpuci/miniforge-cuda:11.0-runtime-ubuntu18.04
 
 COPY . /app
-RUN conda install -y mamba
-RUN mamba env create -f /app/environment.yaml
+#RUN conda install -y mamba
+RUN conda env create -f /app/environment.yaml
 RUN conda clean --all --yes
 
 WORKDIR /app
