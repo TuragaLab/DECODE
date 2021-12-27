@@ -120,11 +120,12 @@ def live_engine_setup(param_file: str,
         decode.utils.param_io.ParamHandling.convert_param_debug(param)
 
     """Hardware / Server stuff."""
+    device = param.Hardware.device
     if torch.cuda.is_available():
         _, device_ix = decode.utils.hardware._specific_device_by_str(param.Hardware.device)
         if device_ix is not None:
             # do this instead of set env variable, because torch is inevitably already imported
-            torch.cuda.set_device(param.Hardware.device)
+            torch.cuda.set_device(device)
     elif not torch.cuda.is_available():
         device = 'cpu'
 
