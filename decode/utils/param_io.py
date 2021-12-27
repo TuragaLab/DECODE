@@ -1,5 +1,7 @@
 import json
 import pathlib
+
+import omegaconf.listconfig
 from omegaconf import OmegaConf
 from pathlib import Path
 from typing import Union
@@ -17,9 +19,8 @@ class Param(OmegaConf):
 
     @classmethod
     def load(cls, f, fill: bool = True):
-        p = super().load(f)
-        if fill:
-            p.merge_with(cls.load_ref())
+        p = cls.load_ref() if fill else cls()
+        p.merge_with(super().load(f))
 
         return p
 
@@ -29,8 +30,6 @@ class Param(OmegaConf):
 
         p = pkg_resources.open_text(reference_files, 'reference.yaml')
         return super().load(p)
-
-
 
 
 class ParamHandling:
@@ -180,13 +179,13 @@ def autoset_scaling(param):
 
     param.Scaling.z_max = set_if_none(param.Scaling.z_max, param.Simulation.emitter_extent[2][1] * 1.2)
     if param.Scaling.input_offset is None:
-        if isinstance(param.Simulation.bg_uniform, (list, tuple)):
+        if hasattr(param.Simulation.bg_uniform, "__getattr__"):
             param.Scaling.input_offset = (param.Simulation.bg_uniform[1] + param.Simulation.bg_uniform[0]) / 2
         else:
             param.Scaling.input_offset = param.Simulation.bg_uniform
 
     if param.Scaling.bg_max is None:
-        if isinstance(param.Simulation.bg_uniform, (list, tuple)):
+        if hasattr(param.Simulation.bg_uniform, "__getattr__"):
             param.Scaling.bg_max = param.Simulation.bg_uniform[1] * 1.2
         else:
             param.Scaling.bg_max = param.Simulation.bg_uniform * 1.2

@@ -68,6 +68,7 @@ def live_engine_setup(param_file: str,
     overwrites = overwrites.split(" ") if overwrites is not None else []
     overwrites = OmegaConf.from_cli(overwrites)
     param.merge_with(overwrites)
+    print(f"CLI Overwrites: {overwrites}")
 
     # add meta information
     param.Meta.version = decode.utils.bookkeeping.decode_state()
@@ -90,7 +91,7 @@ def live_engine_setup(param_file: str,
 
     """Set up unique folder for experiment"""
     if not from_ckpt:
-        experiment_path = Path(param.InOut.experiment_out) / experiment_id
+        experiment_path = Path(param.InOut.model_dir) / experiment_id
     else:
         experiment_path = Path(param.InOut.checkpoint_init).parent
 
@@ -111,7 +112,9 @@ def live_engine_setup(param_file: str,
     shutil.copy(param_file, param_backup_in)
 
     param_backup = experiment_path / Path('param_run').with_suffix(param_file.suffix)
-    decode.utils.param_io.ParamHandling().write_params(param_backup, param)
+    OmegaConf.save(param, param_backup)
+
+    param = decode.utils.param_io.RecursiveNamespace(**OmegaConf.to_container(param))
 
     if debug:
         decode.utils.param_io.ParamHandling.convert_param_debug(param)
@@ -141,7 +144,7 @@ def live_engine_setup(param_file: str,
         logger = decode.neuralfitter.utils.logger.NoLog()
 
     else:
-        log_folder = log_folder + '/' + experiment_id
+        log_folder = param.InOut.log_dir + '/' + experiment_id
 
         logger = decode.neuralfitter.utils.logger.MultiLogger(
             [decode.neuralfitter.utils.logger.SummaryWriter(log_dir=log_folder,
