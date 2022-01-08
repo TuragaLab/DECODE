@@ -73,51 +73,34 @@ def live_engine_setup(param_file: str,
     # add meta information
     param.Meta.version = decode.utils.bookkeeping.decode_state()
 
-    """Experiment ID"""
-    if not debug:
-        if param.InOut.checkpoint_init is None:
-            if param.InOut.run_id is not None:
-                experiment_id = param.InOut.run_id
-            else:
-                experiment_id = datetime.datetime.now().strftime(
-                    "%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
-            from_ckpt = False
-        else:
-            from_ckpt = True
-            experiment_id = Path(param.InOut.checkpoint_init).parent.name
-    else:
-        experiment_id = 'debug'
-        from_ckpt = False
-
-    """Set up unique folder for experiment"""
-    if not from_ckpt:
-        experiment_path = Path(param.InOut.model_dir) / experiment_id
-    else:
-        experiment_path = Path(param.InOut.checkpoint_init).parent
-
-    if not experiment_path.parent.exists():
-        experiment_path.parent.mkdir()
-
-    if not from_ckpt:
-        if debug:
-            experiment_path.mkdir(exist_ok=True)
-        else:
-            experiment_path.mkdir(exist_ok=False)
-
-    model_out = experiment_path / Path('model.pt')
-    ckpt_path = experiment_path / Path('ckpt.pt')
-
-    # Backup the parameter file under the network output path with the experiments ID
-    param_backup_in = experiment_path / Path('param_run_in').with_suffix(param_file.suffix)
-    shutil.copy(param_file, param_backup_in)
-
-    param_backup = experiment_path / Path('param_run').with_suffix(param_file.suffix)
-    OmegaConf.save(param, param_backup)
-
-    param = decode.utils.param_io.RecursiveNamespace(**OmegaConf.to_container(param))
+    """Setup paths"""
+    from_ckpt = False
 
     if debug:
         decode.utils.param_io.ParamHandling.convert_param_debug(param)
+        raise NotImplementedError
+    elif param.InOut.checkpoint_init is not None:
+        from_ckpt = True
+        raise NotImplementedError
+    else:
+        if param.InOut.run_id is None:
+            run_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + '_' + socket.gethostname()
+        else:
+            run_id = param.InOut.run_id
+        model_path = Path(param.InOut.model_dir) / run_id
+        model_path.mkdir(exist_ok=True)
+
+    model_out = model_path / Path('model.pt')
+    ckpt_path = model_path / Path('ckpt.pt')
+
+    # Backup the parameter file under the network output path with the experiments ID
+    param_backup_in = model_path / Path('param_run_in').with_suffix(param_file.suffix)
+    shutil.copy(param_file, param_backup_in)
+
+    param_backup = model_path / Path('param_run').with_suffix(param_file.suffix)
+    OmegaConf.save(param, param_backup)
+
+    param = decode.utils.param_io.RecursiveNamespace(**OmegaConf.to_container(param))
 
     """Hardware / Server stuff."""
     device = param.Hardware.device
@@ -145,7 +128,7 @@ def live_engine_setup(param_file: str,
         logger = decode.neuralfitter.utils.logger.NoLog()
 
     else:
-        log_folder = param.InOut.log_dir + '/' + experiment_id
+        log_folder = param.InOut.log_dir + '/' + run_id
 
         logger = decode.neuralfitter.utils.logger.MultiLogger(
             [decode.neuralfitter.utils.logger.SummaryWriter(log_dir=log_folder,
@@ -169,7 +152,7 @@ def live_engine_setup(param_file: str,
         lr_scheduler.load_state_dict(ckpt.lr_sched_state)
         first_epoch = ckpt.step + 1
         model = model.train()
-        print(f'Resuming training from checkpoint ' + experiment_id)
+        print(f'Resuming training from checkpoint ' + run_id)
     else:
         first_epoch = 0
 
