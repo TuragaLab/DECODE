@@ -31,6 +31,10 @@ You can find these here:
 
 Details about the installation can be found in the [documentation](https://decode.readthedocs.io).
 
+### DECODE cloud
+Please reach out to Lucas (lrm@lrm.dev) if you want to use DECODE, but you do not have the right hardware, or
+want to use it at a larger scale.
+
 ## Video Tutorial
 As part of the virtual [I2K 2020](https://www.janelia.org/you-janelia/conferences/from-images-to-knowledge-with-imagej-friends) conference we organized a workshop on DECODE.
 Please find the video below.
@@ -52,7 +56,7 @@ The data referred to in our paper can be accessed at the following locations:
 ## Contributors
 If you want to get in touch, the best way to get your questions answered is our [**GitHub discussions page**](https://github.com/TuragaLab/DECODE/discussions)
 - Artur Speiser ([@aspeiser](https://github.com/ASpeiser), arturspeiser@gmail.com)
-- Lucas-Raphael Müller ([@haydnspass](https://github.com/Haydnspass), lucasraphaelmueller@gmail.com)
+- Lucas-Raphael Müller ([@haydnspass](https://github.com/Haydnspass), lrm@lrm.dev)
 
 ## Support
 
