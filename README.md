@@ -8,7 +8,7 @@ localization microscopy (SMLM). It has high accuracy for a large range of imagin
 conditions. 
 On the public [SMLM 2016](http://bigwww.epfl.ch/smlm/challenge2016/) software benchmark competition,
 it [outperformed](http://bigwww.epfl.ch/smlm/challenge2016/leaderboard.html) all other fitters on 
-12 out of 12 data-sets when comparing both detection accuracy and localization error, often by a 
+12 out of 12 data-sets on both detection accuracy and localization error, often by a 
 substantial margin. DECODE enables live-cell SMLM data with reduced light exposure in just 3 
 seconds and to image microtubules at ultra-high labeling density.
 
