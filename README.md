@@ -13,7 +13,7 @@ substantial margin. DECODE enables live-cell SMLM data with reduced light exposu
 seconds and to image microtubules at ultra-high labeling density.
 
 DECODE works by training a DEep COntext DEpendent (DECODE) neural network to detect and localize 
-emitters at sub-pixel resolution. Notably, DECODE also predict detection and localization 
+emitters at sub-pixel resolution. Notably, DECODE also predicts detection and localization 
 uncertainties, which can be used to generate superior super-resolution reconstructions.
 
 ## Getting started
