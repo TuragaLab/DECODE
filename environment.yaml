@@ -20,7 +20,7 @@ dependencies:
   - pydata-sphinx-theme
 
   # actual package
-  - python=3.8
+  - python>=3.8
   - pytorch=1.7.1
   - cpuonly  # or cudatoolkit
   - click
@@ -41,6 +41,3 @@ dependencies:
   - tensorboard
   - tifffile>=2020.2
   - tqdm
-
-  # add kernel to jupyter
-  - ipykernel
