@@ -18,8 +18,8 @@ uncertainties, which can be used to generate superior super-resolution reconstru
 
 ## Getting started
 
-The easiest way to try out the algorithm is to have a look at the Google Colab Notebooks we provide
-for training our algorithm and fitting experimental data. For installation instructions and further 
+The easiest way to try out the algorithm is to have a look at the Google Colab Notebooks. 
+We provide them for training our algorithm and fitting experimental data. For installation instructions and further 
 information please **refer to our** [**docs**](https://decode.readthedocs.io).
 You can find these here:
 
