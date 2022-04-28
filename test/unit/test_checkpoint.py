@@ -1,7 +1,7 @@
 from pathlib import Path
 import pytest
 
-from ..utils import checkpoint
+from decode.utils import checkpoint
 
 
 class TestCheckpoint:

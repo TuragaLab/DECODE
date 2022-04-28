@@ -4,14 +4,14 @@ import pytest
 
 import decode.utils.param_io as wlp
 from decode.utils import types
-from . import asset_handler
+from test.unit import asset_handler
 
 """Root folder"""
 test_dir = str(Path(__file__).resolve().parent)
 
 
 def test_load_params():
-    filename = test_dir / Path('assets/test_param_for_load.json')
+    filename = test_dir / Path('../assets/test_param_for_load.json')
     asset_handler.AssetHandler().auto_load(filename)
     _ = wlp.ParamHandling().load_params(filename)
 
@@ -80,7 +80,7 @@ def test_autofill_dict(mode_missing):
 
 
 def test_write_param():
-    filename = test_dir / Path('assets/test_param_for_load.json')
+    filename = test_dir / Path('../assets/test_param_for_load.json')
     asset_handler.AssetHandler().auto_load(filename)
     param = wlp.ParamHandling().load_params(filename)
 

@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 from .asset_handler import RMAfterTest
-from ..test import asset_handler
-from .. import test
+from . import asset_handler
+import test
 
 
 class TestAssetHandler:

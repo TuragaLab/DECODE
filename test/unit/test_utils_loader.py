@@ -3,9 +3,9 @@ import requests
 
 import pytest
 
-from . import null_hash
+from test import null_hash
 from .asset_handler import RMAfterTest
-from ..utils import loader
+from decode.utils import loader
 
 
 def test_check():

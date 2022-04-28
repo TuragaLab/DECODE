@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from decode.test import asset_handler
+from test.unit import asset_handler
 from decode.utils import notebooks
 
 

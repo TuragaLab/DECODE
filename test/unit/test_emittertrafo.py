@@ -1,8 +1,8 @@
 import torch
 
 import decode
-from ..generic import test_utils
-from ..utils import emitter_trafo
+from decode.generic import test_utils
+from decode.utils import emitter_trafo
 
 
 def test_emitter_transformation():

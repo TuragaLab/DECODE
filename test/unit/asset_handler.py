@@ -7,7 +7,7 @@ import shutil
 import click
 import yaml
 
-from ..utils import loader
+from decode.utils import loader
 
 
 class RMAfterTest:
@@ -39,7 +39,8 @@ class RMAfterTest:
 
 
 class AssetHandler:
-    asset_list_path = pathlib.Path(__file__).resolve().parent / pathlib.Path("assets/asset_list.yaml")
+    asset_list_path = pathlib.Path(__file__).resolve().parent / pathlib.Path(
+        "../assets/asset_list.yaml")
 
     def __init__(self):
 
