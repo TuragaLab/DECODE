@@ -56,7 +56,7 @@ class TestRendererIndividual2D:
     def em(self):
         """Setup"""
         xyz = torch.rand(100, 3) * torch.Tensor([[100., 100., 1000.]])
-        return emitter.EmitterSet(xyz, xyz_sig=xyz*0.1, phot=torch.ones(100), frame_ix=torch.arange(100), xy_unit='nm')
+        return emitter.EmitterSet(xyz, xyz_sig=xyz * 0.1, phot=torch.ones(100), frame_ix=torch.arange(100), xy_unit='nm')
 
     def test_forward(self, rend, em):
         histogram = rend.forward(em, torch.arange(len(em)))

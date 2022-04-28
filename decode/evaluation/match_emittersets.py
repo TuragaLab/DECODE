@@ -5,7 +5,7 @@ from collections import namedtuple
 import numpy as np
 import torch
 
-from decode.generic import emitter as emitter
+from ..emitter.emitter import EmitterSet
 
 
 class EmitterMatcher(ABC):
@@ -20,7 +20,7 @@ class EmitterMatcher(ABC):
         super().__init__()
 
     @abstractmethod
-    def forward(self, output: emitter.EmitterSet, target: emitter.EmitterSet) -> _return_match:
+    def forward(self, output: EmitterSet, target: EmitterSet) -> _return_match:
         """
         All implementations shall implement this forward method which takes output and reference set of emitters
         and outputs true positives, false positives, false negatives and matching ground truth (matched to the true positives).
@@ -30,7 +30,7 @@ class EmitterMatcher(ABC):
             target: reference set of emitters
 
         Returns:
-            (emitter.EmitterSet, emitter.EmitterSet, emitter.EmitterSet, emitter.EmitterSet)
+            (EmitterSet, EmitterSet, EmitterSet, EmitterSet)
 
                 - **tp**: true positives
                 - **fp**: false positives
@@ -189,7 +189,7 @@ class GreedyHungarianMatching(EmitterMatcher):
 
         return tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool
 
-    def forward(self, output: emitter.EmitterSet, target: emitter.EmitterSet):
+    def forward(self, output: EmitterSet, target: EmitterSet):
 
         """Setup split in frames. Determine the frame range automatically so as to cover everything."""
         if len(output) >= 1 and len(target) >= 1:
@@ -221,10 +221,10 @@ class GreedyHungarianMatching(EmitterMatcher):
             fnl.append(tar_f[~tp_match_ix_bool])
 
         """Concat them back"""
-        tp = emitter.EmitterSet.cat(tpl)
-        fp = emitter.EmitterSet.cat(fpl)
-        fn = emitter.EmitterSet.cat(fnl)
-        tp_match = emitter.EmitterSet.cat(tpml)
+        tp = EmitterSet.cat(tpl)
+        fp = EmitterSet.cat(fpl)
+        fn = EmitterSet.cat(fnl)
+        tp_match = EmitterSet.cat(tpml)
 
         """Let tp and tp_match share the same id's. IDs of ground truth are copied to true positives."""
         if (tp_match.id == -1).all().item():

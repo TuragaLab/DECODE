@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 import decode.generic.utils
-from . import slicing as gutil, test_utils as tutil
+from decode.generic import slicing as gutil, test_utils as tutil
 
 
 class EmitterSet:

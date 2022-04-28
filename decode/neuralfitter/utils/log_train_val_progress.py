@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import torch
 import seaborn as sns
 
-import decode.generic.emitter
+import decode.emitter
 from decode.evaluation.evaluation import WeightedErrors
 from decode.evaluation import predict_dist
 from decode.plot import frame_coord
@@ -23,7 +23,7 @@ def log_frames(x, y_out, y_tar, weight, em_out, em_tar, tp, tp_match, logger, st
     y_tar = y_tar[r_ix] if y_tar is not None else None
     weight = weight[r_ix] if weight is not None else None
 
-    assert isinstance(em_tar, decode.generic.emitter.EmitterSet)
+    assert isinstance(em_tar, decode.emitter.EmitterSet)
     em_tar = em_tar.get_subset_frame(r_ix, r_ix)
     em_out = em_out.get_subset_frame(r_ix, r_ix)
     em_tp = tp.get_subset_frame(r_ix, r_ix)

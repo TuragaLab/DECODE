@@ -1,7 +1,7 @@
 import torch
 from typing import Tuple, Union
 
-from ..generic import EmitterSet
+from ..emitter.emitter import EmitterSet
 from . import psf_kernel
 
 
@@ -59,7 +59,7 @@ class Simulation:
     def forward(self, em: EmitterSet, ix_low: Union[None, int] = None, ix_high: Union[None, int] = None) -> Tuple[
         torch.Tensor, torch.Tensor]:
         """
-        Forward an EmitterSet through the simulation pipeline. 
+        Forward an EmitterSet through the simulation pipeline.
         Setting ix_low or ix_high overwrites the frame range specified in the init.
 
         Args:

@@ -4,7 +4,7 @@ from typing import Union
 import torch
 
 from decode.evaluation import predict_dist
-from decode.generic import EmitterSet
+from ..emitter.emitter import EmitterSet
 from decode.generic import process
 from decode.generic.process import RemoveOutOfFOV
 from decode.simulation.psf_kernel import DeltaPSF

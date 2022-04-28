@@ -9,7 +9,7 @@ import pandas as pd
 import torch
 from typing import Union, Tuple, Optional
 
-from decode.generic.emitter import EmitterSet
+from ..emitter.emitter import EmitterSet
 from decode.utils import bookkeeping
 
 minimal_mapping = {k: k for k in ('x', 'y', 'z', 'phot', 'frame_ix')}

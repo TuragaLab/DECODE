@@ -85,10 +85,10 @@ class AmplitudeRescale:
         self.scale = scale if scale is not None else 1.
         self.offset = offset if offset is not None else 0.
 
-    @staticmethod
-    def parse(param):
-        return AmplitudeRescale(scale=param.Scaling.input_scale,
-                                offset=param.Scaling.input_offset)
+    @classmethod
+    def parse(cls, param):
+        return cls(scale=param.Scaling.input_scale,
+                   offset=param.Scaling.input_offset)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """

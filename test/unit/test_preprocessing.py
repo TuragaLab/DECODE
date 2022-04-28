@@ -3,7 +3,7 @@ import torch
 import decode.generic.test_utils as tutil
 import decode.generic.process as prep
 
-from decode.generic.emitter import RandomEmitterSet
+from decode.emitter import RandomEmitterSet
 
 
 def test_identity():

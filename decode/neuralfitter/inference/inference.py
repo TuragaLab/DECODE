@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 
 from .. import dataset
-from ...generic import emitter
+from ...emitter import emitter
 from ...utils import hardware, frames_io
 
 

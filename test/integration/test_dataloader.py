@@ -83,7 +83,7 @@ class TestLiveDataset(Base):
 
     @pytest.fixture()
     def emitter_processing(self):
-        return decode.neuralfitter.em_filter.PhotonFilter(10.)
+        return decode.emitter.em_filter.PhotonFilter(10.)
 
     @pytest.fixture()
     def frame_processing(self):

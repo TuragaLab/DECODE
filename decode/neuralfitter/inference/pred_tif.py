@@ -6,7 +6,7 @@ import torch
 import torch.utils
 from tqdm import tqdm
 
-import decode.generic.emitter as em
+import decode.emitter as em
 from decode.neuralfitter.dataset import InferenceDataset
 from decode.neuralfitter.utils.dataloader_customs import smlm_collate
 

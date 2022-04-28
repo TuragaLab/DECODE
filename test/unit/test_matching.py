@@ -38,14 +38,14 @@ class TestMatcherABC:
 
     @pytest.fixture()
     def can_em_out(self):  # candidate emitter output
-        em = decode.generic.emitter.RandomEmitterSet(1000, xy_unit='nm')
+        em = decode.emitter.RandomEmitterSet(1000, xy_unit='nm')
         em.frame_ix = torch.randint_like(em.frame_ix, 100)
 
         return em
 
     @pytest.fixture()
     def can_em_tar(self, can_em_out):  # candidate emitter target
-        em = decode.generic.emitter.RandomEmitterSet(len(can_em_out), xy_unit='nm')
+        em = decode.emitter.RandomEmitterSet(len(can_em_out), xy_unit='nm')
         em.frame_ix = torch.randint_like(em.frame_ix, 50)
 
         return em

@@ -3,7 +3,7 @@ import time
 import torch
 from torch.utils.data import Dataset
 
-from decode.generic import emitter
+from ..emitter import emitter
 
 
 class SMLMDataset(Dataset):

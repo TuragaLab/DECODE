@@ -2,7 +2,7 @@
 Here we provide some filtering on EmitterSets.
 """
 from abc import ABC, abstractmethod
-from ..generic import EmitterSet
+from .emitter import EmitterSet
 
 
 class EmitterFilter(ABC):

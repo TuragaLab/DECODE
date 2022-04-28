@@ -11,7 +11,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
 
-from ..generic import emitter
+from ..emitter.emitter import EmitterSet
 
 
 class Renderer(ABC):
@@ -36,7 +36,7 @@ class Renderer(ABC):
                 self.abs_clip is None or self.rel_clip is None
         ), "Define either an absolute or a relative value for clipping, but not both"
 
-    def forward(self, em: emitter.EmitterSet) -> torch.Tensor:
+    def forward(self, em: EmitterSet) -> torch.Tensor:
         """
         Forward emitterset through rendering and output rendered data.
 
@@ -46,7 +46,7 @@ class Renderer(ABC):
         """
         raise NotImplementedError
 
-    def render(self, em: emitter.EmitterSet, ax=None):
+    def render(self, em: EmitterSet, ax=None):
         """
         Render emitters
 
@@ -94,7 +94,7 @@ class Renderer2D(Renderer):
 
         self.jet_hue = self._get_jet_cmap()
 
-    def render(self, em: emitter.EmitterSet, col_vec=None, ax=None):
+    def render(self, em: EmitterSet, col_vec=None, ax=None):
         """
         Forward emitterset through rendering and output rendered data.
 
@@ -138,7 +138,7 @@ class Renderer2D(Renderer):
 
         return ax
 
-    def forward(self, em: emitter.EmitterSet, col_vec=None) -> torch.Tensor:
+    def forward(self, em: EmitterSet, col_vec=None) -> torch.Tensor:
         """
         Forward emitterset through rendering and output rendered data.
 
@@ -233,7 +233,7 @@ class Renderer2D(Renderer):
 
         return xextent, yextent, zextent
 
-    def _hist2d(self, em: emitter.EmitterSet, col_vec, x_hist_ext, y_hist_ext, c_range=None):
+    def _hist2d(self, em: EmitterSet, col_vec, x_hist_ext, y_hist_ext, c_range=None):
 
         xy = em.xyz_nm[:, self.plot_axis].numpy()
 
@@ -336,7 +336,7 @@ class RendererIndividual2D(Renderer2D):
 
         return comb_hist
 
-    def _hist2d(self, em: emitter.EmitterSet, col_vec, x_hist_ext, y_hist_ext, c_range=None):
+    def _hist2d(self, em: EmitterSet, col_vec, x_hist_ext, y_hist_ext, c_range=None):
 
         ym, xm = torch.meshgrid(
             torch.linspace(-(self.fs // 2), self.fs // 2, self.fs, device=self.device),

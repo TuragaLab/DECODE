@@ -9,7 +9,7 @@ from sklearn.cluster import AgglomerativeClustering
 
 import decode.simulation.background
 from decode.evaluation import match_emittersets
-from decode.generic.emitter import EmitterSet, EmptyEmitterSet
+from ..emitter.emitter import EmitterSet, EmptyEmitterSet
 from decode.neuralfitter.utils.probability import binom_pdiverse
 
 

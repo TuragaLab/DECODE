@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-import decode.generic.emitter as emitter
+import decode.emitter as emitter
 import decode.simulation.background as background
 import decode.simulation.psf_kernel as psf_kernel
 import decode.simulation.simulator as can  # test candidate

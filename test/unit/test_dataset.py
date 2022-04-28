@@ -4,10 +4,9 @@ import pytest
 import torch
 
 import decode
-import decode.generic.emitter
+import decode.emitter
 import decode.neuralfitter.dataset as can  # candidate
 import decode.neuralfitter.target_generator
-from decode.neuralfitter import em_filter
 from decode.simulation.simulator import Simulation
 
 decode_root = pathlib.Path(decode.__file__).parent.parent  # 'repo' directory
@@ -22,7 +21,7 @@ class TestDataset:
                 return x.clamp(0., 0.5)
 
         class DummyEmProc:
-            def forward(em: decode.generic.emitter.EmitterSet):
+            def forward(em: decode.emitter.EmitterSet):
                 return em[em.xyz[:, 0] <= 16]
 
         class DummyWeight:
@@ -31,7 +30,7 @@ class TestDataset:
 
         n = 100
 
-        em = decode.generic.emitter.RandomEmitterSet(n * 100)
+        em = decode.emitter.RandomEmitterSet(n * 100)
         em.frame_ix = torch.randint_like(em.frame_ix, n + 1)
 
         dataset = can.SMLMStaticDataset(frames=torch.rand((n, 32, 32)), emitter=em.split_in_frames(0, n - 1),
@@ -212,7 +211,7 @@ class TestSMLMAPrioriDataset:
         ds.sample()
 
         """Assertions"""
-        assert isinstance(ds._emitter, decode.generic.emitter.EmitterSet)
+        assert isinstance(ds._emitter, decode.emitter.EmitterSet)
         assert isinstance(ds._em_split, list)
 
     def test_len(self, ds):

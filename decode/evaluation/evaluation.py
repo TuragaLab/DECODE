@@ -8,8 +8,8 @@ import seaborn as sns
 import torch
 
 from decode.evaluation.metric import precision_recall_jaccard, rmse_mad_dist, efficiency
-from ..generic import emitter as emitter
-from ..generic.emitter import EmitterSet
+from .. import emitter
+from ..emitter.emitter import EmitterSet
 
 
 class SegmentationEvaluation:
@@ -225,7 +225,7 @@ class WeightedErrors:
 
         return axes
 
-    def forward(self, tp: emitter.EmitterSet, ref: emitter.EmitterSet, plot: bool = False, axes=None) -> namedtuple:
+    def forward(self, tp: EmitterSet, ref: EmitterSet, plot: bool = False, axes=None) -> namedtuple:
         """
 
         Args:

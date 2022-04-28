@@ -1,5 +1,5 @@
 import torch
-from decode.generic import emitter
+from ..emitter.emitter import EmitterSet
 
 """
 Predefined transformations, e.g. for the SMLM challenge.
@@ -43,7 +43,7 @@ deepstorm3d_import = {
 }
 
 
-def transform_emitter(em: emitter.EmitterSet, trafo: dict) -> emitter.EmitterSet:
+def transform_emitter(em: EmitterSet, trafo: dict) -> EmitterSet:
     """
     Transform a set of emitters specified by a transformation dictionary. Returns transformed emitterset.
 

@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.distributions.exponential import Exponential
 
-import decode.generic.emitter
+from ..emitter.emitter import EmitterSet, LooseEmitterSet
 from . import structure_prior
 
 
@@ -22,11 +22,11 @@ class EmitterSampler(ABC):
         self.px_size = px_size
         self.xy_unit = xy_unit
 
-    def __call__(self) -> decode.generic.emitter.EmitterSet:
+    def __call__(self) -> EmitterSet:
         return self.sample()
 
     @abstractmethod
-    def sample(self) -> decode.generic.emitter.EmitterSet:
+    def sample(self) -> EmitterSet:
         raise NotImplementedError
 
 
@@ -74,7 +74,7 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
     def em_avg(self) -> float:
         return self._em_avg
 
-    def sample(self) -> decode.generic.emitter.EmitterSet:
+    def sample(self) -> EmitterSet:
         """
         Sample an EmitterSet.
 
@@ -86,7 +86,7 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
 
         return self.sample_n(n=n)
 
-    def sample_n(self, n: int) -> decode.generic.emitter.EmitterSet:
+    def sample_n(self, n: int) -> EmitterSet:
         """
         Sample 'n' emitters, i.e. the number of emitters is given and is not sampled from the Poisson dist.
 
@@ -101,11 +101,11 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
         xyz = self.structure.sample(n)
         phot = torch.randint(*self.photon_range, (n,))
 
-        return decode.generic.emitter.EmitterSet(xyz=xyz, phot=phot,
-                                                 frame_ix=torch.zeros_like(phot).long(),
-                                                 id=torch.arange(n).long(),
-                                                 xy_unit=self.xy_unit,
-                                                 px_size=self.px_size)
+        return EmitterSet(xyz=xyz, phot=phot,
+                                         frame_ix=torch.zeros_like(phot).long(),
+                                         id=torch.arange(n).long(),
+                                         xy_unit=self.xy_unit,
+                                         px_size=self.px_size)
 
 
 class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
@@ -185,7 +185,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
     def sample_n(self, *args, **kwargs):
         raise NotImplementedError
 
-    def sample_loose_emitter(self, n) -> decode.generic.emitter.LooseEmitterSet:
+    def sample_loose_emitter(self, n) -> LooseEmitterSet:
         """
         Generate loose EmitterSet. Loose emitters are emitters that are not yet binned to frames.
 
@@ -206,8 +206,8 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         t0 = self.t0_dist.sample((n,))
         ontime = self.lifetime_dist.rsample((n,))
 
-        return decode.generic.emitter.LooseEmitterSet(xyz, intensity, ontime, t0, id=torch.arange(n).long(),
-                                                      xy_unit=self.xy_unit, px_size=self.px_size)
+        return decode.emitter.LooseEmitterSet(xyz, intensity, ontime, t0, id=torch.arange(n).long(),
+                                              xy_unit=self.xy_unit, px_size=self.px_size)
 
     @classmethod
     def parse(cls, param, structure, frames: tuple):

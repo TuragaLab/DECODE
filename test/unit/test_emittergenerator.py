@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-import decode.generic.emitter as em
+import decode.emitter as em
 import decode.simulation.emitter_generator as emgen
 from decode.generic import test_utils
 from decode.simulation.structure_prior import RandomStructure

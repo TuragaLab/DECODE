@@ -5,8 +5,8 @@ from typing import Union
 import torch
 import torch.nn
 
-import decode.generic.emitter as emc
 import decode.simulation.psf_kernel as psf_kernel
+from ..emitter import emitter as emc
 from . import target_generator
 
 
