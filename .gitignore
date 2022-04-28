@@ -146,29 +146,3 @@ dmypy.json
 
 # VS Code
 .vscode
-
-# spikes
-decode/cpp_src/spikes/
-
-# libs
-/decode/cpp_src/lib/
-/runs_gpu7/
-/network_gpu7/
-/log_gpu7
-config_central
-data_central
-network_central
-network_gpu7
-network_pcries20
-runs_gpu7
-pre_processing.py.lprof
-decode/cpp_src/src/a.out
-decode/cpp_src/src/spline_psf_cuda.cu
-decode/cpp_src/src/spline_psf.c.gcov
-decode/cpp_src/src/spline_psf.gcda
-decode/cpp_src/src/spline_psf.gcno
-decode/test/assets/7_dataset.pt
-decode/test/assets/8_dataset.pt
-decode/test/assets/9_dataset.pt
-/decode/cpp_src/lib/eigen/
-.DS_Store
