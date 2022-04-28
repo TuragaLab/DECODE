@@ -203,6 +203,17 @@ class EmitterSet:
             'bg_sig': self.bg_sig,
         }
 
+    @property
+    def single_frame(self) -> bool:
+        """
+        Check if all emitters are on the same frame.
+
+        Returns:
+            bool
+
+        """
+        return True if torch.unique(self.frame_ix).shape[0] == 1 else False
+
     def dim(self) -> int:
         """
         Returns dimensionality of coordinates. If z is 0 everywhere, it returns 2, else 3.
@@ -644,7 +655,7 @@ class EmitterSet:
                           xyz_cr=self.xyz_cr[ix], phot_cr=self.phot_cr[ix], bg_cr=self.bg_cr[ix],
                           sanity_check=False, xy_unit=self.xy_unit, px_size=self.px_size)
 
-    def get_subset_frame(self, frame_start, frame_end, frame_ix_shift=None):
+    def get_subset_frame(self, frame_start: int, frame_end: int, frame_ix_shift=None):
         """
         Returns emitters that are in the frame range as specified.
 
@@ -666,17 +677,6 @@ class EmitterSet:
             em.frame_ix += frame_ix_shift
 
         return em
-
-    @property
-    def single_frame(self) -> bool:
-        """
-        Check if all emitters are on the same frame.
-
-        Returns:
-            bool
-
-        """
-        return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
     def chunks(self, chunks: int):
         """
