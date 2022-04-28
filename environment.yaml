@@ -1,11 +1,10 @@
 name: decode_dev
 
 channels:
-#  - turagalab/label/dev
-#  - turagalab/label/rc
+  #  - turagalab/label/dev
+  #  - turagalab/label/rc
   - turagalab
   - pytorch
-  - nvidia
   - conda-forge
 
 dependencies:
@@ -21,8 +20,8 @@ dependencies:
 
   # actual package
   - python>=3.8,<4
-  - pytorch=1.7.1
-  - cpuonly  # or cudatoolkit
+  - pytorch=1.11
+  - cpuonly  # or - cudatoolkit=11.3
   - click
   - deprecated
   - gitpython>=3.1
