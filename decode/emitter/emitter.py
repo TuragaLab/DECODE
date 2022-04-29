@@ -33,8 +33,10 @@ class EmitterSet:
     _power_auto_conversion_attrs = {'xyz_cr': 2, 'xyz_sig': 1}
     _xy_units = ('px', 'nm')
 
-    def __init__(self, xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.LongTensor,
-                 id: torch.LongTensor = None, prob: torch.Tensor = None, bg: torch.Tensor = None,
+    def __init__(self,
+                 xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.LongTensor,
+                 id: torch.LongTensor = None, color: torch.Tensor = None,
+                 prob: torch.Tensor = None, bg: torch.Tensor = None,
                  xyz_cr: torch.Tensor = None, phot_cr: torch.Tensor = None, bg_cr: torch.Tensor = None,
                  xyz_sig: torch.Tensor = None, phot_sig: torch.Tensor = None, bg_sig: torch.Tensor = None,
                  sanity_check: bool = True, xy_unit: str = None, px_size: Union[tuple, torch.Tensor] = None):
@@ -46,6 +48,7 @@ class EmitterSet:
             phot: Photon count of size :math:`N`
             frame_ix: Index on which the emitter appears. Must be integer type. Size :math:`N`
             id: Identity the emitter. Must be tensor integer type and the same type as frame_ix. Size :math:`N`
+            color: Color representation of the emitter, size :math:`(N)`
             prob: Probability estimate of the emitter. Size :math:`N`
             bg: Background estimate of emitter. Size :math:`N`
             xyz_cr: Cramer-Rao estimate of the emitters position. Size :math:`(N,3)`
@@ -64,6 +67,7 @@ class EmitterSet:
         self.phot = None
         self.frame_ix = None
         self.id = None
+        self.color = None
         self.prob = None
         self.bg = None
 
@@ -662,7 +666,7 @@ class EmitterSet:
         Args:
             frame_start: (int) lower frame index limit
             frame_end: (int) upper frame index limit (including)
-            frame_ix_shift:
+            frame_ix_shift: shift frame index (additive)
 
         Returns:
 
@@ -751,17 +755,16 @@ class EmitterSet:
         Splits a set of emitters in a list of emittersets based on their respective frame index.
 
         Args:
-            ix_low: (int, 0) lower bound
-            ix_up: (int, None) upper bound
+            ix_low: lower frame index
+            ix_high: upper frame index (pythonic, exclusive)
 
         Returns:
-            list
-
+            list of emitters
         """
 
         """The first frame is assumed to be 0. If it's negative go to the lowest negative."""
         ix_low = ix_low if ix_low is not None else self.frame_ix.min().item()
-        ix_up = ix_up if ix_up is not None else self.frame_ix.max().item()
+        ix_up = ix_up if ix_up is not None else self.frame_ix.max().item() + 1
 
         return gutil.split_sliceable(x=self, x_ix=self.frame_ix, ix_low=ix_low, ix_high=ix_up)
 

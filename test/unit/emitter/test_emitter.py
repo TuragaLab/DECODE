@@ -208,21 +208,19 @@ class TestEmitterSet:
         assert len(splits[1]) == 2
         assert len(splits[-1]) == 2
 
-    def test_split_in_frames(self, em2d, em3d):
-        splits = em2d.split_in_frames(None, None)
-        assert splits.__len__() == 1
+    @pytest.mark.parametrize("em,exp_len", [
+        ("em2d", 1),
+        ("em3d", 24),
+    ])
+    def test_split_in_frames(self, em: EmitterSet, exp_len, request):
+        em = request.getfixturevalue(em)
+        splits = em.split_in_frames(None, None)
+        assert len(splits) == exp_len
 
-        splits = em3d.split_in_frames(None, None)
-        assert em3d.frame_ix.max() - em3d.frame_ix.min() + 1 == len(splits)
-
-        """Test negative numbers in Frame ix."""
-        neg_frames = EmitterSet(torch.rand((3, 3)),
-                                torch.rand(3),
-                                torch.tensor([-1, 0, 1]))
-        splits = neg_frames.split_in_frames(None, None)
-        assert splits.__len__() == 3
-        splits = neg_frames.split_in_frames(0, None)
-        assert splits.__len__() == 2
+        # test negative frame indices
+        em.frame_ix -= 2
+        splits = em.split_in_frames(None, None)
+        assert len(splits) == exp_len
 
     def test_adjacent_frame_split(self):
         xyz = torch.rand((500, 3))
