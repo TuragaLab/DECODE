@@ -665,14 +665,14 @@ class EmitterSet:
 
         Args:
             frame_start: (int) lower frame index limit
-            frame_end: (int) upper frame index limit (including)
+            frame_end: (int) upper frame index limit (pythonic, exclusive)
             frame_ix_shift: shift frame index (additive)
 
         Returns:
 
         """
 
-        ix = (self.frame_ix >= frame_start) * (self.frame_ix <= frame_end)
+        ix = (self.frame_ix >= frame_start) * (self.frame_ix < frame_end)
         em = self[ix]
 
         if not frame_ix_shift:
@@ -682,7 +682,7 @@ class EmitterSet:
 
         return em
 
-    def chunks(self, chunks: int):
+    def chunks(self, chunks: int) -> list:
         """
         Splits the EmitterSet into (almost) equal chunks
 
@@ -690,8 +690,7 @@ class EmitterSet:
             chunks (int): number of splits
 
         Returns:
-            list: of emittersets
-
+            list: of emitters
         """
         n = len(self)
         l = self
@@ -737,7 +736,7 @@ class EmitterSet:
 
         return self[filt_sig]
 
-    def hist_detection(self) -> dict():
+    def hist_detection(self) -> dict:
         """
         Compute hist for detection associated attributes.
 
@@ -842,17 +841,41 @@ class EmitterSet:
 
 
 class RandomEmitterSet(EmitterSet):
-    """
-    A helper calss when we only want to provide a number of emitters.
-    """
+    def __init__(self,
+                 num_emitters: int = None, *,
+                 xyz: torch.Tensor = None,
+                 phot: torch.Tensor = None,
+                 frame_ix: torch.Tensor = None,
+                 id: torch.Tensor = None,
+                 extent: float = 32,
+                 xy_unit: str = 'px',
+                 px_size: tuple = None):
+        """
+        Construct random emitters either by the bare number or by an attribute.
+        """
 
-    def __init__(self, num_emitters: int, extent: float = 32, xy_unit: str = 'px', px_size: tuple = None):
-        xyz = torch.rand((num_emitters, 3)) * extent
-        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).long(),
-                         xy_unit=xy_unit, px_size=px_size)
+        n = self._none_length(xyz, phot, frame_ix, id)
+        if n is None:
+            n = num_emitters
+
+        em_kwargs = {
+            "xyz": torch.rand((n, 3)) * extent if xyz is None else xyz,
+            "phot": torch.ones(n) if phot is None else phot,
+            "frame_ix": torch.zeros(n).long() if frame_ix is None else frame_ix,
+            "id": torch.arange(n) if id is None else id,
+        }
+
+        super().__init__(**em_kwargs, xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
         super().__init__(**em.to_dict(), sanity_check=False)
+
+    @staticmethod
+    def _none_length(*args):
+        for arg in args:
+            if arg is not None:
+                return len(arg)
+        return
 
 
 class CoordinateOnlyEmitter(EmitterSet):

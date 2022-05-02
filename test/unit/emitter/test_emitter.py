@@ -1,9 +1,9 @@
-from pathlib import Path
-from unittest import mock
-
 import numpy as np
 import pytest
 import torch
+from hypothesis import strategies, given, settings, note
+from pathlib import Path
+from unittest import mock
 
 from decode.generic import test_utils
 from decode import EmitterSet, EmptyEmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
@@ -208,42 +208,58 @@ class TestEmitterSet:
         assert len(splits[1]) == 2
         assert len(splits[-1]) == 2
 
-    @pytest.mark.parametrize("em,exp_len", [
-        ("em2d", 1),
-        ("em3d", 24),
-    ])
-    def test_split_in_frames(self, em: EmitterSet, exp_len, request):
-        em = request.getfixturevalue(em)
-        splits = em.split_in_frames(None, None)
-        assert len(splits) == exp_len
+    @settings(max_examples=100)
+    @given(
+        frame_ix=strategies.lists(
+            strategies.integers(min_value=int(-1e6), max_value=int(1e6))),
+        ix_range=strategies.tuples(
+            strategies.integers(min_value=int(-1e6), max_value=int(1e6)),
+            strategies.integers(min_value=int(-1e6), max_value=int(1e6)))
+    )
+    def test_get_subset_frames(self, frame_ix, ix_range):
+        xyz = torch.rand((len(frame_ix), 3))
+        frame_ix = torch.LongTensor(frame_ix)
+        em = EmitterSet(xyz=xyz, phot=torch.ones_like(frame_ix), frame_ix=frame_ix)
 
-        # test negative frame indices
-        em.frame_ix -= 2
-        splits = em.split_in_frames(None, None)
-        assert len(splits) == exp_len
+        ix_range = sorted(ix_range)
+        em_out = em.get_subset_frame(*ix_range)
 
-    def test_adjacent_frame_split(self):
-        xyz = torch.rand((500, 3))
-        phot = torch.rand_like(xyz[:, 0])
-        frame_ix = torch.randint_like(xyz[:, 0], low=-1, high=2).int()
-        em = EmitterSet(xyz, phot, frame_ix)
+        if len(em) == 0 or ix_range[0] == ix_range[1]:
+            assert len(em_out) == 0
 
-        em_split = em.split_in_frames(-1, 1)
-        assert (em_split[0].frame_ix == -1).all()
-        assert (em_split[1].frame_ix == 0).all()
-        assert (em_split[2].frame_ix == 1).all()
+        elif len(em_out) == 0:
+            # below lower end or above upper end
+            assert set(torch.arange(*ix_range).tolist())\
+                .isdisjoint(set(em.frame_ix.tolist()))
 
-        em_split = em.split_in_frames(0, 0)
-        assert em_split.__len__() == 1
-        assert (em_split[0].frame_ix == 0).all()
+        else:
+            assert em_out.frame_ix.min() >= ix_range[0]
+            assert em_out.frame_ix.max() < ix_range[1]
 
-        em_split = em.split_in_frames(-1, -1)
-        assert em_split.__len__() == 1
-        assert (em_split[0].frame_ix == -1).all()
+    @settings(max_examples=100)
+    @given(
+        frame_ix=strategies.lists(
+            strategies.integers(min_value=int(-1e3), max_value=int(1e3))),
+        split_range=strategies.tuples(
+            strategies.integers(min_value=int(-1e3), max_value=int(1e3)),
+            strategies.integers(min_value=int(-1e3), max_value=int(1e3)))
+    )
+    def test_split_in_frames(self, frame_ix, split_range):
+        frame_ix = torch.LongTensor(frame_ix)
+        split_range = sorted(split_range)
 
-        em_split = em.split_in_frames(1, 1)
-        assert em_split.__len__() == 1
-        assert (em_split[0].frame_ix == 1).all()
+        splits = RandomEmitterSet(frame_ix=frame_ix).split_in_frames(*split_range)
+
+        if split_range[0] == split_range[1]:
+            assert len(splits) == 0
+            return
+
+        assert len(splits) == split_range[1] - split_range[0], "Incorrect split length."
+
+        # check that frame indices are correct per split
+        frame_ix_exp = torch.arange(*split_range)
+        for s, f_ix in zip(splits, frame_ix_exp):
+            assert (s.frame_ix == f_ix).all(), "Incorrect frame ix."
 
     def test_cat_emittersets(self):
 
@@ -326,7 +342,7 @@ class TestEmitterSet:
         with pytest.raises(ValueError):
             EmitterSet(xyz, phot, frame_ix)
 
-    @pytest.mark.parametrize("em", [RandomEmitterSet(25, 64, px_size=(100., 125.)),
+    @pytest.mark.parametrize("em", [RandomEmitterSet(25, extent=64, px_size=(100., 125.)),
                                     EmptyEmitterSet(xy_unit='nm', px_size=(100., 125.))])
     def test_inplace_replace(self, em):
         em_start = RandomEmitterSet(25, xy_unit='px', px_size=None)
@@ -384,7 +400,30 @@ class TestEmitterSet:
 
 def test_empty_emitterset():
     em = EmptyEmitterSet()
-    assert 0 == len(em)
+    assert len(em) == 0
+
+
+@pytest.mark.parametrize("attr,len_exp", [
+    (None, 17),
+    ("xyz", 42),
+    ("phot", 84),
+    ("frame_ix", 122),
+    ("id", 180)
+    ])
+def test_random_emitterset(attr, len_exp):
+    """Test whether random emitterset is constructed from attribute correctly"""
+    if attr is None:
+        em = RandomEmitterSet(num_emitters=len_exp)
+    elif attr == "xyz":
+        em = RandomEmitterSet(xyz=torch.rand((len_exp, 3)))
+    elif attr == "phot":
+        em = RandomEmitterSet(phot=torch.rand(len_exp))
+    elif attr == "frame_ix":
+        em = RandomEmitterSet(frame_ix=torch.randint(0, 1000, size=(len_exp,)))
+    elif attr == "id":
+        em = RandomEmitterSet(id=torch.randint(0, 10000, size=(len_exp, )))
+
+    assert len(em) == len_exp
 
 
 class TestLooseEmitterSet:
