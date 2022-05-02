@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 - New console script entrypoint for training. Write `decode.train` instead of `python -m decode.neuralfitter.train.live_engine`
 
 ### Changed
+- Pythonic indexing for EmitterSets `.split_in_frames` method. Upper index exclusive.
 
 ### Removed
 
