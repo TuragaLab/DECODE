@@ -5,7 +5,20 @@ from typing import Union
 import torch
 
 
-def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8, nan: bool = False) -> bool:
+def equal_none(*args):
+    """tests if all arguments are none"""
+    none = {a is None for a in args}
+    return none == {True}
+
+
+def equal_optional(*args):
+    """tests if either all are none or all are not none"""
+    none = {a is None for a in args}
+    return len(none) == 1
+
+
+def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8,
+               nan: bool = False, none: str = "raise") -> bool:
     """
     Tests if a and b are equal (i.e. all elements are the same) within a given precision. If both tensors have / are
     nan, the function will return False unless nan=True.
@@ -15,11 +28,11 @@ def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8, nan: bool =
         b: second tensor for comparison
         prec: precision comparison
         nan: if true, the function will return true if both tensors are all nan
-
-    Returns:
-        bool
+        none: if true, both none is allowed
 
     """
+    _none_allowed = {"raise", "either", "both"}
+
     if a.type() != b.type():
         raise TypeError("Both tensors must be of equal type.")
 
@@ -27,6 +40,7 @@ def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8, nan: bool =
         a = a.float()
         b = b.float()
 
+    # equal nan values
     if nan:
         if torch.isnan(a).all() and torch.isnan(b).all():
             return True
