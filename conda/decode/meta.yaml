@@ -19,13 +19,14 @@ requirements:
     - numpy {{ numpy }}
 
   run:
-    - python >=3.8,<4
+    - python >=3.7,<4
     - {{ pin_compatible('numpy', max_pin='x.x') }}
     - pytorch=1.11
     - click
     - deprecated
     - gitpython>=3.1
     - h5py
+    - hypothesis
     - importlib_resources
     - matplotlib
     - pandas

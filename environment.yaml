@@ -26,6 +26,7 @@ dependencies:
   - deprecated
   - gitpython>=3.1
   - h5py
+  - hypothesis
   - line_profiler
   - matplotlib
   - pandas
@@ -40,3 +41,7 @@ dependencies:
   - tensorboard
   - tifffile>=2020.2
   - tqdm
+
+  - pip
+  - pip:
+      - zernike
