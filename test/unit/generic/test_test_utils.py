@@ -48,3 +48,13 @@ def test_tens_almeq_equal_none(a, b, exp_both, exp_either):
         assert utils.tens_almeq(a, b, none="both") == exp_both
     # either
     assert utils.tens_almeq(a, b, none="either") == exp_either
+
+
+@pytest.mark.skip(reason="Not yet implemented.")
+def test_same_shape_tensor():
+    raise NotImplementedError
+
+
+@pytest.mark.skip(reason="Not yet implemented.")
+def test_same_dim_tensor():
+    raise NotImplementedError

@@ -111,3 +111,25 @@ def same_weights(model1, model2) -> bool:
         if p1.data.ne(p2.data).sum() > 0:
             return False
     return True
+
+
+def same_shape_tensor(dim, *args) -> bool:
+    """Test if tensors are of same size in a certain dimension."""
+    for i in range(args.__len__() - 1):
+        if args[i].size(dim) == args[i + 1].size(dim):
+            continue
+        else:
+            return False
+
+    return True
+
+
+def same_dim_tensor(*args) -> bool:
+    """Test if tensors are of same dimensionality"""
+    for i in range(args.__len__() - 1):
+        if args[i].dim() == args[i + 1].dim():
+            continue
+        else:
+            return False
+
+    return True

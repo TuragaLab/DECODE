@@ -8,7 +8,8 @@ import numpy as np
 import torch
 
 import decode.generic.utils
-from decode.generic import slicing as gutil, test_utils as tutil
+from decode.generic import slicing
+from decode.generic import test_utils
 
 
 class _Tensor(torch.Tensor):
@@ -442,12 +443,12 @@ class EmitterSet:
             (bool) sane or not sane
         """
         attr_check = [x for x in self.data.values() if x is not None]
-        if not same_shape_tensor(0, *attr_check):
+        if not test_utils.same_shape_tensor(0, *attr_check):
             raise ValueError("Data attributes should be of same length.")
 
         attr_check = [getattr(self, a) for a in ("prob", "frame_ix", "id")
                       if getattr(self, a) is not None]
-        if not same_dim_tensor(torch.ones(1), *attr_check):
+        if not test_utils.same_dim_tensor(torch.ones(1), *attr_check):
             raise ValueError("Expected probability frame index and id to be 1D.")
 
         # motivate to specify an xyz unit.
@@ -539,7 +540,7 @@ class EmitterSet:
         def check_em_dict_equality(em_a: dict, em_b: dict) -> bool:
             for k in em_a.keys():
                 # finally check tensors, reject if one is None and the other is set
-                if not tutil.tens_almeq(em_a[k], em_b[k], nan=True, none="either"):
+                if not test_utils.tens_almeq(em_a[k], em_b[k], nan=True, none="either"):
                     return False
 
             return True
@@ -829,7 +830,7 @@ class EmitterSet:
         ix_low = ix_low if ix_low is not None else self.frame_ix.min().item()
         ix_up = ix_up if ix_up is not None else self.frame_ix.max().item() + 1
 
-        return gutil.split_sliceable(x=self, x_ix=self.frame_ix, ix_low=ix_low, ix_high=ix_up)
+        return slicing.split_sliceable(x=self, x_ix=self.frame_ix, ix_low=ix_low, ix_high=ix_up)
 
     def _pxnm_conversion(self, xyz, in_unit, tar_unit, power: float = 1.):
 
@@ -1109,25 +1110,3 @@ def at_least_one_dim(*args) -> None:
     for arg in args:
         if arg.dim() == 0:
             arg.unsqueeze_(0)
-
-
-def same_shape_tensor(dim, *args) -> bool:
-    """Test if tensors are of same size in a certain dimension."""
-    for i in range(args.__len__() - 1):
-        if args[i].size(dim) == args[i + 1].size(dim):
-            continue
-        else:
-            return False
-
-    return True
-
-
-def same_dim_tensor(*args) -> bool:
-    """Test if tensors are of same dimensionality"""
-    for i in range(args.__len__() - 1):
-        if args[i].dim() == args[i + 1].dim():
-            continue
-        else:
-            return False
-
-    return True
