@@ -4,7 +4,8 @@ import pytest
 import torch
 
 import decode.simulation.background as background
-from decode.generic import emitter, test_utils
+from decode.emitter import emitter
+from decode.generic import test_utils
 
 
 class BackgroundAbstractTest(ABC):
@@ -137,7 +138,7 @@ class TestBgPerEmitterFromBgFrame:
         assert test_utils.tens_almeq(out[2][0, 0, 8, :], 8 * torch.ones_like(out[2][0, 0, 0, :]), 1e-4)
 
     test_data = [
-        (torch.zeros((1, 1, 64, 64)), emitter.RandomEmitterSet(100), torch.zeros((100,))),
+        (torch.zeros((1, 1, 64, 64)), emitter.factory(100), torch.zeros((100,))),
         (torch.meshgrid(torch.arange(64), torch.arange(64))[0].unsqueeze(0).unsqueeze(0).float(),
          emitter.CoordinateOnlyEmitter(torch.tensor([[8., 0., 0.]])),
          torch.tensor([8.])),

@@ -3,7 +3,7 @@ import torch
 import decode.generic.test_utils as tutil
 import decode.generic.process as prep
 
-from decode.emitter import RandomEmitterSet
+from decode import emitter
 
 
 def test_identity():
@@ -14,7 +14,7 @@ def test_identity():
 
 def test_remove_out_of_field():
     # Setup
-    em = RandomEmitterSet(100000, extent=100)
+    em = emitter.factory(100000, extent=100)
     em.xyz[:, 2] = torch.rand_like(em.xyz[:, 2]) * 1500 - 750
 
     # Candidate

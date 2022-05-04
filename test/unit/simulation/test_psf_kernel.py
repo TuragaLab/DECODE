@@ -11,7 +11,7 @@ import decode.utils.calibration_io as load_cal
 import decode.plot.frame_coord as plf
 import decode.generic.test_utils as tutil
 import decode.simulation.psf_kernel as psf_kernel
-from test.unit import asset_handler
+from decode.generic import asset_handler
 
 psf_cuda_available = pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available(),
                                         reason="Skipped because cuda not available for Spline PSF.")

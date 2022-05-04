@@ -4,7 +4,8 @@ import math
 import torch
 
 from decode.evaluation import evaluation
-from decode.generic import emitter as em, test_utils
+from decode.emitter import emitter as em
+from decode.generic import test_utils
 
 
 class TestEval:
@@ -29,8 +30,8 @@ class TestSegmentationEval(TestEval):
         return evaluation.SegmentationEvaluation()
 
     test_data = [
-        (em.EmptyEmitterSet(), em.EmptyEmitterSet(), em.EmptyEmitterSet(), (float('nan'), ) * 4),
-        (em.EmptyEmitterSet(), em.RandomEmitterSet(1), em.EmptyEmitterSet(), (0., float('nan'), 0., float('nan')))
+        (em.factory(0), em.factory(0), em.factory(0), (float('nan'), ) * 4),
+        (em.factory(0), em.factory(1), em.factory(0), (0., float('nan'), 0., float('nan')))
     ]
 
     @pytest.mark.parametrize("tp,fp,fn,expect", test_data)
@@ -144,7 +145,7 @@ class TestWeightedErrors(TestEval):
 
     data_forward_sanity = [
         (em.EmptyEmitterSet(xy_unit='nm'), em.EmptyEmitterSet(xy_unit='nm'), False, (torch.empty((0, 3)), torch.empty((0, )), torch.empty((0, )))),
-        (em.RandomEmitterSet(5), em.EmptyEmitterSet(), True, None)
+        (em.factory(5), em.EmptyEmitterSet(), True, None)
     ]
 
     @pytest.mark.parametrize("tp,ref,expt_err,expt_out", data_forward_sanity)
@@ -240,9 +241,9 @@ class TestSMLMEval:
     def test_result_dictablet(self, evaluator):
 
         result = evaluator.forward(em.RandomEmitterSet(10, xy_unit='nm'),
-                          em.RandomEmitterSet(1, xy_unit='nm'),
-                          em.RandomEmitterSet(2, xy_unit='nm'),
-                          em.RandomEmitterSet(10, xy_unit='nm'))
+                          em.factory(1, xy_unit='nm'),
+                          em.factory(2, xy_unit='nm'),
+                          em.factory(10, xy_unit='nm'))
 
         assert isinstance(result._asdict(), dict)
         assert result.prec == result._asdict()['prec']

@@ -2,7 +2,8 @@ import pytest
 import torch
 
 import decode.simulation.psf_kernel as psf_kernel
-from decode.generic import EmitterSet, CoordinateOnlyEmitter, RandomEmitterSet, EmptyEmitterSet, test_utils as tutil
+from decode.emitter.emitter import EmitterSet, factory
+from decode.generic import test_utils as tutil
 from decode.neuralfitter import target_generator
 
 
@@ -58,7 +59,7 @@ class TestTargetGenerator:
         assert out.size()[-2:] == torch.Size(targ.img_shape), "Wrong output shape."
 
     @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1)])
-    @pytest.mark.parametrize("em_data", [EmptyEmitterSet(xy_unit='px'), RandomEmitterSet(10, xy_unit='px')])
+    @pytest.mark.parametrize("em_data", [factory(0, xy_unit='px'), factory(10, xy_unit='px')])
     def test_default_range(self, targ, ix_low, ix_high, em_data):
         targ.ix_low = ix_low
         targ.ix_high = ix_high
@@ -82,7 +83,7 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
 
     @pytest.fixture()
     def random_emitter(self):
-        em = RandomEmitterSet(1000)
+        em = factory(1000)
         em.frame_ix = torch.randint_like(em.frame_ix, low=-20, high=30)
 
         return em
@@ -128,7 +129,7 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
         """Test a couple of handcrafted cases"""
 
         # one emitter outside fov the other one inside
-        em_set = CoordinateOnlyEmitter(torch.tensor([[-50., 0., 0.], [15.1, 19.6, 250.]]), xy_unit='px')
+        em_set = factory(xyz=torch.tensor([[-50., 0., 0.], [15.1, 19.6, 250.]]), xy_unit='px')
         em_set.phot = torch.tensor([5., 4.])
 
         out = targ.forward(em_set)[0]  # single frame
@@ -252,7 +253,7 @@ class Test4FoldTarget(TestTargetGenerator):
         else:
             xyz[:, axis] = pos_space
 
-        em = CoordinateOnlyEmitter(xyz, xy_unit='px')
+        em = factory(xyz=xyz, xy_unit='px')
         em.frame_ix = torch.arange(pos_space.size(0)).type(em.id.dtype)
 
         """Run"""

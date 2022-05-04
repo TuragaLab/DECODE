@@ -6,14 +6,15 @@ import pytest
 import tifffile
 import torch
 
-from decode.generic import emitter
+from decode.emitter import emitter
 from decode.generic import test_utils
 from decode.generic.process import Identity
 from decode.neuralfitter import post_processing
 from decode.neuralfitter.inference import inference
 from decode.utils import frames_io
 
-from .test_utils_frames_io import online_tiff_writer
+# from .test_utils_frames_io import online_tiff_writer
+online_tiff_writer = None
 
 
 class TestInfer:

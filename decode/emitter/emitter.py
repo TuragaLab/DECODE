@@ -309,9 +309,7 @@ class EmitterSet:
 
     @property
     def single_frame(self) -> bool:
-        """
-        Check if all emitters are on the same frame.
-        """
+        """All emitters are on the same frame?"""
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
     def dim(self) -> int:
@@ -945,7 +943,7 @@ class CoordinateOnlyEmitter(EmitterSet):
     def _inplace_replace(self, em):
         super().__init__(**em.to_dict(), sanity_check=False)
 
-
+@deprecated("deprecated in favor of factory", version="0.11")
 class EmptyEmitterSet(CoordinateOnlyEmitter):
     """An empty emitter set."""
 
@@ -992,7 +990,6 @@ class LooseEmitterSet:
             xy_unit (string): unit of the coordinates
         """
 
-        """If no ID specified, give them one."""
         if id is None:
             id = torch.arange(xyz.shape[0])
 
@@ -1014,15 +1011,12 @@ class LooseEmitterSet:
         if self.id.unique().numel() != self.id.numel():
             raise ValueError("IDs are not unique.")
 
-        """Check xyz"""
         if self.xyz.dim() != 2 or self.xyz.size(1) != 3:
             raise ValueError("Wrong xyz dimension.")
 
-        """Check intensity"""
         if (self.intensity < 0).any():
             raise ValueError("Negative intensity values encountered.")
 
-        """Check timings"""
         if (self.ontime < 0).any():
             raise ValueError("Negative ontime encountered.")
 
@@ -1051,7 +1045,6 @@ class LooseEmitterSet:
         ontime_last = torch.min(self.te - self.t0, self.te - frame_last)
 
         """Repeat by full-frame duration"""
-
         # kick out everything that has no full frame_duration
         ix_full = frame_count_full >= 0
         xyz_ = self.xyz[ix_full, :]
@@ -1090,9 +1083,10 @@ class LooseEmitterSet:
 
         return xyz_, phot_, frame_ix_, id_
 
-    def return_emitterset(self):
+    def return_emitterset(self) -> EmitterSet:
         """
-        Returns EmitterSet with distributed emitters. The ID is preserved such that localisations coming from the same
+        Returns EmitterSet with distributed emitters.
+        The emitters ID is preserved such that localisations coming from the same
         fluorophore will have the same ID.
 
         Returns:

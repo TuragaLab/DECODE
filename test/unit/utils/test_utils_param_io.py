@@ -4,7 +4,7 @@ import pytest
 
 import decode.utils.param_io as wlp
 from decode.utils import types
-from test.unit import asset_handler
+from decode.generic import asset_handler
 
 """Root folder"""
 test_dir = str(Path(__file__).resolve().parent)

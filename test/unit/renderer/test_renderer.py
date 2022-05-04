@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pytest
 import torch
 
-from decode.generic import emitter
+from decode.emitter import emitter
 from decode.generic import test_utils
 from decode.plot import PlotFrameCoord
 from decode.renderer import renderer

@@ -62,6 +62,7 @@ def em3d_full(em3d):
 
 
 class TestEmitterSet:
+    # ToDo: This needs to go.
     @pytest.mark.parametrize("xyz", [torch.rand(42, 2), torch.rand(42, 3)])
     @pytest.mark.parametrize("phot", [torch.rand(42)])
     @pytest.mark.parametrize("frame_ix", [torch.arange(42)])

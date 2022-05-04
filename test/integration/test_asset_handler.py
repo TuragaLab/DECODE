@@ -2,8 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from .asset_handler import RMAfterTest
-from . import asset_handler
+from decode.generic import asset_handler
 import test
 
 
@@ -21,7 +20,7 @@ class TestAssetHandler:
             raise RuntimeError('Test setup error. This file should not have existed.')
 
         """Give the file you want, and let it look it up in the yaml."""
-        with RMAfterTest(file_wanted):
+        with asset_handler.RMAfterTest(file_wanted):
             ass.auto_load(file_wanted)
             ass.auto_load(file_wanted)  # Repeat test with already present file
 
@@ -40,7 +39,7 @@ def test_hash():
     if dfile.exists():
         raise RuntimeError("File exists. Test setup failed.")
 
-    with RMAfterTest(dfile):
+    with asset_handler.RMAfterTest(dfile):
         dfile.touch()  # write file
 
         assert test.null_hash == asset_handler.hash_file(dfile)

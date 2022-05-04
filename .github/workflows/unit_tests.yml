@@ -31,7 +31,6 @@ jobs:
           activate-environment: decode_dev
           environment-file: environment.yaml
 
-      # Run the specific test
-      - name: Run pytest (without big web and graphical output)
+      - name: Run unit tests
         run: |
-          pytest -m "not (webbig or plot)" decode/test
+          python -m pytest -m "not (webbig or plot)" test

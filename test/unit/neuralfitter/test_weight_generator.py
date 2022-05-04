@@ -2,7 +2,8 @@ import pytest
 import torch
 from abc import ABC
 
-from decode.generic import emitter, test_utils
+from decode.emitter import emitter
+from decode.generic import test_utils
 from decode.neuralfitter import weight_generator
 
 

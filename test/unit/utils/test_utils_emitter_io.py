@@ -2,7 +2,7 @@ import torch
 import pytest
 from unittest import mock
 
-from decode.generic import emitter
+from decode.emitter import emitter
 from decode.utils import emitter_io
 
 

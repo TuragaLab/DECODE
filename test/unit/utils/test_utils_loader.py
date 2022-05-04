@@ -3,8 +3,7 @@ import requests
 
 import pytest
 
-from test import null_hash
-from .asset_handler import RMAfterTest
+from decode.generic.asset_handler import RMAfterTest
 from decode.utils import loader
 
 
