@@ -40,6 +40,7 @@ class EmitterData(BaseModel):
     Helper class which holds and validates the data fields of the EmitterSet.
     Usually this class not used directly.
     """
+
     xyz: _Tensor
     phot: _Tensor
     frame_ix: _LongTensor
@@ -1137,15 +1138,26 @@ class LooseEmitterSet:
         )
 
 
-def factory(n: int, extent: float = 32, **kwargs) -> EmitterSet:
+def factory(n: Optional[int] = None, extent: float = 32, **kwargs) -> EmitterSet:
     """
     Produce a random EmitterSet
 
     Args:
-        n: number of emitters in set
+        n: number of emitters in set. Can be omitted if length can be inferred from
+            xyz, phot or frame_ix
         extent: spread in xyz
         **kwargs: arbitrary arguments to specify
     """
+    # infer length from one of the specified kwargs
+    inferrables = {"xyz", "phot", "frame_ix"}
+    if n is None:
+        if len(set(kwargs.keys()).intersection(inferrables)) >= 1:
+            n = [len(v) for k, v in kwargs.items() if k in inferrables][0]
+        else:
+            raise NotImplementedError(
+                f"Length can only be inferred if one of {inferrables} is specified."
+            )
+
     essentials = {
         "xyz": torch.rand(n, 3) * extent,
         "phot": torch.ones(n),

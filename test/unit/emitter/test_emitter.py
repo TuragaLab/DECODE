@@ -504,9 +504,27 @@ def test_factory():
     assert (em.phot_cr == 1).all()
 
 
-def test_factor_empty():
+def test_factory_empty():
     em = emitter.factory(0)
     assert len(em) == 0
+
+
+@pytest.mark.parametrize("attr,val,exp_len", [
+    ("xyz", torch.rand(42, 3), 42),
+    ("phot", torch.rand(43), 43),
+    ("frame_ix", torch.randint(1000, size=(44, )), 44),
+    ("abcdefg", 42, "raise")
+])
+def test_factory_inferred_length(attr, val, exp_len):
+    kwargs = {attr: val}
+
+    if exp_len == "raise":
+        with pytest.raises(NotImplementedError):
+            emitter.factory(**kwargs)
+        return
+
+    em = emitter.factory(**kwargs)
+    assert len(em) == exp_len
 
 
 @pytest.mark.parametrize(
