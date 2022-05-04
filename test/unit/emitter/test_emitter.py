@@ -237,22 +237,22 @@ class TestEmitterSet:
 
     @mock.patch.object(EmitterSet, "cat")
     def test_add(self, mock_add):
-        em_0 = RandomEmitterSet(20)
-        em_1 = RandomEmitterSet(100)
+        em_0 = emitter.factory(20)
+        em_1 = emitter.factory(100)
 
         _ = em_0 + em_1
         mock_add.assert_called_once_with((em_0, em_1), None, None)
 
     def test_iadd(self):
-        em_0 = RandomEmitterSet(20)
-        em_1 = RandomEmitterSet(50)
+        em_0 = emitter.factory(20)
+        em_1 = emitter.factory(50)
 
         em_0 += em_1
         assert len(em_0) == 70
 
     def test_chunk(self):
 
-        big_em = RandomEmitterSet(100000)
+        big_em = emitter.factory(100000)
 
         splits = big_em.chunks(10000)
         re_merged = EmitterSet.cat(splits)
@@ -261,7 +261,7 @@ class TestEmitterSet:
         assert re_merged == big_em
 
         # test not evenly splittable number
-        em = RandomEmitterSet(7)
+        em = emitter.factory(7)
         splits = em.chunks(3)
 
         assert len(splits[0]) == 3
@@ -313,7 +313,7 @@ class TestEmitterSet:
         frame_ix = torch.LongTensor(frame_ix)
         split_range = sorted(split_range)
 
-        splits = RandomEmitterSet(frame_ix=frame_ix).split_in_frames(*split_range)
+        splits = emitter.factory(frame_ix=frame_ix).split_in_frames(*split_range)
 
         if split_range[0] == split_range[1]:
             assert len(splits) == 0
@@ -328,13 +328,13 @@ class TestEmitterSet:
 
     def test_cat_emittersets(self):
 
-        sets = [RandomEmitterSet(50), RandomEmitterSet(20)]
+        sets = [emitter.factory(50), emitter.factory(20)]
         cat_sets = EmitterSet.cat(sets, None, 1)
         assert 70 == len(cat_sets)
         assert 0 == cat_sets.frame_ix[0]
         assert 1 == cat_sets.frame_ix[50]
 
-        sets = [RandomEmitterSet(50), RandomEmitterSet(20)]
+        sets = [emitter.factory(50), emitter.factory(20)]
         cat_sets = EmitterSet.cat(sets, torch.tensor([5, 50]), None)
         assert 70 == len(cat_sets)
         assert 5 == cat_sets.frame_ix[0]
@@ -342,8 +342,8 @@ class TestEmitterSet:
 
         # test correctness of px size and xy unit
         sets = [
-            RandomEmitterSet(50, xy_unit="px", px_size=(100.0, 200.0)),
-            RandomEmitterSet(20),
+            emitter.factory(50, xy_unit="px", px_size=(100.0, 200.0)),
+            emitter.factory(20),
         ]
         em = EmitterSet.cat(sets)
         assert em.xy_unit == "px"
@@ -354,7 +354,7 @@ class TestEmitterSet:
         Tests whether split and cat (and sort by ID) returns the same result as the original
         """
 
-        em = RandomEmitterSet(1000)
+        em = emitter.factory(1000)
         em.id = torch.arange(len(em))
         em.frame_ix = torch.randint_like(em.frame_ix, 10000)
 
@@ -373,8 +373,8 @@ class TestEmitterSet:
     def test_sigma_filter(self, frac):
 
         """Setup"""
-        em = RandomEmitterSet(10000)
-        em.xyz_sig = (torch.randn_like(em.xyz_sig) + 5).clamp(0.0)
+        em = emitter.factory(10000)
+        em.xyz_sig = (torch.randn(len(em), 3) + 5).clamp(0.0)
 
         """Run"""
         out = em.filter_by_sigma(fraction=frac)
@@ -384,11 +384,10 @@ class TestEmitterSet:
 
     def test_hist_detection(self):
 
-        em = RandomEmitterSet(10000)
-        em.prob = torch.rand_like(em.prob)
-        em.xyz_sig = torch.randn_like(em.xyz_sig) * torch.tensor(
-            [1.0, 2.0, 3.0]
-        ).unsqueeze(0)
+        em = emitter.factory(10000)
+        em.prob = torch.rand(len(em))
+        em.xyz_sig = torch.randn(len(em), 3) \
+                     * torch.tensor([1.0, 2.0, 3.0]).unsqueeze(0)
 
         """Run"""
         out = em.hist_detection()
@@ -397,14 +396,14 @@ class TestEmitterSet:
         assert set(out.keys()) == {"prob", "sigma_x", "sigma_y", "sigma_z"}
 
     def test_sanity_check(self):
-        em = RandomEmitterSet(num_emitters=42)
+        em = emitter.factory(42)
         em.frame_ix = torch.rand(42, 1)  # not sane frame index
 
         with pytest.raises(ValueError):
             em._sanity_check()
 
         """Test correct number of el. in EmitterSet."""
-        em = RandomEmitterSet(num_emitters=42)
+        em = emitter.factory(42)
         em.phot = torch.rand(43)  # incorrect number of photons
 
         with pytest.raises(ValueError):
@@ -413,12 +412,12 @@ class TestEmitterSet:
     @pytest.mark.parametrize(
         "em",
         [
-            RandomEmitterSet(25, extent=64, px_size=(100.0, 125.0)),
-            EmptyEmitterSet(xy_unit="nm", px_size=(100.0, 125.0)),
+            emitter.factory(25, extent=64, px_size=(100.0, 125.0)),
+            emitter.factory(0, xy_unit="nm", px_size=(100.0, 125.0)),
         ],
     )
     def test_inplace_replace(self, em):
-        em_start = RandomEmitterSet(25, xy_unit="px", px_size=None)
+        em_start = emitter.factory(25, xy_unit="px", px_size=None)
         em_start._inplace_replace(em)
 
         assert em_start == em
@@ -427,7 +426,7 @@ class TestEmitterSet:
     @pytest.mark.filterwarnings("ignore:.*For .csv files, implicit usage of .load()")
     def test_save_load(self, format, tmpdir):
 
-        em = RandomEmitterSet(1000, xy_unit="nm", px_size=(100.0, 100.0))
+        em = emitter.factory(1000, xy_unit="nm", px_size=(100.0, 100.0))
 
         p = Path(tmpdir / f"em{format}")
         em.save(p)
@@ -465,12 +464,12 @@ class TestEmitterSet:
 
     def test_meta(self):
 
-        em = RandomEmitterSet(100, xy_unit="nm", px_size=(100.0, 200.0))
+        em = emitter.factory(100, xy_unit="nm", px_size=(100.0, 200.0))
         assert set(em.meta.keys()) == {"xy_unit", "px_size"}
 
     def test_to_dict(self):
 
-        em = RandomEmitterSet(100, xy_unit="nm", px_size=(100.0, 200.0))
+        em = emitter.factory(100, xy_unit="nm", px_size=(100.0, 200.0))
 
         # check whether doing one round of to_dict and back works
         em_clone = em.clone()
@@ -479,7 +478,7 @@ class TestEmitterSet:
         assert em_clone == em_dict
 
     def test_data_used(self):
-        em = RandomEmitterSet(42)
+        em = emitter.factory(42)
 
         em_data_full = em.data
         em_data_used = em.data_used
@@ -491,7 +490,7 @@ class TestEmitterSet:
 
 
 def test_empty_emitterset():
-    em = EmptyEmitterSet()
+    em = emitter.factory(0)
     assert len(em) == 0
 
 
@@ -534,15 +533,15 @@ def test_factory_inferred_length(attr, val, exp_len):
 def test_random_emitterset(attr, len_exp):
     """Test whether random emitterset is constructed from attribute correctly"""
     if attr is None:
-        em = RandomEmitterSet(num_emitters=len_exp)
+        em = emitter.factory(n=len_exp)
     elif attr == "xyz":
-        em = RandomEmitterSet(xyz=torch.rand((len_exp, 3)))
+        em = emitter.factory(xyz=torch.rand((len_exp, 3)))
     elif attr == "phot":
-        em = RandomEmitterSet(phot=torch.rand(len_exp))
+        em = emitter.factory(phot=torch.rand(len_exp))
     elif attr == "frame_ix":
-        em = RandomEmitterSet(frame_ix=torch.randint(0, 1000, size=(len_exp,)))
+        em = emitter.factory(frame_ix=torch.randint(0, 1000, size=(len_exp,)))
     elif attr == "id":
-        em = RandomEmitterSet(id=torch.randint(0, 10000, size=(len_exp,)))
+        em = emitter.factory(id=torch.randint(0, 10000, size=(len_exp,)))
 
     assert len(em) == len_exp
 

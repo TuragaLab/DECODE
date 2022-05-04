@@ -7,6 +7,7 @@ import decode
 import decode.emitter
 import decode.neuralfitter.dataset as can  # candidate
 import decode.neuralfitter.target_generator
+from decode.emitter import factory
 from decode.simulation.simulator import Simulation
 
 decode_root = pathlib.Path(decode.__file__).parent.parent  # 'repo' directory
@@ -30,7 +31,7 @@ class TestDataset:
 
         n = 100
 
-        em = decode.emitter.RandomEmitterSet(n * 100)
+        em = factory(n * 100)
         em.frame_ix = torch.randint_like(em.frame_ix, n + 1)
 
         dataset = can.SMLMStaticDataset(frames=torch.rand((n, 32, 32)), emitter=em.split_in_frames(0, n - 1),
@@ -105,7 +106,7 @@ class TestSMLMLiveDataset:
                 pass
 
             def sample(self):
-                em = decode.RandomEmitterSet(1024)
+                em = factory(1024)
                 em.frame_ix = torch.randint_like(em.frame_ix, 0, 256)
                 frames, bg_frames = self.forward(em)
 
@@ -177,7 +178,7 @@ class TestSMLMAPrioriDataset:
                 return
 
             def sample(self):
-                em = decode.RandomEmitterSet(1000)
+                em = factory(1000)
                 em.phot = torch.rand_like(em.phot) * 10000
                 em.frame_ix = torch.randint_like(em.frame_ix, -10, 5000)
                 frames, bg_frames = self.forward(em)
@@ -228,7 +229,7 @@ class TestLiveSampleDataset:
                 pass
 
             def sample(self):
-                em = decode.RandomEmitterSet(150)
+                em = factory(150)
                 em.frame_ix = torch.randint_like(em.frame_ix, -1, 2)
                 frames, bg_frames = self.forward(em)
 

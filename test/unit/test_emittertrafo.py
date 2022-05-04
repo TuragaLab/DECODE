@@ -2,12 +2,13 @@ import torch
 
 import decode
 from decode.generic import test_utils
+from decode.emitter.emitter import factory
 from decode.utils import emitter_trafo
 
 
 def test_emitter_transformation():
     """Setup"""
-    em = decode.RandomEmitterSet(200, extent=10000, xy_unit='px', px_size=(100., 100.))
+    em = factory(200, extent=10000, xy_unit='px', px_size=(100., 100.))
     em.frame_ix = torch.randint_like(em.frame_ix, 1, 10000)
 
     """Run"""

@@ -8,6 +8,7 @@ import torch
 import torch.utils
 
 import decode
+from decode.emitter.emitter import factory
 import decode.neuralfitter
 import decode.neuralfitter.utils.dataloader_customs
 
@@ -38,7 +39,7 @@ class TestStaticDataset(Base):
     @pytest.fixture()
     def dataset(self):
         frames = torch.rand(1000, 32, 32)
-        emitter = decode.RandomEmitterSet(10000)
+        emitter = factory(10000)
         emitter.frame_ix = torch.randint_like(emitter.frame_ix, 0, 1000)
 
         ds = decode.neuralfitter.dataset.SMLMStaticDataset(frames=frames, emitter=emitter.split_in_frames(0, 999))

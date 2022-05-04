@@ -909,47 +909,6 @@ class EmitterSet:
         self.bg_cr = crlb[:, 4]
 
 
-class RandomEmitterSet(EmitterSet):
-    def __init__(
-        self,
-        num_emitters: int = None,
-        *,
-        xyz: torch.Tensor = None,
-        phot: torch.Tensor = None,
-        frame_ix: torch.Tensor = None,
-        id: torch.Tensor = None,
-        extent: float = 32,
-        xy_unit: str = "px",
-        px_size: tuple = None,
-    ):
-        """
-        Construct random emitters either by the bare number or by an attribute.
-        """
-
-        n = self._none_length(xyz, phot, frame_ix, id)
-        if n is None:
-            n = num_emitters
-
-        em_kwargs = {
-            "xyz": torch.rand((n, 3)) * extent if xyz is None else xyz,
-            "phot": torch.ones(n) if phot is None else phot,
-            "frame_ix": torch.zeros(n).long() if frame_ix is None else frame_ix,
-            "id": torch.arange(n) if id is None else id,
-        }
-
-        super().__init__(**em_kwargs, xy_unit=xy_unit, px_size=px_size)
-
-    def _inplace_replace(self, em):
-        super().__init__(**em.to_dict(), sanity_check=False)
-
-    @staticmethod
-    def _none_length(*args):
-        for arg in args:
-            if arg is not None:
-                return len(arg)
-        return
-
-
 @deprecated("deprecated in favor of factory", version="0.11")
 class CoordinateOnlyEmitter(EmitterSet):
     """
@@ -1149,7 +1108,7 @@ def factory(n: Optional[int] = None, extent: float = 32, **kwargs) -> EmitterSet
         **kwargs: arbitrary arguments to specify
     """
     # infer length from one of the specified kwargs
-    inferrables = {"xyz", "phot", "frame_ix"}
+    inferrables = {"xyz", "phot", "frame_ix", "id"}
     if n is None:
         if len(set(kwargs.keys()).intersection(inferrables)) >= 1:
             n = [len(v) for k, v in kwargs.items() if k in inferrables][0]
