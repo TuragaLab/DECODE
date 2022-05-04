@@ -19,7 +19,7 @@ dependencies:
   - pydata-sphinx-theme
 
   # actual package
-  - python>=3.8,<4
+  - python=3.10
   - pytorch=1.11
   - cpuonly  # or - cudatoolkit=11.3
   - click
