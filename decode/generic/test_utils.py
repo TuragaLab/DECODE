@@ -17,21 +17,36 @@ def equal_optional(*args):
     return len(none) == 1
 
 
-def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8,
-               nan: bool = False, none: str = "raise") -> bool:
+def tens_almeq(
+    a: torch.Tensor,
+    b: torch.Tensor,
+    prec: float = 1e-8,
+    nan: bool = False,
+    none: str = "raise",
+) -> bool:
     """
-    Tests if a and b are equal (i.e. all elements are the same) within a given precision. If both tensors have / are
-    nan, the function will return False unless nan=True.
+    Tests if a and b are equal (i.e. all elements are the same) within a given precision.
+    If both tensors have / are nan, the function will return False unless nan=True.
 
     Args:
         a: first tensor for comparison
         b: second tensor for comparison
         prec: precision comparison
         nan: if true, the function will return true if both tensors are all nan
-        none: if true, both none is allowed
-
+        none: either `raise`,`both`,`either`.
+            for `raise` no None values are allowed,
+            for `both` True will be returned when both arguments are None,
+                if either is and the other is not, there will be a ValueError
+            for `either` False will be returned when only one is None while the other is not.
     """
-    _none_allowed = {"raise", "either", "both"}
+    if (a is None or b is None) and none != "raise":
+        if equal_none(a, b):  # all none
+            return True
+        # not equal none
+        if none == "both":
+            raise ValueError("One of the arguments is None while the other is not.")
+        if none == "either":
+            return False
 
     if a.type() != b.type():
         raise TypeError("Both tensors must be of equal type.")
@@ -51,13 +66,6 @@ def tens_almeq(a: torch.Tensor, b: torch.Tensor, prec: float = 1e-8,
 def open_n_hash(file: Union[str, pathlib.Path]) -> str:
     """
     Check SHA 256 hash of file
-
-    Args:
-        file:
-
-    Returns:
-        str
-
     """
 
     if not isinstance(file, pathlib.Path):
@@ -67,9 +75,12 @@ def open_n_hash(file: Union[str, pathlib.Path]) -> str:
     return hash_str
 
 
-def file_loadable(path: Union[str, pathlib.Path], reader=None, mode=None, exceptions=None) -> bool:
+def file_loadable(
+    path: Union[str, pathlib.Path], reader=None, mode=None, exceptions=None
+) -> bool:
     """
-    Check whether file is present and loadable. This function could be used in a while lood and sleep
+    Check whether file is present and loadable.
+    This function could be used in a while lood and sleep.
 
     Example:
         while not file_loadable(path, ...):

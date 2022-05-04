@@ -30,8 +30,21 @@ def test_equal_none(a, b):
         assert out
 
 
-@pytest.mark.parametrize("a", [None, torch.ones(42)])
-@pytest.mark.parametrize("b", [None, torch.ones(42)])
-@pytest.mark.parametrize("equal_none", ["both", "either"])
-def test_tens_almeq_equal_none(a, b, equal_none):
-    equal = utils.tens_almeq(a, b, none=equal_none)
+@pytest.mark.parametrize(
+    "a,b,exp_both,exp_either",
+    [
+        (None, None, True, True),
+        (None, torch.ones(5), "raise", False),
+        (torch.ones(5), None, "raise", False),
+        (torch.ones(5), torch.ones(5), True, True),
+    ],
+)
+def test_tens_almeq_equal_none(a, b, exp_both, exp_either):
+    # both
+    if exp_both == "raise":
+        with pytest.raises(ValueError):
+            utils.tens_almeq(a, b, none="both")
+    else:
+        assert utils.tens_almeq(a, b, none="both") == exp_both
+    # either
+    assert utils.tens_almeq(a, b, none="either") == exp_either
