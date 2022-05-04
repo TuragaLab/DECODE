@@ -1,6 +1,7 @@
 import copy
 import warnings
 from pathlib import Path
+from pydantic import BaseModel, root_validator, validator
 from typing import Union, Optional, Iterable
 
 import numpy as np
@@ -8,6 +9,65 @@ import torch
 
 import decode.generic.utils
 from decode.generic import slicing as gutil, test_utils as tutil
+
+
+class _Tensor(torch.Tensor):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        if not isinstance(v, torch.Tensor):
+            v = torch.tensor(v)
+
+        return v
+
+
+class _LongTensor(_Tensor):
+    @classmethod
+    def validate(cls, v):
+        if not isinstance(v, torch.LongTensor):
+            v = torch.tensor(v, dtype=torch.long)
+
+        return v
+
+
+class EmitterData(BaseModel):
+    xyz: _Tensor
+    phot: _Tensor
+    frame_ix: _LongTensor
+
+    id: Optional[_LongTensor]
+    color: Optional[_LongTensor]
+    prob: Optional[_Tensor]
+    bg: Optional[_Tensor]
+
+    xyz_cr: Optional[_Tensor]
+    phot_cr: Optional[_Tensor]
+    bg_cr: Optional[_Tensor]
+
+    xyz_sig: Optional[_Tensor]
+    phot_sig: Optional[_Tensor]
+    bg_sig: Optional[_Tensor]
+
+    @validator("xyz")
+    def xyz_prep(cls, v):
+        if v.dim() != 2:
+            raise ValueError("Not supported shape.")
+
+        if v.size(1) == 2:
+            v = torch.cat((v, torch.zeros_like(v[:, [0]])), 1)
+
+        return v
+
+    @root_validator
+    def equal_length(cls, v):
+        n = {len(vv) for vv in v.values() if vv is not None}
+        if len(n) >= 2:
+            raise ValueError("Unequal length of fields")
+
+        return v
 
 
 class EmitterSet:
@@ -19,6 +79,7 @@ class EmitterSet:
             phot: Photon count of size N
             frame_ix: size N. Index on which the emitter appears.
             id: size N. Identity the emitter.
+            color: size N.
             prob: size N. Probability estimate of the emitter.
             bg: size N. Background estimate of emitter.
             xyz_cr: size N x 3. Cramer-Rao estimate of the emitters position.
@@ -29,17 +90,31 @@ class EmitterSet:
             px_size: Pixel size for unit conversion. If not specified, derived attributes (xyz_px and xyz_nm)
                 can not be accessed
     """
+    _data_holder = {'xyz', 'phot', 'frame_ix', 'id', 'color', 'prob', 'bg',
+                    'xyz_cr', 'phot_cr', 'bg_cr',
+                    'xyz_sig', 'phot_sig', 'bg_sig'}
     _eq_precision = 1E-8
     _power_auto_conversion_attrs = {'xyz_cr': 2, 'xyz_sig': 1}
     _xy_units = ('px', 'nm')
 
     def __init__(self,
-                 xyz: torch.Tensor, phot: torch.Tensor, frame_ix: torch.LongTensor,
-                 id: torch.LongTensor = None, color: torch.Tensor = None,
-                 prob: torch.Tensor = None, bg: torch.Tensor = None,
-                 xyz_cr: torch.Tensor = None, phot_cr: torch.Tensor = None, bg_cr: torch.Tensor = None,
-                 xyz_sig: torch.Tensor = None, phot_sig: torch.Tensor = None, bg_sig: torch.Tensor = None,
-                 sanity_check: bool = True, xy_unit: str = None, px_size: Union[tuple, torch.Tensor] = None):
+                 xyz: torch.Tensor,
+                 phot: torch.Tensor,
+                 frame_ix: torch.LongTensor,
+                 id: Optional[torch.LongTensor] = None,
+                 *,
+                 color: Optional[torch.Tensor] = None,
+                 prob: Optional[torch.Tensor] = None,
+                 bg: Optional[torch.Tensor] = None,
+                 xyz_cr: Optional[torch.Tensor] = None,
+                 phot_cr: Optional[torch.Tensor] = None,
+                 bg_cr: Optional[torch.Tensor] = None,
+                 xyz_sig: Optional[torch.Tensor] = None,
+                 phot_sig: Optional[torch.Tensor] = None,
+                 bg_sig: Optional[torch.Tensor] = None,
+                 sanity_check: bool = True,
+                 xy_unit: str = None,
+                 px_size: Union[tuple, torch.Tensor] = None):
         """
         Initialises EmitterSet of :math:`N` emitters.
 
@@ -63,42 +138,17 @@ class EmitterSet:
                 may not be accessed because one can not convert units without pixel size.
         """
 
-        self.xyz = None
-        self.phot = None
-        self.frame_ix = None
-        self.id = None
-        self.color = None
-        self.prob = None
-        self.bg = None
-
-        # Cramer-Rao values
-        self.xyz_cr = None
-        self.phot_cr = None
-        self.bg_cr = None
-
-        # Error estimates
-        self.xyz_sig = None
-        self.phot_sig = None
-        self.bg_sig = None
-
-        self._set_typed(xyz=xyz, phot=phot, frame_ix=frame_ix, id=id, prob=prob, bg=bg,
-                        xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr,
-                        xyz_sig=xyz_sig, phot_sig=phot_sig, bg_sig=bg_sig)
-
-        self._sorted = False
-        # get at least one_dim tensors
-        at_least_one_dim(self.xyz,
-                         self.phot,
-                         self.frame_ix,
-                         self.id,
-                         self.prob,
-                         self.bg,
-                         self.xyz_cr,
-                         self.phot_cr,
-                         self.bg_cr)
+        # EmitterData validates and holds the data
+        self._data = EmitterData(
+            xyz=xyz, phot=phot, frame_ix=frame_ix, id=id, color=color, prob=prob, bg=bg,
+            xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr, xyz_sig=xyz_sig, phot_sig=phot_sig,
+            bg_sig=bg_sig
+        )
 
         self.xy_unit = xy_unit
         self.px_size = px_size
+        self._sorted = False
+
         if self.px_size is not None:
             if not isinstance(self.px_size, torch.Tensor):
                 self.px_size = torch.Tensor(self.px_size)
@@ -135,22 +185,22 @@ class EmitterSet:
         """
         Square-Root cramer rao of xyz.
         """
-        return self.xyz_cr.sqrt()
+        return self.xyz_cr.sqrt() if self.xyz_cr is not None else None
 
     @property
     def xyz_scr_px(self) -> torch.Tensor:
         """
         Square-Root cramer rao of xyz in px units.
         """
-        return self.xyz_cr_px.sqrt()
+        return self.xyz_cr_px.sqrt() if self.xyz_cr_px is not None else None
 
     @property
     def xyz_scr_nm(self) -> torch.Tensor:
-        return self.xyz_cr_nm.sqrt()
+        return self.xyz_cr_nm.sqrt() if self.xyz_cr_nm is not None else None
 
     @property
     def xyz_sig_tot_nm(self) -> torch.Tensor:
-        return (self.xyz_sig_nm ** 2).sum(1).sqrt()
+        return (self.xyz_sig_nm ** 2).sum(1).sqrt() if self.xyz_sig_nm is not None else None
 
     @property
     def xyz_sig_weighted_tot_nm(self) -> torch.Tensor:
@@ -158,14 +208,18 @@ class EmitterSet:
 
     @property
     def phot_scr(self) -> torch.Tensor:  # sqrt cramer-rao of photon count
-        return self.phot_cr.sqrt()
+        return self.phot_cr.sqrt() if self.phot_cr is not None else None
 
     @property
     def bg_scr(self) -> torch.Tensor:  # sqrt cramer-rao of bg count
-        return self.bg_cr.sqrt()
+        return self.bg_cr.sqrt() if self.bg_cr is not None else None
 
     def __getattr__(self, item):
-        """Auto unit convert a couple of attributes by trailing unit specification"""
+        # refer to data holder
+        if item in self._data_holder:
+            return getattr(self._data, item)
+
+        # auto unit convert a couple of attributes by trailing unit specification
         attr_base = item.rstrip('_nm').rstrip('_px')
 
         if attr_base in self._power_auto_conversion_attrs.keys():
@@ -197,6 +251,7 @@ class EmitterSet:
             'phot': self.phot,
             'frame_ix': self.frame_ix,
             'id': self.id,
+            'color': self.color,
             'prob': self.prob,
             'bg': self.bg,
             'xyz_cr': self.xyz_cr,
@@ -211,10 +266,6 @@ class EmitterSet:
     def single_frame(self) -> bool:
         """
         Check if all emitters are on the same frame.
-
-        Returns:
-            bool
-
         """
         return True if torch.unique(self.frame_ix).shape[0] == 1 else False
 
@@ -224,7 +275,6 @@ class EmitterSet:
 
         Note:
             Does not do PCA or other sophisticated things.
-
         """
 
         if (self.xyz[:, 2] == 0).all():
@@ -302,7 +352,8 @@ class EmitterSet:
 
         return EmitterSet(**em_dict)
 
-    def _set_typed(self, xyz, phot, frame_ix, id, prob, bg, xyz_cr, phot_cr, bg_cr, xyz_sig, phot_sig, bg_sig):
+    def _set_typed(self, xyz, phot, frame_ix, id, color, prob, bg, xyz_cr, phot_cr, bg_cr, xyz_sig,
+                   phot_sig, bg_sig):
         """
         Sets the attributes in the correct type and with default argument if None
         """
@@ -333,16 +384,24 @@ class EmitterSet:
 
             # Optionals
             self.id = id if id is not None else -torch.ones_like(frame_ix)
-            self.prob = prob.type(f_type) if prob is not None else torch.ones_like(frame_ix).type(f_type)
-            self.bg = bg.type(f_type) if bg is not None else float('nan') * torch.ones_like(frame_ix).type(f_type)
+            self.prob = prob.type(f_type) if prob is not None else torch.ones_like(frame_ix).type(
+                f_type)
+            self.bg = bg.type(f_type) if bg is not None else float('nan') * torch.ones_like(
+                frame_ix).type(f_type)
 
-            self.xyz_cr = xyz_cr.type(f_type) if xyz_cr is not None else float('nan') * torch.ones_like(self.xyz)
-            self.phot_cr = phot_cr.type(f_type) if phot_cr is not None else float('nan') * torch.ones_like(self.phot)
-            self.bg_cr = bg_cr.type(f_type) if bg_cr is not None else float('nan') * torch.ones_like(self.bg)
+            self.xyz_cr = xyz_cr.type(f_type) if xyz_cr is not None else float(
+                'nan') * torch.ones_like(self.xyz)
+            self.phot_cr = phot_cr.type(f_type) if phot_cr is not None else float(
+                'nan') * torch.ones_like(self.phot)
+            self.bg_cr = bg_cr.type(f_type) if bg_cr is not None else float(
+                'nan') * torch.ones_like(self.bg)
 
-            self.xyz_sig = xyz_sig.type(f_type) if xyz_sig is not None else float('nan') * torch.ones_like(self.xyz)
-            self.phot_sig = phot_sig.type(f_type) if phot_sig is not None else float('nan') * torch.ones_like(self.phot)
-            self.bg_sig = bg_sig.type(f_type) if bg_sig is not None else float('nan') * torch.ones_like(self.bg)
+            self.xyz_sig = xyz_sig.type(f_type) if xyz_sig is not None else float(
+                'nan') * torch.ones_like(self.xyz)
+            self.phot_sig = phot_sig.type(f_type) if phot_sig is not None else float(
+                'nan') * torch.ones_like(self.phot)
+            self.bg_sig = bg_sig.type(f_type) if bg_sig is not None else float(
+                'nan') * torch.ones_like(self.bg)
 
         else:
             self.xyz = torch.zeros((0, 3)).type(f_type)
@@ -382,14 +441,16 @@ class EmitterSet:
         Returns:
             (bool) sane or not sane
         """
-        if not same_shape_tensor(0, self.xyz, self.phot, self.frame_ix, self.id, self.bg,
-                                 self.xyz_cr, self.phot_cr, self.bg_cr):
-            raise ValueError("Coordinates, photons, frame ix, id and prob are not of equal shape in 0th dimension.")
+        attr_check = [x for x in self.data.values() if x is not None]
+        if not same_shape_tensor(0, *attr_check):
+            raise ValueError("Data attributes should be of same length.")
 
-        if not same_dim_tensor(torch.ones(1), self.phot, self.prob, self.frame_ix, self.id):
-            raise ValueError("Expected photons, probability frame index and id to be 1D.")
+        attr_check = [getattr(self, a) for a in ("prob", "frame_ix", "id")
+                      if getattr(self, a) is not None]
+        if not same_dim_tensor(torch.ones(1), *attr_check):
+            raise ValueError("Expected probability frame index and id to be 1D.")
 
-        # Motivate the user to specify an xyz unit.
+        # motivate to specify an xyz unit.
         if len(self) > 0:
             if self.xy_unit is None:
                 warnings.warn("No xyz unit specified. No guarantees given ...")
@@ -451,31 +512,16 @@ class EmitterSet:
             true if as stated above.
 
         """
-
-        def check_em_dict_equality(em_a: dict, em_b: dict) -> bool:
-
-            for k in em_a.keys():
-                if not tutil.tens_almeq(em_a[k], em_b[k], nan=True):
-                    return False
-
-            return True
-
         if not self.eq_attr(other):
             return False
 
-        if not check_em_dict_equality(self.data, other.data):
+        if not self.eq_data(other):
             return False
 
         return True
 
     def eq_attr(self, other) -> bool:
-        """
-        Tests whether the meta attributes (xy_unit and px size) are the same
-
-        Args:
-            other: the EmitterSet to compare to
-
-        """
+        """Tests whether the meta attributes are the same"""
         if self.px_size is None:
             if other.px_size is not None:
                 return False
@@ -487,6 +533,18 @@ class EmitterSet:
             return False
 
         return True
+
+    def eq_data(self, other) -> bool:
+        """Tests whether data attributes are the same"""
+        def check_em_dict_equality(em_a: dict, em_b: dict) -> bool:
+            for k in em_a.keys():
+                # finally check tensors, reject if one is None and the other is set
+                if not tutil.tens_almeq(em_a[k], em_b[k], nan=True, none="either"):
+                    return False
+
+            return True
+
+        return check_em_dict_equality(self.data, other.data)
 
     def __iter__(self):
         """
@@ -547,7 +605,8 @@ class EmitterSet:
 
         x_sig_var = torch.var(xyz_sigma_nm[:, 0])
         y_sig_var = torch.var(xyz_sigma_nm[:, 1])
-        tot_var = xyz_sigma_nm[:, 0] ** 2 + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sigma_nm[:, 1]) ** 2
+        tot_var = xyz_sigma_nm[:, 0] ** 2 + (
+                    torch.sqrt(x_sig_var / y_sig_var) * xyz_sigma_nm[:, 1]) ** 2
 
         if use_3d:
             z_sig_var = torch.var(xyz_sigma_nm[:, 2])
@@ -556,7 +615,8 @@ class EmitterSet:
         return torch.sqrt(tot_var)
 
     @staticmethod
-    def cat(emittersets: Iterable, remap_frame_ix: Union[None, torch.Tensor] = None, step_frame_ix: int = None):
+    def cat(emittersets: Iterable, remap_frame_ix: Union[None, torch.Tensor] = None,
+            step_frame_ix: int = None):
         """
         Concatenate multiple emittersets into one emitterset which is returned. Optionally modify the frame indices by
         the arguments.
@@ -580,7 +640,8 @@ class EmitterSet:
         n_chunks = len(data)
 
         if remap_frame_ix is not None and step_frame_ix is not None:
-            raise ValueError("You cannot specify remap frame ix and step frame ix at the same time.")
+            raise ValueError(
+                "You cannot specify remap frame ix and step frame ix at the same time.")
         elif remap_frame_ix is not None:
             shift = remap_frame_ix.clone()
         elif step_frame_ix is not None:
@@ -588,18 +649,20 @@ class EmitterSet:
         else:
             shift = torch.zeros(n_chunks).int()
 
-        # apply shift
+        # apply frame index shift
         for d, s in zip(data, shift):
             d['frame_ix'] = d['frame_ix'] + s
 
-        # list of dicts to dict of lists
-        data = {k: torch.cat([x[k] for x in data], 0) for k in data[0]}
-        # meta = {k: [x[k] for x in meta] for k in meta[0]}
+        # concatenate data in list of dicts to dict of concatenated tensors
+        data = {
+            # cat key-wise, if value of key is None in first emitter, it will be None in all
+            k: torch.cat([x[k] for x in data], 0) if data[0][k] is not None else None
+            for k in data[0]
+        }
 
         # px_size and xy unit is taken from the first element that is not None
         xy_unit = None
         px_size = None
-
         for m in meta:
             if m['xy_unit'] is not None:
                 xy_unit = m['xy_unit']
@@ -646,18 +709,18 @@ class EmitterSet:
             ix = [ix]
 
         # PyTorch single element support
-        if not isinstance(ix, torch.BoolTensor) and isinstance(ix, torch.Tensor) and ix.numel() == 1:
+        if not isinstance(ix, torch.BoolTensor) \
+                and isinstance(ix, torch.Tensor) and ix.numel() == 1:
             ix = [int(ix)]
 
         # Todo: Check for numpy boolean array
-        if isinstance(ix, (np.ndarray, np.generic)) and ix.size == 1:  # numpy support
+        if isinstance(ix, (np.ndarray, np.generic)) and ix.size == 1:
             ix = [int(ix)]
 
-        return EmitterSet(xyz=self.xyz[ix], phot=self.phot[ix], frame_ix=self.frame_ix[ix], id=self.id[ix],
-                          prob=self.prob[ix], bg=self.bg[ix],
-                          xyz_sig=self.xyz_sig[ix], phot_sig=self.phot_sig[ix], bg_sig=self.bg_sig[ix],
-                          xyz_cr=self.xyz_cr[ix], phot_cr=self.phot_cr[ix], bg_cr=self.bg_cr[ix],
-                          sanity_check=False, xy_unit=self.xy_unit, px_size=self.px_size)
+        data_subset = {k: v[ix] for k, v in self.data.items() if v is not None}
+
+        return EmitterSet(
+            **data_subset, sanity_check=False, xy_unit=self.xy_unit, px_size=self.px_size)
 
     def get_subset_frame(self, frame_start: int, frame_end: int, frame_ix_shift=None):
         """
@@ -696,7 +759,8 @@ class EmitterSet:
         l = self
         k = chunks
         # https://stackoverflow.com/questions/2130016/splitting-a-list-into-n-parts-of-approximately-equal-length/37414115#37414115
-        return [l[i * (n // k) + min(i, n % k):(i + 1) * (n // k) + min(i + 1, n % k)] for i in range(k)]
+        return [l[i * (n // k) + min(i, n % k):(i + 1) * (n // k) + min(i + 1, n % k)] for i in
+                range(k)]
 
     def filter_by_sigma(self, fraction: float, dim: Optional[int] = None, return_low=True):
         """
@@ -920,7 +984,8 @@ class LooseEmitterSet:
         xy_unit (string): unit of the coordinates
     """
 
-    def __init__(self, xyz: torch.Tensor, intensity: torch.Tensor, ontime: torch.Tensor, t0: torch.Tensor,
+    def __init__(self, xyz: torch.Tensor, intensity: torch.Tensor, ontime: torch.Tensor,
+                 t0: torch.Tensor,
                  xy_unit: str, px_size, id: torch.Tensor = None, sanity_check=True):
         """
 
@@ -1002,7 +1067,8 @@ class LooseEmitterSet:
         frame_dur_full_clean = frame_count_full[ix_full]
 
         xyz_ = xyz_.repeat_interleave(frame_dur_full_clean + 1, dim=0)
-        phot_ = flux_.repeat_interleave(frame_dur_full_clean + 1, dim=0)  # because intensity * 1 = phot
+        phot_ = flux_.repeat_interleave(frame_dur_full_clean + 1,
+                                        dim=0)  # because intensity * 1 = phot
         id_ = id_.repeat_interleave(frame_dur_full_clean + 1, dim=0)
         # because 0 is first occurence
         frame_ix_ = frame_start_full.repeat_interleave(frame_dur_full_clean + 1, dim=0) \
@@ -1034,7 +1100,8 @@ class LooseEmitterSet:
         """
 
         xyz_, phot_, frame_ix_, id_ = self._distribute_framewise()
-        return EmitterSet(xyz_, phot_, frame_ix_.long(), id_.long(), xy_unit=self.xy_unit, px_size=self.px_size)
+        return EmitterSet(xyz_, phot_, frame_ix_.long(), id_.long(), xy_unit=self.xy_unit,
+                          px_size=self.px_size)
 
 
 def at_least_one_dim(*args) -> None:

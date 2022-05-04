@@ -1,13 +1,17 @@
 import numpy as np
 import pytest
 import torch
-from hypothesis import strategies, given, settings, note
+from hypothesis import strategies, given, settings
 from pathlib import Path
 from unittest import mock
 
 from decode.generic import test_utils
-from decode import EmitterSet, EmptyEmitterSet, CoordinateOnlyEmitter, RandomEmitterSet
-from decode.emitter.emitter import LooseEmitterSet
+from decode.emitter.emitter import LooseEmitterSet, EmitterSet, EmptyEmitterSet, \
+    CoordinateOnlyEmitter, RandomEmitterSet, EmitterData
+
+
+def test_emitter_data():
+    EmitterData(xyz=[1, 2, 3], phot=[1., 2., 3.], frame_ix=[1, 2, 3])
 
 
 @pytest.fixture()
@@ -48,22 +52,38 @@ def em3d_full(em3d):
 
 class TestEmitterSet:
 
-    def test_properties(self, em2d, em3d, em3d_full):
+    @pytest.mark.parametrize("xyz", [torch.rand(42, 2), torch.rand(42, 3)])
+    @pytest.mark.parametrize("phot", [torch.rand(42)])
+    @pytest.mark.parametrize("frame_ix", [torch.arange(42)])
+    @pytest.mark.parametrize("id", [None, -torch.arange(42)])
+    @pytest.mark.parametrize("color", [None, torch.randint(5, size=(42, ))])
+    @pytest.mark.parametrize("prob", [None, torch.rand(42)])
+    @pytest.mark.parametrize("bg", [None, torch.rand(42)])
+    @pytest.mark.parametrize("xyz_cr", [None, torch.rand(42, 3)])
+    @pytest.mark.parametrize("phot_cr", [None, torch.rand(42, 3)])
+    @pytest.mark.parametrize("bg_cr", [None, torch.rand(42, 3)])
+    @pytest.mark.parametrize("xyz_sig", [None, torch.rand(42, 3)])
+    @pytest.mark.parametrize("phot_sig", [None, torch.rand(42)])
+    @pytest.mark.parametrize("bg_sig", [None, torch.rand(42)])
+    @pytest.mark.parametrize("xy_unit,px_size", [(None, None), ("px", (120., 240.))])
+    def test_properties(self, xyz, phot, frame_ix, id, color, prob, bg, xyz_cr, phot_cr, bg_cr,
+                        xyz_sig, phot_sig, bg_sig, xy_unit, px_size):
 
-        for em in (em2d, em3d, em3d_full):
-            em.phot_scr
-            em.bg_scr
+        em = EmitterSet(xyz=xyz, phot=phot, frame_ix=frame_ix, id=id, color=color, prob=prob,
+                        bg=bg, xyz_cr=xyz_cr, phot_cr=phot_cr, bg_cr=bg_cr,
+                        xyz_sig=xyz_sig, phot_sig=phot_sig, bg_sig=bg_sig,
+                        xy_unit=xy_unit, px_size=px_size)
 
-            if em.px_size is not None and em.xy_unit is not None:
-                em.xyz_px
-                em.xyz_nm
-                em.xyz_scr
-                em.xyz_scr_px
-                em.xyz_scr_nm
-                em.xyz_sig_px
-                em.xyz_sig_nm
-                em.xyz_sig_tot_nm
-                em.xyz_sig_weighted_tot_nm
+        if em.px_size is not None and em.xy_unit is not None:
+            em.xyz_px
+            em.xyz_nm
+            em.xyz_scr
+            em.xyz_scr_px
+            em.xyz_scr_nm
+            em.xyz_sig_px
+            em.xyz_sig_nm
+            em.xyz_sig_tot_nm
+            em.xyz_sig_weighted_tot_nm
 
         # ToDo: Test auto conversion
 
@@ -229,7 +249,7 @@ class TestEmitterSet:
 
         elif len(em_out) == 0:
             # below lower end or above upper end
-            assert set(torch.arange(*ix_range).tolist())\
+            assert set(torch.arange(*ix_range).tolist()) \
                 .isdisjoint(set(em.frame_ix.tolist()))
 
         else:
@@ -239,10 +259,10 @@ class TestEmitterSet:
     @settings(max_examples=100)
     @given(
         frame_ix=strategies.lists(
-            strategies.integers(min_value=int(-1e3), max_value=int(1e3))),
+            strategies.integers(min_value=int(-1e2), max_value=int(1e2))),
         split_range=strategies.tuples(
-            strategies.integers(min_value=int(-1e3), max_value=int(1e3)),
-            strategies.integers(min_value=int(-1e3), max_value=int(1e3)))
+            strategies.integers(min_value=int(-1e2), max_value=int(1e2)),
+            strategies.integers(min_value=int(-1e2), max_value=int(1e2)))
     )
     def test_split_in_frames(self, frame_ix, split_range):
         frame_ix = torch.LongTensor(frame_ix)
@@ -283,8 +303,7 @@ class TestEmitterSet:
 
     def test_split_cat(self):
         """
-        Tests whether split and cat (and sort by ID) returns the same result as the original starting.
-
+        Tests whether split and cat (and sort by ID) returns the same result as the original
         """
 
         em = RandomEmitterSet(1000)
@@ -328,19 +347,18 @@ class TestEmitterSet:
         assert set(out.keys()) == {'prob', 'sigma_x', 'sigma_y', 'sigma_z'}
 
     def test_sanity_check(self):
-        """Test correct shape of 1D tensors in EmitterSet"""
-        xyz = torch.rand((10, 3))
-        phot = torch.rand((10, 1))
-        frame_ix = torch.rand(10)
+        em = RandomEmitterSet(num_emitters=42)
+        em.frame_ix = torch.rand(42, 1)  # not sane frame index
+
         with pytest.raises(ValueError):
-            EmitterSet(xyz, phot, frame_ix)
+            em._sanity_check()
 
         """Test correct number of el. in EmitterSet."""
-        xyz = torch.rand((10, 3))
-        phot = torch.rand((11, 1))
-        frame_ix = torch.rand(10)
+        em = RandomEmitterSet(num_emitters=42)
+        em.phot = torch.rand(43)  # incorrect number of photons
+
         with pytest.raises(ValueError):
-            EmitterSet(xyz, phot, frame_ix)
+            em._sanity_check()
 
     @pytest.mark.parametrize("em", [RandomEmitterSet(25, extent=64, px_size=(100., 125.)),
                                     EmptyEmitterSet(xy_unit='nm', px_size=(100., 125.))])
@@ -361,19 +379,21 @@ class TestEmitterSet:
         em_load = EmitterSet.load(p)
         assert em == em_load, "Reloaded emitterset is not equivalent to inital one."
 
-    @pytest.mark.parametrize("em_a,em_b,expct",
-                             [(CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
-                               CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
-                               True),
-                              (CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]]), xy_unit='px'),
-                               CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]]), xy_unit='nm'),
-                               False),
-                              (CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]]), xy_unit='px'),
-                               CoordinateOnlyEmitter(torch.tensor([[0., 1.1, 2.]]), xy_unit='px'),
-                               False)
-                              ])
+    @pytest.mark.parametrize("em_a,em_b,expct", [
+        # both are the same
+        (CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
+         CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]])),
+         True),
+        # different units
+        (CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]]), xy_unit='px'),
+         CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]]), xy_unit='nm'),
+         False),
+        # different coordinates
+        (CoordinateOnlyEmitter(torch.tensor([[0., 1., 2.]]), xy_unit='px'),
+         CoordinateOnlyEmitter(torch.tensor([[1000., 1.1, 2.]]), xy_unit='px'),
+         False)
+    ])
     def test_eq(self, em_a, em_b, expct):
-
         if expct:
             assert em_a == em_b
         else:
@@ -409,7 +429,7 @@ def test_empty_emitterset():
     ("phot", 84),
     ("frame_ix", 122),
     ("id", 180)
-    ])
+])
 def test_random_emitterset(attr, len_exp):
     """Test whether random emitterset is constructed from attribute correctly"""
     if attr is None:
@@ -421,7 +441,7 @@ def test_random_emitterset(attr, len_exp):
     elif attr == "frame_ix":
         em = RandomEmitterSet(frame_ix=torch.randint(0, 1000, size=(len_exp,)))
     elif attr == "id":
-        em = RandomEmitterSet(id=torch.randint(0, 10000, size=(len_exp, )))
+        em = RandomEmitterSet(id=torch.randint(0, 10000, size=(len_exp,)))
 
     assert len(em) == len_exp
 
