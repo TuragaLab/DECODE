@@ -496,12 +496,17 @@ def test_empty_emitterset():
 
 
 def test_factory():
-    em = emitter.emitter_factory(100, xyz=torch.zeros(100, 3), phot_cr=torch.ones(100))
+    em = emitter.factory(100, xyz=torch.zeros(100, 3), phot_cr=torch.ones(100))
 
     assert isinstance(em, EmitterSet)
     assert len(em) == 100
     assert (em.xyz == 0.0).all()
     assert (em.phot_cr == 1).all()
+
+
+def test_factor_empty():
+    em = emitter.factory(0)
+    assert len(em) == 0
 
 
 @pytest.mark.parametrize(

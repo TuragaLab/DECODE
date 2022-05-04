@@ -1,4 +1,5 @@
 import copy
+from deprecated import deprecated
 import warnings
 from pathlib import Path
 from pydantic import BaseModel, root_validator, validator
@@ -948,6 +949,7 @@ class RandomEmitterSet(EmitterSet):
         return
 
 
+@deprecated("deprecated in favor of factory", version="0.11")
 class CoordinateOnlyEmitter(EmitterSet):
     """
     A helper class when we only want to provide xyz, but not photons and frame_ix.
@@ -1135,7 +1137,7 @@ class LooseEmitterSet:
         )
 
 
-def emitter_factory(n: int, extent: float = 32, **kwargs) -> EmitterSet:
+def factory(n: int, extent: float = 32, **kwargs) -> EmitterSet:
     """
     Produce a random EmitterSet
 
