@@ -295,6 +295,11 @@ class EmitterSet:
         }
 
     @property
+    def data_used(self) -> dict:
+        """Return intrinsic data without non-used optionals."""
+        return {k: v for k, v in self.data.items() if v is not None}
+
+    @property
     def single_frame(self) -> bool:
         """
         Check if all emitters are on the same frame.

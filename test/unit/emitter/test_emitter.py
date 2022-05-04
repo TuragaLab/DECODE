@@ -404,19 +404,26 @@ class TestEmitterSet:
         em = RandomEmitterSet(100, xy_unit='nm', px_size=(100., 200.))
         assert set(em.meta.keys()) == {'xy_unit', 'px_size'}
 
-    def test_data(self):
-        return  # implicitly in test_to_dict
-
     def test_to_dict(self):
 
         em = RandomEmitterSet(100, xy_unit='nm', px_size=(100., 200.))
 
-        """Check whether doing one round of to_dict and back works"""
+        # check whether doing one round of to_dict and back works
         em_clone = em.clone()
-
         em_dict = EmitterSet(**em.to_dict())
+
         assert em_clone == em_dict
 
+    def test_data_used(self):
+        em = RandomEmitterSet(42)
+
+        em_data_full = em.data
+        em_data_used = em.data_used
+        diff = set(em_data_full.keys()) - set(em_data_used.keys())
+
+        assert set(em_data_used.keys()).issubset((em_data_full.keys()))
+        for d in diff:
+            assert em_data_full[d] is None
 
 def test_empty_emitterset():
     em = EmptyEmitterSet()
