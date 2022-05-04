@@ -35,6 +35,10 @@ class _LongTensor(_Tensor):
 
 
 class EmitterData(BaseModel):
+    """
+    Helper class which holds and validates the data fields of the EmitterSet.
+    Usually this class not used directly.
+    """
     xyz: _Tensor
     phot: _Tensor
     frame_ix: _LongTensor
@@ -1129,3 +1133,24 @@ class LooseEmitterSet:
             xy_unit=self.xy_unit,
             px_size=self.px_size,
         )
+
+
+def emitter_factory(n: int, extent: float = 32, **kwargs) -> EmitterSet:
+    """
+    Produce a random EmitterSet
+
+    Args:
+        n: number of emitters in set
+        extent: spread in xyz
+        **kwargs: arbitrary arguments to specify
+    """
+    essentials = {
+        "xyz": torch.rand(n, 3) * extent,
+        "phot": torch.ones(n),
+        "frame_ix": torch.zeros(n),
+    }
+    # overwrite essentials in case these are specified
+    for k in set(essentials.keys()).intersection(kwargs.keys()):
+        essentials[k] = kwargs.pop(k)
+
+    return EmitterSet(**essentials, **kwargs)

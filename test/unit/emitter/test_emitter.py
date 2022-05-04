@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 from decode.generic import test_utils
+from decode.emitter import emitter
 from decode.emitter.emitter import (
     LooseEmitterSet,
     EmitterSet,
@@ -17,7 +18,11 @@ from decode.emitter.emitter import (
 
 
 def test_emitter_data():
-    EmitterData(xyz=[1, 2, 3], phot=[1.0, 2.0, 3.0], frame_ix=[1, 2, 3])
+    EmitterData(
+        xyz=[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
+        phot=[1.0, 2.0, 3.0],
+        frame_ix=[1, 2, 3],
+    )
 
 
 @pytest.fixture()
@@ -110,6 +115,7 @@ class TestEmitterSet:
             px_size=px_size,
         )
 
+        # call nm / px suffix properties
         if em.px_size is not None and em.xy_unit is not None:
             em.xyz_px
             em.xyz_nm
@@ -120,8 +126,6 @@ class TestEmitterSet:
             em.xyz_sig_nm
             em.xyz_sig_tot_nm
             em.xyz_sig_weighted_tot_nm
-
-        # ToDo: Test auto conversion
 
     def test_dim(self, em2d, em3d):
 
@@ -142,8 +146,7 @@ class TestEmitterSet:
         # 2D input get's converted to 3D with zeros
         assert em2d.xyz.shape[1] == 3
         assert em3d.xyz.shape[1] == 3
-
-        assert em3d.frame_ix.dtype in (torch.int, torch.long, torch.short)
+        assert em3d.frame_ix.dtype == torch.long
 
     xyz_conversion_data = [  # xyz_input, # xy_unit, #px-size # expect px, # expect nm
         (torch.empty((0, 3)), None, None, "err", "err"),
@@ -492,13 +495,19 @@ def test_empty_emitterset():
     assert len(em) == 0
 
 
-@pytest.mark.parametrize("attr,len_exp", [
-    (None, 17),
-    ("xyz", 42),
-    ("phot", 84),
-    ("frame_ix", 122),
-    ("id", 180)
-])
+def test_factory():
+    em = emitter.emitter_factory(100, xyz=torch.zeros(100, 3), phot_cr=torch.ones(100))
+
+    assert isinstance(em, EmitterSet)
+    assert len(em) == 100
+    assert (em.xyz == 0.0).all()
+    assert (em.phot_cr == 1).all()
+
+
+@pytest.mark.parametrize(
+    "attr,len_exp",
+    [(None, 17), ("xyz", 42), ("phot", 84), ("frame_ix", 122), ("id", 180)],
+)
 def test_random_emitterset(attr, len_exp):
     """Test whether random emitterset is constructed from attribute correctly"""
     if attr is None:
