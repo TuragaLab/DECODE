@@ -79,7 +79,8 @@ class EmitterData(BaseModel):
 
 class EmitterSet:
     """
-    Class, storing a set of emitters and its attributes. Probably the most commonly used class of this framework.
+    Class, storing a set of emitters and its attributes.
+    Probably the most commonly used class of this framework.
 
     Attributes:
             xyz: Coordinates of size N x [2,3].
@@ -94,8 +95,8 @@ class EmitterSet:
             bg_cr: size N. Cramer-Rao estimate of the emitters background value.
             sanity_check: performs a sanity check if true.
             xy_unit: Unit of the x and y coordinate.
-            px_size: Pixel size for unit conversion. If not specified, derived attributes (xyz_px and xyz_nm)
-                can not be accessed
+            px_size: Pixel size for unit conversion. If not specified,
+                derived attributes (xyz_px and xyz_nm) can not be accessed
     """
 
     _data_holder = {
@@ -179,6 +180,7 @@ class EmitterSet:
 
         self.xy_unit = xy_unit
         self.px_size = px_size
+        self.iframe = slicing.SliceForward(self._iframe_hook)
         self._sorted = False
 
         if self.px_size is not None:
@@ -740,6 +742,17 @@ class EmitterSet:
             em.frame_ix += frame_ix_shift
 
         return em
+
+    def _iframe_hook(self, item):
+        if isinstance(item, slice):
+            if item.step is not None:
+                raise NotImplementedError("Step argument in slicing not supported.")
+            return self.get_subset_frame(item.start, item.stop, None)
+
+        if isinstance(item, int):
+            return self.get_subset_frame(item, item + 1)
+
+        raise NotImplementedError
 
     def chunks(self, chunks: int) -> list:
         """

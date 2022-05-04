@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from typing import Callable
 
 
 def split_sliceable(x, x_ix: torch.LongTensor, ix_low: int, ix_high: int) -> list:
@@ -69,3 +70,12 @@ def ix_split(ix: torch.Tensor, ix_min: int, ix_max: int) -> list:
 
     log_ix = [ix == ix_c for ix_c in range(ix_min, ix_max)]
     return log_ix, n
+
+
+class SliceForward:
+    def __init__(self, on_getitem: Callable):
+        # forwards a getitem call to a callable
+        self._fn = on_getitem
+
+    def __getitem__(self, item):
+        return self._fn(item)

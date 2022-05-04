@@ -19,7 +19,7 @@ import decode.renderer
 import decode.simulation
 
 from . import emitter
-from .emitter.emitter import EmitterSet, EmptyEmitterSet, RandomEmitterSet, CoordinateOnlyEmitter
+from .emitter.emitter import EmitterSet, EmptyEmitterSet, CoordinateOnlyEmitter
 
 # check device capability
 import torch

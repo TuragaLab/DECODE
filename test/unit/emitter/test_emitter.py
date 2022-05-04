@@ -10,9 +10,7 @@ from decode.emitter import emitter
 from decode.emitter.emitter import (
     LooseEmitterSet,
     EmitterSet,
-    EmptyEmitterSet,
     CoordinateOnlyEmitter,
-    RandomEmitterSet,
     EmitterData,
 )
 
@@ -298,6 +296,25 @@ class TestEmitterSet:
         else:
             assert em_out.frame_ix.min() >= ix_range[0]
             assert em_out.frame_ix.max() < ix_range[1]
+
+    @pytest.mark.parametrize("frame_select,expct", [
+        (slice(2, 5), {2, 3, 4}),
+        (2, {2}),
+    ])
+    def test_iframe(self, frame_select, expct):
+        em = emitter.factory(frame_ix=[0, 1, 2, 3, 4, 5, 6, 7])
+        em_out = em.iframe[frame_select]
+
+        assert set(em_out.frame_ix.unique().tolist()) == expct
+
+    @pytest.mark.parametrize("accessor", [slice(2, 5, 2), [1, 2, 3]])
+    def test_iframe_notimplemented(self, accessor):
+        # at the moment only integer and slicing getitem is supported via iframe.
+        # once emitter.iframe[2:5:2] is supported change test accordingly
+
+        em = emitter.factory(20)
+        with pytest.raises(NotImplementedError):
+            em.iframe[accessor]
 
     @settings(max_examples=100)
     @given(
