@@ -30,6 +30,7 @@ dependencies:
   - line_profiler
   - matplotlib
   - pandas
+  - pydantic
   - pytest
   - pyyaml
   - requests

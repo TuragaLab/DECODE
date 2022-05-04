@@ -27,6 +27,7 @@ else:
         "importlib_resources",
         "matplotlib",
         "pandas",
+        "pydantic",
         "pytest",
         "pyyaml",
         "requests",
