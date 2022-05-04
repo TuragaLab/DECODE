@@ -1,6 +1,6 @@
 import torch
 import torch.utils.data
-from torch._six import container_abcs, string_classes, int_classes
+from torch._six import container_abcs
 
 import decode.generic
 
@@ -36,7 +36,7 @@ def smlm_collate(batch):
     # END INSERT
     elif elem is None:
         return None
-    elif isinstance(elem, decode.generic.emitter.EmitterSet):
+    elif isinstance(elem, decode.emitter.EmitterSet):
         return [em for em in batch]
     else:
         return torch.utils.data.dataloader.default_collate(batch)
