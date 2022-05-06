@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import torch
-from hypothesis import strategies, given, settings
+from hypothesis import given, settings, strategies as st
 from pathlib import Path
 from unittest import mock
 
@@ -62,22 +62,23 @@ def em3d_full(em3d):
 
 
 class TestEmitterSet:
-    # ToDo: This needs to go.
-    @pytest.mark.parametrize("xyz", [torch.rand(42, 2), torch.rand(42, 3)])
-    @pytest.mark.parametrize("phot", [torch.rand(42)])
-    @pytest.mark.parametrize("frame_ix", [torch.arange(42)])
-    @pytest.mark.parametrize("id", [None, -torch.arange(42)])
-    @pytest.mark.parametrize("color", [None, torch.randint(5, size=(42,))])
-    @pytest.mark.parametrize("prob", [None, torch.rand(42)])
-    @pytest.mark.parametrize("bg", [None, torch.rand(42)])
-    @pytest.mark.parametrize("xyz_cr", [None, torch.rand(42, 3)])
-    @pytest.mark.parametrize("phot_cr", [None, torch.rand(42, 3)])
-    @pytest.mark.parametrize("bg_cr", [None, torch.rand(42, 3)])
-    @pytest.mark.parametrize("xyz_sig", [None, torch.rand(42, 3)])
-    @pytest.mark.parametrize("phot_sig", [None, torch.rand(42)])
-    @pytest.mark.parametrize("bg_sig", [None, torch.rand(42)])
-    @pytest.mark.parametrize("xy_unit,px_size", [(None, None), ("px", (120.0, 240.0))])
-    def test_properties(
+    @given(
+        xyz=st.sampled_from([torch.rand(42, 2), torch.rand(42, 3)]),
+        phot=st.sampled_from([torch.rand(42)]),
+        frame_ix=st.sampled_from([torch.arange(42)]),
+        color=st.sampled_from([None, torch.randint(5, size=(42,))]),
+        id=st.sampled_from([None, -torch.arange(42)]),
+        prob=st.sampled_from([None, torch.rand(42)]),
+        bg=st.sampled_from([None, torch.rand(42)]),
+        xyz_cr=st.sampled_from([None, torch.rand(42, 3)]),
+        phot_cr=st.sampled_from([None, torch.rand(42, 3)]),
+        bg_cr=st.sampled_from([None, torch.rand(42, 3)]),
+        xyz_sig=st.sampled_from([None, torch.rand(42, 3)]),
+        phot_sig=st.sampled_from([None, torch.rand(42)]),
+        bg_sig=st.sampled_from([None, torch.rand(42)]),
+        xy_px=st.sampled_from([(None, None), ("px", (120.0, 240.0))]),
+    )
+    def test_props(
         self,
         xyz,
         phot,
@@ -92,8 +93,7 @@ class TestEmitterSet:
         xyz_sig,
         phot_sig,
         bg_sig,
-        xy_unit,
-        px_size,
+        xy_px,
     ):
 
         em = EmitterSet(
@@ -110,11 +110,17 @@ class TestEmitterSet:
             xyz_sig=xyz_sig,
             phot_sig=phot_sig,
             bg_sig=bg_sig,
-            xy_unit=xy_unit,
-            px_size=px_size,
+            xy_unit=xy_px[0],
+            px_size=xy_px[1],
         )
 
-        # call nm / px suffix properties
+        # ToDo: Add asserts
+        em.xyz
+        em.phot
+        em.id
+        em.frame_ix
+
+        # access nm / px suffix properties
         if em.px_size is not None and em.xy_unit is not None:
             em.xyz_px
             em.xyz_nm
@@ -149,18 +155,42 @@ class TestEmitterSet:
 
     xyz_conversion_data = [  # xyz_input, # xy_unit, #px-size # expect px, # expect nm
         (torch.empty((0, 3)), None, None, "err", "err"),
-        (torch.empty((0, 3)), 'px', None, torch.empty((0, 3)), "err"),
-        (torch.empty((0, 3)), 'nm', None, "err", torch.empty((0, 3))),
-        (torch.tensor([[25., 25., 5.]]), None, None, "err", "err"),
-        (torch.tensor([[25., 25., 5.]]), 'px', None, torch.tensor([[25., 25., 5.]]), "err"),
-        (torch.tensor([[25., 25., 5.]]), 'nm', None, "err", torch.tensor([[25., 25., 5.]])),
-        (torch.tensor([[.25, .25, 5.]]), 'px', (50., 100.), torch.tensor([[.25, .25, 5.]]),
-         torch.tensor([[12.5, 25., 5.]])),
-        (torch.tensor([[25., 25., 5.]]), 'nm', (50., 100.), torch.tensor([[.5, .25, 5.]]),
-         torch.tensor([[25., 25., 5.]]))
+        (torch.empty((0, 3)), "px", None, torch.empty((0, 3)), "err"),
+        (torch.empty((0, 3)), "nm", None, "err", torch.empty((0, 3))),
+        (torch.tensor([[25.0, 25.0, 5.0]]), None, None, "err", "err"),
+        (
+            torch.tensor([[25.0, 25.0, 5.0]]),
+            "px",
+            None,
+            torch.tensor([[25.0, 25.0, 5.0]]),
+            "err",
+        ),
+        (
+            torch.tensor([[25.0, 25.0, 5.0]]),
+            "nm",
+            None,
+            "err",
+            torch.tensor([[25.0, 25.0, 5.0]]),
+        ),
+        (
+            torch.tensor([[0.25, 0.25, 5.0]]),
+            "px",
+            (50.0, 100.0),
+            torch.tensor([[0.25, 0.25, 5.0]]),
+            torch.tensor([[12.5, 25.0, 5.0]]),
+        ),
+        (
+            torch.tensor([[25.0, 25.0, 5.0]]),
+            "nm",
+            (50.0, 100.0),
+            torch.tensor([[0.5, 0.25, 5.0]]),
+            torch.tensor([[25.0, 25.0, 5.0]]),
+        ),
     ]
 
-    @pytest.mark.parametrize("xyz_input,xy_unit,px_size,expct_px,expct_nm", xyz_conversion_data)
+    @pytest.mark.parametrize(
+        "xyz_input,xy_unit,px_size,expct_px,expct_nm", xyz_conversion_data
+    )
     @pytest.mark.filterwarnings("ignore:UserWarning")
     def test_xyz_conversion(self, xyz_input, xy_unit, px_size, expct_px, expct_nm):
 
@@ -184,21 +214,46 @@ class TestEmitterSet:
     xyz_cr_conversion_data = [
         # xyz_scr_input, # xy_unit, #px-size # expect_scr_px, # expect scr_nm
         (torch.empty((0, 3)), None, None, "err", "err"),
-        (torch.empty((0, 3)), 'px', None, torch.empty((0, 3)), "err"),
-        (torch.empty((0, 3)), 'nm', None, "err", torch.empty((0, 3))),
-        (torch.tensor([[25., 25., 5.]]), None, None, "err", "err"),
-        (torch.tensor([[25., 25., 5.]]), 'px', None, torch.tensor([[25., 25., 5.]]), "err"),
-        (torch.tensor([[25., 25., 5.]]), 'nm', None, "err", torch.tensor([[25., 25., 5.]])),
-        (torch.tensor([[.25, .25, 5.]]), 'px', (50., 100.), torch.tensor([[.25, .25, 5.]]),
-         torch.tensor([[12.5, 25., 5.]])),
-        (torch.tensor([[25., 25., 5.]]), 'nm', (50., 100.), torch.tensor([[.5, .25, 5.]]),
-         torch.tensor([[25., 25., 5.]]))
+        (torch.empty((0, 3)), "px", None, torch.empty((0, 3)), "err"),
+        (torch.empty((0, 3)), "nm", None, "err", torch.empty((0, 3))),
+        (torch.tensor([[25.0, 25.0, 5.0]]), None, None, "err", "err"),
+        (
+            torch.tensor([[25.0, 25.0, 5.0]]),
+            "px",
+            None,
+            torch.tensor([[25.0, 25.0, 5.0]]),
+            "err",
+        ),
+        (
+            torch.tensor([[25.0, 25.0, 5.0]]),
+            "nm",
+            None,
+            "err",
+            torch.tensor([[25.0, 25.0, 5.0]]),
+        ),
+        (
+            torch.tensor([[0.25, 0.25, 5.0]]),
+            "px",
+            (50.0, 100.0),
+            torch.tensor([[0.25, 0.25, 5.0]]),
+            torch.tensor([[12.5, 25.0, 5.0]]),
+        ),
+        (
+            torch.tensor([[25.0, 25.0, 5.0]]),
+            "nm",
+            (50.0, 100.0),
+            torch.tensor([[0.5, 0.25, 5.0]]),
+            torch.tensor([[25.0, 25.0, 5.0]]),
+        ),
     ]
 
-    @pytest.mark.parametrize("xyz_scr_input,xy_unit,px_size,expct_px,expct_nm",
-                             xyz_cr_conversion_data)
+    @pytest.mark.parametrize(
+        "xyz_scr_input,xy_unit,px_size,expct_px,expct_nm", xyz_cr_conversion_data
+    )
     @pytest.mark.filterwarnings("ignore:UserWarning")
-    def test_xyz_cr_conversion(self, xyz_scr_input, xy_unit, px_size, expct_px, expct_nm):
+    def test_xyz_cr_conversion(
+        self, xyz_scr_input, xy_unit, px_size, expct_px, expct_nm
+    ):
         """
         Here we test the cramer rao unit conversion. We can reuse the testdata as for the xyz conversion because it does
         not make a difference for the test candidate.
@@ -269,12 +324,10 @@ class TestEmitterSet:
 
     @settings(max_examples=100)
     @given(
-        frame_ix=strategies.lists(
-            strategies.integers(min_value=int(-1e6), max_value=int(1e6))
-        ),
-        ix_range=strategies.tuples(
-            strategies.integers(min_value=int(-1e6), max_value=int(1e6)),
-            strategies.integers(min_value=int(-1e6), max_value=int(1e6)),
+        frame_ix=st.lists(st.integers(min_value=int(-1e6), max_value=int(1e6))),
+        ix_range=st.tuples(
+            st.integers(min_value=int(-1e6), max_value=int(1e6)),
+            st.integers(min_value=int(-1e6), max_value=int(1e6)),
         ),
     )
     def test_get_subset_frames(self, frame_ix, ix_range):
@@ -298,10 +351,13 @@ class TestEmitterSet:
             assert em_out.frame_ix.min() >= ix_range[0]
             assert em_out.frame_ix.max() < ix_range[1]
 
-    @pytest.mark.parametrize("frame_select,expct", [
-        (slice(2, 5), {2, 3, 4}),
-        (2, {2}),
-    ])
+    @pytest.mark.parametrize(
+        "frame_select,expct",
+        [
+            (slice(2, 5), {2, 3, 4}),
+            (2, {2}),
+        ],
+    )
     def test_iframe(self, frame_select, expct):
         em = emitter.factory(frame_ix=[0, 1, 2, 3, 4, 5, 6, 7])
         em_out = em.iframe[frame_select]
@@ -319,12 +375,10 @@ class TestEmitterSet:
 
     @settings(max_examples=100)
     @given(
-        frame_ix=strategies.lists(
-            strategies.integers(min_value=int(-1e2), max_value=int(1e2))
-        ),
-        split_range=strategies.tuples(
-            strategies.integers(min_value=int(-1e2), max_value=int(1e2)),
-            strategies.integers(min_value=int(-1e2), max_value=int(1e2)),
+        frame_ix=st.lists(st.integers(min_value=int(-1e2), max_value=int(1e2))),
+        split_range=st.tuples(
+            st.integers(min_value=int(-1e2), max_value=int(1e2)),
+            st.integers(min_value=int(-1e2), max_value=int(1e2)),
         ),
     )
     def test_split_in_frames(self, frame_ix, split_range):
@@ -404,8 +458,9 @@ class TestEmitterSet:
 
         em = emitter.factory(10000)
         em.prob = torch.rand(len(em))
-        em.xyz_sig = torch.randn(len(em), 3) \
-                     * torch.tensor([1.0, 2.0, 3.0]).unsqueeze(0)
+        em.xyz_sig = torch.randn(len(em), 3) * torch.tensor([1.0, 2.0, 3.0]).unsqueeze(
+            0
+        )
 
         """Run"""
         out = em.hist_detection()
@@ -526,12 +581,15 @@ def test_factory_empty():
     assert len(em) == 0
 
 
-@pytest.mark.parametrize("attr,val,exp_len", [
-    ("xyz", torch.rand(42, 3), 42),
-    ("phot", torch.rand(43), 43),
-    ("frame_ix", torch.randint(1000, size=(44, )), 44),
-    ("abcdefg", 42, "raise")
-])
+@pytest.mark.parametrize(
+    "attr,val,exp_len",
+    [
+        ("xyz", torch.rand(42, 3), 42),
+        ("phot", torch.rand(43), 43),
+        ("frame_ix", torch.randint(1000, size=(44,)), 44),
+        ("abcdefg", 42, "raise"),
+    ],
+)
 def test_factory_inferred_length(attr, val, exp_len):
     kwargs = {attr: val}
 
