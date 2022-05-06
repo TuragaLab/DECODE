@@ -1,6 +1,6 @@
 import torch
 import torch.utils.data
-from torch._six import container_abcs
+from collections import abc
 
 import decode.generic
 
@@ -25,7 +25,7 @@ def smlm_collate(batch):
             storage = elem.storage()._new_shared(numel)
             out = elem.new(storage)
         return torch.stack(batch, 0, out=out)
-    elif isinstance(elem, container_abcs.Sequence):
+    elif isinstance(elem, abc.Sequence):
         # check to make sure that the elements in batch have consistent size
         it = iter(batch)
         elem_size = len(next(it))
