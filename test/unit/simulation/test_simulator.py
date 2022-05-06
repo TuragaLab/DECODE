@@ -1,83 +1,66 @@
 import pytest
 import torch
+from unittest import mock
 
-import decode.emitter as emitter
-import decode.simulation.background as background
-import decode.simulation.psf_kernel as psf_kernel
-import decode.simulation.simulator as can  # test candidate
+from decode.emitter import emitter
+from decode.simulation import background
+from decode.simulation import psf_kernel
+from decode.simulation import simulator  # test candidate
 
 
 class TestSimulator:
-
-    @pytest.fixture(scope='class', params=[32, 64])
+    @pytest.fixture(scope="class", params=[32, 64])
     def sim(self, request):
-        psf = psf_kernel.GaussianPSF((-0.5, 31.5), (-0.5, 31.5), (-750., 750.), (request.param, request.param),
-                                     sigma_0=1.0)
-        bg = background.UniformBackground(10.)
-        sim = can.Simulation(psf=psf, background=bg, noise=None, frame_range=(-1, 1))
+        psf = psf_kernel.GaussianPSF(
+            (-0.5, 31.5),
+            (-0.5, 31.5),
+            (-750.0, 750.0),
+            (request.param, request.param),
+            sigma_0=1.0,
+        )
+        bg = background.UniformBackground(10.0)
+        sim = simulator.Simulation(
+            psf=psf, background=bg, noise=None, frame_range=(-1, 2)
+        )
 
         return sim
 
-    @pytest.fixture(scope='class')
+    @pytest.fixture(scope="class")
     def em(self):
-        return emitter.RandomEmitterSet(10)
-
-    def test_framerange(self, sim, em):
-        """
-        Tests whether the frames are okay.
-
-        """
-
-        """Run"""
-        frames, bg = sim.forward(em)
-
-        """Tests"""
-        assert frames.size() == torch.Size([3, *sim.psf.img_shape])
-        assert (frames[[0, -1]] == 10.).all(), "Only middle frame is supposed to be active."
-        assert frames[1].max() > 10., "Middle frame should be active"
+        return emitter.factory(10, xy_unit="px")
 
     def test_sampler(self, sim):
-        """Setup"""
-
         def dummy_sampler():
-            return emitter.RandomEmitterSet(20)
+            return emitter.factory(20, xy_unit="px")
 
         sim.em_sampler = dummy_sampler
 
-        """Run"""
         em, frames, bg_frames = sim.sample()
 
-        """Assertions"""
         assert isinstance(em, emitter.EmitterSet)
+        assert isinstance(frames, torch.Tensor)
+        assert bg_frames is None
 
-    @pytest.mark.parametrize("ix_low,ix_high,n", [(None, None, 6),
-                                                  (0, None, 4),
-                                                  (None, 0, 3),
-                                                  (-5, 5, 11)])
-    def test_forward(self, sim, ix_low, ix_high, n):
-        """Tests the output length of forward method of simulation."""
+    @pytest.mark.parametrize(
+        "ix_low,ix_high", [(None, None), (0, None), (None, 1), (-5, 6)]
+    )
+    def test_forward(self, sim, ix_low, ix_high):
+        # check that psf has been called with apropriate frame index limits
 
-        """Setup"""
         sim.frame_range = (None, None)
-        em = emitter.RandomEmitterSet(2)
+        sim.background = None
+        sim.noise = None
+
+        em = emitter.factory(2, xy_unit="px")
         em.frame_ix = torch.tensor([-2, 3]).long()
 
-        """Run"""
-        frames, bg_frames = sim.forward(em, ix_low=ix_low, ix_high=ix_high)
+        with mock.patch.object(sim.psf, "forward") as mock_forward:
+            frames, bg_frames = sim.forward(em, ix_low=ix_low, ix_high=ix_high)
 
-        """Assert"""
-        assert len(frames) == n, "Wrong number of frames."
-    #
-    # def test_fill_bg_to_em(self, sim):
-    #     """Setup"""
-    #     sim.background = background.UniformBackground([10., 20.])
-    #     sim.bg2em = background.BgPerEmitterFromBgFrame(1, (-0.5, 31.5), (-0.5, 31.5), (32, 32))
-    #
-    #     """Run"""
-    #     em = emitter.RandomEmitterSet(10)
-    #     frames, bg = sim.forward(em)
-    #
-    #     """Assert"""
-    #     assert (em.bg >= 10.).all()
-    #     assert (em.bg <= 20.).all()
-    #
+        mock_forward.assert_called_once_with(
+            xyz=em.xyz_px,
+            weight=em.phot,
+            frame_ix=em.frame_ix,
+            ix_low=ix_low,
+            ix_high=ix_high,
+        )

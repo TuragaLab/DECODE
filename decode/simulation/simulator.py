@@ -22,8 +22,14 @@ class Simulation:
         noise (Noise): noise implementation
     """
 
-    def __init__(self, psf: psf_kernel.PSF, em_sampler=None, background=None, noise=None,
-                 frame_range: Tuple[int, int] = None):
+    def __init__(
+        self,
+        psf: psf_kernel.PSF,
+        em_sampler=None,
+        background=None,
+        noise=None,
+        frame_range: Tuple[int, int] = (None, None),
+    ):
         """
         Init Simulation.
 
@@ -36,7 +42,7 @@ class Simulation:
         """
 
         self.em_sampler = em_sampler
-        self.frame_range = frame_range if frame_range is not None else (None, None)
+        self.frame_range = frame_range
 
         self.psf = psf
         self.background = background
@@ -56,8 +62,12 @@ class Simulation:
         frames, bg = self.forward(emitter)
         return emitter, frames, bg
 
-    def forward(self, em: EmitterSet, ix_low: Union[None, int] = None, ix_high: Union[None, int] = None) -> Tuple[
-        torch.Tensor, torch.Tensor]:
+    def forward(
+        self,
+        em: EmitterSet,
+        ix_low: Union[None, int] = None,
+        ix_high: Union[None, int] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Forward an EmitterSet through the simulation pipeline.
         Setting ix_low or ix_high overwrites the frame range specified in the init.
@@ -78,14 +88,19 @@ class Simulation:
         if ix_high is None:
             ix_high = self.frame_range[1]
 
-        frames = self.psf.forward(em.xyz_px, em.phot, em.frame_ix,
-                                  ix_low=ix_low, ix_high=ix_high)
+        frames = self.psf.forward(
+            xyz=em.xyz_px,
+            weight=em.phot,
+            frame_ix=em.frame_ix,
+            ix_low=ix_low,
+            ix_high=ix_high,
+        )
 
-        """
-        Add background. This needs to happen here and not on a single frame, since background may be correlated.
-        The difference between background and noise is, that background is assumed to be independent of the 
-        emitter position / signal.
-        """
+        # add background. This needs to happen here and not on a single frame,
+        # since background may be correlated. The difference between background
+        # and noise is, that background is assumed to be independent of the
+        # emitter position / signal.
+
         if self.background is not None:
             frames, bg_frames = self.background.forward(frames)
         else:
