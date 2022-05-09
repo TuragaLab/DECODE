@@ -20,71 +20,83 @@ psf_cuda_available = pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_av
 class AbstractPSFTest(ABC):
 
     @abstractmethod
-    @pytest.fixture()
+    @pytest.fixture
     def psf(self):
         raise NotImplementedError
+
+    @pytest.mark.parametrize("ix_low,ix_high,ix_high_exp", [
+        (None, None, 5),
+        (-5, None, 8),
+        (None, 3, 5),
+        (2, 3, 1)
+    ])
+    def test_auto_index(self, ix_low, ix_high, ix_high_exp, psf):
+        ix_low_exp = 0  # always 0 because it is shifted to there
+        xyz, weight, frame_ix, ix_low, ix_high = psf._auto_filter_shift(
+            torch.rand(5, 3),
+            torch.rand(5),
+            torch.arange(-2, 3),
+            ix_low,
+            ix_high
+        )
+
+        assert ix_low == ix_low_exp, "Wrong lower index"
+        assert ix_high == ix_high_exp, "Wrong upper index"
+        assert (frame_ix >= ix_low_exp).all(), "Frame ix must not be lower than lower index"
+        assert (frame_ix < ix_high_exp).all(), "Frame ix can not exceed upper index"
 
     def test_forward_indices(self, psf):
         """Tests whether the correct amount of frames are returned"""
 
         # No Emitters but indices
         out = psf.forward(torch.zeros((0, 3)), torch.ones(0), torch.zeros(0).long(), -5, 5)
-        assert out.size(0) == 11
+        assert out.size(0) == 10, "Wrong number of frames"
 
         # Emitters but off indices
         out = psf.forward(torch.zeros((10, 3)), torch.ones(10), torch.zeros(10).long(), 5, 10)
-        assert out.size(0) == 6
+        assert out.size(0) == 5, "Wrong number of frames"
 
         # Emitters and matching indices
         out = psf.forward(torch.zeros((10, 3)), torch.ones(10), torch.zeros(10).long(), -5, 5)
-        assert out.size(0) == 11
+        assert out.size(0) == 10, "Wrong number of frames"
 
     def test_forward_frame_index(self, psf):
-        """
-        Tests whether the correct frames are active, i.e. signal present.
+        """Tests whether the correct frames are active, i.e. signal present."""
 
-        Args:
-            abs_psf: fixture
-
-        """
         """Setup"""
         xyz = torch.Tensor([[15., 15., 0.], [0.5, 0.3, 0.]])
         phot = torch.ones_like(xyz[:, 0])
         frame_ix = torch.Tensor([0, 0]).int()
 
         """Run"""
-        frames = psf.forward(xyz, phot, frame_ix, -1, 1)
+        frames = psf.forward(xyz, phot, frame_ix, -1, 2)
 
         """Asserts"""
-        assert frames.size() == torch.Size([3, 64, 64]), "Wrong dimensions."
+        assert frames.size() == torch.Size([3, 64, 64]), "Wrong frame dimensions."
         assert (frames[[0, -1]] == 0.).all(), "Wrong frames active."
         assert (frames[1] != 0).any(), "Wrong frames active."
         assert frames[1].max() > 0, "Wrong frames active."
 
+    def test_filter_shift(self, psf):
+        return
 
-class TestSingleFrameImplementedPSF(AbstractPSFTest):
+
+class TestPseudoPSF(AbstractPSFTest):
 
     @pytest.fixture()
     def psf(self):
-        """
-        Abstract PSF class fixture
-
-        Returns:
-            psf_kernel.PSF: abstract PSF
-        """
-
-        class PseudoAbsPSF(psf_kernel.PSF):
+        class QuasiAbstractPSF(psf_kernel.PSF):
             def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
-                if xyz.numel() >= 1:
-                    return torch.ones((64, 64)) * xyz[0, 0]
-                else:
-                    return torch.zeros((64, 64))
+                # returns a frame where every pixel has the value of the number
+                # of emitters on that frame
+                return torch.ones((64, 64)) * len(xyz)
 
-            def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low, ix_high):
-                xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
+            def forward(self, xyz, weight, frame_ix, ix_low, ix_high):
+                xyz, weight, frame_ix, ix_low, ix_high = super().forward(
+                    xyz, weight, frame_ix, ix_low, ix_high)
                 return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
 
-        return PseudoAbsPSF(None, None, None, None)
+        return QuasiAbstractPSF(None, None, None, None)
 
     def test_single_frame_wrapper(self, psf):
         """
@@ -100,12 +112,12 @@ class TestSingleFrameImplementedPSF(AbstractPSFTest):
         phot = torch.ones_like(xyz[:, 0])
         frame_ix = torch.Tensor([1, -2]).int()
 
-        frames = psf._forward_single_frame_wrapper(xyz, phot, frame_ix, -2, 1)
+        frames = psf._forward_single_frame_wrapper(xyz, phot, frame_ix, -2, 2)
 
-        assert frames.dim() == 3
-        assert (frames[0] == 0.5).all()
-        assert (frames[1:3] == 0).all()
-        assert (frames[-1] == 15).all()
+        assert frames.size() == torch.Size([4, 64, 64])
+        assert (frames[0] == 1).all()
+        assert (frames[1:2] == 0).all()
+        assert (frames[3] == 1).all()
 
 
 class TestDeltaPSF:
@@ -161,15 +173,6 @@ class TestDeltaPSF:
         assert (y == ytar).all()
 
     def test_forward(self, delta_1px, delta_05px):
-        """
-        Tests the implementation
-        Args:
-            delta_1px:
-            delta_05px:
-
-        Returns:
-
-        """
 
         # ToDo: Not such a nice test ...
 
@@ -200,11 +203,10 @@ class TestDeltaPSF:
     def test_doubles(self, delta_1px):
         frames = delta_1px.forward(torch.zeros((2, 3)), torch.tensor([1., 2.]), torch.zeros(2).long(), 0, 0)
 
-        """Assert"""
         assert frames[0, 0, 0] in (1., 2.)
 
 
-class TestGaussianExpect(TestSingleFrameImplementedPSF):
+class TestGaussianExpect(TestPseudoPSF):
 
     @pytest.fixture(scope='class', params=[None, (-5000., 5000.)])
     def psf(self, request):
@@ -244,7 +246,7 @@ class TestGaussianExpect(TestSingleFrameImplementedPSF):
         assert (frames[-1] != 0).any()
 
 
-class TestCubicSplinePSF(AbstractPSFTest):
+class TestCubicSplinePSF(TestPseudoPSF):
     cdir = pathlib.Path(__file__).resolve().parent
     bead_cal_file = (cdir / pathlib.Path('assets/bead_cal_for_testing_3dcal.mat'))  # expected path, might not exist
 

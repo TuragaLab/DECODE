@@ -19,13 +19,12 @@ class PSF(ABC):
 
     def __init__(self, xextent=(None, None), yextent=(None, None), zextent=None, img_shape=(None, None)):
         """
-        Constructor to comprise a couple of default attributes
 
         Args:
-            xextent:
-            yextent:
-            zextent:
-            img_shape:
+            xextent: extent of the psf in x
+            yextent: extent of the psf in y
+            zextent: extent of the psf in z
+            img_shape: shape of the output frame
         """
 
         super().__init__()
@@ -68,6 +67,14 @@ class PSF(ABC):
         Returns:
             frames (torch.Tensor): frames of size N x H x W where N is the batch dimension.
         """
+        xyz, weight, frame_ix, ix_low, ix_high = self._auto_filter_shift(
+            xyz=xyz, weight=weight, frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high
+        )
+
+    @staticmethod
+    def _auto_filter_shift(xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low: int, ix_high: int):
+        # filter emitters by frame and shift frame index to start at 0
+
         if frame_ix is None:
             frame_ix = torch.zeros((xyz.size(0),)).int()
 
@@ -75,10 +82,10 @@ class PSF(ABC):
             ix_low = frame_ix.min().item()
 
         if ix_high is None:
-            ix_high = frame_ix.max().item()
+            ix_high = frame_ix.max().item() + 1  # pythonic
 
-        """Kick out everything that is out of frame index bounds and shift the frames to start at 0"""
-        in_frame = (ix_low <= frame_ix) * (frame_ix <= ix_high)
+        # kick out everything that is out of frame index bounds and shift the frames to start at 0
+        in_frame = (frame_ix >= ix_low) * (frame_ix < ix_high)
         xyz_ = xyz[in_frame, :]
         weight_ = weight[in_frame] if weight is not None else None
         frame_ix_ = frame_ix[in_frame] - ix_low
@@ -108,7 +115,8 @@ class PSF(ABC):
         Returns:
             frames (torch.Tensor): N x H x W, stacked frames
         """
-        ix_split, n_splits = gutil.ix_split(frame_ix, ix_min=ix_low, ix_max=ix_high)
+        ix_split = gutil.ix_split(frame_ix, ix_min=ix_low, ix_max=ix_high)
+        n_splits = len(ix_split)
         if weight is not None:
             frames = [self._forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
         else:
@@ -780,3 +788,97 @@ class CubicSplinePSF(PSF):
 
         frames = torch.from_numpy(frames).reshape(n_frames, *self.img_shape)
         return frames
+
+
+class ZernikePSF(PSF):
+    def __init__(self, xextent, yextent, zextent, *,
+                 weight_real: list, weight_im: list, theta: float,
+                 num_aperture: float, ref_index: float, wavelength: float,
+                 k_size: int):
+        import zernike
+
+        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent)
+
+        self._weight_real = torch.tensor(weight_real)
+        self._weight_im = torch.tensor(weight_im)
+        self._theta = theta
+        self._num_aperture = num_aperture
+        self._ref_index = ref_index
+        self._wavelength = wavelength
+        self._k_size = k_size
+
+        self._pupil_e_field = None
+
+    @staticmethod
+    def pupile_field(num_aperture: float, na: float, wavelength: float,
+                     na_sample: float, na_oil: float, na_cover: float, k_size: int,
+                     pupilradius: float = 1.) -> torch.Tensor:
+        """
+        Compute eletric field in pupile space
+
+        Args:
+            num_aperture: numerical aperture
+            na: refractive index
+            wavelength:
+            na_sample: refractive index of sample medium
+            na_oil: refractive index of oil
+            na_cover: refractive index of cover slip
+            k_size: size of frequency domain (i.e. in pupil space)
+            pupilradius:
+
+        Returns:
+            tensor of size k_size x k_size
+
+        """
+        krange = np.linspace(-pupilradius + pupilradius / k_size, pupilradius - pupilradius / k_size, k_size)
+        [xx, yy] = np.meshgrid(krange, krange)
+        kr = np.lib.scimath.sqrt(xx ** 2 + yy ** 2)
+        kz = np.lib.scimath.sqrt(
+            (na_oil / wavelength) ** 2 - (kr * na / wavelength) ** 2)
+
+        kr = np.lib.scimath.sqrt(xx ** 2 + yy ** 2)
+        kz = np.lib.scimath.sqrt(
+            (na_oil / wavelength) ** 2 - (kr * na / wavelength) ** 2)
+
+        cos_imm = np.lib.scimath.sqrt(1 - (kr * na / na_oil) ** 2)
+        cos_med = np.lib.scimath.sqrt(1 - (kr * na / na_sample) ** 2)
+        cos_cov = np.lib.scimath.sqrt(1 - (kr * na / na_cover) ** 2)
+
+        kz_med = na_sample / wavelength * cos_med
+
+        FresnelPmedcov = 2 * na_sample * cos_med / (na_sample * cos_cov + na_cover * cos_med)
+        FresnelSmedcov = 2 * na_sample * cos_med / (na_sample * cos_med + na_sample * cos_med)
+        FresnelPcovimm = 2 * na_cover * cos_cov / (na_cover * cos_imm + na_oil * cos_cov)
+        FresnelScovimm = 2 * na_cover * cos_cov / (na_cover * cos_cov + na_oil * cos_imm)
+        Tp = FresnelPmedcov * FresnelPcovimm
+        Ts = FresnelSmedcov * FresnelScovimm
+
+        phi = np.arctan2(yy, xx)
+        cos_phi = np.cos(phi)
+        sin_phi = np.sin(phi)
+        sin_med = kr * na / na_sample
+
+        pvec = Tp * np.stack([cos_med * cos_phi, cos_med * sin_phi, -sin_med])
+        svec = Ts * np.stack([-sin_phi, cos_phi, np.zeros(cos_phi.shape)])
+
+        hx = cos_phi * pvec - sin_phi * svec
+        hy = sin_phi * pvec + cos_phi * svec
+        h = np.concatenate((hx, hy), axis=0)  # electric field
+
+        return torch.from_numpy(h)
+
+    @staticmethod
+    def zernike_space(n):
+        """Calculate zernike polynomials"""
+
+        ef = torch.cat([ef_x, ef_y], 0)
+        return
+
+    def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
+        h = self.t_a * self.zernike_real * torch.exp(self.zernike_im)
+        h_k = h * self.e_mn * torch.exp(2j * math.pi * (1))
+        real = self.fft(h_k) * weight
+
+        return real
+
+
