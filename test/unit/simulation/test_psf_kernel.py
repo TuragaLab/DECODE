@@ -542,8 +542,6 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert fisher.size() == torch.Size([n, psf.n_par, psf.n_par])
         assert rois.size() == torch.Size([n, *psf.roi_size_px]), "Wrong dimension of ROIs."
 
-    @pytest.mark.xfail(float(torch.__version__[:3]) < 1.4,
-                       reason="Pseudo inverse is not implemented in batch mode for older pytorch versions.")
     def test_crlb(self, psf, onek_rois):
         xyz, phot, bg, n = onek_rois
         alt_inv = torch.pinverse

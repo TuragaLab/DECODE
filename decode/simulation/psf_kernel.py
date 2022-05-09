@@ -739,7 +739,7 @@ class CubicSplinePSF(PSF):
                         ix_low: int, ix_high: int, chunk_size: int):
 
         i = 0
-        f = torch.zeros((ix_high - ix_low + 1, *self.img_shape))
+        f = torch.zeros((ix_high - ix_low, *self.img_shape))
         while i <= len(xyz):
             slicer = slice(i, min(len(xyz), i + chunk_size))
 
