@@ -63,13 +63,12 @@ def ix_split(ix: torch.Tensor, ix_min: int, ix_max: int) -> list:
         ix_max (int): upper limit (pythonic, exclusive)
 
     Returns:
-        list of boolean tensors
+        list of boolean indexing tensors of length ix_max - ix_min - 1
     """
     assert ix.dtype in (torch.short, torch.int, torch.long)
-    n = ix_max - ix_min
 
     log_ix = [ix == ix_c for ix_c in range(ix_min, ix_max)]
-    return log_ix, n
+    return log_ix
 
 
 class SliceForward:

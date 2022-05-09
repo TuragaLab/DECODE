@@ -101,16 +101,21 @@ class TestSplitSliceable:
 
 # ToDo: This needs a more thorough test
 @pytest.mark.parametrize("ix,ix_low,ix_high,exp", [
-    ([2, -1, 2, 0, 4], -1, 4, [[-1], [0], [], [2, 2], []])
+    ([5, 0, -1, 2], -1, 3,
+     # boolean output expect
+     [[False, False, True, False],  # ix -1
+      [False, True, False, False],  # ix 0
+      [False, False, False, False],  # ix 1
+      [False, False, False, True],  # ix 2
+      ])
 ])
 def test_ix_splitting(ix, ix_low, ix_high, exp):
     ix = torch.LongTensor(ix)
-    exp = [torch.LongTensor(e) for e in exp]
+    exp = torch.BoolTensor(exp)
 
-    out, n = gutils.ix_split(ix, ix_low, ix_high)
+    out = gutils.ix_split(ix, ix_low, ix_high)
 
-    assert n == len(out) == len(exp), "Length incorrect"
+    assert len(out) == (ix_high - ix_low), "Incorrect length"
 
     for o, e in zip(out, exp):
-        # hacky test. using the boolean output to boolean access the input index
-        assert (ix[o] == e).all(), "Elements unequal."
+        assert (o == e).all(), "Incorrect boolean indexing."
