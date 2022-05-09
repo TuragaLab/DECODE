@@ -22,6 +22,7 @@ class AbstractPSFTest(ABC):
     @abstractmethod
     @pytest.fixture
     def psf(self):
+        # put psf that outpus a 39 x 64 frame
         raise NotImplementedError
 
     @pytest.mark.parametrize("ix_low,ix_high,ix_high_exp", [
@@ -30,7 +31,7 @@ class AbstractPSFTest(ABC):
         (None, 3, 5),
         (2, 3, 1)
     ])
-    def test_auto_index(self, ix_low, ix_high, ix_high_exp, psf):
+    def test_auto_filter_shift(self, ix_low, ix_high, ix_high_exp, psf):
         ix_low_exp = 0  # always 0 because it is shifted to there
         xyz, weight, frame_ix, ix_low, ix_high = psf._auto_filter_shift(
             torch.rand(5, 3),
@@ -45,7 +46,7 @@ class AbstractPSFTest(ABC):
         assert (frame_ix >= ix_low_exp).all(), "Frame ix must not be lower than lower index"
         assert (frame_ix < ix_high_exp).all(), "Frame ix can not exceed upper index"
 
-    def test_forward_indices(self, psf):
+    def test_forward_frame_number(self, psf):
         """Tests whether the correct amount of frames are returned"""
 
         # No Emitters but indices
@@ -60,25 +61,19 @@ class AbstractPSFTest(ABC):
         out = psf.forward(torch.zeros((10, 3)), torch.ones(10), torch.zeros(10).long(), -5, 5)
         assert out.size(0) == 10, "Wrong number of frames"
 
-    def test_forward_frame_index(self, psf):
+    def test_forward_frames_active(self, psf):
         """Tests whether the correct frames are active, i.e. signal present."""
 
-        """Setup"""
         xyz = torch.Tensor([[15., 15., 0.], [0.5, 0.3, 0.]])
         phot = torch.ones_like(xyz[:, 0])
         frame_ix = torch.Tensor([0, 0]).int()
 
-        """Run"""
         frames = psf.forward(xyz, phot, frame_ix, -1, 2)
 
-        """Asserts"""
-        assert frames.size() == torch.Size([3, 64, 64]), "Wrong frame dimensions."
+        assert frames.size() == torch.Size([3, 39, 64]), "Wrong frame dimensions."
         assert (frames[[0, -1]] == 0.).all(), "Wrong frames active."
         assert (frames[1] != 0).any(), "Wrong frames active."
         assert frames[1].max() > 0, "Wrong frames active."
-
-    def test_filter_shift(self, psf):
-        return
 
 
 class TestPseudoPSF(AbstractPSFTest):
@@ -89,12 +84,7 @@ class TestPseudoPSF(AbstractPSFTest):
             def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
                 # returns a frame where every pixel has the value of the number
                 # of emitters on that frame
-                return torch.ones((64, 64)) * len(xyz)
-
-            def forward(self, xyz, weight, frame_ix, ix_low, ix_high):
-                xyz, weight, frame_ix, ix_low, ix_high = super().forward(
-                    xyz, weight, frame_ix, ix_low, ix_high)
-                return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
+                return torch.ones((39, 64)) * len(xyz)
 
         return QuasiAbstractPSF(None, None, None, None)
 
@@ -114,16 +104,16 @@ class TestPseudoPSF(AbstractPSFTest):
 
         frames = psf._forward_single_frame_wrapper(xyz, phot, frame_ix, -2, 2)
 
-        assert frames.size() == torch.Size([4, 64, 64])
+        assert frames.size() == torch.Size([4, 39, 64])
         assert (frames[0] == 1).all()
         assert (frames[1:2] == 0).all()
         assert (frames[3] == 1).all()
 
 
-class TestDeltaPSF:
+class TestDeltaPSF(AbstractPSFTest):
 
     @pytest.fixture()
-    def delta_1px(self):
+    def psf(self):
         return psf_kernel.DeltaPSF(xextent=(-0.5, 31.5),
                                    yextent=(-0.5, 31.5),
                                    img_shape=(32, 32))
@@ -134,11 +124,11 @@ class TestDeltaPSF:
                                    yextent=(-0.5, 31.5),
                                    img_shape=(64, 64))
 
-    def test_bin_ctr(self, delta_1px, delta_05px):
+    def test_bin_ctr(self, psf, delta_05px):
 
         """Assert"""
-        assert (delta_1px._bin_ctr_x == torch.arange(32).float()).all()
-        assert (delta_1px._bin_ctr_y == torch.arange(32).float()).all()
+        assert (psf._bin_ctr_x == torch.arange(32).float()).all()
+        assert (psf._bin_ctr_y == torch.arange(32).float()).all()
 
         assert (delta_05px._bin_ctr_x == torch.arange(64).float() / 2 - 0.25).all()
         assert (delta_05px._bin_ctr_y == torch.arange(64).float() / 2 - 0.25).all()
@@ -172,7 +162,7 @@ class TestDeltaPSF:
         assert (x == xtar).all()
         assert (y == ytar).all()
 
-    def test_forward(self, delta_1px, delta_05px):
+    def test_forward(self, psf, delta_05px):
 
         # ToDo: Not such a nice test ...
 
@@ -180,11 +170,9 @@ class TestDeltaPSF:
         phot = torch.ones_like(xyz[:, 0])
         frame_ix = torch.tensor([1, 0, 1, 1])
 
-        """Run"""
-        out_1px = delta_1px.forward(xyz, phot, frame_ix, 0, 2)
-        out_05px = delta_05px.forward(xyz, phot, frame_ix, 0, 2)
+        out_1px = psf.forward(xyz, phot, frame_ix, 0, 3)
+        out_05px = delta_05px.forward(xyz, phot, frame_ix, 0, 3)
 
-        """Test"""
         assert out_1px.size() == torch.Size([3, 32, 32]), "Wrong output shape."
         assert out_05px.size() == torch.Size([3, 64, 64]), "Wrong output shape."
 
@@ -197,22 +185,22 @@ class TestDeltaPSF:
         assert (out_1px.unique() == torch.Tensor([0., 1.])).all()
         assert (out_05px.unique() == torch.Tensor([0., 1.])).all()
 
-    def test_forward_border(self, delta_1px):
-        _ = delta_1px.forward(torch.zeros((0, 3)), torch.zeros((0,)), torch.zeros(0).long(), 0, 0)
+    def test_forward_border(self, psf):
+        _ = psf.forward(torch.zeros((0, 3)), torch.zeros((0,)), torch.zeros(0).long(), 0, 0)
 
-    def test_doubles(self, delta_1px):
-        frames = delta_1px.forward(torch.zeros((2, 3)), torch.tensor([1., 2.]), torch.zeros(2).long(), 0, 0)
+    def test_doubles(self, psf):
+        frames = psf.forward(torch.zeros((2, 3)), torch.tensor([1., 2.]), torch.zeros(2).long(), 0, 0)
 
         assert frames[0, 0, 0] in (1., 2.)
 
 
-class TestGaussianExpect(TestPseudoPSF):
+class TestGaussianExpect(AbstractPSFTest):
 
     @pytest.fixture(scope='class', params=[None, (-5000., 5000.)])
     def psf(self, request):
         return psf_kernel.GaussianPSF((-0.5, 63.5), (-0.5, 63.5), request.param, img_shape=(64, 64), sigma_0=1.5)
 
-    def test_norm(self, psf):
+    def test_normalization(self, psf):
         xyz = torch.tensor([[32., 32., 0.]])
         phot = torch.tensor([1.])
         assert pytest.approx(psf.forward(xyz, phot).sum().item(), 0.05) == 1
@@ -225,14 +213,7 @@ class TestGaussianExpect(TestPseudoPSF):
         assert pytest.approx(psf.forward(xyz, phot).max().item(), 0.05) == 1
 
     def test_single_frame_wrapper(self, psf):
-        """
-        Tests whether the general impl
-        Args:
-            abs_psf:
-
-        Returns:
-
-        """
+        # test general implementation
 
         xyz = torch.Tensor([[15., 15., 0.], [0.5, 0.3, 0.]])
         phot = torch.ones_like(xyz[:, 0])
@@ -246,17 +227,16 @@ class TestGaussianExpect(TestPseudoPSF):
         assert (frames[-1] != 0).any()
 
 
-class TestCubicSplinePSF(TestPseudoPSF):
-    cdir = pathlib.Path(__file__).resolve().parent
-    bead_cal_file = (cdir / pathlib.Path('assets/bead_cal_for_testing_3dcal.mat'))  # expected path, might not exist
+class TestCubicSplinePSF(AbstractPSFTest):
+    test_dir = pathlib.Path(__file__).resolve().parents[2]
+    bead_cal_file = test_dir / "assets/bead_cal_for_testing_3dcal.mat"  # expected path, might not exist
 
     @pytest.fixture()
     def psf(self):
-        xextent = (-0.5, 63.5)
+        xextent = (-0.5, 38.5)
         yextent = (-0.5, 63.5)
-        img_shape = (64, 64)
+        img_shape = (39, 64)
 
-        """Have a look whether the bead calibration is there"""
         asset_handler.AssetHandler().auto_load(self.bead_cal_file)
 
         smap_psf = load_cal.SMAPSplineCoefficient(calib_file=str(self.bead_cal_file))
@@ -268,14 +248,7 @@ class TestCubicSplinePSF(TestPseudoPSF):
 
     @pytest.fixture()
     def psf_cuda(self, psf):
-        """
-        Returns CUDA version of CPU implementation. Will make tests fail if not compiled with CUDA support enabled.
-        Args:
-            psf:
-
-        Returns:
-
-        """
+        # returns psf that lives on cuda
         return psf.cuda()
 
     @pytest.fixture()
@@ -305,14 +278,14 @@ class TestCubicSplinePSF(TestPseudoPSF):
                          coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(24, 24), roi_auto_center=True,
                          device='cpu')
 
-            assert err == 'PSF reference can not be centered when the roi_size is even.'
+            assert err == "PSF reference can not be centered when the roi_size is even"
 
         with pytest.raises(ValueError) as err:  # even roi size --> no center
             psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
                          coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), ref_re=(5, 5, 100),
                          roi_auto_center=True, device='cpu')
 
-            assert err == 'PSF reference can not be automatically centered when you specify a custom center at the same time.'
+            assert err == "PSF reference can not be automatically centered when you specify a custom center at the same time."
 
         psf.__init__(xextent=psf.xextent, yextent=psf.yextent, img_shape=psf.img_shape, ref0=psf.ref0,
                      coeff=psf._coeff, vx_size=psf.vx_size, roi_size=(25, 25), roi_auto_center=True,
@@ -320,57 +293,32 @@ class TestCubicSplinePSF(TestPseudoPSF):
 
         assert (psf.ref_re == torch.tensor([12, 12, psf.ref0[2]])).all()
 
-    def test_forward_ix_out_of_range(self, psf):
-        out = psf.forward(torch.zeros((0, 3)), torch.zeros(0), torch.zeros(0).long(), -5, 5)
-        assert out.size(0) == 11
-
     @psf_cuda_available
     def test_ship(self, psf, psf_cuda):
-        """
-        Tests ships to CPU / CUDA
-        Args:
-            psf:
-            psf_cuda:
-
-        Returns:
-
-        """
         import spline
 
-        """Test implementation state before"""
+        # test implementation before shipping to cuda
         assert isinstance(psf._spline_impl, spline.PSFWrapperCPU)
         assert isinstance(psf_cuda._spline_impl, spline.PSFWrapperCUDA)
 
-        """Test implementation state after"""
+        # test implementation state after cuda transition
         assert isinstance(psf.cuda()._spline_impl, spline.PSFWrapperCUDA)
         assert isinstance(psf_cuda.cpu()._spline_impl, spline.PSFWrapperCPU)
 
     def test_pickleability_cpu(self, psf):
-        """
-        Tests the pickability of CPU implementation
-
-        Args:
-            psf: fixture
-
-        """
 
         psf_str = pickle.dumps(psf)
         _ = pickle.loads(psf_str)
 
     @psf_cuda_available
     def test_pickleability_cuda(self, psf_cuda):
+
         self.test_pickleability_cpu(psf_cuda)
 
     @psf_cuda_available
     def test_roi_cuda_cpu(self, psf, psf_cuda, onek_rois):
-        """
-        Tests approximate equality of CUDA vs CPU implementation for a few ROIs
+        """Tests approximate equality of CUDA vs CPU implementation"""
 
-        Args:
-            psf: psf implementation on CPU
-            psf_cuda: psf implementation on CUDA
-
-        """
         xyz, phot, bg, n = onek_rois
         phot = torch.ones_like(phot)
 
@@ -380,14 +328,9 @@ class TestCubicSplinePSF(TestPseudoPSF):
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-7)
 
     def test_roi_invariance(self, psf):
-        """
-        Tests whether shifts in x and y with multiples of px size lead to the same ROI
+        """ Tests whether shifts in x and y with multiples of px size lead to the same ROI"""
 
-        Args:
-            psf: fixture
-
-        """
-        """Setup"""
+        # setup
         xyz_0 = torch.zeros((1, 3))
 
         steps = torch.arange(-5 * psf.vx_size[0], 5 * psf.vx_size[0], step=psf.vx_size[0]).unsqueeze(1)
@@ -396,14 +339,12 @@ class TestCubicSplinePSF(TestPseudoPSF):
         xyz_x = torch.cat((steps, torch.zeros((steps.size(0), 2))), 1)
         xyz_y = torch.cat((torch.zeros((steps.size(0), 1)), steps, torch.zeros((steps.size(0), 1))), 1)
 
-        """Run"""
+        # run
         roi_ref = psf.forward_rois(xyz_0, torch.ones(1))
         roi_x = psf.forward_rois(xyz_x, torch.ones_like(xyz_x[:, 0]))
         roi_y = psf.forward_rois(xyz_y, torch.ones_like(xyz_y[:, 1]))
 
-        """Assertions"""
         # make sure that within a 5 x 5 window the values are the same
-
         assert tutil.tens_almeq(roi_ref[0, 10:15, 10:15], roi_x[:, 10:15, 10:15])
         assert tutil.tens_almeq(roi_ref[0, 10:15, 10:15], roi_y[:, 10:15, 10:15])
 
@@ -423,14 +364,7 @@ class TestCubicSplinePSF(TestPseudoPSF):
 
     @psf_cuda_available
     def test_roi_drv_cuda_cpu(self, psf, psf_cuda, onek_rois):
-        """
-        Tests approximate equality of CUDA and CPU implementation for a few ROIs on the derivatives.
-
-        Args:
-            psf: psf implementation on CPU
-            psf_cuda: psf implementation on CUDA
-
-        """
+        """Tests approximate equality of CUDA and CPU implementation for a few ROIs on the derivatives."""
         xyz, phot, bg, n = onek_rois
         phot = torch.ones_like(phot)
 
@@ -483,13 +417,7 @@ class TestCubicSplinePSF(TestPseudoPSF):
         plt.show()
 
     def test_redefine_reference(self, psf):
-        """
-        Tests redefinition of reference
-
-        Args:
-            psf: fixture
-
-        """
+        """Tests redefinition of reference point"""
 
         """Assert and test"""
         xyz = torch.tensor([[15., 15., 0.]])
@@ -507,16 +435,7 @@ class TestCubicSplinePSF(TestPseudoPSF):
 
     @psf_cuda_available
     def test_frame_cuda_cpu(self, psf, psf_cuda):
-        """
-        Tests approximate equality of CUDA vs CPU implementation for a few frames
-
-        Args:
-            psf: psf fixture, CPU version
-            psf_cuda: psf fixture, CUDA version
-
-        Returns:
-
-        """
+        """Tests approximate equality of CUDA vs CPU implementation"""
         n = 10000
         xyz = torch.rand((n, 3)) * 64
         xyz[:, 2] = torch.randn_like(xyz[:, 2]) * 1000 - 500
@@ -547,48 +466,30 @@ class TestCubicSplinePSF(TestPseudoPSF):
 
     @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1), (1, 1), (-5, 5)])
     def test_forward_chunks(self, psf, ix_low, ix_high):
-        """
-        Tests whether chunked forward returns the same frames as forward method
+        """Tests whether chunked forward returns the same frames as forward method"""
 
-        Args:
-            psf: fixture
-
-        """
-
-        """Setup"""
         n = 100
         xyz = torch.rand((n, 3)) * 64
         phot = torch.ones(n)
         frame_ix = torch.randint(-5, 4, size=(n,))
 
-        """Run"""
         out_chunk = psf._forward_chunks(xyz, phot, frame_ix, ix_low, ix_high, chunk_size=2)
         out_forward = psf.forward(xyz, phot, frame_ix, ix_low, ix_high)
 
-        """Test"""
         assert tutil.tens_almeq(out_chunk, out_forward)
 
     @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1), (1, 1), (-5, 5)])
     def test_forward_drv_chunks(self, psf, ix_low, ix_high):
-        """
-        Tests whether chunked drv forward returns the same frames as drv forward method
+        """Tests whether chunked drv forward returns the same frames as drv forward method"""
 
-        Args:
-           psf: fixture
-
-        """
-
-        """Setup"""
         n = 100
         xyz = torch.rand((n, 3)) * 64
         phot = torch.ones(n)
         bg = torch.rand_like(phot) * 100
 
-        """Run"""
         drv_chunk, roi_chunk = psf._forward_drv_chunks(xyz, phot, bg, add_bg=False, chunk_size=2)
         drv, roi = psf.derivative(xyz, phot, bg, add_bg=False)
 
-        """Test"""
         assert tutil.tens_almeq(drv_chunk, drv)
         assert tutil.tens_almeq(roi_chunk, roi)
 
@@ -612,86 +513,44 @@ class TestCubicSplinePSF(TestPseudoPSF):
     @pytest.mark.slow
     @psf_cuda_available
     def test_many_drv_roi_forward(self, psf_cuda):
-        """Setup"""
         psf_cuda.max_roi_chunk = 1000000
         n = psf_cuda._max_drv_roi_chunk * 5
         xyz = torch.rand((n, 3)) + 15
         phot = torch.ones(n)
         bg = torch.rand_like(phot) * 100
 
-        """Run"""
         drv, rois = psf_cuda.derivative(xyz, phot, bg)
 
-        """Assert"""
         assert drv.size() == torch.Size([n, 5, *psf_cuda.roi_size_px])
         assert rois.size() == torch.Size([n, *psf_cuda.roi_size_px])
 
     def test_derivatives(self, psf, onek_rois):
-        """
-        Tests the derivate calculation
-
-        Args:
-            psf_cuda: psf fixture (see above)
-            onek_rois: 1k roi fixture (see above)
-
-        Returns:
-
-        """
-        """Setup"""
         xyz, phot, bg, n = onek_rois
 
-        """Run"""
         drv, rois = psf.derivative(xyz, phot, bg)
 
-        """Test"""
         assert drv.size() == torch.Size([n, psf.n_par, *psf.roi_size_px]), "Wrong dimension of derivatives."
         assert tutil.tens_almeq(drv[:, -1].unique(), torch.Tensor([0., 1.])), "Derivative of background must be 1 or 0."
 
         assert rois.size() == torch.Size([n, *psf.roi_size_px]), "Wrong dimension of ROIs."
 
     def test_fisher(self, psf, onek_rois):
-        """
-        Tests the fisher matrix calculation.
-
-        Args:
-            psf_cuda: psf fixture (see above)
-            onek_rois: 1k roi fixture (see above)
-
-        Returns:
-
-        """
-        """Setup"""
         xyz, phot, bg, n = onek_rois
 
-        """Run"""
         fisher, rois = psf.fisher(xyz, phot, bg)
 
-        """Test"""
         assert fisher.size() == torch.Size([n, psf.n_par, psf.n_par])
-
         assert rois.size() == torch.Size([n, *psf.roi_size_px]), "Wrong dimension of ROIs."
 
     @pytest.mark.xfail(float(torch.__version__[:3]) < 1.4,
                        reason="Pseudo inverse is not implemented in batch mode for older pytorch versions.")
     def test_crlb(self, psf, onek_rois):
-        """
-        Tests the crlb calculation
-        Args:
-            psf_cuda: psf fixture (see above)
-            onek_rois: 1k roi fixture (see above)
-
-        Returns:
-
-        """
-        """Setup"""
         xyz, phot, bg, n = onek_rois
         alt_inv = torch.pinverse
 
-        """Run"""
         crlb, rois = psf.crlb(xyz, phot, bg)
         crlb_p, _ = psf.crlb(xyz, phot, bg, inversion=alt_inv)
 
-        """Test"""
         assert crlb.size() == torch.Size([n, psf.n_par]), "Wrong CRLB dimension."
         assert (torch.Tensor([.01, .01, .02]) ** 2 <= crlb[:, :3]).all(), "CRLB in wrong range (lower bound)."
         assert (torch.Tensor([.1, .1, 100]) ** 2 >= crlb[:, :3]).all(), "CRLB in wrong range (upper bound)."

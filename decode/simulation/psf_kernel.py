@@ -44,7 +44,6 @@ class PSF(ABC):
     def crlb(self, *args, **kwargs):
         raise NotImplementedError
 
-    @abstractmethod
     def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low: int, ix_high: int):
         """
         Forward coordinates frame index aware through the psf model.
@@ -67,9 +66,14 @@ class PSF(ABC):
         Returns:
             frames (torch.Tensor): frames of size N x H x W where N is the batch dimension.
         """
+
+        # NOTE: This is the most basic implementation (probably inefficient for your PSF).
+        # The frame indices are shifted, the emtiters are filtered and then the frames
+        # are computed one by one. Better implement a batched version of that.
         xyz, weight, frame_ix, ix_low, ix_high = self._auto_filter_shift(
             xyz=xyz, weight=weight, frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high
         )
+        return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
 
     @staticmethod
     def _auto_filter_shift(xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low: int, ix_high: int):
@@ -101,9 +105,8 @@ class PSF(ABC):
     def _forward_single_frame_wrapper(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor,
                                       ix_low: int, ix_high: int):
         """
-        This is a convenience (fallback) wrapper that splits the input in frames and forward them throguh the single
-        frame
-        function if the implementation does not have a frame index (i.e. batched) forward method.
+        Convenience (fallback) wrapper that splits the input in frames and computes the
+        frames one by one. Use only if the forward implemenation is not batched.
 
         Args:
             xyz: coordinates of size N x (2 or 3)
@@ -117,12 +120,13 @@ class PSF(ABC):
         """
         ix_split = gutil.ix_split(frame_ix, ix_min=ix_low, ix_max=ix_high)
         n_splits = len(ix_split)
+
         if weight is not None:
             frames = [self._forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
         else:
             frames = [self._forward_single_frame(xyz[ix_split[i]], None) for i in range(n_splits)]
-        frames = torch.stack(frames, 0)
 
+        frames = torch.stack(frames, 0)
         return frames
 
 
@@ -199,30 +203,27 @@ class DeltaPSF(PSF):
         if weight is None:
             weight = torch.ones_like(xyz[:, 0])
 
-        xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
+        xyz, weight, frame_ix, ix_low, ix_high = self._auto_filter_shift(
+            xyz, weight, frame_ix, ix_low, ix_high
+        )
 
-        """Remove Emitters that are out of the frame"""
+        # remove Emitters that are out of the frame
         mask = self._fov_filter.clean_emitter(xyz)
 
         x_ix, y_ix = self.search_bin_index(xyz[mask], raise_outside=True)
         n_ix = frame_ix[mask].long()
 
-        """Generate frames"""
-        frames = torch.zeros((ix_high - ix_low + 1, *self.img_shape))
+        # compute frames
+        frames = torch.zeros((ix_high - ix_low, *self.img_shape))
         frames[n_ix, x_ix, y_ix] = weight[mask]
 
         return frames
 
 
 class GaussianPSF(PSF):
-    """
-    A gaussian PSF model.
-
-    """
-
     def __init__(self, xextent: Tuple[float, float], yextent, zextent, img_shape, sigma_0, peak_weight=False):
         """
-        Init of Gaussian Expect. If no z extent is provided we assume 2D PSF.
+        Gaussian PSF Model.If no z extent is provided we assume a 2D PSF.
 
         Args:
             xextent: (tuple of float) extent of psf in x
@@ -762,19 +763,20 @@ class CubicSplinePSF(PSF):
         Returns:
             frames: (torch.Tensor)
         """
-        xyz, weight, frame_ix, ix_low, ix_high = super().forward(xyz, weight, frame_ix, ix_low, ix_high)
+        xyz, weight, frame_ix, ix_low, ix_high = self._auto_filter_shift(xyz, weight, frame_ix, ix_low, ix_high)
 
         if xyz.size(0) == 0:
-            return torch.zeros((ix_high - ix_low + 1, *self.img_shape))
+            return torch.zeros((ix_high - ix_low, *self.img_shape))
 
         if self.max_roi_chunk is not None and len(xyz) > self.max_roi_chunk:
             return self._forward_chunks(xyz, weight, frame_ix, ix_low, ix_high, self.max_roi_chunk)
 
-        """Convert Coordinates into ROI based coordinates and transform into implementation coordinates"""
+        # convert Coordinates into ROI based coordinates and transform
+        # into implementation coordinates
         xyz_r, ix = self.frame2roi_coord(xyz)
         xyz_r = self.coord2impl(xyz_r)
 
-        n_frames = ix_high - ix_low + 1
+        n_frames = ix_high - ix_low
 
         frames = self._spline_impl.forward_frames(*self.img_shape,
                                                   frame_ix,
