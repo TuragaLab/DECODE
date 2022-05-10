@@ -2,6 +2,7 @@ import pathlib
 import random
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 import torch
 
@@ -11,12 +12,7 @@ import decode.utils.calibration_io as load_cal
 from decode.generic import asset_handler
 
 
-def random_positions(
-        n: int,
-        xextent=64,
-        yextent=64,
-        zextent=(-500, 500),
-        weight=1.):
+def random_positions(n: int, xextent=64, yextent=64, zextent=(-500, 500), weight=1.0):
 
     xyz = torch.rand(n, 3)
     xyz[:, :2] *= torch.tensor([xextent, yextent])
@@ -27,10 +23,12 @@ def random_positions(
 
 
 class TestCubicSplinePSF:
+    # these tests have been outsourced from unit test because they depend on
+    # real spline coefficient calibrations (not random ones)
+
+    # ToDo: get rid of paths
     test_dir = pathlib.Path(__file__).resolve().parents[2]
-    bead_cal_file = (
-            test_dir / "assets/bead_cal_for_testing_3dcal.mat"
-    )  # expected path, might not exist
+    bead_cal_file = test_dir / "assets/bead_cal_for_testing_3dcal.mat"
 
     @pytest.fixture()
     def psf(self):
@@ -53,6 +51,35 @@ class TestCubicSplinePSF:
         )
 
         return psf_impl
+
+    def test_crlb_range(self, psf):
+        # give a few photons to make the derivatives not explode
+        xyz, weight = random_positions(100, weight=10000)
+        bg = torch.ones_like(weight) * 50
+
+        crlb, _ = psf.crlb(xyz, weight, bg)
+
+        assert (
+            torch.Tensor([0.01, 0.01, 0.02]) ** 2 <= crlb[:, :3]
+        ).all(), "CRLB not in reasonable range (lower bound)"
+        assert (
+            torch.Tensor([0.1, 0.1, 100]) ** 2 >= crlb[:, :3]
+        ).all(), "CRLB not in reasonable range (upper bound)"
+
+    def test_crlb_inversion(self, psf):
+        # give a few photons to make the derivatives not explode
+        xyz, weight = random_positions(100, weight=10000)
+        bg = torch.ones_like(weight) * 50
+
+        crlb, _ = psf.crlb(xyz, weight, bg)
+        crlb_alt, _ = psf.crlb(xyz, weight, bg, inversion=torch.pinverse)
+
+        diff_inv = (crlb_alt - crlb).abs()
+
+        np.testing.assert_allclose(crlb[:, :2], crlb_alt[:, :2], atol=1e-4)
+        np.testing.assert_allclose(crlb[:, 2], crlb_alt[:, 2], rtol=0.1)
+        np.testing.assert_allclose(crlb[:, 3], crlb_alt[:, 3], atol=1e2)
+        np.testing.assert_allclose(crlb[:, 4], crlb_alt[:, 4], atol=1e-2)
 
     @pytest.mark.plot
     def test_frame_visual(self, psf):
