@@ -115,4 +115,3 @@ def parse_dependency(path) -> dict:
     data['conda-build']['run'] = convert_mixed_list(data['conda-build']['run'])
 
     return data
-

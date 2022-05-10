@@ -11,8 +11,15 @@ from scipy.stats import gaussian_kde
 import warnings
 
 
-def kde_sorted(x: torch.Tensor, y: torch.Tensor, plot=False, ax=None, band_with=None, sub_sample: (None, int) = None,
-               nan_inf_ignore=False):
+def kde_sorted(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    plot=False,
+    ax=None,
+    band_with=None,
+    sub_sample: (None, int) = None,
+    nan_inf_ignore=False,
+):
     """
     Computes a kernel density estimate. Ability to sub-sample for very large datasets.
 
@@ -52,7 +59,7 @@ def kde_sorted(x: torch.Tensor, y: torch.Tensor, plot=False, ax=None, band_with=
                     z = gaussian_kde(xy_in)(xy_in)
 
         except (np.linalg.LinAlgError, ValueError):  # ToDo: replace by robust kde
-            z = np.ones_like(xy_in[0]) * float('nan')
+            z = np.ones_like(xy_in[0]) * float("nan")
 
     else:
         if band_with:
@@ -71,11 +78,18 @@ def kde_sorted(x: torch.Tensor, y: torch.Tensor, plot=False, ax=None, band_with=
 
         if sub_sample:
             # get rid of nan
-            xy_out = xy_out[:, np.prod((~np.isnan(xy_out)), 0).astype('bool')]
-            ax.scatter(xy_out[0, :], xy_out[1, :], c='k', s=10, edgecolors='none')
+            xy_out = xy_out[:, np.prod((~np.isnan(xy_out)), 0).astype("bool")]
+            ax.scatter(xy_out[0, :], xy_out[1, :], c="k", s=10, edgecolors="none")
 
-        not_nan = (~np.isnan(x_in) * ~np.isnan(y_in))
-        ax.scatter(x_in[not_nan], y_in[not_nan], c=z[None, not_nan], s=10, edgecolors='none', cmap='RdBu_r')
+        not_nan = ~np.isnan(x_in) * ~np.isnan(y_in)
+        ax.scatter(
+            x_in[not_nan],
+            y_in[not_nan],
+            c=z[None, not_nan],
+            s=10,
+            edgecolors="none",
+            cmap="RdBu_r",
+        )
 
     return z, x_in, y_in
 
@@ -124,11 +138,15 @@ class MetricMeter:
             bins_ = np.linspace(range_hist[0], range_hist[1], bins + 1)
         else:
             # use 97 percent as range
-            range_hist = np.percentile(self.vals, [1, 99])  # funnily percentile is in percent not 0...1
+            range_hist = np.percentile(
+                self.vals, [1, 99]
+            )  # funnily percentile is in percent not 0...1
             bins_ = np.linspace(*range_hist, bins + 1)
 
         vals = self.vals.view(-1).numpy()
-        f, (ax_box, ax_hist) = plt.subplots(2, sharex=True, gridspec_kw={"height_ratios": (.1, .9)})
+        f, (ax_box, ax_hist) = plt.subplots(
+            2, sharex=True, gridspec_kw={"height_ratios": (0.1, 0.9)}
+        )
 
         """Plot boxplot and histplot."""
         sns.boxplot(vals, ax=ax_box)
@@ -137,7 +155,10 @@ class MetricMeter:
         """Get the fit values."""
         if fit is not None:
             (mu, sigma) = stats.norm.fit(vals)
-            plt.legend(["N $ (\mu$ = {0:.3g}, $\sigma^2$ = {1:.3g}$^2$)".format(mu, sigma)], frameon=False)
+            plt.legend(
+                ["N $ (\mu$ = {0:.3g}, $\sigma^2$ = {1:.3g}$^2$)".format(mu, sigma)],
+                frameon=False,
+            )
 
         # Cosmetics
         ax_box.set(yticks=[])
@@ -148,20 +169,10 @@ class MetricMeter:
         return f
 
     def reset(self):
-        """
-        Reset instance.
-        :return:
-        """
         self.val = None
         self.vals = torch.zeros((0,))
 
     def update(self, val):
-        """
-        Update AverageMeter.
-
-        :param val: value
-        :return: None
-        """
 
         val = float(val)
         if math.isnan(val) and self.reduce_nan:
@@ -213,9 +224,11 @@ class MetricMeter:
     def __pow__(self, other):
         m = MetricMeter(reduce_nan=self.reduce_nan)
         if isinstance(other, MetricMeter):
-            raise ValueError("Power not implemented for both operands being MetricMeters.")
+            raise ValueError(
+                "Power not implemented for both operands being MetricMeters."
+            )
         else:
-            m.vals = self.vals ** other
+            m.vals = self.vals**other
         return m
 
     def __truediv__(self, other):
