@@ -12,11 +12,13 @@ import decode.generic.utils
 
 
 class PSF(ABC):
-    """
-
-    """
-
-    def __init__(self, xextent=(None, None), yextent=(None, None), zextent=None, img_shape=(None, None)):
+    def __init__(
+        self,
+        xextent=(None, None),
+        yextent=(None, None),
+        zextent=None,
+        img_shape=(None, None),
+    ):
         """
         Abstract class to represent a point spread function.
         `.forward` must be overwritten and shall be called via super().forward(...)
@@ -38,15 +40,21 @@ class PSF(ABC):
         self.img_shape = img_shape
 
     def __str__(self):
-        return 'PSF: \n xextent: {}\n yextent: {}\n zextent: {}\n img_shape: {}'.format(self.xextent,
-                                                                                        self.yextent,
-                                                                                        self.zextent,
-                                                                                        self.img_shape)
+        return "PSF: \n xextent: {}\n yextent: {}\n zextent: {}\n img_shape: {}".format(
+            self.xextent, self.yextent, self.zextent, self.img_shape
+        )
 
     def crlb(self, *args, **kwargs):
         raise NotImplementedError
 
-    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: Optional[torch.Tensor] = None, ix_low: Optional[int] = None, ix_high: Optional[int] = None):
+    def forward(
+        self,
+        xyz: torch.Tensor,
+        weight: torch.Tensor,
+        frame_ix: Optional[torch.Tensor] = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
+    ):
         """
         Forward coordinates frame index aware through the psf model.
         Implementation methods should call this method first in order not to handle the default argument stuff.
@@ -75,10 +83,18 @@ class PSF(ABC):
         xyz, weight, frame_ix, ix_low, ix_high = self._auto_filter_shift(
             xyz=xyz, weight=weight, frame_ix=frame_ix, ix_low=ix_low, ix_high=ix_high
         )
-        return self._forward_single_frame_wrapper(xyz, weight, frame_ix, ix_low, ix_high)
+        return self._forward_single_frame_wrapper(
+            xyz, weight, frame_ix, ix_low, ix_high
+        )
 
     @staticmethod
-    def _auto_filter_shift(xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor, ix_low: int, ix_high: int):
+    def _auto_filter_shift(
+        xyz: torch.Tensor,
+        weight: torch.Tensor,
+        frame_ix: torch.Tensor,
+        ix_low: int,
+        ix_high: int,
+    ):
         # filter emitters by frame and shift frame index to start at 0
 
         if frame_ix is None:
@@ -104,8 +120,14 @@ class PSF(ABC):
     def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
         raise NotImplementedError
 
-    def _forward_single_frame_wrapper(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor,
-                                      ix_low: int, ix_high: int):
+    def _forward_single_frame_wrapper(
+        self,
+        xyz: torch.Tensor,
+        weight: torch.Tensor,
+        frame_ix: torch.Tensor,
+        ix_low: int,
+        ix_high: int,
+    ):
         """
         Convenience (fallback) wrapper that splits the input in frames and computes the
         frames one by one. Use only if the forward implemenation is not batched.
@@ -124,9 +146,15 @@ class PSF(ABC):
         n_splits = len(ix_split)
 
         if weight is not None:
-            frames = [self._forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]]) for i in range(n_splits)]
+            frames = [
+                self._forward_single_frame(xyz[ix_split[i]], weight[ix_split[i]])
+                for i in range(n_splits)
+            ]
         else:
-            frames = [self._forward_single_frame(xyz[ix_split[i]], None) for i in range(n_splits)]
+            frames = [
+                self._forward_single_frame(xyz[ix_split[i]], None)
+                for i in range(n_splits)
+            ]
 
         if len(frames) == 0:
             frames = torch.zeros(0, *self.img_shape)
@@ -148,10 +176,16 @@ class DeltaPSF(PSF):
 
         from decode.emitter.process import RemoveOutOfFOV
 
-        self._fov_filter = RemoveOutOfFOV(xextent=self.xextent, yextent=self.yextent, zextent=None)
+        self._fov_filter = RemoveOutOfFOV(
+            xextent=self.xextent, yextent=self.yextent, zextent=None
+        )
 
-        self._bin_x, self._bin_y, self._bin_ctr_x, self._bin_ctr_y = \
-            decode.generic.utils.frame_grid(img_shape, xextent, yextent)
+        (
+            self._bin_x,
+            self._bin_y,
+            self._bin_ctr_x,
+            self._bin_ctr_y,
+        ) = decode.generic.utils.frame_grid(img_shape, xextent, yextent)
 
     @property
     def bin_ctr_x(self):
@@ -179,18 +213,32 @@ class DeltaPSF(PSF):
 
         """
 
-        x_ix = np.searchsorted(self._bin_x, xy[:, 0], side='right') - 1
-        y_ix = np.searchsorted(self._bin_y, xy[:, 1], side='right') - 1
+        x_ix = np.searchsorted(self._bin_x, xy[:, 0], side="right") - 1
+        y_ix = np.searchsorted(self._bin_y, xy[:, 1], side="right") - 1
 
         if raise_outside:
-            if (~((x_ix >= 0) * (x_ix <= len(self._bin_x) - 2) *
-                  (y_ix >= 0) * (y_ix <= len(self._bin_y) - 2))).any():
-                raise ValueError("At least one value outside of the specified bin ranges.")
+            if (
+                ~(
+                    (x_ix >= 0)
+                    * (x_ix <= len(self._bin_x) - 2)
+                    * (y_ix >= 0)
+                    * (y_ix <= len(self._bin_y) - 2)
+                )
+            ).any():
+                raise ValueError(
+                    "At least one value outside of the specified bin ranges."
+                )
 
         return x_ix, y_ix
 
-    def forward(self, xyz: torch.Tensor, weight: torch.Tensor = None, frame_ix: torch.Tensor = None,
-                ix_low=None, ix_high=None):
+    def forward(
+        self,
+        xyz: torch.Tensor,
+        weight: torch.Tensor = None,
+        frame_ix: torch.Tensor = None,
+        ix_low=None,
+        ix_high=None,
+    ):
         """
         Forward coordinates frame index aware through the psf model.
 
@@ -225,7 +273,15 @@ class DeltaPSF(PSF):
 
 
 class GaussianPSF(PSF):
-    def __init__(self, xextent: Tuple[float, float], yextent, zextent, img_shape, sigma_0, peak_weight=False):
+    def __init__(
+        self,
+        xextent: Tuple[float, float],
+        yextent,
+        zextent,
+        img_shape,
+        sigma_0,
+        peak_weight=False,
+    ):
         """
         Gaussian PSF Model.If no z extent is provided we assume a 2D PSF.
 
@@ -237,7 +293,9 @@ class GaussianPSF(PSF):
             sigma_0: sigma in focus in px
             peak_weight: (bool) if true: use peak intensity instead of integral under the curve
         """
-        super().__init__(xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape)
+        super().__init__(
+            xextent=xextent, yextent=yextent, zextent=zextent, img_shape=img_shape
+        )
 
         self.sigma_0 = sigma_0
         self.peak_weight = peak_weight
@@ -301,11 +359,13 @@ class GaussianPSF(PSF):
         xx = xx.unsqueeze(2).repeat(1, 1, num_emitters)
         yy = yy.unsqueeze(2).repeat(1, 1, num_emitters)
 
-        gauss_x = torch.erf((xx[1:, 1:, :] - xpos) / (math.sqrt(2) * sig_x)) \
-                  - torch.erf((xx[0:-1, 1:, :] - xpos) / (math.sqrt(2) * sig_x))
+        gauss_x = torch.erf(
+            (xx[1:, 1:, :] - xpos) / (math.sqrt(2) * sig_x)
+        ) - torch.erf((xx[0:-1, 1:, :] - xpos) / (math.sqrt(2) * sig_x))
 
-        gauss_y = torch.erf((yy[1:, 1:, :] - ypos) / (math.sqrt(2) * sig_y)) \
-                  - torch.erf((yy[1:, 0:-1, :] - ypos) / (math.sqrt(2) * sig_y))
+        gauss_y = torch.erf(
+            (yy[1:, 1:, :] - ypos) / (math.sqrt(2) * sig_y)
+        ) - torch.erf((yy[1:, 0:-1, :] - ypos) / (math.sqrt(2) * sig_y))
 
         gaussCdf = weight.type_as(gauss_x) / 4 * torch.mul(gauss_x, gauss_y)
         if self.peak_weight:
@@ -319,9 +379,21 @@ class CubicSplinePSF(PSF):
     n_par = 5  # x, y, z, phot, bg
     inv_default = torch.inverse
 
-    def __init__(self, xextent, yextent, img_shape, ref0, coeff, vx_size,
-                 *, roi_size: (None, tuple) = None, ref_re: (None, torch.Tensor, tuple) = None,
-                 roi_auto_center: bool = False, device: str = 'cuda:0', max_roi_chunk: int = 500000):
+    def __init__(
+        self,
+        xextent,
+        yextent,
+        img_shape,
+        ref0,
+        coeff,
+        vx_size,
+        *,
+        roi_size: (None, tuple) = None,
+        ref_re: (None, torch.Tensor, tuple) = None,
+        roi_auto_center: bool = False,
+        device: str = "cuda:0",
+        max_roi_chunk: int = 500000,
+    ):
         """
         Cubic spline PSF, i.e. a step-wise polynomial with coefficients of size X,Y,Z,64.
 
@@ -341,21 +413,31 @@ class CubicSplinePSF(PSF):
                 cuda kernel. If you run into memory allocation errors, decrease this
                 number or free some space on your CUDA device.
         """
-        super().__init__(xextent=xextent, yextent=yextent, zextent=None, img_shape=img_shape)
+        super().__init__(
+            xextent=xextent, yextent=yextent, zextent=None, img_shape=img_shape
+        )
 
         self._coeff = coeff
-        self._roi_native = self._coeff.size()[:2]  # native roi based on the coeff's size
-        self.roi_size_px = torch.Size(roi_size) if roi_size is not None else self._roi_native
+        self._roi_native = self._coeff.size()[
+            :2
+        ]  # native roi based on the coeff's size
+        self.roi_size_px = (
+            torch.Size(roi_size) if roi_size is not None else self._roi_native
+        )
 
         if vx_size is None:
-            vx_size = torch.Tensor([1., 1., 1.])
+            vx_size = torch.Tensor([1.0, 1.0, 1.0])
 
-        self.vx_size = vx_size if isinstance(vx_size, torch.Tensor) else torch.Tensor(vx_size)
+        self.vx_size = (
+            vx_size if isinstance(vx_size, torch.Tensor) else torch.Tensor(vx_size)
+        )
         self.ref0 = ref0 if isinstance(ref0, torch.Tensor) else torch.Tensor(ref0)
 
         self.ref_re = self._shift_ref(ref_re, roi_auto_center)
 
-        self._device, self._device_ix = decode.utils.hardware._specific_device_by_str(device)
+        self._device, self._device_ix = decode.utils.hardware._specific_device_by_str(
+            device
+        )
         self.max_roi_chunk = max_roi_chunk
 
         self._init_spline_impl()
@@ -365,18 +447,23 @@ class CubicSplinePSF(PSF):
 
         if ref_re is not None and auto_center:
             raise ValueError(
-                'PSF reference can not be automatically centered when you specify a'
-                ' custom centre at the same time.'
+                "PSF reference can not be automatically centered when you specify a"
+                " custom centre at the same time."
             )
 
         elif auto_center:
             if self.roi_size_px[0] % 2 != 1 or self.roi_size_px[1] % 2 != 1:
                 raise ValueError(
-                    "PSF reference can not be centered when the roi_size is even.")
+                    "PSF reference can not be centered when the roi_size is even."
+                )
 
-            return torch.Tensor([(self.roi_size_px[0] - 1) // 2,
-                                 (self.roi_size_px[1] - 1) // 2,
-                                 self.ref0[2]])
+            return torch.Tensor(
+                [
+                    (self.roi_size_px[0] - 1) // 2,
+                    (self.roi_size_px[1] - 1) // 2,
+                    self.ref0[2],
+                ]
+            )
 
         elif ref_re is not None:
             return ref_re if isinstance(ref_re, torch.Tensor) else torch.Tensor(ref_re)
@@ -386,21 +473,30 @@ class CubicSplinePSF(PSF):
         Init the spline implementation. Done seperately because otherwise it's harder to pickle
 
         """
-        if 'cuda' in self._device:
+        if "cuda" in self._device:
             if self._device_ix is None:
                 device_ix = 0
             else:
                 device_ix = self._device_ix
 
-            self._spline_impl = spline.PSFWrapperCUDA(self._coeff.shape[0], self._coeff.shape[1],
-                                                      self._coeff.shape[2],
-                                                      self.roi_size_px[0], self.roi_size_px[1],
-                                                      self._coeff.numpy(), device_ix)
-        elif 'cpu' == self._device:
-            self._spline_impl = spline.PSFWrapperCPU(self._coeff.shape[0], self._coeff.shape[1],
-                                                     self._coeff.shape[2],
-                                                     self.roi_size_px[0], self.roi_size_px[1],
-                                                     self._coeff.numpy())
+            self._spline_impl = spline.PSFWrapperCUDA(
+                self._coeff.shape[0],
+                self._coeff.shape[1],
+                self._coeff.shape[2],
+                self.roi_size_px[0],
+                self.roi_size_px[1],
+                self._coeff.numpy(),
+                device_ix,
+            )
+        elif "cpu" == self._device:
+            self._spline_impl = spline.PSFWrapperCPU(
+                self._coeff.shape[0],
+                self._coeff.shape[1],
+                self._coeff.shape[2],
+                self.roi_size_px[0],
+                self.roi_size_px[1],
+                self._coeff.numpy(),
+            )
         else:
             raise ValueError(f"Unsupported device ({self._device} has been set.")
 
@@ -411,8 +507,9 @@ class CubicSplinePSF(PSF):
 
         """
         # test whether extent corresponds to img shape
-        if (self.img_shape[0] != (self.xextent[1] - self.xextent[0])) or \
-                (self.img_shape[1] != (self.yextent[1] - self.yextent[0])):
+        if (self.img_shape[0] != (self.xextent[1] - self.xextent[0])) or (
+            self.img_shape[1] != (self.yextent[1] - self.yextent[0])
+        ):
             raise ValueError("Unequal size of extent and image shape not supported.")
 
         if (torch.tensor(self.roi_size_px) > torch.tensor(self._roi_native)).any():
@@ -449,8 +546,10 @@ class CubicSplinePSF(PSF):
 
     @property
     def _roi_size_nm(self):
-        roi_size_nm = (self.roi_size_px[0] * self.vx_size[0],
-                       self.roi_size_px[1] * self.vx_size[1])
+        roi_size_nm = (
+            self.roi_size_px[0] * self.vx_size[0],
+            self.roi_size_px[1] * self.vx_size[1],
+        )
 
         return roi_size_nm
 
@@ -460,6 +559,7 @@ class CubicSplinePSF(PSF):
         return self.max_roi_chunk // (5 * 2)
 
     """Pickle"""
+
     def __getstate__(self):
         """
         Returns dict without spline implementation attribute because C++ / CUDA implementation is not (yet) implemented
@@ -470,7 +570,7 @@ class CubicSplinePSF(PSF):
         """
 
         self_no_impl = dict(self.__dict__)
-        del self_no_impl['_spline_impl']
+        del self_no_impl["_spline_impl"]
         return self_no_impl
 
     def __setstate__(self, state):
@@ -497,11 +597,19 @@ class CubicSplinePSF(PSF):
             CubicSplinePSF instance
 
         """
-        if 'cuda' in self._device and ix == self._device_ix:
+        if "cuda" in self._device and ix == self._device_ix:
             return self
 
-        return CubicSplinePSF(xextent=self.xextent, yextent=self.yextent, img_shape=self.img_shape, ref0=self.ref0,
-                              coeff=self._coeff, vx_size=self.vx_size, roi_size=self.roi_size_px, device=f'cuda:{ix}')
+        return CubicSplinePSF(
+            xextent=self.xextent,
+            yextent=self.yextent,
+            img_shape=self.img_shape,
+            ref0=self.ref0,
+            coeff=self._coeff,
+            vx_size=self.vx_size,
+            roi_size=self.roi_size_px,
+            device=f"cuda:{ix}",
+        )
 
     def cpu(self):
         """
@@ -511,11 +619,19 @@ class CubicSplinePSF(PSF):
             CubicSplinePSF instance
 
         """
-        if self._device == 'cpu':
+        if self._device == "cpu":
             return self
 
-        return CubicSplinePSF(xextent=self.xextent, yextent=self.yextent, img_shape=self.img_shape, ref0=self.ref0,
-                              coeff=self._coeff, vx_size=self.vx_size, roi_size=self.roi_size_px, device='cpu')
+        return CubicSplinePSF(
+            xextent=self.xextent,
+            yextent=self.yextent,
+            img_shape=self.img_shape,
+            ref0=self.ref0,
+            coeff=self._coeff,
+            vx_size=self.vx_size,
+            roi_size=self.roi_size_px,
+            device="cpu",
+        )
 
     def coord2impl(self, xyz):
         """
@@ -527,7 +643,9 @@ class CubicSplinePSF(PSF):
         Returns:
 
         """
-        offset = torch.Tensor([self.xextent[0] + 0.5, self.yextent[0] + 0.5, 0.]).float()
+        offset = torch.Tensor(
+            [self.xextent[0] + 0.5, self.yextent[0] + 0.5, 0.0]
+        ).float()
         return -xyz / self.vx_size + offset + self.ref0 - self._ref_diff
 
     def frame2roi_coord(self, xyz_nm: torch.Tensor):
@@ -550,7 +668,11 @@ class CubicSplinePSF(PSF):
 
         # place emitters according to the Reference (reference is in px)
         xyz_r[:, :2] = (xyz_r[:, :2] + self.ref0[:2]) * self.vx_size[:2]
-        xyz_px = (xyz_nm[:, :2] / self.vx_size[:2] - self.ref0[:2] - self._ref_diff[:2]).floor().int()
+        xyz_px = (
+            (xyz_nm[:, :2] / self.vx_size[:2] - self.ref0[:2] - self._ref_diff[:2])
+            .floor()
+            .int()
+        )
 
         return xyz_r, xyz_px
 
@@ -595,8 +717,14 @@ class CubicSplinePSF(PSF):
 
         return self._forward_rois_impl(xyz_, phot)
 
-    def _forward_drv_chunks(self, xyz: torch.Tensor, weight: torch.Tensor, bg: torch.Tensor, add_bg: bool,
-                            chunk_size: int):
+    def _forward_drv_chunks(
+        self,
+        xyz: torch.Tensor,
+        weight: torch.Tensor,
+        bg: torch.Tensor,
+        add_bg: bool,
+        chunk_size: int,
+    ):
         """Forwards the ROIs in chunks through CUDA in order not to let the GPU explode."""
 
         i = 0
@@ -604,7 +732,9 @@ class CubicSplinePSF(PSF):
         while i <= len(xyz):
             slicer = slice(i, min(len(xyz), i + chunk_size))
 
-            drv_, roi_ = self.derivative(xyz[slicer], weight[slicer], bg[slicer], add_bg=add_bg)
+            drv_, roi_ = self.derivative(
+                xyz[slicer], weight[slicer], bg[slicer], add_bg=add_bg
+            )
             drv.append(drv_)
             rois.append(roi_)
             i += chunk_size
@@ -614,7 +744,13 @@ class CubicSplinePSF(PSF):
 
         return drv, rois
 
-    def derivative(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, add_bg: bool = True):
+    def derivative(
+        self,
+        xyz: torch.Tensor,
+        phot: torch.Tensor,
+        bg: torch.Tensor,
+        add_bg: bool = True,
+    ):
         """
         Computes the px wise derivative per ROI. Outputs ROIs additionally
         (since its computationally free of charge). The coordinates are
@@ -633,17 +769,25 @@ class CubicSplinePSF(PSF):
             rois (torch.Tensor): ROIs. Dimension N x H x W
         """
         if xyz.size(0) == 0:  # fallback if there is no input
-            return torch.zeros((0, 5, *self.roi_size_px)), torch.zeros((0, *self.roi_size_px))
+            return torch.zeros((0, 5, *self.roi_size_px)), torch.zeros(
+                (0, *self.roi_size_px)
+            )
 
         if self._max_drv_roi_chunk is not None and len(xyz) > self._max_drv_roi_chunk:
-            return self._forward_drv_chunks(xyz, phot, bg, add_bg=add_bg, chunk_size=self._max_drv_roi_chunk)
+            return self._forward_drv_chunks(
+                xyz, phot, bg, add_bg=add_bg, chunk_size=self._max_drv_roi_chunk
+            )
 
         xyz_, _ = self.frame2roi_coord(xyz)
         xyz_ = self.coord2impl(xyz_)
         n_rois = xyz.size(0)
 
-        drv_rois, rois = self._spline_impl.forward_drv_rois(xyz_[:, 0], xyz_[:, 1], xyz_[:, 2], phot, bg, add_bg)
-        drv_rois = torch.from_numpy(drv_rois).reshape(n_rois, self.n_par, *self.roi_size_px)
+        drv_rois, rois = self._spline_impl.forward_drv_rois(
+            xyz_[:, 0], xyz_[:, 1], xyz_[:, 2], phot, bg, add_bg
+        )
+        drv_rois = torch.from_numpy(drv_rois).reshape(
+            n_rois, self.n_par, *self.roi_size_px
+        )
         rois = torch.from_numpy(rois).reshape(n_rois, *self.roi_size_px)
 
         # convert Implementation order to natural order,
@@ -673,7 +817,9 @@ class CubicSplinePSF(PSF):
         # construct fisher by batched matrix multiplication. For this we have to play
         # around with the axis of the derivatives.
         drv_ = drv.permute(0, 2, 3, 1)
-        fisher = torch.matmul(drv_.unsqueeze(-1), drv_.unsqueeze(-2))  # derivative contribution
+        fisher = torch.matmul(
+            drv_.unsqueeze(-1), drv_.unsqueeze(-2)
+        )  # derivative contribution
         fisher = fisher / rois.unsqueeze(-1).unsqueeze(-1)  # px value contribution
 
         # aggregate the drv along the pixel dimension
@@ -681,7 +827,9 @@ class CubicSplinePSF(PSF):
 
         return fisher, rois
 
-    def crlb(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, inversion=None):
+    def crlb(
+        self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, inversion=None
+    ):
         """
         Computes the Cramer-Rao bound. Outputs ROIs additionally (since its computationally free of charge).
 
@@ -709,7 +857,9 @@ class CubicSplinePSF(PSF):
 
         return crlb, rois
 
-    def crlb_sq(self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, inversion=None):
+    def crlb_sq(
+        self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, inversion=None
+    ):
         """
         Function for the lazy ones to compute the sqrt Cramer-Rao bound. Outputs ROIs additionally (since its
         computationally free of charge).
@@ -727,21 +877,36 @@ class CubicSplinePSF(PSF):
         crlb, rois = self.crlb(xyz, phot, bg, inversion)
         return crlb.sqrt(), rois
 
-    def _forward_chunks(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor,
-                        ix_low: int, ix_high: int, chunk_size: int):
+    def _forward_chunks(
+        self,
+        xyz: torch.Tensor,
+        weight: torch.Tensor,
+        frame_ix: torch.Tensor,
+        ix_low: int,
+        ix_high: int,
+        chunk_size: int,
+    ):
 
         i = 0
         f = torch.zeros((ix_high - ix_low, *self.img_shape))
         while i <= len(xyz):
             slicer = slice(i, min(len(xyz), i + chunk_size))
 
-            f += self.forward(xyz[slicer], weight[slicer], frame_ix[slicer], ix_low, ix_high)
+            f += self.forward(
+                xyz[slicer], weight[slicer], frame_ix[slicer], ix_low, ix_high
+            )
             i += chunk_size
 
         return f
 
-    def forward(self, xyz: torch.Tensor, weight: torch.Tensor, frame_ix: torch.Tensor = None, ix_low: int = None,
-                ix_high: int = None):
+    def forward(
+        self,
+        xyz: torch.Tensor,
+        weight: torch.Tensor,
+        frame_ix: torch.Tensor = None,
+        ix_low: int = None,
+        ix_high: int = None,
+    ):
         """
         Forward coordinates frame index aware through the psf model.
 
@@ -755,13 +920,17 @@ class CubicSplinePSF(PSF):
         Returns:
             frames: (torch.Tensor)
         """
-        xyz, weight, frame_ix, ix_low, ix_high = self._auto_filter_shift(xyz, weight, frame_ix, ix_low, ix_high)
+        xyz, weight, frame_ix, ix_low, ix_high = self._auto_filter_shift(
+            xyz, weight, frame_ix, ix_low, ix_high
+        )
 
         if xyz.size(0) == 0:
             return torch.zeros((ix_high - ix_low, *self.img_shape))
 
         if self.max_roi_chunk is not None and len(xyz) > self.max_roi_chunk:
-            return self._forward_chunks(xyz, weight, frame_ix, ix_low, ix_high, self.max_roi_chunk)
+            return self._forward_chunks(
+                xyz, weight, frame_ix, ix_low, ix_high, self.max_roi_chunk
+            )
 
         # convert Coordinates into ROI based coordinates and transform
         # into implementation coordinates
@@ -770,25 +939,37 @@ class CubicSplinePSF(PSF):
 
         n_frames = ix_high - ix_low
 
-        frames = self._spline_impl.forward_frames(*self.img_shape,
-                                                  frame_ix,
-                                                  n_frames,
-                                                  xyz_r[:, 0],
-                                                  xyz_r[:, 1],
-                                                  xyz_r[:, 2],
-                                                  ix[:, 0],
-                                                  ix[:, 1],
-                                                  weight)
+        frames = self._spline_impl.forward_frames(
+            *self.img_shape,
+            frame_ix,
+            n_frames,
+            xyz_r[:, 0],
+            xyz_r[:, 1],
+            xyz_r[:, 2],
+            ix[:, 0],
+            ix[:, 1],
+            weight,
+        )
 
         frames = torch.from_numpy(frames).reshape(n_frames, *self.img_shape)
         return frames
 
 
 class ZernikePSF(PSF):
-    def __init__(self, xextent, yextent, zextent, *,
-                 weight_real: list, weight_im: list, theta: float,
-                 num_aperture: float, ref_index: float, wavelength: float,
-                 k_size: int):
+    def __init__(
+        self,
+        xextent,
+        yextent,
+        zextent,
+        *,
+        weight_real: list,
+        weight_im: list,
+        theta: float,
+        num_aperture: float,
+        ref_index: float,
+        wavelength: float,
+        k_size: int,
+    ):
         import zernike
 
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent)
@@ -804,9 +985,16 @@ class ZernikePSF(PSF):
         self._pupil_e_field = None
 
     @staticmethod
-    def pupile_field(num_aperture: float, na: float, wavelength: float,
-                     na_sample: float, na_oil: float, na_cover: float, k_size: int,
-                     pupilradius: float = 1.) -> torch.Tensor:
+    def pupile_field(
+        num_aperture: float,
+        na: float,
+        wavelength: float,
+        na_sample: float,
+        na_oil: float,
+        na_cover: float,
+        k_size: int,
+        pupilradius: float = 1.0,
+    ) -> torch.Tensor:
         """
         Compute eletric field in pupile space
 
@@ -824,15 +1012,21 @@ class ZernikePSF(PSF):
             tensor of size k_size x k_size
 
         """
-        krange = np.linspace(-pupilradius + pupilradius / k_size, pupilradius - pupilradius / k_size, k_size)
+        krange = np.linspace(
+            -pupilradius + pupilradius / k_size,
+            pupilradius - pupilradius / k_size,
+            k_size,
+        )
         [xx, yy] = np.meshgrid(krange, krange)
-        kr = np.lib.scimath.sqrt(xx ** 2 + yy ** 2)
+        kr = np.lib.scimath.sqrt(xx**2 + yy**2)
         kz = np.lib.scimath.sqrt(
-            (na_oil / wavelength) ** 2 - (kr * na / wavelength) ** 2)
+            (na_oil / wavelength) ** 2 - (kr * na / wavelength) ** 2
+        )
 
-        kr = np.lib.scimath.sqrt(xx ** 2 + yy ** 2)
+        kr = np.lib.scimath.sqrt(xx**2 + yy**2)
         kz = np.lib.scimath.sqrt(
-            (na_oil / wavelength) ** 2 - (kr * na / wavelength) ** 2)
+            (na_oil / wavelength) ** 2 - (kr * na / wavelength) ** 2
+        )
 
         cos_imm = np.lib.scimath.sqrt(1 - (kr * na / na_oil) ** 2)
         cos_med = np.lib.scimath.sqrt(1 - (kr * na / na_sample) ** 2)
@@ -840,10 +1034,18 @@ class ZernikePSF(PSF):
 
         kz_med = na_sample / wavelength * cos_med
 
-        FresnelPmedcov = 2 * na_sample * cos_med / (na_sample * cos_cov + na_cover * cos_med)
-        FresnelSmedcov = 2 * na_sample * cos_med / (na_sample * cos_med + na_sample * cos_med)
-        FresnelPcovimm = 2 * na_cover * cos_cov / (na_cover * cos_imm + na_oil * cos_cov)
-        FresnelScovimm = 2 * na_cover * cos_cov / (na_cover * cos_cov + na_oil * cos_imm)
+        FresnelPmedcov = (
+            2 * na_sample * cos_med / (na_sample * cos_cov + na_cover * cos_med)
+        )
+        FresnelSmedcov = (
+            2 * na_sample * cos_med / (na_sample * cos_med + na_sample * cos_med)
+        )
+        FresnelPcovimm = (
+            2 * na_cover * cos_cov / (na_cover * cos_imm + na_oil * cos_cov)
+        )
+        FresnelScovimm = (
+            2 * na_cover * cos_cov / (na_cover * cos_cov + na_oil * cos_imm)
+        )
         Tp = FresnelPmedcov * FresnelPcovimm
         Ts = FresnelSmedcov * FresnelScovimm
 
@@ -874,5 +1076,3 @@ class ZernikePSF(PSF):
         real = self.fft(h_k) * weight
 
         return real
-
-
