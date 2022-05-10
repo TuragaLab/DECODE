@@ -14,10 +14,10 @@ import decode.generic.utils
 class PSF(ABC):
     def __init__(
         self,
-        xextent=(None, None),
-        yextent=(None, None),
-        zextent=None,
-        img_shape=(None, None),
+        xextent: Tuple[float, float] = (None, None),
+        yextent: Tuple[float, float] = (None, None),
+        zextent: Tuple[float, float] = (None, None),
+        img_shape: Tuple[int, int] = (None, None),
     ):
         """
         Abstract class to represent a point spread function.
@@ -164,7 +164,12 @@ class PSF(ABC):
 
 
 class DeltaPSF(PSF):
-    def __init__(self, xextent, yextent, img_shape):
+    def __init__(
+        self,
+        xextent: Tuple[float, float],
+        yextent: Tuple[float, float],
+        img_shape: Tuple[int, int],
+    ):
         """
         Delta function PSF. You input a list of coordinates, this class outputs a single
         one-hot representation in 2D of your input.
@@ -234,10 +239,10 @@ class DeltaPSF(PSF):
     def forward(
         self,
         xyz: torch.Tensor,
-        weight: torch.Tensor = None,
-        frame_ix: torch.Tensor = None,
-        ix_low=None,
-        ix_high=None,
+        weight: torch.Tensor,
+        frame_ix: Optional[torch.Tensor] = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
     ):
         """
         Forward coordinates frame index aware through the psf model.
@@ -276,11 +281,10 @@ class GaussianPSF(PSF):
     def __init__(
         self,
         xextent: Tuple[float, float],
-        yextent,
-        zextent,
-        img_shape,
-        sigma_0,
-        peak_weight=False,
+        yextent: Tuple[float, float],
+        img_shape: Tuple[int, int],
+        sigma_0: float,
+        peak_weight: bool = False,
     ):
         """
         Gaussian PSF Model.If no z extent is provided we assume a 2D PSF.
@@ -381,12 +385,12 @@ class CubicSplinePSF(PSF):
 
     def __init__(
         self,
-        xextent,
-        yextent,
-        img_shape,
-        ref0,
-        coeff,
-        vx_size,
+        xextent: Tuple[float, float],
+        yextent: Tuple[float, float],
+        img_shape: Tuple[int, int],
+        ref0: tuple,
+        coeff: torch.Tensor,
+        vx_size: Tuple[int, int, int],
         *,
         roi_size: (None, tuple) = None,
         ref_re: (None, torch.Tensor, tuple) = None,
@@ -471,7 +475,6 @@ class CubicSplinePSF(PSF):
     def _init_spline_impl(self):
         """
         Init the spline implementation. Done seperately because otherwise it's harder to pickle
-
         """
         if "cuda" in self._device:
             if self._device_ix is None:
@@ -903,9 +906,9 @@ class CubicSplinePSF(PSF):
         self,
         xyz: torch.Tensor,
         weight: torch.Tensor,
-        frame_ix: torch.Tensor = None,
-        ix_low: int = None,
-        ix_high: int = None,
+        frame_ix: Optional[torch.Tensor] = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
     ):
         """
         Forward coordinates frame index aware through the psf model.
