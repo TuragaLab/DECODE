@@ -1,6 +1,3 @@
-"""
-Here we provide some filtering on EmitterSets.
-"""
 from abc import ABC, abstractmethod
 from .emitter import EmitterSet
 
