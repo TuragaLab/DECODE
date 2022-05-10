@@ -23,12 +23,6 @@ class Camera(ABC):
 
 
 class Photon2Camera(Camera):
-    """
-    Simulates a physical EM-CCD camera device. Input are the theoretical photon counts as by the psf and background model,
-    all the device specific things are modelled.
-
-    """
-
     def __init__(
         self,
         *,
@@ -42,6 +36,9 @@ class Photon2Camera(Camera):
         device: Union[str, torch.device] = None,
     ):
         """
+        Simulates a physical EM-CCD camera device.
+        Inputs are the theoretical photon counts as by the psf and background model,
+        all the device specific things are modelled.
 
         Args:
             qe: quantum efficiency :math:`0 ... 1'
