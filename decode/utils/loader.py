@@ -3,18 +3,7 @@ import hashlib
 import requests
 
 
-def check_file(file: (str, pathlib.Path), hash=None):
-    """
-    Checks if a file exists and if the sha256 hash is correct
-
-    Args:
-        file:
-        hash:
-
-    Returns:
-        bool:   true if file exists and hash is correct (if specified), false otherwise
-
-    """
+def check_file(file: (str, pathlib.Path), hash=None) -> bool:
 
     if not isinstance(file, pathlib.Path):
         file = pathlib.Path(file)
@@ -50,17 +39,19 @@ def load(file: (str, pathlib.Path), url: str, hash: str = None) -> None:
     file_www = requests.get(url)
     file_www.raise_for_status()  # raises an error if the file is not available
 
-    with file.open('wb') as f:
+    with file.open("wb") as f:
         f.write(file_www.content)
 
     d_hash = hashlib.sha256(file.read_bytes()).hexdigest()
     if hash is not None and not hash == d_hash:
-        raise RuntimeError(f"Downloaded file does not match hash.\nSHA-256 of ref.: {hash}\nSHA-256 of downloaded: {d_hash}")
+        raise RuntimeError(
+            f"Downloaded file does not match hash.\nSHA-256 of ref.: {hash}\nSHA-256 of downloaded: {d_hash}"
+        )
 
 
 def check_load(file: (str, pathlib.Path), url: str, hash: str = None):
     """
-    Loads file freshly when check failes
+    Loads file freshly when check fails
 
     Args:
         file:
