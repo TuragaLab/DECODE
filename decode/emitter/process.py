@@ -1,58 +1,81 @@
 from abc import ABC, abstractmethod
 
+from .emitter import EmitterSet
 
-class ProcessEmitters(ABC):
+
+class EmitterProcess(ABC):
     def __init__(self):
         super().__init__()
-
-    def __call__(self, *args, **kwargs):
-        """
-        Convenience around forward.
-
-        Args:
-            *args:
-            **kwargs:
-
-        Returns:
-
-        """
-        self.forward(*args, **kwargs)
 
     @abstractmethod
-    def forward(self, *args, **kwargs):
+    def forward(self, em: EmitterSet) -> EmitterSet:
         """
-        All derived classes must implement a forward method that does not change the input inplace and implements
-        some kind of processing. In most cases the return type should be the same type as the (first) input argument.
+        Forwards a set of emitters through the filter implementation
 
         Args:
-            *args:
-            **kwargs:
-
-        Returns:
+            em: emitters
 
         """
-        return
+        return em
 
 
-class Identity(ProcessEmitters):
-    def __init__(self):
+class EmitterIdentity(EmitterProcess):
+    """The no filter"""
+
+    def forward(self, em: EmitterSet) -> EmitterSet:
+        return em
+
+
+class TarFrameEmitterFilter(EmitterProcess):
+    """Filters the emitters on the target frame index."""
+
+    def __init__(self, tar_ix=0):
+        """
+
+        Args:
+            tar_ix: (int) index of the target frame
+        """
         super().__init__()
+        self.tar_ix = tar_ix
 
-    @staticmethod
-    def forward(x):
+    def forward(self, em: EmitterSet) -> EmitterSet:
         """
-        The do nothing pre-processing.
 
         Args:
-            x: arbitrary
+            em: (EmitterSet)
 
         Returns:
-            x:
+            em: (EmitterSet) filtered set of emitters
         """
-        return x
+        ix = em.frame_ix == self.tar_ix
+        return em[ix]
 
 
-class RemoveOutOfFOV(ProcessEmitters):
+class PhotonFilter(EmitterProcess):
+
+    def __init__(self, th):
+        """
+
+        Args:
+            th: (int, float) photon threshold
+        """
+        super().__init__()
+        self.th = th
+
+    def forward(self, em: EmitterSet) -> EmitterSet:
+        """
+
+        Args:
+            em: (EmitterSet)
+
+        Returns:
+            em: (EmitterSet) filtered set of emitters
+        """
+        ix = em.phot >= self.th
+        return em[ix]
+
+
+class RemoveOutOfFOV(EmitterProcess):
     def __init__(self, xextent, yextent, zextent=None, xy_unit=None):
         """
         Processing class to remove emitters that are outside a specified extent.
@@ -91,26 +114,18 @@ class RemoveOutOfFOV(ProcessEmitters):
 
         return is_emit
 
-    def forward(self, em_set):
-        """
-        Removes emitters that are outside of the specified extent.
-
-        Args:
-            em_set:
-
-        Returns:
-            EmitterSet
-        """
+    def forward(self, em: EmitterSet) -> EmitterSet:
+        """Removes emitters that are outside of the specified extent."""
 
         if self.xy_unit is None:
-            em_mat = em_set.xyz
+            em_mat = em.xyz
         elif self.xy_unit == 'px':
-            em_mat = em_set.xyz_px
+            em_mat = em.xyz_px
         elif self.xy_unit == 'nm':
-            em_mat = em_set.xyz_nm
+            em_mat = em.xyz_nm
         else:
             raise ValueError(f"Unsupported xy unit: {self.xy_unit}")
 
         is_emit = self.clean_emitter(em_mat)
 
-        return em_set[is_emit]
+        return em[is_emit]

@@ -943,6 +943,7 @@ class CoordinateOnlyEmitter(EmitterSet):
     def _inplace_replace(self, em):
         super().__init__(**em.to_dict(), sanity_check=False)
 
+
 @deprecated("deprecated in favor of factory", version="0.11")
 class EmptyEmitterSet(CoordinateOnlyEmitter):
     """An empty emitter set."""

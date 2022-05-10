@@ -344,7 +344,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
         em_filter = decode.emitter.em_filter.PhotonFilter(
             param.HyperParameter.emitter_label_photon_min)
     else:
-        em_filter = decode.emitter.em_filter.NoEmitterFilter()
+        em_filter = decode.emitter.em_filter.EmitterIdentity()
 
     tar_frame_ix_train = (0, 0)
     tar_frame_ix_test = (0, param.TestSet.test_size)

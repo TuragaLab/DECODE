@@ -142,7 +142,7 @@ class DeltaPSF(PSF):
     def __init__(self, xextent, yextent, img_shape):
         super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape)
 
-        from decode.generic.process import RemoveOutOfFOV
+        from decode.emitter.process import RemoveOutOfFOV
 
         self._fov_filter = RemoveOutOfFOV(xextent=self.xextent, yextent=self.yextent, zextent=None)
 

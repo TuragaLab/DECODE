@@ -3,10 +3,11 @@ from typing import Union
 
 import torch
 
+import decode.emitter.process
 from decode.evaluation import predict_dist
 from ..emitter.emitter import EmitterSet
-from decode.generic import process
-from decode.generic.process import RemoveOutOfFOV
+from decode.emitter import process
+from ..emitter.process import RemoveOutOfFOV
 from decode.simulation.psf_kernel import DeltaPSF
 
 
@@ -109,7 +110,7 @@ class UnifiedEmbeddingTarget(TargetGenerator):
             (torch.arange(-(self._roi_size - 1) // 2, (self._roi_size - 1) // 2 + 1),) * 2)
 
         self._delta_psf = DeltaPSF(xextent=xextent, yextent=yextent, img_shape=img_shape)
-        self._em_filter = process.RemoveOutOfFOV(xextent=xextent, yextent=yextent, zextent=None, xy_unit='px')
+        self._em_filter = decode.emitter.filter.RemoveOutOfFOV(xextent=xextent, yextent=yextent, zextent=None, xy_unit='px')
         self._bin_ctr_x = self._delta_psf.bin_ctr_x
         self._bin_ctr_y = self._delta_psf.bin_ctr_y
 

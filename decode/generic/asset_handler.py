@@ -39,8 +39,7 @@ class RMAfterTest:
 
 
 class AssetHandler:
-    asset_list_path = pathlib.Path(__file__).resolve().parent / pathlib.Path(
-        "../assets/asset_list.yaml")
+    asset_list_path = pathlib.Path(__file__).resolve().parents[2] / "test/assets/asset_list.yaml"
 
     def __init__(self):
 
