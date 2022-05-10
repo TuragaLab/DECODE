@@ -12,8 +12,10 @@ class Background(ABC):
     Abstract background class. All childs must implement a sample method.
     """
 
-    _forward_modes = ('like', 'cum', 'tuple')
-    _bg_return = namedtuple('bg_return', ['xbg', 'bg'])  # return arguments, x plus bg and bg term alone
+    _forward_modes = ("like", "cum", "tuple")
+    _bg_return = namedtuple(
+        "bg_return", ["xbg", "bg"]
+    )  # return arguments, x plus bg and bg term alone
 
     def __init__(self, forward_return: str = None):
         """
@@ -26,7 +28,7 @@ class Background(ABC):
         """
         super().__init__()
 
-        self.forward_return = forward_return if forward_return is not None else 'tuple'
+        self.forward_return = forward_return if forward_return is not None else "tuple"
 
         self.sanity_check()
 
@@ -36,11 +38,13 @@ class Background(ABC):
         """
 
         if self.forward_return not in self._forward_modes:
-            raise ValueError(f"Forward return mode {self.forward_return} unsupported. "
-                             f"Available modes are: {self._forward_modes}")
+            raise ValueError(
+                f"Forward return mode {self.forward_return} unsupported. "
+                f"Available modes are: {self._forward_modes}"
+            )
 
     @abstractmethod
-    def sample(self, size: torch.Size, device=torch.device('cpu')) -> torch.Tensor:
+    def sample(self, size: torch.Size, device=torch.device("cpu")) -> torch.Tensor:
         """
         Samples from background implementation in the specified size.
 
@@ -85,13 +89,13 @@ class Background(ABC):
 
         bg = self.sample_like(x)
 
-        if self.forward_return == 'like':
+        if self.forward_return == "like":
             return bg
 
-        elif self.forward_return == 'cum':
+        elif self.forward_return == "cum":
             return bg + x
 
-        elif self.forward_return == 'tuple':
+        elif self.forward_return == "tuple":
             return self._bg_return(xbg=x + bg, bg=bg)
 
         else:
@@ -104,7 +108,9 @@ class UniformBackground(Background):
 
     """
 
-    def __init__(self, bg_uniform: (float, tuple) = None, bg_sampler=None, forward_return=None):
+    def __init__(
+        self, bg_uniform: (float, tuple) = None, bg_sampler=None, forward_return=None
+    ):
         """
         Adds spatially constant background.
 
@@ -121,7 +127,9 @@ class UniformBackground(Background):
 
         if bg_sampler is None:
             if isinstance(bg_uniform, (list, tuple)):
-                self._bg_distribution = torch.distributions.uniform.Uniform(*bg_uniform).sample
+                self._bg_distribution = torch.distributions.uniform.Uniform(
+                    *bg_uniform
+                ).sample
             else:
                 self._bg_distribution = _get_delta_sampler(bg_uniform)
 
@@ -132,12 +140,14 @@ class UniformBackground(Background):
     def parse(param):
         return UniformBackground(param.Simulation.bg_uniform)
 
-    def sample(self, size, device=torch.device('cpu')):
+    def sample(self, size, device=torch.device("cpu")):
 
         assert len(size) in (2, 3, 4), "Not implemented size spec."
 
         # create as many sample as there are batch-dims
-        bg = self._bg_distribution(sample_shape=[size[0]] if len(size) >= 3 else torch.Size([]))
+        bg = self._bg_distribution(
+            sample_shape=[size[0]] if len(size) >= 3 else torch.Size([])
+        )
 
         # unsqueeze until we have enough dimensions
         if len(size) >= 3:
@@ -153,13 +163,14 @@ def _get_delta_sampler(val: float):
     return delta_sampler
 
 
+# ToDo: It is not immediately apparent in the doc strings what this thing really does
 class BgPerEmitterFromBgFrame:
-    """
-    Extract a background value per localisation from a background frame. This is done by mean filtering.
-    """
-
-    def __init__(self, filter_size: int, xextent: tuple, yextent: tuple, img_shape: tuple):
+    def __init__(
+        self, filter_size: int, xextent: tuple, yextent: tuple, img_shape: tuple
+    ):
         """
+        Extract a background value per localisation from a background frame.
+        This is done by mean filtering.
 
         Args:
             filter_size (int): size of the mean filter
@@ -170,7 +181,7 @@ class BgPerEmitterFromBgFrame:
         super().__init__()
 
         from decode.neuralfitter.utils import padding_calc as padcalc
-        """Sanity checks"""
+
         if filter_size % 2 == 0:
             raise ValueError("ROI size must be odd.")
 
@@ -180,9 +191,12 @@ class BgPerEmitterFromBgFrame:
         pad_x = padcalc.pad_same_calc(self.img_shape[0], self.filter_size[0], 1, 1)
         pad_y = padcalc.pad_same_calc(self.img_shape[1], self.filter_size[1], 1, 1)
 
-        self.padding = torch.nn.ReplicationPad2d((pad_x, pad_x, pad_y, pad_y))  # to get the same output dim
+        # to get the same output dim
+        self.padding = torch.nn.ReplicationPad2d((pad_x, pad_x, pad_y, pad_y))
 
-        self.kernel = torch.ones((1, 1, filter_size, filter_size)) / (filter_size * filter_size)
+        self.kernel = torch.ones((1, 1, filter_size, filter_size)) / (
+            filter_size * filter_size
+        )
         self.delta_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape)
         self.bin_x = self.delta_psf._bin_x
         self.bin_y = self.delta_psf._bin_y
@@ -206,7 +220,9 @@ class BgPerEmitterFromBgFrame:
             return x
 
         self.kernel = self.kernel.to(x.device)
-        x_mean = torch.nn.functional.conv2d(self.padding(x), self.kernel, stride=1, padding=0)  # since already padded
+        x_mean = torch.nn.functional.conv2d(
+            self.padding(x), self.kernel, stride=1, padding=0
+        )  # since already padded
         return x_mean
 
     def forward(self, tar_em, tar_bg):
@@ -219,7 +235,7 @@ class BgPerEmitterFromBgFrame:
 
         local_mean = self._mean_filter(tar_bg)
 
-        """Extract background values at the position where the emitter is and write it"""
+        # extract background values at the position where the emitter is and write it
         pos_x = tar_em.xyz[:, 0]
         pos_y = tar_em.xyz[:, 1]
         bg_frame_ix = (-int(tar_em.frame_ix.min()) + tar_em.frame_ix).long()
@@ -227,10 +243,17 @@ class BgPerEmitterFromBgFrame:
         ix_x = torch.from_numpy(np.digitize(pos_x.numpy(), self.bin_x, right=False) - 1)
         ix_y = torch.from_numpy(np.digitize(pos_y.numpy(), self.bin_y, right=False) - 1)
 
-        """Kill everything that is outside"""
+        # kill everything that is outside
         in_frame = torch.ones_like(ix_x).bool()
-        in_frame *= (ix_x >= 0) * (ix_x <= self.img_shape[0] - 1) * (ix_y >= 0) * (ix_y <= self.img_shape[1] - 1)
+        in_frame *= (
+            (ix_x >= 0)
+            * (ix_x <= self.img_shape[0] - 1)
+            * (ix_y >= 0)
+            * (ix_y <= self.img_shape[1] - 1)
+        )
 
-        tar_em.bg[in_frame] = local_mean[bg_frame_ix[in_frame], 0, ix_x[in_frame], ix_y[in_frame]]
+        tar_em.bg[in_frame] = local_mean[
+            bg_frame_ix[in_frame], 0, ix_x[in_frame], ix_y[in_frame]
+        ]
 
         return tar_em
