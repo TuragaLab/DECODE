@@ -423,7 +423,7 @@ class CubicSplinePSF(PSF):
         Returns:
 
         """
-        """Test whether extent corresponds to img shape"""
+        # test whether extent corresponds to img shape
         if (self.img_shape[0] != (self.xextent[1] - self.xextent[0])) or \
                 (self.img_shape[1] != (self.yextent[1] - self.yextent[0])):
             raise ValueError("Unequal size of extent and image shape not supported.")
@@ -444,8 +444,8 @@ class CubicSplinePSF(PSF):
     @staticmethod
     def cuda_is_available() -> bool:
         """
-        This is a dummy method to check whether CUDA is available without the need to init the class. I wonder
-        whether Python has 'static properties'?
+        This is a dummy method to check whether CUDA is available without the need to
+        init the class. I wonder whether Python has 'static properties'?
 
         """
         return spline.cuda_is_available()
