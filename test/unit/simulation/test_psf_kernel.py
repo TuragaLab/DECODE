@@ -1,20 +1,18 @@
 import pathlib
 import pickle
-import random
 from abc import ABC, abstractmethod
 
-import matplotlib.pyplot as plt
 import pytest
 import torch
 
 import decode.utils.calibration_io as load_cal
-import decode.plot.frame_coord as plf
 import decode.generic.test_utils as tutil
 import decode.simulation.psf_kernel as psf_kernel
 from decode.generic import asset_handler
 
-psf_cuda_available = pytest.mark.skipif(not psf_kernel.CubicSplinePSF.cuda_is_available(),
-                                        reason="Skipped because cuda not available for Spline PSF.")
+psf_cuda_available = pytest.mark.skipif(
+    not psf_kernel.CubicSplinePSF.cuda_is_available(),
+    reason="Skipped because cuda not available for Spline PSF.")
 
 
 class AbstractPSFTest(ABC):
@@ -253,16 +251,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
 
     @pytest.fixture()
     def onek_rois(self, psf):
-        """
-        Thousand random emitters in ROI
-
-        Returns:
-            xyz:
-            phot:
-            bg:
-            n (int): number of emitters
-
-        """
+        """Thousand random emitters in ROI"""
         n = 1000
         xyz = torch.rand((n, 3))
         xyz[:, :2] += psf.ref0[:2]
@@ -328,7 +317,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-7)
 
     def test_roi_invariance(self, psf):
-        """ Tests whether shifts in x and y with multiples of px size lead to the same ROI"""
+        """Tests whether shifts in x and y with multiples of px size lead to the same ROI"""
 
         # setup
         xyz_0 = torch.zeros((1, 3))
@@ -348,20 +337,6 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert tutil.tens_almeq(roi_ref[0, 10:15, 10:15], roi_x[:, 10:15, 10:15])
         assert tutil.tens_almeq(roi_ref[0, 10:15, 10:15], roi_y[:, 10:15, 10:15])
 
-    @pytest.mark.plot
-    def test_roi_visual(self, psf, onek_rois):
-        xyz, phot, bg, n = onek_rois
-        phot = torch.ones_like(phot)
-        roi_cpu = psf.forward_rois(xyz, phot)
-
-        """Additional Plotting if manual testing (comment out return statement)"""
-        rix = random.randint(0, n - 1)
-        plt.figure()
-        plf.PlotFrameCoord(roi_cpu[rix], pos_tar=xyz[[rix]]).plot()
-        plt.title(f"Random ROI sample.\nShould show a single emitter it the reference point of the psf.\n"
-                  f"Reference: {psf.ref0}")
-        plt.show()
-
     @psf_cuda_available
     def test_roi_drv_cuda_cpu(self, psf, psf_cuda, onek_rois):
         """Tests approximate equality of CUDA and CPU implementation for a few ROIs on the derivatives."""
@@ -374,52 +349,9 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert tutil.tens_almeq(drv_roi_cpu, drv_roi_cuda, 1e-7)
         assert tutil.tens_almeq(roi_cpu, roi_cuda, 1e-5)  # side output, seems to be a bit more numerially off
 
-    @pytest.mark.plot
-    def test_roi_drv_visual(self, psf, onek_rois):
-        xyz, phot, bg, n = onek_rois
-        phot = torch.ones_like(phot)
-
-        drv_rois, rois = psf.derivative(xyz, phot, bg)
-
-        """Additional Plotting if manual testing."""
-        rix = random.randint(0, n - 1)  # pick random sample
-        dr = drv_rois[rix]
-        r = rois[rix]
-        xyzr = xyz[[rix]]
-
-        plt.figure(figsize=(20, 12))
-
-        plt.subplot(231)
-        plf.PlotFrameCoord(r, pos_tar=xyzr).plot()
-        plt.title(f"Random ROI sample.\nShould show a single emitter it the reference point of the psf.\n"
-                  f"Reference: {psf.ref0}")
-
-        plt.subplot(232)
-        plf.PlotFrame(dr[0], plot_colorbar=True).plot()
-        plt.title('d/dx')
-
-        plt.subplot(233)
-        plf.PlotFrame(dr[1], plot_colorbar=True).plot()
-        plt.title('d/dy')
-
-        plt.subplot(234)
-        plf.PlotFrame(dr[2], plot_colorbar=True).plot()
-        plt.title('d/dz')
-
-        plt.subplot(235)
-        plf.PlotFrame(dr[3], plot_colorbar=True).plot()
-        plt.title('d/dphot')
-
-        plt.subplot(236)
-        plf.PlotFrame(dr[4], plot_colorbar=True).plot()
-        plt.title('d/dbg')
-
-        plt.show()
-
     def test_redefine_reference(self, psf):
         """Tests redefinition of reference point"""
 
-        """Assert and test"""
         xyz = torch.tensor([[15., 15., 0.]])
         roi_0 = psf.forward_rois(xyz, torch.ones(1, ))
 
@@ -446,23 +378,6 @@ class TestCubicSplinePSF(AbstractPSFTest):
         frames_cuda = psf_cuda.forward(xyz, phot, frame_ix)
 
         assert tutil.tens_almeq(frames_cpu, frames_cuda, 1e-7)
-
-    @pytest.mark.plot
-    def test_frame_visual(self, psf):
-        n = 10
-        xyz = torch.rand((n, 3)) * 64
-        xyz[:, 2] = torch.randn_like(xyz[:, 2]) * 1000 - 500
-        phot = torch.ones((n,))
-        frame_ix = torch.zeros_like(phot).int()
-
-        frames_cpu = psf.forward(xyz, phot, frame_ix)
-
-        """Additional Plotting if manual testing (comment out return statement)."""
-        plt.figure()
-        plf.PlotFrameCoord(frames_cpu[0], pos_tar=xyz).plot()
-        plt.title(
-            "Random Frame sample.\nShould show a couple of emitters at\nrandom positions distributed over a frame.")
-        plt.show()
 
     @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1), (1, 1), (-5, 5)])
     def test_forward_chunks(self, psf, ix_low, ix_high):
