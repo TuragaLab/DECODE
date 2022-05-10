@@ -222,9 +222,7 @@ class SCMOS(Photon2Camera):
 
         Returns:
             read-out noise window samples
-
         """
-
         return sampling.sample_crop(self._read_sigma, size_nxy)
 
     def forward_on_sampled_sensor_window(
