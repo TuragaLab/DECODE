@@ -1,6 +1,7 @@
 import pickle
 from abc import ABC, abstractmethod
 
+import numpy as np
 import pytest
 import torch
 
@@ -37,26 +38,34 @@ class AbstractPSFTest(ABC):
         ).all(), "Frame ix must not be lower than lower index"
         assert (frame_ix < ix_high_exp).all(), "Frame ix can not exceed upper index"
 
-    def test_forward_frame_number(self, psf):
+    @pytest.mark.parametrize("ix", ([(-5, 5), (0, 0), (0, 1), (0, 5)]))
+    def test_forward_frame_dim(self, ix, psf):
+        frames = psf.forward(torch.rand(42, 3), torch.ones(42), torch.arange(-21, 21), *ix)
+
+        assert isinstance(frames, torch.Tensor), "Wrong output"
+        assert len(frames) == ix[1] - ix[0], "Wrong output length"
+        assert frames.size() == torch.Size([len(frames), 39, 64])
+
+    def test_forward_frame_edge_cases(self, psf):
         """Tests whether the correct amount of frames are returned"""
 
         # No Emitters but indices
         out = psf.forward(
             torch.zeros((0, 3)), torch.ones(0), torch.zeros(0).long(), -5, 5
         )
-        assert out.size(0) == 10, "Wrong number of frames"
+        assert out.size() == torch.Size([10, 39, 64]), "Wrong frame dimensions"
 
         # Emitters but off indices
         out = psf.forward(
             torch.zeros((10, 3)), torch.ones(10), torch.zeros(10).long(), 5, 10
         )
-        assert out.size(0) == 5, "Wrong number of frames"
+        assert out.size() == torch.Size([5, 39, 64]), "Wrong frame dims"
 
         # Emitters and matching indices
         out = psf.forward(
             torch.zeros((10, 3)), torch.ones(10), torch.zeros(10).long(), -5, 5
         )
-        assert out.size(0) == 10, "Wrong number of frames"
+        assert out.size() == torch.Size([10, 39, 64]), "Wrong frame dims"
 
     def test_forward_frames_active(self, psf):
         """Tests whether the correct frames are active, i.e. signal present."""
@@ -80,9 +89,9 @@ class TestPseudoPSF(AbstractPSFTest):
             def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
                 # returns a frame where every pixel has the value of the number
                 # of emitters on that frame
-                return torch.ones((39, 64)) * len(xyz)
+                return torch.ones(39, 64) * len(xyz)
 
-        return QuasiAbstractPSF(None, None, None, None)
+        return QuasiAbstractPSF(None, None, None, (39, 64))
 
     def test_single_frame_wrapper(self, psf):
         """
@@ -110,7 +119,7 @@ class TestDeltaPSF(AbstractPSFTest):
     @pytest.fixture()
     def psf(self):
         return psf_kernel.DeltaPSF(
-            xextent=(-0.5, 31.5), yextent=(-0.5, 31.5), img_shape=(32, 32)
+            xextent=(-0.5, 38.5), yextent=(-0.5, 63.5), img_shape=(39, 64)
         )
 
     @pytest.fixture()
@@ -122,13 +131,14 @@ class TestDeltaPSF(AbstractPSFTest):
     def test_bin_ctr(self, psf, delta_05px):
 
         """Assert"""
-        assert (psf._bin_ctr_x == torch.arange(32).float()).all()
-        assert (psf._bin_ctr_y == torch.arange(32).float()).all()
+        assert (psf._bin_ctr_x == torch.arange(39).float()).all()
+        assert (psf._bin_ctr_y == torch.arange(64).float()).all()
 
         assert (delta_05px._bin_ctr_x == torch.arange(64).float() / 2 - 0.25).all()
         assert (delta_05px._bin_ctr_y == torch.arange(64).float() / 2 - 0.25).all()
 
     def test_px_search(self, delta_05px):
+        # specific to 64px delta psf
 
         xyz = torch.tensor(
             [
@@ -158,9 +168,8 @@ class TestDeltaPSF(AbstractPSFTest):
         assert (x == xtar).all()
         assert (y == ytar).all()
 
-    def test_forward(self, psf, delta_05px):
-
-        # ToDo: Not such a nice test ...
+    def test_forward_manual(self, psf, delta_05px):
+        # ToDo: Make this test prettier
 
         xyz = torch.Tensor(
             [
@@ -176,7 +185,7 @@ class TestDeltaPSF(AbstractPSFTest):
         out_1px = psf.forward(xyz, phot, frame_ix, 0, 3)
         out_05px = delta_05px.forward(xyz, phot, frame_ix, 0, 3)
 
-        assert out_1px.size() == torch.Size([3, 32, 32]), "Wrong output shape."
+        assert out_1px.size() == torch.Size([3, 39, 64]), "Wrong output shape."
         assert out_05px.size() == torch.Size([3, 64, 64]), "Wrong output shape."
 
         assert out_1px[0, 15, 15] == 1.0
@@ -188,16 +197,18 @@ class TestDeltaPSF(AbstractPSFTest):
         assert (out_1px.unique() == torch.Tensor([0.0, 1.0])).all()
         assert (out_05px.unique() == torch.Tensor([0.0, 1.0])).all()
 
-    def test_forward_border(self, psf):
-        _ = psf.forward(
-            torch.zeros((0, 3)), torch.zeros((0,)), torch.zeros(0).long(), 0, 0
-        )
-
     def test_doubles(self, psf):
+        # two emitters with different photon count in one pixel
+
         frames = psf.forward(
-            torch.zeros((2, 3)), torch.tensor([1.0, 2.0]), torch.zeros(2).long(), 0, 0
+            torch.zeros((2, 3)),
+            torch.tensor([1.0, 2.0]),
+            torch.zeros(2).long(),
+            0,
+            1
         )
 
+        # non-deterministic
         assert frames[0, 0, 0] in (1.0, 2.0)
 
 
@@ -205,34 +216,25 @@ class TestGaussianExpect(AbstractPSFTest):
     @pytest.fixture(scope="class", params=[None, (-5000.0, 5000.0)])
     def psf(self, request):
         return psf_kernel.GaussianPSF(
-            (-0.5, 63.5), (-0.5, 63.5), request.param, img_shape=(64, 64), sigma_0=1.5
+            (-0.5, 63.5), (-0.5, 63.5), request.param, img_shape=(39, 64), sigma_0=1.5
         )
 
-    def test_normalization(self, psf):
+    @pytest.mark.parametrize("norm", ["sum", "max"])
+    def test_normalization(self, norm, psf):
         xyz = torch.tensor([[32.0, 32.0, 0.0]])
         phot = torch.tensor([1.0])
-        assert pytest.approx(psf.forward(xyz, phot).sum().item(), 0.05) == 1
 
-    def test_peak_weight(self, psf):
-        psf.peak_weight = True
+        psf.zextent = None  # measure in 2D
+        psf.peak_weight = True if norm == "max" else False
 
-        xyz = torch.tensor([[32.0, 32.0, 0.0]])
-        phot = torch.tensor([1.0])
-        assert pytest.approx(psf.forward(xyz, phot).max().item(), 0.05) == 1
+        f = psf.forward(xyz, phot)
 
-    def test_single_frame_wrapper(self, psf):
-        # test general implementation
-
-        xyz = torch.Tensor([[15.0, 15.0, 0.0], [0.5, 0.3, 0.0]])
-        phot = torch.ones_like(xyz[:, 0])
-        frame_ix = torch.Tensor([1, -2]).int()
-
-        frames = psf._forward_single_frame_wrapper(xyz, phot, frame_ix, -2, 1)
-
-        assert frames.dim() == 3
-        assert (frames[0] != 0).any()
-        assert (frames[1:3] == 0).all()
-        assert (frames[-1] != 0).any()
+        if norm == "sum":
+            assert f.sum().item() == pytest.approx(1, 0.05)
+        elif norm == "max":
+            assert f.max().item() == pytest.approx(1, 0.05)
+        else:
+            raise RuntimeError
 
 
 class TestCubicSplinePSF(AbstractPSFTest):
@@ -441,7 +443,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         frames_cpu = psf.forward(xyz, phot, frame_ix)
         frames_cuda = psf_cuda.forward(xyz, phot, frame_ix)
 
-        assert tutil.tens_almeq(frames_cpu, frames_cuda, 1e-7)
+        np.testing.assert_allclose(frames_cpu, frames_cuda, atol=1e-7)
 
     @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1), (1, 1), (-5, 5)])
     def test_forward_chunks(self, psf, ix_low, ix_high):
@@ -457,7 +459,7 @@ class TestCubicSplinePSF(AbstractPSFTest):
         )
         out_forward = psf.forward(xyz, phot, frame_ix, ix_low, ix_high)
 
-        assert tutil.tens_almeq(out_chunk, out_forward)
+        np.testing.assert_allclose(out_chunk, out_forward, rtol=1e-4)
 
     @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1), (1, 1), (-5, 5)])
     def test_forward_drv_chunks(self, psf, ix_low, ix_high):
@@ -473,8 +475,8 @@ class TestCubicSplinePSF(AbstractPSFTest):
         )
         drv, roi = psf.derivative(xyz, phot, bg, add_bg=False)
 
-        assert tutil.tens_almeq(drv_chunk, drv)
-        assert tutil.tens_almeq(roi_chunk, roi)
+        np.testing.assert_allclose(drv_chunk, drv)
+        np.testing.assert_allclose(roi_chunk, roi)
 
     @pytest.mark.slow
     @psf_cuda_available
@@ -515,9 +517,11 @@ class TestCubicSplinePSF(AbstractPSFTest):
         assert drv.size() == torch.Size(
             [n, psf.n_par, *psf.roi_size_px]
         ), "Wrong dimension of derivatives."
-        assert tutil.tens_almeq(
-            drv[:, -1].unique(), torch.Tensor([0.0, 1.0])
-        ), "Derivative of background must be 1 or 0."
+        np.testing.assert_allclose(
+            drv[:, -1].unique(),
+            torch.Tensor([0.0, 1.0]),
+            err_msg="Derivative of background must be 1 or 0."
+        )
 
         assert rois.size() == torch.Size(
             [n, *psf.roi_size_px]
