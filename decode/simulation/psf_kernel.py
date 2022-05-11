@@ -282,6 +282,7 @@ class GaussianPSF(PSF):
         self,
         xextent: Tuple[float, float],
         yextent: Tuple[float, float],
+        zextent: Tuple[float, float],
         img_shape: Tuple[int, int],
         sigma_0: float,
         peak_weight: bool = False,
