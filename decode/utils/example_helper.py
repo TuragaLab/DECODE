@@ -1,7 +1,3 @@
-"""
-Supplementary code for code examples (mainly jupyter notebook). Some of this seams utterly less abstract and hard-coded, but it is a dedicated example helper ...
-
-"""
 import requests
 import pathlib
 import yaml
@@ -29,9 +25,9 @@ def load_example_package(path: pathlib.Path, url: str, hash: str):
 
     zip_folder = path.parent / path.stem
 
-    if not loader.check_file(path, hash):
+    if not files.check_file(path, hash):
         print("Downloading example package, this might take a while. File will be cached.")
-        loader.load(path, url, hash)
+        files.load(path, url, hash)
 
         zip_folder.mkdir(exist_ok=True)
         with zipfile.ZipFile(path, "r") as zip_ref:
@@ -41,5 +37,3 @@ def load_example_package(path: pathlib.Path, url: str, hash: str):
         print("Found file already in Cache.")
 
     return zip_folder
-
-
