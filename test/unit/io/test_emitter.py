@@ -3,7 +3,7 @@ import pytest
 from unittest import mock
 
 from decode.emitter import emitter
-from decode.utils import emitter_io
+from decode.io import emitter as emitter_io
 
 
 @pytest.fixture()

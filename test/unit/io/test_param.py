@@ -2,13 +2,12 @@ from pathlib import Path
 
 import pytest
 
-import decode.utils.param_io as wlp
+import decode.io.param as wlp
 
 import decode.utils.files
 from decode.utils import types
 from decode.generic import asset_handler
 
-"""Root folder"""
 test_dir = str(Path(__file__).resolve().parent)
 
 
@@ -40,21 +39,17 @@ def test_load_by_reference_param():
     Depends on  utils/references_files
 
     """
-
-    """Run"""
     param_file = test_dir / Path('assets/param.yaml')
     with decode.utils.files.AutoRemove(param_file):
 
         wlp.save_params(param_file, {'X': 1})
         param = wlp.load_params(param_file)
 
-    """Assertions"""
     assert param.Hardware.device_simulation == 'cuda:0'
 
 
 @pytest.mark.parametrize("mode_missing", ['exclude', 'include'])
 def test_autofill_dict(mode_missing):
-    """Setup"""
     a = {'a': 1,
          'z': {'x': 4},
          'only_in_a': 2,
@@ -66,10 +61,8 @@ def test_autofill_dict(mode_missing):
            'z': {'x': 5, 'y': 6},
            }
 
-    """Run"""
     a_ = wlp.autofill_dict(a, ref, mode_missing=mode_missing)
 
-    """Assert"""
     assert a_['a'] == 1
     assert a_['b'] is None
     assert a_['c'] == 3

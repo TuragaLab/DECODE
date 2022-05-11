@@ -7,7 +7,7 @@ import tifffile
 import torch
 
 from decode.generic import test_utils
-from decode.utils import frames_io
+from decode.io import frames as frames_io
 
 
 def online_tiff_writer(path, iterations: int, sleep: float, out_queue=None):

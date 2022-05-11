@@ -107,4 +107,3 @@ class AutoRemove:
                 self.path.unlink()
             elif self.recursive and self.path.is_dir():
                 shutil.rmtree(self.path)
-
