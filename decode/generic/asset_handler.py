@@ -1,41 +1,11 @@
 """Provides means to handle test assets, i.e. check if file exists and loads."""
 
-import hashlib
 import pathlib
-import shutil
 
 import click
 import yaml
 
-from decode.utils import loader
-
-
-class RMAfterTest:
-    """
-    A small helper that provides a context manager for test binaries, i.e. deletes them after leaving the
-    with statement.
-    """
-
-    def __init__(self, path, recursive: bool = False):
-        """
-
-        Args:
-            path: path to file that should be deleted after context
-            recursive: if true and path is a dir, then the whole dir is deleted. Careful!
-        """
-        assert isinstance(path, pathlib.Path)
-        self.path = path
-        self.recursive = recursive
-
-    def __enter__(self):
-        return self.path
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.path.exists():
-            if self.path.is_file():
-                self.path.unlink()
-            elif self.recursive and self.path.is_dir():
-                shutil.rmtree(self.path)
+from decode import utils
 
 
 class AssetHandler:
@@ -52,28 +22,10 @@ class AssetHandler:
         if not isinstance(file, pathlib.Path):
             file = pathlib.Path(file)
 
-        """Check that file is in list and get index"""
+        # check that file is in list and get index
         ix = self._names.index(str(file.name))
 
-        loader.check_load(file, url=self.dict[ix]['url'], hash=self.dict[ix]['hash'])
-
-
-def hash_file(file: pathlib.Path):
-    """
-    Hahses a file. Reads everything in byte mode even if it is a text file.
-
-    Args:
-        file (pathlib.Path): full path to file
-
-    Returns:
-        str: hexdigest sha256 hash
-
-    """
-
-    if not file.exists():
-        raise FileExistsError(f"File {str(file)} does not exist.")
-
-    return hashlib.sha256(file.read_bytes()).hexdigest()
+        utils.files.check_load(file, url=self.dict[ix]['url'], hash=self.dict[ix]['hash'])
 
 
 @click.command()
@@ -87,7 +39,7 @@ def hash_file_cmd(file: str):
         file (str): path of file
 
     """
-    print(hash_file(pathlib.Path(file)))
+    print(utils.files.hash_file(pathlib.Path(file)))
 
 
 if __name__ == '__main__':
