@@ -5,7 +5,6 @@ import torch
 from decode.emitter.emitter import EmitterSet
 import decode.emitter as em
 import decode.simulation.emitter_generator as emgen
-from decode.generic import test_utils
 from decode.simulation.structure_prior import RandomStructure
 
 
