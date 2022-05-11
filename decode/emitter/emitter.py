@@ -727,8 +727,6 @@ class EmitterSet:
             frame_end: (int) upper frame index limit (pythonic, exclusive)
             frame_ix_shift: shift frame index (additive)
 
-        Returns:
-
         """
 
         ix = (self.frame_ix >= frame_start) * (self.frame_ix < frame_end)

@@ -1,21 +1,22 @@
 from abc import ABC, abstractmethod  # abstract class
-from deprecated import deprecated
+from typing import Tuple, Optional
 
 import numpy as np
 import torch
+from deprecated import deprecated
 from torch.distributions.exponential import Exponential
 
-from ..emitter.emitter import EmitterSet, LooseEmitterSet
 from . import structure_prior
+from ..emitter.emitter import EmitterSet, LooseEmitterSet
 
 
 class EmitterSampler(ABC):
-    """
-    Abstract emitter sampler. All implementations / childs must implement a sample method.
-    """
-
-    def __init__(self, structure: structure_prior.StructurePrior, xy_unit: str, px_size: tuple):
-
+    def __init__(
+        self, structure: structure_prior.StructurePrior, xy_unit: str, px_size: tuple
+    ):
+        """
+        Abstract emitter sampler. All implementations / childs must implement a sample method.
+        """
         super().__init__()
 
         self.structure = structure
@@ -31,15 +32,20 @@ class EmitterSampler(ABC):
 
 
 class EmitterSamplerFrameIndependent(EmitterSampler):
-    """
-    Simple Emitter sampler. Samples emitters from a structure and puts them all on the same frame, i.e. their
-    blinking model is not modelled.
-
-    """
-
-    def __init__(self, *, structure: structure_prior.StructurePrior, photon_range: tuple,
-                 density: float = None, em_avg: float = None, xy_unit: str, px_size: tuple):
+    def __init__(
+        self,
+        *,
+        structure: structure_prior.StructurePrior,
+        photon_range: tuple,
+        density: float = None,
+        em_avg: float = None,
+        xy_unit: str,
+        px_size: tuple,
+    ):
         """
+        Simple Emitter sampler.
+        Samples emitters from a structure and puts them all on the same frame, i.e. their
+        blinking model is not modelled.
 
         Args:
             structure: structure to sample from
@@ -56,12 +62,14 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
         self._density = density
         self.photon_range = photon_range
 
-        """
-        Sanity Checks.
-        U shall not pa(rse)! (Emitter Average and Density at the same time!
-        """
-        if (density is None and em_avg is None) or (density is not None and em_avg is not None):
-            raise ValueError("You must XOR parse either density or emitter average. Not both or none.")
+        # Sanity Checks.
+        # U shall not pa(rse)! (Emitter Average and Density at the same time!
+        if (density is None and em_avg is None) or (
+            density is not None and em_avg is not None
+        ):
+            raise ValueError(
+                "You must XOR parse either density or emitter average. Not both or none."
+            )
 
         self.area = self.structure.area
 
@@ -101,86 +109,103 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
         xyz = self.structure.sample(n)
         phot = torch.randint(*self.photon_range, (n,))
 
-        return EmitterSet(xyz=xyz, phot=phot,
-                                         frame_ix=torch.zeros_like(phot).long(),
-                                         id=torch.arange(n).long(),
-                                         xy_unit=self.xy_unit,
-                                         px_size=self.px_size)
+        return EmitterSet(
+            xyz=xyz,
+            phot=phot,
+            frame_ix=torch.zeros_like(phot).long(),
+            id=torch.arange(n).long(),
+            xy_unit=self.xy_unit,
+            px_size=self.px_size,
+        )
 
 
 class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
-    def __init__(self, *, structure: structure_prior.StructurePrior, intensity_mu_sig: tuple, lifetime: float,
-                 frame_range: tuple, xy_unit: str, px_size: tuple, density=None, em_avg=None, intensity_th=None):
+    def __init__(
+        self,
+        *,
+        structure: structure_prior.StructurePrior,
+        intensity_mu_sig: tuple,
+        lifetime: float,
+        frame_range: Tuple[int, int],
+        xy_unit: str,
+        px_size: Tuple[float, float],
+        density: Optional[float] = None,
+        em_avg: Optional[float] = None,
+        intensity_th: Optional[float] = None,
+    ):
         """
+        Photophysically inspired EmitterSampling.
 
         Args:
-            structure:
+            structure: structure to sample (loose) emitters from
             intensity_mu_sig:
-            lifetime:
-            xy_unit:
+            lifetime: emitter lifetime
+            xy_unit: xy units of the emitters
             px_size:
-            frame_range: specifies the frame range
+            frame_range: specifies the frame range, (pythonic, upper ending exclusive!)
             density:
             em_avg:
             intensity_th:
 
         """
-        super().__init__(structure=structure,
-                         photon_range=None,
-                         xy_unit=xy_unit,
-                         px_size=px_size,
-                         density=density,
-                         em_avg=em_avg)
+        super().__init__(
+            structure=structure,
+            photon_range=None,
+            xy_unit=xy_unit,
+            px_size=px_size,
+            density=density,
+            em_avg=em_avg,
+        )
 
         self.n_sampler = np.random.poisson
         self.frame_range = frame_range
         self.intensity_mu_sig = intensity_mu_sig
-        self.intensity_dist = torch.distributions.normal.Normal(self.intensity_mu_sig[0],
-                                                                self.intensity_mu_sig[1])
+        self.intensity_dist = torch.distributions.normal.Normal(
+            self.intensity_mu_sig[0], self.intensity_mu_sig[1]
+        )
         self.intensity_th = intensity_th if intensity_th is not None else 1e-8
         self.lifetime_avg = lifetime
-        self.lifetime_dist = Exponential(1 / self.lifetime_avg)  # parse the rate not the scale ...
+        self.lifetime_dist = Exponential(rate=1 / self.lifetime_avg)
 
         self.t0_dist = torch.distributions.uniform.Uniform(*self._frame_range_plus)
 
-        """
-        Determine the total number of emitters. Depends on lifetime, frames and emitters.
-        (lifetime + 1) because of binning effect.
-        """
-        self._emitter_av_total = self._em_avg * self._num_frames_plus / (self.lifetime_avg + 1)
+        # Determine the total number of emitters. Depends on lifetime,
+        # frames and emitters. (lifetime + 1) because of binning effect.
+        self._emitter_av_total = (
+            self._em_avg * self._num_frames_plus / (self.lifetime_avg + 1)
+        )
 
     @property
-    def _frame_range_plus(self):
+    def _frame_range_plus(self) -> Tuple[float, float]:
         """
         Frame range including buffer in front and end to account for build up effects.
 
+        Note:
+            Here we need to convert to floats, therefore ends are inclusive.
         """
-        return self.frame_range[0] - 3 * self.lifetime_avg, self.frame_range[1] + 3 * self.lifetime_avg
+        return (
+            self.frame_range[0] - 3 * self.lifetime_avg,
+            # Upper + 2 because +1 already due to pythonic integer access
+            self.frame_range[1] + 2 * self.lifetime_avg,
+        )
 
     @property
-    def num_frames(self):
-        return self.frame_range[1] - self.frame_range[0] + 1
+    def num_frames(self) -> int:
+        return self.frame_range[1] - self.frame_range[0]
 
     @property
-    def _num_frames_plus(self):
+    def _num_frames_plus(self) -> int:
+        # ToDo: Change. Is this float or int?
         return self._frame_range_plus[1] - self._frame_range_plus[0] + 1
 
-    def sample(self):
-        """
-        Return sampled EmitterSet in the specified frame range.
-
-        Returns:
-            EmitterSet
-
-        """
-
+    def sample(self) -> EmitterSet:
         n = self.n_sampler(self._emitter_av_total)
 
         loose_em = self.sample_loose_emitter(n=n)
         em = loose_em.return_emitterset()
-        em = em.get_subset_frame(*self.frame_range)  # because the simulated frame range is larger
+        # simulated frame range is larger
+        return em.get_subset_frame(*self.frame_range)
 
-        return em
 
     def sample_n(self, *args, **kwargs):
         raise NotImplementedError
@@ -191,38 +216,45 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
 
         Args:
             n: number of 'loose' emitters
-
-        Returns:
-            LooseEmitterSet
-
         """
 
         xyz = self.structure.sample(n)
 
-        """Draw from intensity distribution but clamp the value so as not to fall below 0."""
+        # Draw from intensity distribution but clamp the value so as not to fall below 0
         intensity = torch.clamp(self.intensity_dist.sample((n,)), self.intensity_th)
 
-        """Distribute emitters in time. Increase the range a bit."""
+        # Distribute emitters in time. Increase the range a bit
         t0 = self.t0_dist.sample((n,))
         ontime = self.lifetime_dist.rsample((n,))
 
-        return decode.emitter.LooseEmitterSet(xyz, intensity, ontime, t0, id=torch.arange(n).long(),
-                                              xy_unit=self.xy_unit, px_size=self.px_size)
+        return LooseEmitterSet(
+            xyz,
+            intensity,
+            ontime,
+            t0,
+            id=torch.arange(n).long(),
+            xy_unit=self.xy_unit,
+            px_size=self.px_size,
+        )
 
     @classmethod
     def parse(cls, param, structure, frames: tuple):
-        return cls(structure=structure,
-                   intensity_mu_sig=param.Simulation.intensity_mu_sig,
-                   lifetime=param.Simulation.lifetime_avg,
-                   xy_unit=param.Simulation.xy_unit,
-                   px_size=param.Camera.px_size,
-                   frame_range=frames,
-                   density=param.Simulation.density,
-                   em_avg=param.Simulation.emitter_av,
-                   intensity_th=param.Simulation.intensity_th)
+        return cls(
+            structure=structure,
+            intensity_mu_sig=param.Simulation.intensity_mu_sig,
+            lifetime=param.Simulation.lifetime_avg,
+            xy_unit=param.Simulation.xy_unit,
+            px_size=param.Camera.px_size,
+            frame_range=frames,
+            density=param.Simulation.density,
+            em_avg=param.Simulation.emitter_av,
+            intensity_th=param.Simulation.intensity_th,
+        )
 
 
-@deprecated(reason="Deprecated in favour of EmitterSamplerFrameIndependent.", version="0.1.dev")
+@deprecated(
+    reason="Deprecated in favour of EmitterSamplerFrameIndependent.", version="0.1.dev"
+)
 class EmitterPopperSingle:
     pass
 

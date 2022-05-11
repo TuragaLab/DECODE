@@ -352,17 +352,17 @@ class TestEmitterSet:
             assert em_out.frame_ix.max() < ix_range[1]
 
     @pytest.mark.parametrize(
-        "frame_select,expct",
+        "frame_select,frame_ix_expct",
         [
             (slice(2, 5), {2, 3, 4}),
             (2, {2}),
         ],
     )
-    def test_iframe(self, frame_select, expct):
+    def test_iframe(self, frame_select, frame_ix_expct):
         em = emitter.factory(frame_ix=[0, 1, 2, 3, 4, 5, 6, 7])
         em_out = em.iframe[frame_select]
 
-        assert set(em_out.frame_ix.unique().tolist()) == expct
+        assert set(em_out.frame_ix.unique().tolist()) == frame_ix_expct
 
     @pytest.mark.parametrize("accessor", [slice(2, 5, 2), [1, 2, 3]])
     def test_iframe_notimplemented(self, accessor):
@@ -430,11 +430,9 @@ class TestEmitterSet:
         em.id = torch.arange(len(em))
         em.frame_ix = torch.randint_like(em.frame_ix, 10000)
 
-        """Run"""
         em_split = em.split_in_frames(0, 9999)
         em_re_merged = EmitterSet.cat(em_split)
 
-        """Assertions"""
         # sort both by id
         ix = torch.argsort(em.id)
         ix_re = torch.argsort(em_re_merged.id)
@@ -444,14 +442,11 @@ class TestEmitterSet:
     @pytest.mark.parametrize("frac", [0.0, 0.1, 0.5, 0.9, 1.0])
     def test_sigma_filter(self, frac):
 
-        """Setup"""
         em = emitter.factory(10000)
         em.xyz_sig = (torch.randn(len(em), 3) + 5).clamp(0.0)
 
-        """Run"""
         out = em.filter_by_sigma(fraction=frac)
 
-        """Assert"""
         assert len(em) * frac == pytest.approx(len(out))
 
     def test_hist_detection(self):
@@ -462,10 +457,8 @@ class TestEmitterSet:
             0
         )
 
-        """Run"""
         out = em.hist_detection()
 
-        """Assert"""
         assert set(out.keys()) == {"prob", "sigma_x", "sigma_y", "sigma_z"}
 
     def test_sanity_check(self):
@@ -475,7 +468,6 @@ class TestEmitterSet:
         with pytest.raises(ValueError):
             em._sanity_check()
 
-        """Test correct number of el. in EmitterSet."""
         em = emitter.factory(42)
         em.phot = torch.rand(43)  # incorrect number of photons
 
@@ -684,7 +676,6 @@ class TestLooseEmitterSet:
             px_size=None,
         )
 
-        """Distribute"""
         xyz, phot, frame_ix, id = em._distribute_framewise()
         # sort by id then by frame_ix
         ix = np.lexsort((id, frame_ix))
@@ -693,7 +684,6 @@ class TestLooseEmitterSet:
         phot = phot[ix]
         frame_ix = frame_ix[ix]
 
-        """Assert"""
         assert (xyz[0] == torch.Tensor([1.0, 2.0, 3.0])).all()
         assert id[0] == 0
         assert frame_ix[0] == -1
