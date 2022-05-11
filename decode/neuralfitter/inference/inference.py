@@ -8,7 +8,8 @@ from tqdm import tqdm
 
 from .. import dataset
 from ...emitter import emitter
-from ...utils import hardware, frames_io
+from ...utils import hardware
+from ...io import frames as frames_io
 
 
 class Infer:

@@ -3,6 +3,8 @@ from pathlib import Path
 import pytest
 
 import decode.utils.param_io as wlp
+
+import decode.utils.files
 from decode.utils import types
 from decode.generic import asset_handler
 
@@ -41,7 +43,7 @@ def test_load_by_reference_param():
 
     """Run"""
     param_file = test_dir / Path('assets/param.yaml')
-    with asset_handler.RMAfterTest(param_file):
+    with decode.utils.files.AutoRemove(param_file):
 
         wlp.save_params(param_file, {'X': 1})
         param = wlp.load_params(param_file)
@@ -85,7 +87,7 @@ def test_write_param():
     param = wlp.ParamHandling().load_params(filename)
 
     filename_out = test_dir / Path('assets/dummy.yml')
-    with asset_handler.RMAfterTest(filename):
+    with decode.utils.files.AutoRemove(filename):
         wlp.ParamHandling().write_params(filename_out, param)
         assert isinstance(param, types.RecursiveNamespace)
 
@@ -117,7 +119,7 @@ def test_copy_reference_param():
     path = test_dir / Path(f'assets/refs')
     path.mkdir(exist_ok=True)
 
-    with asset_handler.RMAfterTest(path, recursive=True):
+    with decode.utils.files.AutoRemove(path, recursive=True):
         wlp.copy_reference_param(path)
 
         assert (path / 'reference.yaml').exists()

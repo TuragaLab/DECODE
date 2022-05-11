@@ -1,5 +1,4 @@
 import json
-# import copy
 import pathlib
 from pathlib import Path
 from typing import Union
@@ -10,7 +9,7 @@ except ImportError:  # Try backported to PY<37 `importlib_resources`.
 
 import yaml
 
-from .types import RecursiveNamespace
+from decode.utils.types import RecursiveNamespace
 
 
 class ParamHandling:

@@ -1,4 +1,4 @@
-# The purpose of this is to check the availability of the assets as referenced in the gateway. 
+# The purpose of this is to check the availability of the assets as referenced in the gateway.
 # This of course requires web connection of the machine that tests
 from pathlib import Path
 
@@ -6,7 +6,7 @@ import requests
 import yaml
 import pytest
 
-import  decode.utils.loader
+import  decode.utils.files
 
 
 @pytest.fixture(scope='module')

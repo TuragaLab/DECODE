@@ -27,13 +27,17 @@ def load_tif(path: (str, pathlib.Path), multifile=True) -> torch.Tensor:
 
     p = pathlib.Path(path)
 
-    """If dir, load multiple files and stack them if more than one found"""
+    # if dir, load multiple files and stack them if more than one found
     if p.is_dir():
 
-        file_list = sorted(p.glob('*.tif*'))  # load .tif or .tiff
+        file_list = sorted(p.glob("*.tif*"))  # load .tif or .tiff
         frames = []
         for f in tqdm(file_list, desc="Tiff loading"):
-            frames.append(torch.from_numpy(tifffile.imread(str(f), multifile=False).astype('float32')))
+            frames.append(
+                torch.from_numpy(
+                    tifffile.imread(str(f), multifile=False).astype("float32")
+                )
+            )
 
         if frames.__len__() >= 2:
             frames = torch.stack(frames, 0)
@@ -42,17 +46,20 @@ def load_tif(path: (str, pathlib.Path), multifile=True) -> torch.Tensor:
 
     else:
         im = tifffile.imread(str(p), multifile=multifile)
-        frames = torch.from_numpy(im.astype('float32'))
+        frames = torch.from_numpy(im.astype("float32"))
 
     if frames.squeeze().ndim <= 2:
-        warnings.warn(f"Frames seem to be of wrong dimension ({frames.size()}), "
-                      f"or could only find a single frame.", ValueError)
+        warnings.warn(
+            f"Frames seem to be of wrong dimension ({frames.size()}), "
+            f"or could only find a single frame.",
+            ValueError,
+        )
 
     return frames
 
 
 class TiffTensor:
-    def __init__(self, file, dtype='float32'):
+    def __init__(self, file, dtype="float32"):
         """
         Memory-mapped tensor. Note that data is loaded only to the extent to which the object is accessed through brackets '[ ]'
         Therefore, this tensor has no value and no state until it is sliced and then returns a torch tensor.
@@ -82,18 +89,20 @@ class TiffTensor:
         raise NotImplementedError
 
     def __len__(self):
-        tiff = tifffile.TiffFile(self._file, mode='rb')
+        tiff = tifffile.TiffFile(self._file, mode="rb")
         n = len(tiff.pages)
         tiff.close()
         return n
 
 
 class BatchFileLoader:
-
-    def __init__(self, par_folder: Union[str, pathlib.Path],
-                 file_suffix: str = '.tif',
-                 file_loader: Union[None, Callable] = None,
-                 exclude_pattern: Union[None, str] = None):
+    def __init__(
+        self,
+        par_folder: Union[str, pathlib.Path],
+        file_suffix: str = ".tif",
+        file_loader: Union[None, Callable] = None,
+        exclude_pattern: Union[None, str] = None,
+    ):
         """
         Iterates through parent folder and returns the loaded frames as well as the filename in their iterator
 
@@ -105,18 +114,29 @@ class BatchFileLoader:
         Args:
             par_folder: parent folder in which the files are
             file_suffix: suffix to search for
-            exclude_pattern: specifies excluded patterns via regex string. If that pattern is found anywhere (!) in the
-            files path, the file will be ingored.
+            exclude_pattern: specifies excluded patterns via regex string.
+                If that pattern is found anywhere (!) in the
+                files path, the file will be ingored.
 
         """
 
-        self.par_folder = par_folder if isinstance(par_folder, pathlib.Path) else pathlib.Path(par_folder)
+        self.par_folder = (
+            par_folder
+            if isinstance(par_folder, pathlib.Path)
+            else pathlib.Path(par_folder)
+        )
         if not self.par_folder.is_dir():
-            raise FileExistsError(f"Path {str(self.par_folder)} is either not a directory or does not exist.")
+            raise FileExistsError(
+                f"Path {str(self.par_folder)} is either not a directory or does not exist."
+            )
 
-        self.files = list(self.par_folder.rglob('*' + file_suffix))
+        self.files = list(self.par_folder.rglob("*" + file_suffix))
         self.file_loader = file_loader if file_loader is not None else load_tif
-        self._exclude_pattern = exclude_pattern if isinstance(exclude_pattern, (list, tuple)) else [exclude_pattern]
+        self._exclude_pattern = (
+            exclude_pattern
+            if isinstance(exclude_pattern, (list, tuple))
+            else [exclude_pattern]
+        )
 
         self.remove_by_exclude()
 
