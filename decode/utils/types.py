@@ -1,7 +1,5 @@
-from types import SimpleNamespace
-from typing import Iterable
-
 from copy import deepcopy
+from types import SimpleNamespace
 
 
 class RecursiveNamespace(SimpleNamespace):
