@@ -8,7 +8,7 @@ import yaml
 import zipfile
 
 import decode
-from decode.utils import loader
+from decode.utils import files
 
 
 def load_gateway():

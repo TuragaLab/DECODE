@@ -13,6 +13,7 @@ import warnings
 
 import decode.evaluation
 import decode.generic
+import decode.io
 import decode.neuralfitter
 import decode.plot
 import decode.renderer
