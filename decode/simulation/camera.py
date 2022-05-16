@@ -4,7 +4,7 @@ from typing import Union
 import torch
 from deprecated import deprecated
 
-from . import noise_distributions
+from . import noise
 from ..neuralfitter import sampling
 
 

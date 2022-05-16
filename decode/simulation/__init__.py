@@ -1,10 +1,10 @@
 import decode.simulation.background
-import decode.simulation.noise_distributions
+import decode.simulation.noise
 import decode.simulation.camera
-import decode.simulation.emitter_generator
+import decode.simulation.sampler
 import decode.simulation.psf_kernel
 import decode.simulation.simulator
-import decode.simulation.structure_prior
+import decode.simulation.structures
 
 from decode.simulation.simulator import Simulation
-from decode.simulation.structure_prior import RandomStructure
+from decode.simulation.structures import RandomStructure
