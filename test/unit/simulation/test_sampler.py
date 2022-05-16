@@ -4,8 +4,8 @@ import torch
 
 from decode.emitter.emitter import EmitterSet
 import decode.emitter as em
-import decode.simulation.emitter_generator as emgen
-from decode.simulation.structure_prior import RandomStructure
+import decode.simulation.sampler as emgen
+from decode.simulation.structures import RandomStructure
 
 
 class TestEmitterSamplerABC:

@@ -6,13 +6,13 @@ import torch
 from deprecated import deprecated
 from torch.distributions.exponential import Exponential
 
-from . import structure_prior
+from . import structures
 from ..emitter.emitter import EmitterSet, LooseEmitterSet
 
 
 class EmitterSampler(ABC):
     def __init__(
-        self, structure: structure_prior.StructurePrior, xy_unit: str, px_size: tuple
+        self, structure: structures.StructurePrior, xy_unit: str, px_size: tuple
     ):
         """
         Abstract emitter sampler. All implementations / childs must implement a sample method.
@@ -35,7 +35,7 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
     def __init__(
         self,
         *,
-        structure: structure_prior.StructurePrior,
+        structure: structures.StructurePrior,
         photon_range: tuple,
         density: float = None,
         em_avg: float = None,
@@ -123,7 +123,7 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
     def __init__(
         self,
         *,
-        structure: structure_prior.StructurePrior,
+        structure: structures.StructurePrior,
         intensity_mu_sig: tuple,
         lifetime: float,
         frame_range: Tuple[int, int],

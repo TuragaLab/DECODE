@@ -73,8 +73,8 @@ class TestVal(TestTrain):
 
     @pytest.fixture()
     def post_processor(self):
-        return post_processing.ConsistencyPostprocessing(raw_th=0.1, em_th=0.5, xy_unit='nm', img_shape=(64, 64),
-                                                         lat_th=100)
+        return post_processing.ConsistencyPostprocessing(raw_th=0.1, em_th=0.5, xy_unit='nm',
+                                                         img_shape=(64, 64), lat_th=100)
 
     def test_iterate_batch(self, opt, loss, dataloader, post_processor, logger, train_val_environment):
         device, model = train_val_environment
