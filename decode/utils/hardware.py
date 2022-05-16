@@ -1,9 +1,9 @@
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 
 import torch
 
 
-def _specific_device_by_str(device) -> Tuple[str, str]:
+def _specific_device_by_str(device) -> Tuple[str, Optional[int]]:
     """Converts torch compatible device string to device name and device index"""
     if device != 'cpu' and device[:4] != 'cuda':
         raise ValueError
