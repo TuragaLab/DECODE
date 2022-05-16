@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import torch
 
-import decode.plot.frame_coord as plf
+import decode.plot.plot as plf
 import decode.simulation.psf_kernel as psf_kernel
 import decode.utils.calibration_io as load_cal
 from decode.generic import asset_handler

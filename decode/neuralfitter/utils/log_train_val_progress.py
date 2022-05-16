@@ -7,7 +7,7 @@ import seaborn as sns
 import decode.emitter
 from decode.evaluation.evaluation import WeightedErrors
 from decode.evaluation import predict_dist
-from decode.plot import frame_coord
+from decode.plot import plot
 
 from decode.evaluation import evaluation
 

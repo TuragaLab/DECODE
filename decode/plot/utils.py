@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 
-def plot_crosshair(x: float, y: float, ax=None, color="r"):
+def crosshair(x: float, y: float, ax=None, color="r"):
     """
     Plot Crosshair and deduce limits automatically from axis
 

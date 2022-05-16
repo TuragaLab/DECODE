@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 import pytest
 
-from decode.plot import frame_coord
+from decode.plot import plot
 
 
 @pytest.mark.plot
@@ -12,5 +12,5 @@ from decode.plot import frame_coord
 def test_plot3d(em_tar, em_out):
 
     f = plt.figure()
-    frame_coord.PlotCoordinates3D(pos_tar=em_tar, pos_out=em_out).plot()
+    plot.PlotCoordinates3D(pos_tar=em_tar, pos_out=em_out).plot()
     plt.show()

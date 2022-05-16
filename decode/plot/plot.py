@@ -3,14 +3,13 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import torch
 
-"""
-Convention:
-x to the right, y down.
-—--—x --——>
-y
-|
-v
-"""
+# plot and axis convention
+#
+# x to the right, y down.
+# y
+# |
+# v
+# —--—x --——>
 
 
 def connect_point_set(set0, set1, threeD=False, ax=None):
