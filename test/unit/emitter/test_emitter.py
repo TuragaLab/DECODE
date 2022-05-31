@@ -27,11 +27,8 @@ def test_emitter_data():
 def em2d():
     """Effectively 2D EmitterSet"""
 
-    return EmitterSet(
-        xyz=torch.rand((25, 2)),
-        phot=torch.rand(25),
-        frame_ix=torch.zeros(25, dtype=torch.long),
-    )
+    return EmitterSet(xyz=torch.rand((25, 2)), phot=torch.rand(25),
+                      frame_ix=torch.zeros(25, dtype=torch.long))
 
 
 @pytest.fixture()

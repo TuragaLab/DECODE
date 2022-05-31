@@ -120,7 +120,7 @@ class TestWeightedErrors(TestEval):
 
         """Setup"""
         tp = em.EmitterSet(xyz=torch.zeros((4, 3)), phot=torch.tensor([1050., 1950., 3050., 4050]),
-                           frame_ix=torch.tensor([0, 0, 1, 2]), bg=torch.ones((4, )) * 10,
+                           frame_ix=torch.tensor([0, 0, 1, 2]), bg=torch.ones((4,)) * 10,
                            xy_unit='px', px_size=(127., 117.))
 
         ref = tp.clone()

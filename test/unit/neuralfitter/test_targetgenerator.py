@@ -39,8 +39,12 @@ class TestTargetGenerator:
 
     @pytest.fixture()
     def fem(self):
-        return EmitterSet(xyz=torch.tensor([[0., 0., 0.]]), phot=torch.Tensor([1.]), frame_ix=torch.tensor([0]),
-                          xy_unit='px')
+        return EmitterSet(
+            xyz=torch.tensor([[0., 0., 0.]]),
+            phot=torch.Tensor([1.]),
+            frame_ix=torch.tensor([0]),
+            xy_unit='px'
+        )
 
     def test_shape(self, targ, fem):
         """
@@ -226,10 +230,7 @@ class Test4FoldTarget(TestTargetGenerator):
         """Setup"""
         em = EmitterSet(
             xyz=torch.tensor([[0., 0., 0.], [0.49, 0., 0.], [0., 0.49, 0.], [0.49, 0.49, 0.]]),
-            phot=torch.ones(4),
-            frame_ix=torch.tensor([0, 1, 2, 3]),
-            xy_unit='px'
-        )
+            phot=torch.ones(4), frame_ix=torch.tensor([0, 1, 2, 3]), xy_unit='px')
 
         """Run"""
         tar_out = targ.forward(em, None)
@@ -280,8 +281,8 @@ class TestParameterListTarget(TestTargetGenerator):
 
     @pytest.fixture()
     def fem(self):
-        return EmitterSet(xyz=torch.tensor([[1., 2., 3.], [4., 5., 6.]]), phot=torch.Tensor([3., 2.]),
-                          frame_ix=torch.tensor([0, 1]), xy_unit='px')
+        return EmitterSet(xyz=torch.tensor([[1., 2., 3.], [4., 5., 6.]]),
+                          phot=torch.Tensor([3., 2.]), frame_ix=torch.tensor([0, 1]), xy_unit='px')
 
     def test_default_range(self):
         pass

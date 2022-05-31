@@ -112,8 +112,9 @@ class TestSimpleWeight(AbstractWeightGeneratorVerification):
         tar_frames = torch.zeros((1, 6, 5, 5))
         tar_frames[:, 5] = torch.rand_like(tar_frames[:, 5])  # let bg be non-zero
 
-        em = emitter.EmitterSet(xyz=torch.tensor([[1., 1., 0], [3., 3., 0.]]), phot=torch.Tensor([1., 5.]),
-                                frame_ix=torch.tensor([0, 0]), xy_unit='px')
+        em = emitter.EmitterSet(xyz=torch.tensor([[1., 1., 0], [3., 3., 0.]]),
+                                phot=torch.Tensor([1., 5.]), frame_ix=torch.tensor([0, 0]),
+                                xy_unit='px')
 
         """Run"""
         mask = waiter.forward(em, tar_frames, 0, 0)

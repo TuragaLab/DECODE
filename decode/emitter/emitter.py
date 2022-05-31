@@ -46,7 +46,7 @@ class EmitterData(BaseModel):
     frame_ix: _LongTensor
 
     id: Optional[_LongTensor]
-    color: Optional[_LongTensor]
+    code: Optional[_LongTensor]
     prob: Optional[_Tensor]
     bg: Optional[_Tensor]
 
@@ -87,7 +87,7 @@ class EmitterSet:
             phot: Photon count of size N
             frame_ix: size N. Index on which the emitter appears.
             id: size N. Identity the emitter.
-            color: size N.
+            code: size N.
             prob: size N. Probability estimate of the emitter.
             bg: size N. Background estimate of emitter.
             xyz_cr: size N x 3. Cramer-Rao estimate of the emitters position.
@@ -104,7 +104,7 @@ class EmitterSet:
         "phot",
         "frame_ix",
         "id",
-        "color",
+        "code",
         "prob",
         "bg",
         "xyz_cr",
@@ -125,7 +125,7 @@ class EmitterSet:
         frame_ix: torch.LongTensor,
         id: Optional[torch.LongTensor] = None,
         *,
-        color: Optional[torch.Tensor] = None,
+        code: Optional[torch.Tensor] = None,
         prob: Optional[torch.Tensor] = None,
         bg: Optional[torch.Tensor] = None,
         xyz_cr: Optional[torch.Tensor] = None,
@@ -146,7 +146,8 @@ class EmitterSet:
             phot: Photon count of size :math:`N`
             frame_ix: Index on which the emitter appears. Must be integer type. Size :math:`N`
             id: Identity the emitter. Must be tensor integer type and the same type as frame_ix. Size :math:`N`
-            color: Color representation of the emitter, size :math:`(N)`
+            code: Code of emitter. Useful e.g. for representing its color, channel ix or similar,
+             usually size :math:`(N)`
             prob: Probability estimate of the emitter. Size :math:`N`
             bg: Background estimate of emitter. Size :math:`N`
             xyz_cr: Cramer-Rao estimate of the emitters position. Size :math:`(N,3)`
@@ -167,7 +168,7 @@ class EmitterSet:
             phot=phot,
             frame_ix=frame_ix,
             id=id,
-            color=color,
+            color=code,
             prob=prob,
             bg=bg,
             xyz_cr=xyz_cr,
@@ -291,7 +292,7 @@ class EmitterSet:
             "phot": self.phot,
             "frame_ix": self.frame_ix,
             "id": self.id,
-            "color": self.color,
+            "code": self.code,
             "prob": self.prob,
             "bg": self.bg,
             "xyz_cr": self.xyz_cr,
@@ -405,7 +406,7 @@ class EmitterSet:
 
 
         """
-        self.__init__(**em.to_dict(), sanity_check=False)
+        self.__init__(sanity_check=False, **em.to_dict())
 
     def _sanity_check(self, check_uniqueness=False):
         """
@@ -712,10 +713,10 @@ class EmitterSet:
         data_subset = {k: v[ix] for k, v in self.data.items() if v is not None}
 
         return EmitterSet(
-            **data_subset,
             sanity_check=False,
             xy_unit=self.xy_unit,
             px_size=self.px_size,
+            **data_subset
         )
 
     def get_subset_frame(self, frame_start: int, frame_end: int, frame_ix_shift=None):
@@ -930,16 +931,11 @@ class CoordinateOnlyEmitter(EmitterSet):
 
         :param xyz: (torch.tensor) N x 2, N x 3
         """
-        super().__init__(
-            xyz,
-            torch.ones_like(xyz[:, 0]),
-            torch.zeros_like(xyz[:, 0]).int(),
-            xy_unit=xy_unit,
-            px_size=px_size,
-        )
+        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).int(),
+                         xy_unit=xy_unit, px_size=px_size)
 
     def _inplace_replace(self, em):
-        super().__init__(**em.to_dict(), sanity_check=False)
+        super().__init__(sanity_check=False, **em.to_dict())
 
 
 @deprecated("deprecated in favor of factory", version="0.11")
