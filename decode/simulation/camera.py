@@ -4,7 +4,7 @@ from typing import Union
 import torch
 from deprecated import deprecated
 
-from . import noise
+from . import noise as noise_distributions
 from ..neuralfitter import sampling
 
 
@@ -22,6 +22,7 @@ class Camera(ABC):
         raise NotImplementedError
 
 
+# ToDo: More meaningful name
 class Photon2Camera(Camera):
     def __init__(
         self,
@@ -147,6 +148,12 @@ class Photon2Camera(Camera):
         out /= self.qe
 
         return out
+
+
+class GammaCamera:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # ToDo:
+        pass
 
 
 class PerfectCamera(Photon2Camera):

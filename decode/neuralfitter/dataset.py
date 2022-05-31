@@ -336,7 +336,6 @@ class SMLMAPrioriDataset(SMLMLiveDataset):
 class SMLMLiveSampleDataset(SMLMDataset):
     """
     A SMLM dataset where a new sample is drawn per (training) sample.
-
     """
 
     def __init__(self, *, simulator, ds_len, em_proc, frame_proc, bg_frame_proc, tar_gen, weight_gen, frame_window,

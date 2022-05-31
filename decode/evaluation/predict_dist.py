@@ -7,7 +7,7 @@ from . import utils
 
 
 def deviation_dist(x: torch.Tensor, x_gt: torch.Tensor, residuals=False, kde=True, ax=None, nan_okay=True):
-    """Log z vs z_gt"""
+    """Plot predicted values over reference values"""
     if ax is None:
         ax = plt.gca()
 
@@ -59,13 +59,13 @@ def emitter_deviations(tp, tp_match, px_border: float, px_size: float, axes, res
     """Plot within px distribution"""
     assert len(axes) == 4
 
-    """XY within px"""
+    # xy within
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         sns.distplot(px_pointer_dist(tp.xyz_px[:, 0], px_border=px_border, px_size=px_size), norm_hist=True, ax=axes[0], bins=50)
         sns.distplot(px_pointer_dist(tp.xyz_px[:, 1], px_border=px_border, px_size=px_size), norm_hist=True, ax=axes[1], bins=50)
 
 
-    """Z and Photons"""
+    # z and photons
     deviation_dist(tp.xyz_nm[:, 2], tp_match.xyz_nm[:, 2], residuals=residuals, kde=kde, ax=axes[2])
     deviation_dist(tp.phot, tp_match.phot, residuals=residuals, kde=kde, ax=axes[3])

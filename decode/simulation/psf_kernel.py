@@ -1080,3 +1080,8 @@ class ZernikePSF(PSF):
         real = self.fft(h_k) * weight
 
         return real
+
+
+class VoxelatedPSF(PSF):
+    # ToDo: cube based psf. Needs 3D voxel cube as input, and sufficient interpolation (e.g. fft).
+    pass

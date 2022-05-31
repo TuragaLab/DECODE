@@ -26,9 +26,7 @@ class TestRootMeanAbsoluteDist:
             else:
                 assert o == e
 
-    def test_excpt(self):
-        """Exceptions"""
-
+    def test_exceptions(self):
         with pytest.raises(ValueError):
             test_cand.rmse_mad_dist(torch.zeros((0, 3)), torch.zeros((2, 3)))
 

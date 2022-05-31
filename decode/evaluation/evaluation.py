@@ -1,6 +1,8 @@
 # from abc import ABC
 import warnings
 from collections import namedtuple
+from dataclasses import dataclass
+from typing import Union
 
 import matplotlib.pyplot as plt
 import scipy.stats
@@ -11,14 +13,26 @@ from decode.evaluation.metric import precision_recall_jaccard, rmse_mad_dist, ef
 from ..emitter.emitter import EmitterSet
 
 
-class SegmentationEvaluation:
-    """
-    Wrapper class that holds all segementation evaluations in one place.
+@dataclass
+class ClassifiedEmitters:
+    tp: EmitterSet
+    fp: EmitterSet
+    fn: EmitterSet
 
-    """
+
+@dataclass
+class Classification:
+    prec: Union[float, torch.Tensor]
+    rec: Union[float, torch.Tensor]
+    jac: Union[float, torch.Tensor]
+    f1: Union[float, torch.Tensor]
+
+
+class SegmentationEvaluation:
     _seg_eval_return = namedtuple("seg_eval", ["prec", "rec", "jac", "f1"])
 
     def __init__(self):
+
         self._tp = None
         self._fp = None
         self._fn = None
@@ -122,9 +136,6 @@ class DistanceEvaluation:
 
 
 class WeightedErrors:
-    """
-    Weighted deviations.
-    """
     _modes_all = ('phot', 'crlb')
     _reduction_all = ('mstd', 'gaussian')
     _return = namedtuple("weighted_err", ["dxyz_red", "dphot_red", "dbg_red", "dxyz_w", "dphot_w", "dbg_w"])
@@ -271,9 +282,6 @@ class WeightedErrors:
 
 
 class SMLMEvaluation:
-    """
-    Just a wrapper class to combine things into one.
-    """
     alpha_lat = 1  # nm
     alpha_ax = 0.5  # nm
 
@@ -303,6 +311,9 @@ class SMLMEvaluation:
     def __init__(self, seg_eval=SegmentationEvaluation(),
                  dist_eval=DistanceEvaluation(),
                  weighted_eval=WeightedErrors(mode='crlb', reduction='gaussian')):
+        """
+        A wrapper class to combine things into one.
+        """
         self.seg_eval = seg_eval
         self.dist_eval = dist_eval
         self.weighted_eval = weighted_eval
