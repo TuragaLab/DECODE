@@ -168,7 +168,7 @@ class EmitterSet:
             phot=phot,
             frame_ix=frame_ix,
             id=id,
-            color=code,
+            code=code,
             prob=prob,
             bg=bg,
             xyz_cr=xyz_cr,
@@ -607,17 +607,17 @@ class EmitterSet:
         step_frame_ix: int = None,
     ):
         """
-        Concatenate multiple emittersets into one emitterset which is returned. Optionally modify the frame indices by
-        the arguments.
+        Concatenate multiple emittersets into one emitterset which is returned.
+        Optionally modify the frame index by providing a step between elements or
+        directly specifying to what new index the 0th frame of each element maps to.
 
         Args:
-            emittersets: iterable of emittersets to be concatenated
-            remap_frame_ix: new index of the 0th frame of each iterable
-            step_frame_ix: step size between 0th frame of each iterable
+            emittersets: sequence of emitters to be concatenated
+            remap_frame_ix: new index of the 0th frame of each element
+            step_frame_ix: step size between 0th frame of each element
 
         Returns:
             concatenated emitters
-
         """
 
         meta = []
@@ -838,7 +838,7 @@ class EmitterSet:
             list of emitters
         """
 
-        """The first frame is assumed to be 0. If it's negative go to the lowest negative."""
+        # the first frame is assumed to be 0. If it's negative go to the lowest negative
         ix_low = ix_low if ix_low is not None else self.frame_ix.min().item()
         ix_up = ix_up if ix_up is not None else self.frame_ix.max().item() + 1
 
@@ -918,6 +918,35 @@ class EmitterSet:
         self.phot_cr = crlb[:, 3]
         self.bg_cr = crlb[:, 4]
 
+    def repeat(self, repeats: Union[int, torch.Tensor], step_frames: bool):
+        """
+        Repeat EmitterSet in interleave style
+
+        Args:
+            repeats: number of repeats or tensor of repeats per emitter
+            step_frames: adjust frame index as by repeat (true) or keep constant (False)
+
+        Returns:
+            repeated EmitterSet
+        """
+        data_repeat = {
+            k: torch.repeat_interleave(v, repeats, dim=0)
+            for k, v in self.data_used.items()
+        }
+
+        em = EmitterSet(**data_repeat, **self.meta)
+
+        # adjust frame index
+        if step_frames:
+            # use pseudo id because we don't care about identity of emitter
+            pseudo_id = torch.arange(len(self))
+            pseudo_id = torch.repeat_interleave(pseudo_id, repeats, dim=0)
+            cum_count = decode.generic.utils.cum_count_per_group(pseudo_id)
+
+            em.frame_ix += cum_count
+
+        return em
+
 
 @deprecated("deprecated in favor of factory", version="0.11")
 class CoordinateOnlyEmitter(EmitterSet):
@@ -949,136 +978,94 @@ class EmptyEmitterSet(CoordinateOnlyEmitter):
         super().__init__(**em.to_dict())
 
 
-class LooseEmitterSet:
-    """
-    Related to the standard EmitterSet. However, here we do not specify a frame_ix but rather a (non-integer)
-    initial point in time where the emitter starts to blink and an on-time.
-
-    Attributes:
-        xyz (torch.Tensor): coordinates. Dimension: N x 3
-        intensity (torch.Tensor): intensity, i.e. photon flux per time unit. Dimension N
-        id (torch.Tensor, int): identity of the emitter. Dimension: N
-        t0 (torch.Tensor, float): initial blink event. Dimension: N
-        ontime (torch.Tensor): duration in frame-time units how long the emitter blinks. Dimension N
-        xy_unit (string): unit of the coordinates
-    """
-
-    def __init__(
-        self,
-        xyz: torch.Tensor,
-        intensity: torch.Tensor,
-        ontime: torch.Tensor,
-        t0: torch.Tensor,
-        xy_unit: str,
-        px_size,
-        id: torch.Tensor = None,
-        sanity_check=True,
-    ):
+class FluorophoreSet:
+    def __init__(self,
+                 xyz: torch.Tensor,
+                 flux: torch.Tensor, t0: torch.Tensor, ontime: torch.Tensor,
+                 xy_unit: str, px_size: Union[tuple, torch.Tensor] = None,
+                 id: Optional[torch.LongTensor] = None,
+                 sanity_check=True, **kwargs):
         """
+        Related to the standard EmitterSet. However, here we do not specify a frame_ix
+        but rather a (non-integer) initial point in time where the emitter starts to blink
+        and an on-time.
 
         Args:
             xyz (torch.Tensor): coordinates. Dimension: N x 3
-            intensity (torch.Tensor): intensity, i.e. photon flux per time unit. Dimension N
+            flux (torch.Tensor): flux, i.e. photon flux per time unit. Dimension N
             t0 (torch.Tensor, float): initial blink event. Dimension: N
             ontime (torch.Tensor): duration in frame-time units how long the emitter blinks. Dimension N
             id (torch.Tensor, int, optional): identity of the emitter. Dimension: N
             xy_unit (string): unit of the coordinates
         """
 
-        if id is None:
-            id = torch.arange(xyz.shape[0])
-
         self.xyz = xyz
-        self.xy_unit = xy_unit
-        self.px_size = px_size
-        self._phot = None
-        self.intensity = intensity
-        self.id = id
+        self.flux = flux
         self.t0 = t0
         self.ontime = ontime
+        self.id = id if id is not None else torch.arange(len(flux))
+        self.xy_unit = xy_unit
+        self.px_size = px_size
+        self._em_kwargs = kwargs
 
         if sanity_check:
             self.sanity_check()
 
     def sanity_check(self):
 
-        """Check IDs"""
+        # check ids
         if self.id.unique().numel() != self.id.numel():
             raise ValueError("IDs are not unique.")
 
-        if self.xyz.dim() != 2 or self.xyz.size(1) != 3:
-            raise ValueError("Wrong xyz dimension.")
-
-        if (self.intensity < 0).any():
-            raise ValueError("Negative intensity values encountered.")
+        if (self.flux < 0).any():
+            raise ValueError("Negative flux values encountered.")
 
         if (self.ontime < 0).any():
             raise ValueError("Negative ontime encountered.")
 
     @property
-    def te(self):  # end time
+    def te(self):
+        # end time
         return self.t0 + self.ontime
 
-    def _distribute_framewise(self):
+    @staticmethod
+    def _compute_time_distribution(t_start: torch.FloatTensor, t_end: torch.FloatTensor) -> (torch.LongTensor, torch.Tensor):
         """
-        Distributes the emitters framewise and prepares them for EmitterSet format.
+        Compute time distribution, i.e. on how many frames an emitter is visible
+        and what the ontime per emitter per frame is
 
-        Returns:
-            xyz_ (torch.Tensor): coordinates
-            phot_ (torch.Tensor): photon count
-            frame_ (torch.Tensor): frame indices (the actual distribution)
-            id_ (torch.Tensor): identities
-
+        Args:
+            t_start: start time
+            t_end: end time
         """
+        # compute total number of frames per emitter
+        ix_start = torch.floor(t_start).long()
+        ix_end = torch.floor(t_end).long()
 
-        frame_start = torch.floor(self.t0).long()
-        frame_last = torch.floor(self.te).long()
-        frame_count = (frame_last - frame_start).long()
+        n_frames = (ix_end - ix_start + 1).long()
 
-        frame_count_full = frame_count - 2
-        ontime_first = torch.min(self.te - self.t0, frame_start + 1 - self.t0)
-        ontime_last = torch.min(self.te - self.t0, self.te - frame_last)
+        # compute ontime per frame
+        # ontime = torch.repeat_interleave(torch.ones_like(t_start), n_frames, 0)
+        pseudo_id = torch.repeat_interleave(torch.arange(len(t_start)), n_frames, 0)
+        n_frame_per_emitter = decode.generic.utils.cum_count_per_group(pseudo_id)
 
-        """Repeat by full-frame duration"""
-        # kick out everything that has no full frame_duration
-        ix_full = frame_count_full >= 0
-        xyz_ = self.xyz[ix_full, :]
-        flux_ = self.intensity[ix_full]
-        id_ = self.id[ix_full]
-        frame_start_full = frame_start[ix_full]
-        frame_dur_full_clean = frame_count_full[ix_full]
+        # ontime since start, to end
+        t_since_start = torch.repeat_interleave(t_start.ceil(), n_frames) \
+                        + n_frame_per_emitter \
+                        - torch.repeat_interleave(t_start, n_frames)
 
-        xyz_ = xyz_.repeat_interleave(frame_dur_full_clean + 1, dim=0)
-        phot_ = flux_.repeat_interleave(
-            frame_dur_full_clean + 1, dim=0
-        )  # because intensity * 1 = phot
-        id_ = id_.repeat_interleave(frame_dur_full_clean + 1, dim=0)
-        # because 0 is first occurence
-        frame_ix_ = (
-            frame_start_full.repeat_interleave(frame_dur_full_clean + 1, dim=0)
-            + decode.generic.utils.cum_count_per_group(id_)
-            + 1
-        )
+        t_to_end = torch.repeat_interleave(t_end, n_frames) \
+                   - (n_frame_per_emitter
+                      + torch.repeat_interleave(t_start.floor(), n_frames))
 
-        """First frame"""
-        # first
-        xyz_ = torch.cat((xyz_, self.xyz), 0)
-        phot_ = torch.cat((phot_, self.intensity * ontime_first), 0)
-        id_ = torch.cat((id_, self.id), 0)
-        frame_ix_ = torch.cat((frame_ix_, frame_start), 0)
+        t_total_diff = torch.repeat_interleave(t_end, n_frames) \
+                       - torch.repeat_interleave(t_start, n_frames)
 
-        # last (only if frame_last != frame_first
-        ix_with_last = frame_last >= frame_start + 1
-        xyz_ = torch.cat((xyz_, self.xyz[ix_with_last]))
-        phot_ = torch.cat(
-            (phot_, self.intensity[ix_with_last] * ontime_last[ix_with_last]), 0
-        )
-        id_ = torch.cat((id_, self.id[ix_with_last]), 0)
-        frame_ix_ = torch.cat((frame_ix_, frame_last[ix_with_last]))
+        ontime = t_since_start.minimum(t_to_end).minimum(t_total_diff).clamp(max=1)
 
-        return xyz_, phot_, frame_ix_, id_
+        return n_frames, ontime
 
-    def return_emitterset(self) -> EmitterSet:
+    def frame_bucketize(self) -> EmitterSet:
         """
         Returns EmitterSet with distributed emitters.
         The emitters ID is preserved such that localisations coming from the same
@@ -1087,21 +1074,27 @@ class LooseEmitterSet:
         Returns:
             EmitterSet
         """
+        n_frames, ontime = self._compute_time_distribution(self.t0, self.te)
 
-        xyz_, phot_, frame_ix_, id_ = self._distribute_framewise()
-        return EmitterSet(
-            xyz_,
-            phot_,
-            frame_ix_.long(),
-            id_.long(),
+        em = EmitterSet(
+            xyz=self.xyz,
+            frame_ix=self.t0.floor().long(),
+            phot=self.flux,
+            id=self.id,
             xy_unit=self.xy_unit,
             px_size=self.px_size,
-        )
+            **self._em_kwargs
+        ).repeat(n_frames, step_frames=True)
+
+        # adjust photons by ontime (i.e. flux * ontime)
+        em.phot *= ontime
+
+        return em
 
 
 def factory(n: Optional[int] = None, extent: float = 32, **kwargs) -> EmitterSet:
     """
-    Produce a random EmitterSet
+    Generate a random EmitterSet
 
     Args:
         n: number of emitters in set. Can be omitted if length can be inferred from

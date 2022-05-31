@@ -1,18 +1,23 @@
 from abc import ABC, abstractmethod  # abstract class
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
 
 import numpy as np
 import torch
 from deprecated import deprecated
 from torch.distributions.exponential import Exponential
 
+from . import code
 from . import structures
-from ..emitter.emitter import EmitterSet, LooseEmitterSet
+from ..emitter.emitter import EmitterSet, FluorophoreSet
 
 
 class EmitterSampler(ABC):
     def __init__(
-        self, structure: structures.StructurePrior, xy_unit: str, px_size: tuple
+        self,
+        structure: structures.StructurePrior,
+        xy_unit: str,
+        px_size: tuple,
+        code_sampler: Union[None, code.CodeBook],
     ):
         """
         Abstract emitter sampler. All implementations / childs must implement a sample method.
@@ -20,6 +25,7 @@ class EmitterSampler(ABC):
         super().__init__()
 
         self.structure = structure
+        self.code_sampler = code_sampler
         self.px_size = px_size
         self.xy_unit = xy_unit
 
@@ -37,10 +43,11 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
         *,
         structure: structures.StructurePrior,
         photon_range: tuple,
-        density: float = None,
-        em_avg: float = None,
         xy_unit: str,
         px_size: tuple,
+        density: float = None,
+        em_avg: float = None,
+        code_sampler=None,
     ):
         """
         Simple Emitter sampler.
@@ -57,7 +64,12 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
 
         """
 
-        super().__init__(structure=structure, xy_unit=xy_unit, px_size=px_size)
+        super().__init__(
+            structure=structure,
+            xy_unit=xy_unit,
+            px_size=px_size,
+            code_sampler=code_sampler,
+        )
 
         self._density = density
         self.photon_range = photon_range
@@ -114,6 +126,8 @@ class EmitterSamplerFrameIndependent(EmitterSampler):
             phot=phot,
             frame_ix=torch.zeros_like(phot).long(),
             id=torch.arange(n).long(),
+            code=self.code_sampler.sample_codes(n)
+            if self.code_sampler is not None else None,
             xy_unit=self.xy_unit,
             px_size=self.px_size,
         )
@@ -206,11 +220,10 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         # simulated frame range is larger
         return em.get_subset_frame(*self.frame_range)
 
-
     def sample_n(self, *args, **kwargs):
         raise NotImplementedError
 
-    def sample_loose_emitter(self, n) -> LooseEmitterSet:
+    def sample_loose_emitter(self, n) -> FluorophoreSet:
         """
         Generate loose EmitterSet. Loose emitters are emitters that are not yet binned to frames.
 
@@ -227,11 +240,11 @@ class EmitterSamplerBlinking(EmitterSamplerFrameIndependent):
         t0 = self.t0_dist.sample((n,))
         ontime = self.lifetime_dist.rsample((n,))
 
-        return LooseEmitterSet(
-            xyz,
-            intensity,
-            ontime,
-            t0,
+        return FluorophoreSet(
+            xyz=xyz,
+            fllux=intensity,
+            ontime=ontime,
+            t0=t0,
             id=torch.arange(n).long(),
             xy_unit=self.xy_unit,
             px_size=self.px_size,

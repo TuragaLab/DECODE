@@ -8,7 +8,7 @@ from unittest import mock
 from decode.generic import test_utils
 from decode.emitter import emitter
 from decode.emitter.emitter import (
-    LooseEmitterSet,
+    FluorophoreSet,
     EmitterSet,
     CoordinateOnlyEmitter,
     EmitterData,
@@ -63,7 +63,7 @@ class TestEmitterSet:
         xyz=st.sampled_from([torch.rand(42, 2), torch.rand(42, 3)]),
         phot=st.sampled_from([torch.rand(42)]),
         frame_ix=st.sampled_from([torch.arange(42)]),
-        color=st.sampled_from([None, torch.randint(5, size=(42,))]),
+        code=st.sampled_from([None, torch.randint(5, size=(42,))]),
         id=st.sampled_from([None, -torch.arange(42)]),
         prob=st.sampled_from([None, torch.rand(42)]),
         bg=st.sampled_from([None, torch.rand(42)]),
@@ -81,7 +81,7 @@ class TestEmitterSet:
         phot,
         frame_ix,
         id,
-        color,
+        code,
         prob,
         bg,
         xyz_cr,
@@ -98,7 +98,7 @@ class TestEmitterSet:
             phot=phot,
             frame_ix=frame_ix,
             id=id,
-            color=color,
+            code=code,
             prob=prob,
             bg=bg,
             xyz_cr=xyz_cr,
@@ -550,10 +550,36 @@ class TestEmitterSet:
         for d in diff:
             assert em_data_full[d] is None
 
+    @pytest.mark.parametrize("repeats,step_frames,frame_ix_diff_expct", [
+        (2, False, [0, 0, 0, 0, 0, 0]),
+        ([1, 3, 1], True, [0, 0, 1, 2, 0])
+    ])
+    def test_repeat(self, repeats, step_frames, frame_ix_diff_expct):
+        """
+        Args:
+            repeats:
+            step_frames:
+            frame_ix_diff_expct: difference in frame index
+        """
+        em = emitter.factory(3, frame_ix=[5, 6, 7])
 
-def test_empty_emitterset():
-    em = emitter.factory(0)
-    assert len(em) == 0
+        if isinstance(repeats, list):
+            repeats = torch.tensor(repeats, dtype=torch.long)
+
+        em_repeat = em.repeat(repeats, step_frames)
+        em_repeat_non_shifted = em.repeat(repeats, False)
+
+        assert len(em_repeat) == len(frame_ix_diff_expct)
+        np.testing.assert_array_equal(
+            (em_repeat.frame_ix - em_repeat_non_shifted.frame_ix),
+            torch.tensor(frame_ix_diff_expct)
+        )
+
+
+def test_emitter_phot_multiple():
+    em = emitter.factory(100, phot=torch.rand(100, 16))
+
+    assert em[:10].phot.size() == torch.Size([10, 16])
 
 
 def test_factory():
@@ -611,112 +637,82 @@ def test_random_emitterset(attr, len_exp):
     assert len(em) == len_exp
 
 
-class TestLooseEmitterSet:
-    def test_sanity(self):
-        with pytest.raises(ValueError) as err:  # wrong xyz dimension
-            _ = LooseEmitterSet(
-                xyz=torch.rand((20, 1)),
-                intensity=torch.ones(20),
-                ontime=torch.ones(20),
-                t0=torch.rand(20),
-                id=None,
-                xy_unit="px",
-                px_size=None,
-            )
-        assert str(err.value) == "Wrong xyz dimension."
+def test_frame_distribution():
+    fluo = FluorophoreSet(
+        xyz=torch.Tensor([[1.0, 2.0, 3.0], [7.0, 8.0, 9.0]]),
+        flux=torch.Tensor([1.0, 2.0]),
+        t0=torch.Tensor([-0.5, 3.2]),
+        ontime=torch.Tensor([0.4, 2.0]),
+        id=torch.tensor([0, 1]),
+        sanity_check=True,
+        xy_unit="px",
+        px_size=None,
+    )
 
-        with pytest.raises(ValueError) as err:  # non unique IDs
-            _ = LooseEmitterSet(
-                xyz=torch.rand((20, 3)),
-                intensity=torch.ones(20),
-                ontime=torch.ones(20),
-                t0=torch.rand(20),
-                id=torch.ones(20),
-                xy_unit="px",
-                px_size=None,
-            )
-        assert str(err.value) == "IDs are not unique."
+    em = fluo.frame_bucketize()
 
-        with pytest.raises(ValueError) as err:  # negative intensity
-            _ = LooseEmitterSet(
-                xyz=torch.rand((20, 3)),
-                intensity=-torch.ones(20),
-                ontime=torch.ones(20),
-                t0=torch.rand(20),
-                id=None,
-                xy_unit="px",
-                px_size=None,
-            )
-        assert str(err.value) == "Negative intensity values encountered."
+    assert (em[0].xyz == torch.Tensor([1.0, 2.0, 3.0])).all()
+    assert em[0].id == 0
+    assert em[0].frame_ix == -1
+    assert em[0].phot == 0.4
 
-        with pytest.raises(ValueError) as err:  # negative intensity
-            _ = LooseEmitterSet(
-                xyz=torch.rand((20, 3)),
-                intensity=torch.ones(20),
-                ontime=-torch.ones(20),
-                t0=torch.rand(20),
-                id=None,
-                xy_unit="px",
-                px_size=None,
-            )
-        assert str(err.value) == "Negative ontime encountered."
+    assert (em[1:4].xyz == torch.Tensor([7.0, 8.0, 9.0])).all()
+    assert (em[1:4].id == 1).all()
+    assert (em[1:4].frame_ix == torch.Tensor([3, 4, 5])).all()
+    assert test_utils.tens_almeq(
+        em[1:4].phot, torch.tensor([0.8 * 2, 2, 0.2 * 2]), 1e-6
+    )
 
-    def test_frame_distribution(self):
-        em = LooseEmitterSet(
-            xyz=torch.Tensor([[1.0, 2.0, 3.0], [7.0, 8.0, 9.0]]),
-            intensity=torch.Tensor([1.0, 2.0]),
-            t0=torch.Tensor([-0.5, 3.2]),
-            ontime=torch.Tensor([0.4, 2.0]),
-            id=torch.tensor([0, 1]),
-            sanity_check=True,
+
+@pytest.mark.parametrize("t_start,t_end,repeats,ontime", [
+    ([-0.5, 3.2, 0.1], [-0.1, 5.2, 1.2], [1, 3, 2], [0.4, 0.8, 1, 0.2, 0.9, 0.2])
+])
+def _compute_time_distribution(t_start, t_end, repeats, ontime):
+    t_start = torch.tensor(t_start)
+    t_end = torch.tensor(t_end)
+    repeats = torch.tensor(repeats, dtype=torch.long)
+    ontime = torch.tensor(ontime)
+
+    repeats_out, ontime_out = FluorophoreSet._compute_distribution(t_start, t_end)
+
+    np.testing.assert_array_equal(repeats_out, repeats)
+    np.testing.assert_allclose(ontime_out, ontime, atol=1e-5)
+
+
+def test_flurophore_sanity():
+
+    with pytest.raises(ValueError) as err:  # non unique IDs
+        _ = FluorophoreSet(
+            xyz=torch.rand((20, 3)),
+            flux=torch.ones(20),
+            ontime=torch.ones(20),
+            t0=torch.rand(20),
+            id=torch.ones(20),
             xy_unit="px",
             px_size=None,
         )
+    assert str(err.value) == "IDs are not unique."
 
-        xyz, phot, frame_ix, id = em._distribute_framewise()
-        # sort by id then by frame_ix
-        ix = np.lexsort((id, frame_ix))
-        id = id[ix]
-        xyz = xyz[ix, :]
-        phot = phot[ix]
-        frame_ix = frame_ix[ix]
-
-        assert (xyz[0] == torch.Tensor([1.0, 2.0, 3.0])).all()
-        assert id[0] == 0
-        assert frame_ix[0] == -1
-        assert phot[0] == 0.4 * 1
-
-        assert (xyz[1:4] == torch.Tensor([7.0, 8.0, 9.0])).all()
-        assert (id[1:4] == 1).all()
-        assert (frame_ix[1:4] == torch.Tensor([3, 4, 5])).all()
-        assert test_utils.tens_almeq(
-            phot[1:4], torch.tensor([0.8 * 2, 2, 0.2 * 2]), 1e-6
-        )
-
-    @pytest.fixture()
-    def dummy_set(self):
-        num_emitters = 10000
-        t0_max = 5000
-        em = LooseEmitterSet(
-            torch.rand((num_emitters, 3)),
-            torch.ones(num_emitters) * 10000,
-            torch.rand(num_emitters) * 3,
-            torch.rand(num_emitters) * t0_max,
-            None,
+    with pytest.raises(ValueError) as err:  # negative intensity
+        _ = FluorophoreSet(
+            xyz=torch.rand((20, 3)),
+            flux=-torch.ones(20),
+            ontime=torch.ones(20),
+            t0=torch.rand(20),
+            id=None,
             xy_unit="px",
             px_size=None,
         )
+    assert str(err.value) == "Negative flux values encountered."
 
-        return em
-
-    def test_distribution(self):
-        loose_em = LooseEmitterSet(
-            torch.zeros((2, 3)),
-            torch.tensor([1000.0, 10]),
-            torch.tensor([1.0, 5]),
-            torch.tensor([-0.2, 0.9]),
+    with pytest.raises(ValueError) as err:  # negative intensity
+        _ = FluorophoreSet(
+            xyz=torch.rand((20, 3)),
+            flux=torch.ones(20),
+            ontime=-torch.ones(20),
+            t0=torch.rand(20),
+            id=None,
             xy_unit="px",
             px_size=None,
         )
-
-        loose_em.return_emitterset()
+    assert str(err.value) == "Negative ontime encountered."

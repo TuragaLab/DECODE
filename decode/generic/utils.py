@@ -13,7 +13,7 @@ def cum_count_per_group(arr: torch.Tensor):
     """
 
     def grp_range(counts: torch.Tensor):
-        """ToDo: Add docs"""
+        # ToDo: Add docs
         assert counts.dim() == 1
 
         idx = counts.cumsum(0)
@@ -26,7 +26,9 @@ def cum_count_per_group(arr: torch.Tensor):
         return arr
 
     _, cnt = torch.unique(arr, return_counts=True)
-    # ToDo: The following line in comment makes the test fail, replace once the torch implementation changes
+
+    # ToDo: The following line in comment makes the test fail,
+    #  replace once the torch implementation changes
     # return grp_range(cnt)[torch.argsort(arr).argsort()]
     return grp_range(cnt)[np.argsort(np.argsort(arr, kind='mergesort'), kind='mergesort')]
 

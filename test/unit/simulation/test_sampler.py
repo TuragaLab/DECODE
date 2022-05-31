@@ -15,16 +15,23 @@ class TestEmitterSamplerABC:
             def sample(self):
                 return em.factory(10)
 
-        return DummyEmitterPopper(structure=None, xy_unit="px", px_size=None)
+        return DummyEmitterPopper(
+            structure=None,
+            xy_unit="px",
+            px_size=None,
+            code_sampler=None
+        )
 
     def test_sample(self, em_pop):
         assert isinstance(em_pop(), EmitterSet), "Wrong output type."
 
 
+@pytest.fixture()
+def structure():
+    return RandomStructure((10.0, 20.0), (30.0, 40.0), (1000, 2000.0))
+
+
 class TestEmitterSamplerFrameIndependent(TestEmitterSamplerABC):
-    @pytest.fixture()
-    def structure(self):
-        return RandomStructure((10.0, 20.0), (30.0, 40.0), (1000, 2000.0))
 
     @pytest.fixture(params=[[None, 10.0], [2.0, None]], ids=["em_av", "dens"])
     def em_pop(self, request, structure):
@@ -38,11 +45,12 @@ class TestEmitterSamplerFrameIndependent(TestEmitterSamplerABC):
             density=dens,
             em_avg=em_av,
         )
-
         return cand
 
     def test_sample(self, em_pop):
+        em_pop.code_sampler = code
         super().test_sample(em_pop)
+
         assert (em_pop().frame_ix == 0).all()
 
     @pytest.mark.skip("Not implemented.")
@@ -57,6 +65,16 @@ class TestEmitterSamplerFrameIndependent(TestEmitterSamplerABC):
                 ValueError, match="Negative number of samples is not well-defined."
             ):
                 em_pop.sample_n(n)
+
+    @pytest.mark.parametrize("code", [None, emgen.code.CodeBook({1: 10, 2: 20})])
+    def test_sample_with_code(self, code, em_pop):
+        em_pop.code_sampler = code
+        e = em_pop()
+
+        if code is not None:
+            assert set(e.code.unique().tolist()).issubset({1, 2})
+        else:
+            assert e.code is None
 
     def test_average(self, em_pop):
         """
