@@ -986,17 +986,20 @@ class FluorophoreSet:
                  id: Optional[torch.LongTensor] = None,
                  sanity_check=True, **kwargs):
         """
-        Related to the standard EmitterSet. However, here we do not specify a frame_ix
-        but rather a (non-integer) initial point in time where the emitter starts to blink
-        and an on-time.
+        Something that starts to emit light at time `t0` and is on for a specific
+        ontime. Related to the standard EmitterSet. However, here we do not specify a
+        frame_ix but rather a (non-integer) initial point in time where the emitter
+        starts to blink and an on-time.
 
         Args:
-            xyz (torch.Tensor): coordinates. Dimension: N x 3
-            flux (torch.Tensor): flux, i.e. photon flux per time unit. Dimension N
-            t0 (torch.Tensor, float): initial blink event. Dimension: N
-            ontime (torch.Tensor): duration in frame-time units how long the emitter blinks. Dimension N
-            id (torch.Tensor, int, optional): identity of the emitter. Dimension: N
-            xy_unit (string): unit of the coordinates
+            xyz: coordinates. Dimension: N x 3
+            flux: flux, i.e. photon flux per time unit. Dimension N
+            t0: initial blink event. Dimension: N
+            ontime: duration in frame-time units how long the emitter blinks.
+                Dimension N
+            id: identity of the emitter. Dimension: N
+            xy_unit: unit of the coordinates
+            id: id of the emitter
         """
 
         self.xyz = xyz
