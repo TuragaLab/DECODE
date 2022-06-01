@@ -1,8 +1,9 @@
 name: decode_dev
 
 channels:
-  - turagalab/label/dev
-  #  - turagalab/label/rc
+  # mainly use dev channels for spline
+  # - turagalab/label/dev
+  # - turagalab/label/rc
   - turagalab
   - pytorch
   - conda-forge
@@ -39,11 +40,13 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
+#  - spline>=0.10.1  # spline on apple silicon
   - spline>=0.10.0
   - tensorboard
   - tifffile>=2020.2
   - tqdm
 
   - pip
-  - pip:
-      - zernike
+  # in dev
+  #  - pip:
+  #      - zernike
