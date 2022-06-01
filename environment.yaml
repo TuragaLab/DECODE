@@ -21,8 +21,8 @@ dependencies:
 
   # actual package
   - python=3.10
-  - pytorch=1.11
-  - cpuonly  # or - cudatoolkit=11.3
+  - pytorch=1.11.0
+  - cpuonly  # - cudatoolkit=11.3
   - click
   - deprecated
   - gitpython>=3.1
@@ -40,13 +40,13 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-#  - spline>=0.10.1  # spline on apple silicon
-  - spline>=0.10.0
+  #  - spline>=0.10.1  # spline on apple silicon
+  - spline=0.10.0
   - tensorboard
   - tifffile>=2020.2
   - tqdm
 
-  - pip
+  #  - pip
   # in dev
   #  - pip:
   #      - zernike
