@@ -4,3 +4,4 @@ from . import example_helper
 from . import files
 from . import hardware
 from . import types
+from . import torch

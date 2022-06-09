@@ -1014,6 +1014,9 @@ class FluorophoreSet:
         if sanity_check:
             self.sanity_check()
 
+    def __len__(self) -> int:
+        return len(self.xyz)
+
     def sanity_check(self):
 
         # check ids
