@@ -25,6 +25,9 @@ class CodeBook:
         if len(self._code_map_inverse) != len(self.code_map):
             raise ValueError("Code map must be invertible.")
 
+    def sample(self, n: int):
+        return self.sample_codes(n)
+
     def sample_codes(self, n: int):
         return self._rng.choice(list(self.code_map.keys()), size=n)
 
