@@ -6,7 +6,6 @@ class NoiseDistribution(ABC):
     """
     Abstract noise.
     """
-
     def __init__(self):
         super().__init__()
 
@@ -28,10 +27,6 @@ class ZeroNoise(NoiseDistribution):
     """
     The No-Noise noise.
     """
-
-    def __init__(self):
-        super().__init__()
-
     def forward(self, x):
         return x
 
@@ -84,10 +79,6 @@ class Poisson(NoiseDistribution):
     """
     Poisson noise. 'Non-parametric' with respect  initialisation since the only parameter (lambda) comes from the input in the forward method itself.
     """
-
-    def __init__(self):
-        super().__init__()
-
     def forward(self, x):
         # disable validate_args because 0 is okay for sampling
         return torch.distributions.poisson.Poisson(x, validate_args=False).sample()
