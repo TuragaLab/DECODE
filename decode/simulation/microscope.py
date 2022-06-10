@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Iterable
 
 import torch
 
@@ -52,3 +52,59 @@ class Microscope:
         f = self._noise.forward(f)
 
         return f
+
+
+class MicroscopeMultiChannel:
+    def __init__(
+        self,
+        psf: list[psf_kernel.PSF],
+        noise: list[noise_lib.NoiseDistribution],
+        frame_range: Optional[tuple[int, int]],
+        ch_range: Optional[tuple[int, int]],
+    ):
+        """
+        A microscope that has multi channels. Internally this is modelled as a list
+        of individual microscopes.
+
+        Args:
+            psf: list of psf
+            noise: list of noise
+            frame_range: frame range among which frames are sampled
+            ch_range: range of active channels
+        """
+        self._microscopes: list[Microscope] = [
+            Microscope(psf=p, noise=n, frame_range=frame_range)
+            for p, n in zip(psf, noise)
+        ]
+        self._ch_range = ch_range
+
+    def forward(
+        self,
+        em: EmitterSet,
+        bg: Optional[Iterable[torch.Tensor]] = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
+    ) -> torch.Tensor:
+        """
+        Forward emitters through multi channel microscope
+
+        Args:
+            em: emitters
+            bg: list of bg with length equals to number of channels
+            ix_low: lower frame index
+            ix_high: upper frame index
+
+        Returns:
+            frames
+        """
+
+        em_by_channel = [em.icode[c] for c in range(*self._ch_range)]
+        bg = [None] * len(em_by_channel) if bg is None else bg
+
+        frames = [
+            m.forward(e, bg=b, ix_low=ix_low, ix_high=ix_high)
+            for m, e, b in zip(self._microscopes, em_by_channel, bg)
+        ]
+        frames = torch.stack(frames, dim=1)
+
+        return frames
