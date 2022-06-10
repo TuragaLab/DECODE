@@ -349,26 +349,33 @@ class TestEmitterSet:
             assert em_out.frame_ix.max() < ix_range[1]
 
     @pytest.mark.parametrize(
-        "frame_select,frame_ix_expct",
+        "selector,expct",
         [
             (slice(2, 5), {2, 3, 4}),
             (2, {2}),
         ],
     )
-    def test_iframe(self, frame_select, frame_ix_expct):
-        em = emitter.factory(frame_ix=[0, 1, 2, 3, 4, 5, 6, 7])
-        em_out = em.iframe[frame_select]
+    @pytest.mark.parametrize("attr,selector_attr", [
+        ("frame_ix", "iframe"),
+        ("code", "icode"),
+    ])
+    def test_iframe(self, selector, expct, attr, selector_attr):
+        factory_kwargs = {attr: [0, 1, 2, 3, 4, 5, 6, 7]}
+        em = emitter.factory(n=8, **factory_kwargs)
 
-        assert set(em_out.frame_ix.unique().tolist()) == frame_ix_expct
+        em_out = getattr(em, selector_attr)[selector]
 
-    @pytest.mark.parametrize("accessor", [slice(2, 5, 2), [1, 2, 3]])
-    def test_iframe_notimplemented(self, accessor):
+        assert set(getattr(em_out, attr).unique().tolist()) == expct
+
+    @pytest.mark.parametrize("selector", [slice(2, 5, 2), [1, 2, 3]])
+    @pytest.mark.parametrize("selector_attr", ["iframe", "icode"])
+    def test_iframe_notimplemented(self, selector, selector_attr):
         # at the moment only integer and slicing getitem is supported via iframe.
         # once emitter.iframe[2:5:2] is supported change test accordingly
 
-        em = emitter.factory(20)
+        em = emitter.factory(5, frame_ix=[5, 6, 7, 8, 9], code=[0, 1, 2, 3, 4])
         with pytest.raises(NotImplementedError):
-            em.iframe[accessor]
+            getattr(em, selector_attr)[selector]
 
     @settings(max_examples=100)
     @given(

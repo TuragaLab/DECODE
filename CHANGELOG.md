@@ -4,7 +4,9 @@ All notable changes to this project will be documented in this file.
 ## [0.11.0]
 ### Added
 - New console script entrypoint for training. Write `decode.train` instead of `python -m decode.neuralfitter.train.live_engine`
-- EmitterSet feature a new frame selecting method. `emitter.iframe[2:5]` selects emitters from frame 2 to 5 (upper exclusive).
+- EmitterSet now allows for `.code` attribute
+- EmitterSet feature a new frame / code selecting method. `emitter.iframe[2:5]` selects emitters from frame 2 to 5 (upper exclusive).
+  `.icode` behaves similarly.
 
 ### Changed
 - Pythonic indexing for all integer access. This mainly affects EmitterSet methods such 
