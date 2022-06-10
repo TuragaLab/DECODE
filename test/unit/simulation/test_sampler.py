@@ -21,7 +21,7 @@ def minimal_structure():
 
 @pytest.fixture
 def static_emitter_sampler():
-    return emgen.StaticEmitterSampler(
+    return emgen.EmitterSamplerStatic(
         structure=minimal_structure(),
         intensity=(100.0, 200.0),
         em_num=100.0,
@@ -79,7 +79,7 @@ def test_sample_emitter_properties(sampler, request):
 
     assert ((-5 <= em.frame_ix) * (em.frame_ix < 10)).all(), "Incorrect frame index"
 
-    if isinstance(sampler, emgen.StaticEmitterSampler):
+    if isinstance(sampler, emgen.EmitterSamplerStatic):
         # static sampling should result in unique id
         np.testing.assert_array_equal(em.id, torch.arange(len(em), dtype=torch.long))
 

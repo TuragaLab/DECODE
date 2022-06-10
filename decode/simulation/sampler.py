@@ -57,7 +57,7 @@ class EmitterSampler(ABC):
         raise NotImplementedError
 
 
-class StaticEmitterSampler(EmitterSampler):
+class EmitterSamplerStatic(EmitterSampler):
     def __init__(
         self,
         structure: Union[structures.StructurePrior, Sampleable],
@@ -67,7 +67,7 @@ class StaticEmitterSampler(EmitterSampler):
         frame_range: tuple[int, int],
         code: Optional[Union[code.CodeBook, Sampleable]] = None,
         xy_unit: Optional[str] = None,
-        px_size: Optional[tuple] = None,
+        px_size: Optional[tuple[float, float]] = None,
     ):
         """
         Emitter sampler that does not model temporal dynamics.
@@ -80,9 +80,11 @@ class StaticEmitterSampler(EmitterSampler):
                 specifying the rate of a poisson distribution from which we sample
             frame: anything to sample the frame index from or tuple of frame_ix
                 defining lower / upper bound
-            _frame_range: frame range of the outputted emitters (not necessarily
+            frame_range: frame range of the outputted emitters (not necessarily
                 equivalent to frame sampler)
             code: anything to sample codes from
+            xy_unit:
+            px_size:
         """
         super().__init__(
             structure=structure,
@@ -150,17 +152,21 @@ class EmitterSamplerBlinking(EmitterSampler):
         frame_range: tuple[int, int],
         code: Optional[Union[code.CodeBook, Sampleable]] = None,
         xy_unit: Optional[str] = None,
-        px_size: Optional[tuple] = None,
+        px_size: Optional[tuple[float, float]] = None,
     ):
         """
+        Emitter sampler that models the blinking dynamics of fluorophores.
 
         Args:
-            structure:
-            intensity:
-            em_num:
-            lifetime:
-            frame_range:
-            code:
+            structure: structure to sample from
+            intensity: anything to sample the photon count from or tuple of numbers
+                specifying a uniform distribution
+            em_num: anything to sample the number of emitters over the frames or number
+                specifying the rate of a poisson distribution from which we sample
+            lifetime: average lifetime of the fluorophores
+            frame_range: frame range of the outputted emitters (not necessarily
+                equivalent to frame sampler)
+            code: anything to sample codes from
             xy_unit:
             px_size:
         """
