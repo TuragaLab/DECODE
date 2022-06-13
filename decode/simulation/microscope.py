@@ -127,3 +127,29 @@ class MicroscopeChannelModifier:
         return em
 
 
+class EmitterCompositeAttributeModifier:
+    def __init__(self, mod_fn: dict[str, Callable]):
+        """
+        Modify emitter attributes by independent callables.
+        The order of the dictionary is the order in which the attributes are changed.
+
+        Examples:
+            `mod = EmitterCompositeAttributeModifier(
+            {"xyz": lambda x: x/2, "phot": lambda p: p * 2}
+            )`
+            would divide the xyz coordinates by 2 and doubles the photon count.
+
+        Args:
+            mod_fn: dictionary of callables with key being the attribute to modify
+        """
+        self._mod_fn = mod_fn
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+    def forward(self, em: EmitterSet) -> EmitterSet:
+        em = em.clone()
+        for attr, mod_fn in self._mod_fn.items():
+            v = mod_fn(getattr(em, attr))
+            setattr(em, attr, v)
+        return em

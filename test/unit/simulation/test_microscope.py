@@ -46,7 +46,7 @@ def test_microscope_multi_channel():
     assert not (frames[5, 1] == 0).all()
 
 
-def test_channel_splitter():
+def test_microscope_channel_modifier():
     def _modifier_factory(factor_xyz, factor_phot, on_code: int):
         def mod(em: EmitterSet) -> EmitterSet:
             em = em.clone()
@@ -60,7 +60,7 @@ def test_channel_splitter():
 
         return mod
 
-    splitter = microscope.ChannelSplitter(
+    splitter = microscope.MicroscopeChannelModifier(
         [
             _modifier_factory(0.5, 0.5, 0),
             _modifier_factory(2.0, 2.0, 1),
@@ -84,3 +84,16 @@ def test_channel_splitter():
                       [8, 10, 12],
                       [10, 14, 18]])
     )
+
+
+def test_emitter_composite_attribute_modifier():
+    mod = microscope.EmitterCompositeAttributeModifier(
+        {"xyz": lambda x: x * 2, "phot": lambda p: p / 2}
+    )
+
+    em = emitter_factory(xyz=[[1, 2, 3], [4., 5, 6]], phot=[1, 20])
+    em_out = mod.forward(em)
+
+    assert len(em_out) == len(em)
+    np.testing.assert_array_almost_equal(em_out.xyz, em.xyz * 2)
+    np.testing.assert_array_almost_equal(em_out.phot, em.phot / 2)
