@@ -1,5 +1,6 @@
-from typing import Tuple
+from typing import Tuple, Any, Callable
 
+import copy
 import numpy as np
 import torch
 
@@ -30,10 +31,14 @@ def cum_count_per_group(arr: torch.Tensor):
     # ToDo: The following line in comment makes the test fail,
     #  replace once the torch implementation changes
     # return grp_range(cnt)[torch.argsort(arr).argsort()]
-    return grp_range(cnt)[np.argsort(np.argsort(arr, kind='mergesort'), kind='mergesort')]
+    return grp_range(cnt)[
+        np.argsort(np.argsort(arr, kind="mergesort"), kind="mergesort")
+    ]
 
 
-def frame_grid(img_size, xextent=None, yextent=None, *, origin=None, px_size=None) -> Tuple[torch.Tensor, torch.Tensor]:
+def frame_grid(
+        img_size, xextent=None, yextent=None, *, origin=None, px_size=None
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Get pixel center coordinates based on extent and img shape. Either specify extents XOR origin and px size.
 
@@ -52,8 +57,9 @@ def frame_grid(img_size, xextent=None, yextent=None, *, origin=None, px_size=Non
 
     """
 
-    if ((origin is not None) and (xextent is not None or yextent is not None)) or \
-            ((origin is None) and (xextent is None or yextent is None)):
+    if ((origin is not None) and (xextent is not None or yextent is not None)) or (
+            (origin is None) and (xextent is None or yextent is None)
+    ):
         raise ValueError("You must XOR specify extent or origin and pixel size.")
 
     if origin is not None:
@@ -66,3 +72,31 @@ def frame_grid(img_size, xextent=None, yextent=None, *, origin=None, px_size=Non
     bin_ctr_y = (bin_y + (bin_y[1] - bin_y[0]) / 2)[:-1]
 
     return bin_x, bin_y, bin_ctr_x, bin_ctr_y
+
+
+class CompositeAttributeModifier:
+    def __init__(self, mod_fn: dict[str, Callable]):
+        """
+        Modify attributes by independent callables.
+        The order of the dictionary is the order in which the attributes are changed.
+
+        Examples:
+            `mod = CompositeAttributeModifier(
+                {"xyz": lambda x: x/2, "phot": lambda p: p * 2}
+            )`
+            would divide the xyz by 2 and doubles the phot attribute.
+
+        Args:
+            mod_fn: dictionary of callables with key being the attribute to modify
+        """
+        self._mod_fn = mod_fn
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+    def forward(self, x: Any) -> Any:
+        x = copy.copy(x)
+        for attr, mod_fn in self._mod_fn.items():
+            v = mod_fn(getattr(x, attr))
+            setattr(x, attr, v)
+        return x

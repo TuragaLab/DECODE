@@ -87,13 +87,5 @@ def test_microscope_channel_modifier():
 
 
 def test_emitter_composite_attribute_modifier():
-    mod = microscope.EmitterCompositeAttributeModifier(
-        {"xyz": lambda x: x * 2, "phot": lambda p: p / 2}
-    )
-
-    em = emitter_factory(xyz=[[1, 2, 3], [4., 5, 6]], phot=[1, 20])
-    em_out = mod.forward(em)
-
-    assert len(em_out) == len(em)
-    np.testing.assert_array_almost_equal(em_out.xyz, em.xyz * 2)
-    np.testing.assert_array_almost_equal(em_out.phot, em.phot / 2)
+    # no special treatment for EmitterSet as of now, only aliasing actual implementation
+    pass
