@@ -1,7 +1,8 @@
 import pytest
 import torch
+import numpy as np
 
-from decode import emitter_factory
+from decode import emitter_factory, EmitterSet
 from decode.simulation import microscope
 from decode.simulation import noise as noise_lib
 from decode.simulation import psf_kernel
@@ -29,13 +30,10 @@ def test_microscope(bg, psf, noise):
 
 def test_microscope_multi_channel():
     psf = [
-        psf_kernel.DeltaPSF((0., 32.), (0., 32.), (32, 32)),
-        psf_kernel.DeltaPSF((0., 32.), (0., 32.), (32, 32))
+        psf_kernel.DeltaPSF((0.0, 32.0), (0.0, 32.0), (32, 32)),
+        psf_kernel.DeltaPSF((0.0, 32.0), (0.0, 32.0), (32, 32)),
     ]
-    noise = [
-        noise_lib.ZeroNoise(),
-        noise_lib.ZeroNoise()
-    ]
+    noise = [noise_lib.ZeroNoise(), noise_lib.ZeroNoise()]
 
     m = microscope.MicroscopeMultiChannel(psf, noise, (-5, 5), (-2, 0))
     em = emitter_factory(3, frame_ix=[-5, 0, 5], code=[-5, -1, 1], xy_unit="px")
@@ -46,3 +44,43 @@ def test_microscope_multi_channel():
     assert (frames[:5] == 0).all()
     assert (frames[6:] == 0).all()
     assert not (frames[5, 1] == 0).all()
+
+
+def test_channel_splitter():
+    def _modifier_factory(factor_xyz, factor_phot, on_code: int):
+        def mod(em: EmitterSet) -> EmitterSet:
+            em = em.clone()
+
+            xyz = em.xyz
+            xyz[em.code == on_code] = em.icode[on_code].xyz * factor_xyz
+            phot = em.phot
+            phot[em.code == on_code] = em.icode[on_code].phot * factor_phot
+            em.code[:] = on_code
+            return em
+
+        return mod
+
+    splitter = microscope.ChannelSplitter(
+        [
+            _modifier_factory(0.5, 0.5, 0),
+            _modifier_factory(2.0, 2.0, 1),
+            _modifier_factory(4.0, 4.0, 2),
+        ]
+    )
+
+    em_out = splitter.forward(
+        emitter_factory(xyz=[[8., 10, 12], [10, 14, 18]], code=[0, 1])
+    )
+
+    assert isinstance(em_out, EmitterSet)
+    assert len(em_out) == 6
+    np.testing.assert_array_equal(em_out.code, torch.LongTensor([0, 0, 1, 1, 2, 2]))
+    np.testing.assert_array_almost_equal(
+        em_out.xyz,
+        torch.Tensor([[4., 5., 6.],
+                      [10., 14., 18.],
+                      [8., 10., 12.],
+                      [20, 28, 36],
+                      [8, 10, 12],
+                      [10, 14, 18]])
+    )

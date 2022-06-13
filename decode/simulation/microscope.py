@@ -1,4 +1,4 @@
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Callable
 
 import torch
 
@@ -108,3 +108,22 @@ class MicroscopeMultiChannel:
         frames = torch.stack(frames, dim=1)
 
         return frames
+
+
+class MicroscopeChannelModifier:
+    def __init__(self, ch_fn: list[Callable]):
+        """
+        Used to apply a transformation per channel on an EmitterSet.
+
+
+        Args:
+            ch_fn: list of callables taking and outputting an EmitterSet.
+        """
+        self._ch_fn = ch_fn
+
+    def forward(self, em: EmitterSet) -> EmitterSet:
+        em = [ch_fn(em) for ch_fn in self._ch_fn]
+        em = EmitterSet.cat(em)
+        return em
+
+
