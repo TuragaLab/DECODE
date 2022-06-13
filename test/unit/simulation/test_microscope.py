@@ -89,3 +89,12 @@ def test_microscope_channel_modifier():
 def test_emitter_composite_attribute_modifier():
     # no special treatment for EmitterSet as of now, only aliasing actual implementation
     pass
+
+
+def test_channel_coordinate_trafo_matrix():
+    m = microscope.CoordTrafoMatrix(torch.rand(3, 3))
+
+    xyz = torch.rand(10, 3)
+    xyz_out = m.forward(xyz)
+
+    assert xyz_out.size() == xyz.size()

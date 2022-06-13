@@ -133,6 +133,22 @@ class EmitterCompositeAttributeModifier(utils.CompositeAttributeModifier):
     pass
 
 
-class ChannelCoordinateTransformation:
+class CoordTrafoMatrix:
     def __init__(self, m: torch.Tensor):
-        pass
+        """
+        Transform coordinates by 3x3 matrix.
+
+        Args:
+            m: 3x3 matrix
+        """
+        self._m = m
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+    def forward(self, xyz: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            xyz: coordinates of size `N x 3` (`N` being the batch dim).
+        """
+        return xyz @ self._m
