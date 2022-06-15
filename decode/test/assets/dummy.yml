@@ -1,0 +1,138 @@
+Camera:
+  baseline: 100.0
+  convert2photons: true
+  e_per_adu: 45.0
+  em_gain: 300.0
+  px_size: null
+  qe: 1.0
+  read_sigma: 74.4
+  spur_noise: 0.002
+CameraPreset: null
+Evaluation:
+  dist_ax: 300
+  dist_lat: 1.5
+  dist_vol: null
+  match_dims: 2
+Hardware:
+  device: cuda
+  device_ix: 0
+  device_simulation: cuda:0
+  num_worker_train: 4
+  torch_multiprocessing_sharing_strategy: null
+  torch_threads: 4
+  unix_niceness: 0
+HyperParameter:
+  arch_param:
+    activation: ELU
+    depth: null
+    depth_bg: null
+    depth_shared: 2
+    depth_union: 2
+    init_custom: true
+    initial_features: 48
+    initial_features_bg: null
+    inter_features: 48
+    norm: null
+    norm_bg: null
+    norm_bg_groups: null
+    norm_groups: null
+    norm_head: null
+    norm_head_groups: null
+    p_dropout: null
+    pool_mode: StrideConv
+    recpt_bg: null
+    skip_gn_level: null
+    up_mode: upsample
+    upsample_mode: nearest
+    use_last_nl: null
+  architecture: SigmaMUNet
+  batch_size: 64
+  channels_in: 3
+  channels_out: null
+  chweight_stat:
+  - 1.0
+  - 1.0
+  disabled_attributes: null
+  ds_lifetime: null
+  emitter_label_photon_min: 100.0
+  epoch_0: null
+  epochs: 10000
+  fgbg_factor: null
+  grad_mod: true
+  learning_rate_scheduler: StepLR
+  learning_rate_scheduler_param:
+    gamma: 0.9
+    step_size: 10
+  loss_impl: MixtureModel
+  max_number_targets: 250
+  moeller_gradient_rescale: false
+  opt_param:
+    lr: 0.0002
+    weight_decay: 0.1
+  optimizer: AdamW
+  photon_threshold: null
+  pseudo_ds_size: 10000
+  sig_in: 0
+InOut:
+  calibration_file: null
+  cmos_gain: null
+  cmos_mean: null
+  cmos_noise: null
+  experiment_out: null
+  model_init: /Users/lucasmueller/Repositories/DeepSMLM/network/2019-08-02/model_challenge_7.pt
+PostProcessing:
+  single_val_th: 0.2
+  total_th: 0.5
+PostProcessingParam:
+  raw_th: 0.5
+Scaling:
+  bg_max: null
+  input_offset: null
+  input_scale: null
+  phot_max: 50000.0
+  z_max: 750.0
+Simulation:
+  bg_uniform: null
+  density: 0
+  emitter_av: 20
+  emitter_extent:
+  - - -0.5
+    - 63.5
+  - - -0.5
+    - 63.5
+  - - -750
+    - 750
+  img_size:
+  - 64
+  - 64
+  intensity_mu_sig:
+  - 10000.0
+  - 500.0
+  intensity_th: null
+  lifetime_avg: 2.0
+  lls_cam_rot_euler_xyz: null
+  lls_step_size_nm: null
+  mode: acquisition
+  photon_range: null
+  psf_extent:
+  - - -0.5
+    - 63.5
+  - - -0.5
+    - 63.5
+  - - -750.0
+    - 750.0
+  roi_auto_center: false
+  roi_size: null
+  xy_unit: px
+TestSet:
+  frame_extent:
+  - - -0.5
+    - 39.5
+  - - -0.5
+    - 39.5
+  - null
+  img_size:
+  - 40
+  - 40
+  mode: simulated
+  test_size: 512

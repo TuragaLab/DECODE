@@ -10,6 +10,170 @@ import torch
 from decode.generic import slicing as gutil
 import decode.generic.utils
 
+from torch.jit import script
+import numba
+from numba import cuda
+
+@cuda.jit
+def place_roi(frames, roi_grads, frame_s_b, frame_s_c, frame_s_z, frame_s_y, frame_s_x, rois, roi_s_n, roi_s_z, roi_s_y, roi_s_x, b, c, z, y, x):
+    
+    kx = cuda.grid(1)
+    # One thread for every pixel in the roi stack. Exit if outside
+    if kx >= roi_s_n * roi_s_z * roi_s_y * roi_s_x: 
+        return
+    
+    # roi index
+    xir = kx % roi_s_x; kx = kx // roi_s_x
+    yir = kx % roi_s_y; kx = kx // roi_s_y
+    zir = kx % roi_s_z; kx = kx // roi_s_z
+    nir = kx % roi_s_n 
+    
+    # frame index
+    bif = b[nir]
+    cif = c[nir]
+    zif = z[nir] + zir
+    yif = y[nir] + yir
+    xif = x[nir] + xir
+    
+    if ((bif < 0) or (bif >= frame_s_b)): return
+    if ((cif < 0) or (cif >= frame_s_c)): return
+    if ((zif < 0) or (zif >= frame_s_z)): return
+    if ((yif < 0) or (yif >= frame_s_y)): return
+    if ((xif < 0) or (xif >= frame_s_x)): return
+    
+    cuda.atomic.add(frames, (bif, cif, zif, yif, xif), rois[nir, zir, yir, xir])
+    # The gradients for the ROIs are just one if they are inside the frames and 0 otherwise. Easy to do here and then just ship to the backward function
+    roi_grads[nir, zir, yir, xir] = 1
+    # Alternative to atomic.add. No difference in speed
+#     frames[bif, cif, zif, yif, xif] += rois[nir, zir, yir, xir]
+
+"""THIS FUNCTION BREAKS AUTORELOAD FOR SOME REASON? https://discuss.pytorch.org/t/class-autograd-function-in-module-cause-autoreload-fail-in-jupyter-lab/96250/2"""
+class CudaPlaceROI(torch.autograd.Function):
+    
+    @staticmethod
+    def forward(ctx, rois, frame_s_b, frame_s_c, frame_s_z, frame_s_y, frame_s_x, roi_s_n, roi_s_z, roi_s_y, roi_s_x, b, c, z, y, x):
+
+        frames = torch.zeros([frame_s_b, frame_s_c, frame_s_z, frame_s_y, frame_s_x]).to('cuda')
+        rois_grads = torch.zeros([roi_s_n, roi_s_z, roi_s_y, roi_s_x]).to('cuda')
+        
+        threadsperblock = 256
+        blocks = ((roi_s_n * roi_s_z * roi_s_y * roi_s_x) + (threadsperblock - 1)) // threadsperblock        
+        place_roi[blocks, threadsperblock](frames, rois_grads, frame_s_b, frame_s_c, frame_s_z, frame_s_y, frame_s_x, rois.detach(), roi_s_n, roi_s_z, roi_s_y, roi_s_x, b, c, z, y, x)
+        
+        ctx.save_for_backward(rois_grads)
+        
+        return frames
+    
+    @staticmethod
+    def backward(ctx, grad_output):
+        rois_grads, = ctx.saved_tensors
+        return rois_grads, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
+    
+@script
+def _place_psf(psf_vols, b, ch, z, y, x, output_shape):
+    
+    """jit function for placing PSFs
+    1) This function will add padding to coordinates (z, y, x) (we need padding in order to place psf on the edges)
+    afterwards we will just crop out to original shape
+    2) Create empty tensor with paddings loc3d_like
+    3) place each individual PSFs in to the corresponding cordinates in loc3d_like
+    4) unpad to original output shape
+
+    Args:
+        psf_vols:   torch.Tensor
+        b:        torch.Tensor
+        c:        torch.Tensor
+        h:        torch.Tensor
+        w:        torch.Tensor
+        d:        torch.Tensor
+        szs:      torch.Tensor
+        
+    Shape:
+        psf_vols: (Num_E, C, PSF_SZ_X, PSF_SZ_Y, PSF_SZ_Z)
+        b:  (Num_E,)
+        c:  (Num_E,)
+        h:  (Num_E,)
+        w:  (Num_E,)
+        d:  (Num_E,)
+        output_shape:  (BS, Frames, H, W, D)
+        
+    -Output: placed_psf: (BS, Frames, H, W, D)
+        
+    """
+    
+    psf_b, psf_c, psf_d, psf_h, psf_w = psf_vols.shape
+    pad_zyx = [psf_d//2, psf_h//2, psf_w//2]
+    #add padding to z, y, x 
+    
+    z = z + pad_zyx[0]
+    y = y + pad_zyx[1]
+    x = x + pad_zyx[2]
+
+    #create padded tensor (bs, frame, c, h, w) We will need pad_size * 2 since we are padding from both sides
+    loc3d_like = torch.zeros(output_shape[0], 
+                             output_shape[1], 
+                             output_shape[2] + 2*(pad_zyx[0]), 
+                             output_shape[3] + 2*(pad_zyx[1]), 
+                             output_shape[4] + 2*(pad_zyx[2])).to(x.device)
+    
+    if psf_c == 2:
+        psf_ch_ind = torch.where(ch >= 8, 1, 0)
+        psf_vols = psf_vols[torch.arange(len(psf_ch_ind)),psf_ch_ind]
+    if output_shape[1] == 1:
+        ch = torch.zeros_like(ch)
+        
+    psf_vols = psf_vols.reshape(-1, psf_d, psf_h, psf_w)
+    
+    # Take limit calculation out of the loop for 30% speed up
+    z_l = z - pad_zyx[0]
+    y_l = y - pad_zyx[1]
+    x_l = x - pad_zyx[2]
+    
+    z_h = z + pad_zyx[0] + 1
+    y_h = y + pad_zyx[1] + 1
+    x_h = x + pad_zyx[2] + 1
+    
+    for idx in range(x.shape[0]):
+        loc3d_like[b[idx], ch[idx],
+        z_l[idx] : z_h[idx],
+        y_l[idx] : y_h[idx],
+        x_l[idx] : x_h[idx]] += psf_vols[idx]
+
+    # unpad to original size
+    b_sz, ch_sz, h_sz, w_sz, d_sz = loc3d_like.shape
+    
+    placed_psf = loc3d_like[:, :, pad_zyx[0]: h_sz - pad_zyx[0],
+                                  pad_zyx[1]: w_sz - pad_zyx[1],
+                                  pad_zyx[2]: d_sz - pad_zyx[2]]
+    return placed_psf
+
+def place_psf(locations, psf_volume, output_shape, device):
+    """
+    Places point spread functions (psf_volume) in to corresponding locations.
+
+    Args:
+        locations: tuple with the 5D voxel coordinates
+        psf_volume: torch.Tensor
+        output_shape: Shape Tuple(BS, C, H, W, D) 
+
+    Returns:
+        placed_psf: torch.Tensor with shape (BS, C, H, W, D)
+    """
+
+    b, c, z, y, x = locations
+    
+    if device == 'cpu':
+        # Deprecated python loop
+        placed_psf = _place_psf(psf_volume, b, c, z, y, x, torch.tensor(output_shape))
+    
+    if 'cuda' in device:
+        # New fancy cuda loop
+        N_psfs, _, psf_s_z, psf_s_y, psf_s_x = psf_volume.shape   
+        placed_psf = CudaPlaceROI.apply(psf_volume[:,0], output_shape[0], output_shape[1], output_shape[2], output_shape[3], output_shape[4], N_psfs, psf_s_z, psf_s_y, psf_s_x, b, c, z-psf_s_z//2, y-psf_s_y//2, x-psf_s_x//2)
+    
+#     assert placed_psf.shape == output_shape, f'output shape wrong {placed_psf.shape} != {output_shape}'
+    
+    return placed_psf
 
 class PSF(ABC):
     def __init__(
@@ -1081,7 +1245,177 @@ class ZernikePSF(PSF):
 
         return real
 
-
 class VoxelatedPSF(PSF):
-    # ToDo: cube based psf. Needs 3D voxel cube as input, and sufficient interpolation (e.g. fft).
-    pass
+
+    def __init__(
+        self,
+        psf_cube: torch.tensor,     
+        img_shape: Tuple[int, int, int],
+        ref0: tuple,
+        vx_size: Tuple[int, int, int],
+        slice_mode: bool,
+        n_channels: int,
+        interpol_mode: str = 'bilinear',
+        roi_size: (None, tuple) = None,
+        ref_re: (None, torch.Tensor, tuple) = None,
+        roi_auto_center: bool = False,
+        device: str = "cuda:0",
+    ):
+        """
+        Cubic spline PSF, i.e. a step-wise polynomial with coefficients of size X,Y,Z,64.
+
+        Args:
+            ref_re:
+            xextent (tuple): extent in x
+            yextent (tuple): extent in y
+            zextent (tuple): extent in z
+            img_shape (tuple): img_shape
+            coeff: spline coefficients
+            ref0 (tuple): zero reference point in implementation units
+            vx_size (tuple): pixel / voxel size
+            roi_size (tuple, None, optional): roi_size. optional. can be determined from
+                dimension of coefficients.
+            device: specify the device for the implementation to run on. Must be like
+                ('cpu', 'cuda', 'cuda:1')
+            max_roi_chunk (int): max number of rois to be processed at a time via the
+                cuda kernel. If you run into memory allocation errors, decrease this
+                number or free some space on your CUDA device.
+        """
+        super().__init__(
+            xextent=None, yextent=None, zextent=None, img_shape=img_shape
+        )
+        
+        if psf_cube.ndim == 3:
+            psf_cube = psf_cube.unsqueeze(0)
+            
+        self.psf_cube = psf_cube.to(device)
+        self.n_colors = psf_cube.shape[0]
+        
+        self.n_channels = n_channels
+
+        self.roi_size_px = (
+            psf_cube.shape[1:]
+        )
+        
+        self.slice_mode = slice_mode
+        if self.slice_mode:
+            assert img_shape[0] == 1, 'Slice data should be 1 dimensional in z'
+        
+        self.interpol_mode = interpol_mode
+        assert self.interpol_mode in ['trilinear', 'bicubic'], 'Currently suppoers trilinear and bicubic interpolation'
+        
+        if self.interpol_mode == 'trilinear':
+            self._intepol_impl = TrilinearInterpolation(self.psf_cube, self.slice_mode, device)
+            
+        if self.interpol_mode == 'bicubic':
+            self._intepol_impl = BicubicInterpolation(self.psf_cube, self.slice_mode, device)
+
+        if vx_size is None:
+            vx_size = torch.Tensor([1.0, 1.0, 1.0])
+
+        self.vx_size = (
+            vx_size if isinstance(vx_size, torch.Tensor) else torch.Tensor(vx_size)
+        )
+        self.ref0 = ref0 if isinstance(ref0, torch.Tensor) else torch.Tensor(ref0)
+
+        self._device, self._device_ix = decode.utils.hardware._specific_device_by_str(
+            device
+        )
+
+    @property
+    def _roi_size_nm(self):
+        roi_size_nm = (
+            self.roi_size_px[0] * self.vx_size[0],
+            self.roi_size_px[1] * self.vx_size[1],
+        )
+
+        return roi_size_nm
+
+    def frame2roi_coord(self, xyz_nm: torch.Tensor):
+        """
+        Computes ROI wise coordinate from the coordinate on the frame and returns the px on the frame in addition
+
+        Args:
+            xyz_nm:
+
+        Returns:
+            xyz_r: roi-wise relative coordinates
+            onframe_ix: ix where to place the roi on the final frame (caution: might be negative when roi is outside
+            frame, but then we don't mean negative in pythonic sense)
+
+        """
+        xyz_r = xyz_nm.clone()
+        # get subpixel shift
+        xyz_r[:, 0] = (xyz_r[:, 0] / self.vx_size[0]) % 1
+        xyz_r[:, 1] = (xyz_r[:, 1] / self.vx_size[1]) % 1
+        xyz_r[:, 2] = (xyz_r[:, 2] / self.vx_size[2]) % 1
+
+        # place emitters according to the Reference (reference is in px)
+        xyz_r = (xyz_r + self.ref0) * self.vx_size
+        xyz_px = (
+            (xyz_nm / self.vx_size - self.ref0)
+            .floor()
+            .int()
+        )
+        
+        z_inds = None
+        
+        if self.slice_mode:
+            
+            z_val = xyz_nm[:,2]
+            
+            z_val = torch.clamp(0.5*z_val,-0.49999,0.49999) + 0.5 # transform to [0,1]
+            z_scaled = z_val * (self.roi_size_px[0] - 2) # [0, z_size]
+            z_inds = (torch.div(z_scaled, 1, rounding_mode='trunc')).type(torch.cuda.LongTensor) + 1
+            
+            xyz_r[:, 2] = -(z_scaled%1.) + 0.5 
+            xyz_px[:, 2] = 0
+
+        return xyz_r, xyz_px, z_inds
+
+    def forward(
+        self,
+        xyz: torch.Tensor,
+        weight: torch.Tensor,
+        col_ix: Optional[torch.Tensor] = None,
+        frame_ix: Optional[torch.Tensor] = None,
+        ch_ix: Optional[torch.Tensor] = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
+    ):
+        """
+        Forward coordinates frame index aware through the psf model.
+
+        Args:
+            xyz: coordinates of size N x (2 or 3)
+            frame_ix: (optional) frame index
+            ix_low: (optional) lower frame_index, if None will be determined automatically
+            ix_high: (optional) upper frame_index, if None will be determined automatically
+
+        Returns:
+            frames: (torch.Tensor)
+        """
+        xyz, weight, frame_ix, ix_low, ix_high = self._auto_filter_shift(
+            xyz, weight, frame_ix, ix_low, ix_high
+        )
+
+        if xyz.size(0) == 0:
+            return torch.zeros((ix_high - ix_low, *self.img_shape))
+
+        xyz_r, xyz_ix, z_slice_ix = self.frame2roi_coord(xyz)
+
+        n_frames = ix_high - ix_low
+        frames_shape = [n_frames, self.n_channels] + self.img_shape
+        
+        shifted_psfs = self._intepol_impl.forward(xyz_r, z_slice_ix, col_ix)
+        
+        shifted_psfs = shifted_psfs * weight.view(-1, 1, 1, 1, 1).to(self._device)
+        
+        frames = place_psf([frame_ix.to(torch.long).to(self._device), 
+                            ch_ix.to(torch.long).to(self._device), 
+                            xyz_ix[:,2].to(self._device), 
+                            xyz_ix[:,1].to(self._device), 
+                            xyz_ix[:,0].to(self._device)], 
+                            shifted_psfs, frames_shape, self._device)
+
+        return frames
