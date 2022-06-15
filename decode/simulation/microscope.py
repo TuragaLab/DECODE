@@ -111,10 +111,18 @@ class MicroscopeMultiChannel:
         return frames
 
 
+class MicroscopeChannelSplitter:
+    def __init__(self):
+        pass
+
+
 class MicroscopeChannelModifier:
     def __init__(self, ch_fn: list[Callable]):
         """
         Used to apply a transformation per channel on an EmitterSet.
+
+        Warnings:
+            - this treats channels as independent
 
 
         Args:
@@ -152,3 +160,41 @@ class CoordTrafoMatrix:
             xyz: coordinates of size `N x 3` (`N` being the batch dim).
         """
         return xyz @ self._m
+
+
+class MultiChoricSplitter:
+    def __init__(self, t: torch.Tensor, t_sig: Optional[torch.Tensor] = None):
+        self._t = t
+        self._t_sig = t_sig
+
+    def forward(self, phot: torch.Tensor, color: torch.LongTensor) -> torch.Tensor:
+        pass
+
+    @staticmethod
+    def _expand_col_by_index(x: torch.Tensor, ix: torch.LongTensor, ix_max: int):
+        """
+        Expands a one dim. tensor `x` to col dimension of size `ix_max` and puts the
+        value at `ix`.
+
+        Args:
+            x: tensor to be expanded
+            ix: col position
+            ix_max: number of cols
+
+        Examples:
+            >>> _expand_col_by_index([1, 2], [1, 0], 3)
+            [
+                [0, 1, 0],
+                [2, 0, 0]
+            ]
+
+        """
+        x_out = x.unsqueeze(1).repeat(1, ix_max)
+
+        # create bool with True where we should expand
+        ix_bool = torch.zeros_like(x_out, dtype=torch.bool)
+        ix_bool[torch.ones_like(x, dtype=torch.bool), ix] = True
+
+        x_out *= ix_bool
+
+        return x_out

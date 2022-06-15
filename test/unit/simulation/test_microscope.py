@@ -98,3 +98,29 @@ def test_channel_coordinate_trafo_matrix():
     xyz_out = m.forward(xyz)
 
     assert xyz_out.size() == xyz.size()
+
+
+@pytest.mark.parametrize("t,color,expct", [
+    ([[1., 0], [0., 1]], 0, [1., 0]),
+    ([[1., 0], [0., 1]], 1, [0., 1.]),
+    ([[0., 1.], [1., 0]], 0, [0., 1.]),
+])
+def test_multi_choric_splitter_static(t, color, expct):
+    t = torch.Tensor(t)
+    phot_expct = torch.Tensor([expct]).unsqueeze(0)
+
+    m = microscope.MultiChoricSplitter(t)
+
+
+def test_expand_by_index():
+    x = torch.Tensor([1000., 2000.])
+    ix = torch.LongTensor([1, 2])
+    ix_max = 3
+
+    x_expct = torch.Tensor([
+        [0, 1000., 0],
+        [0, 0, 2000.]
+    ])
+
+    x_out = microscope.MultiChoricSplitter._expand_col_by_index(x, ix, ix_max)
+    np.testing.assert_array_equal(x_out, x_expct)
