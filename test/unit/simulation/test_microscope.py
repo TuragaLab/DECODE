@@ -117,6 +117,21 @@ def test_multi_choric_splitter_static(t, color, expct):
     np.testing.assert_array_equal(phot_out, phot_expct)
 
 
+def test_multi_choric_splitter_sample_transmission():
+    t = torch.Tensor([
+        [0.7, 0.3],
+        [0.2, 0.8],
+    ])
+    t_sig = torch.ones(2, 2)
+    m = microscope.MultiChoricSplitter(t, t_sig)
+
+    t_sampled = m.sample_transmission()
+    assert t_sampled.size() == t.size()
+    assert (t_sampled >= 0.).all(), "Transmission matrix should non-negative."
+    assert (t_sampled.sum(1) == 1.).all(), \
+        "Transmission matrix should be row-wise normalized."
+
+
 def test_expand_by_index():
     x = torch.Tensor([1000., 2000.])
     ix = torch.LongTensor([1, 2])

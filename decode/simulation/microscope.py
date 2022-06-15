@@ -199,7 +199,10 @@ class MultiChoricSplitter:
         """
         Samples transmission matrix and renormalize it
         """
-        return torch.normal(self._t_mu, self._t_sig)
+        t = torch.normal(self._t_mu, self._t_sig)
+        t = t.clamp(min=0.)
+        t /= torch.sum(t, dim=1, keepdim=True)
+        return t
 
     @staticmethod
     def _expand_col_by_index(x: torch.Tensor, ix: torch.LongTensor, ix_max: int):
