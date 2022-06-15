@@ -1,3 +1,4 @@
+import copy
 from typing import Optional, Iterable, Callable
 
 import torch
@@ -163,12 +164,42 @@ class CoordTrafoMatrix:
 
 
 class MultiChoricSplitter:
-    def __init__(self, t: torch.Tensor, t_sig: Optional[torch.Tensor] = None):
+    def __init__(
+        self,
+        t: torch.Tensor,
+        t_sig: Optional[torch.Tensor] = None,
+    ):
+        """
+        Resembles a multi-choric beam splitter by a transmission matrix
+        (which can be sampled).
+
+        Args:
+            t:
+            t_sig:
+        """
         self._t = t
+        self._t_mu = copy.copy(t)
         self._t_sig = t_sig
 
-    def forward(self, phot: torch.Tensor, color: torch.LongTensor) -> torch.Tensor:
-        pass
+    def forward(
+        self, phot: torch.Tensor, color: Optional[torch.LongTensor]
+    ) -> torch.Tensor:
+        if color is not None:
+            phot = self._expand_col_by_index(phot, color, len(self._t))
+
+        return phot @ self._t
+
+    def sample_transmission_(self):
+        # inplace
+
+        self._t = self.sample_transmission()
+        return self
+
+    def sample_transmission(self):
+        """
+        Samples transmission matrix and renormalize it
+        """
+        return torch.normal(self._t_mu, self._t_sig)
 
     @staticmethod
     def _expand_col_by_index(x: torch.Tensor, ix: torch.LongTensor, ix_max: int):
