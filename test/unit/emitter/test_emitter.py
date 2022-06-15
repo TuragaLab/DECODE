@@ -585,8 +585,20 @@ class TestEmitterSet:
 
 def test_emitter_phot_multiple():
     em = emitter.factory(100, phot=torch.rand(100, 16))
-
     assert em[:10].phot.size() == torch.Size([10, 16])
+
+
+@pytest.mark.parametrize("id,id_expct", [
+    ([5, 6, 7], [5, 5, 6, 6, 7, 7]),
+])
+def test_emitter_linearlize(id, id_expct):
+    phot = torch.rand(3, 2)
+    em = emitter.factory(3, phot=phot, id=id)
+    em_lin = em.linearize()
+
+    assert isinstance(em_lin, EmitterSet)
+    np.testing.assert_array_equal(em_lin.phot, phot.view(-1))
+    assert em_lin.id.tolist() == id_expct
 
 
 def test_factory():

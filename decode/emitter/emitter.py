@@ -945,6 +945,9 @@ class EmitterSet:
 
         Returns:
             repeated EmitterSet
+
+        Examples:
+            - interleave, i.e. [0, 1] becomes [0, 0, 1, 1]
         """
         data_repeat = {
             k: torch.repeat_interleave(v, repeats, dim=0)
@@ -961,6 +964,28 @@ class EmitterSet:
             cum_count = decode.generic.utils.cum_count_per_group(pseudo_id)
 
             em.frame_ix += cum_count
+
+        return em
+
+    def linearize(self):
+        """
+        Linearizes an EmitterSet that has some 2D attributes (e.g. photons).
+        """
+
+        # get all 2D attributes (not coordinate-like attributes)
+        attr_2d = {k: v for k, v in self.data.items()
+                   if ("xyz" not in k) and (v is not None) and (v.dim() == 2)}
+
+        if len(attr_2d) >= 1:
+            n_repeats = list(attr_2d.values())[0].size(-1)
+
+            em = self.clone().repeat(n_repeats, False)
+
+            for k, v in attr_2d.items():
+                v = v.view(-1)
+                setattr(em, k, v)
+        else:
+            em = self
 
         return em
 
