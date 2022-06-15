@@ -497,7 +497,7 @@ class EmitterSet:
             true if as stated above.
 
         """
-        if not self.eq_attr(other):
+        if not self.eq_meta(other):
             return False
 
         if not self.eq_data(other):
@@ -505,7 +505,7 @@ class EmitterSet:
 
         return True
 
-    def eq_attr(self, other) -> bool:
+    def eq_meta(self, other) -> bool:
         """Tests whether the meta attributes are the same"""
         if self.px_size is None:
             if other.px_size is not None:
