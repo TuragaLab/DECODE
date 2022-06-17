@@ -1,3 +1,4 @@
+import math
 import pickle
 from abc import ABC, abstractmethod
 
@@ -549,3 +550,22 @@ class TestCubicSplinePSF(AbstractPSFTest):
                 "Wrong CRLB dimension."
             assert roi.size() == torch.Size([n, *psf.roi_size_px]), \
                 "Wrong dimension of ROIs."
+
+
+class TestZernikePSF(AbstractPSFTest):
+    @pytest.fixture
+    def psf(self):
+        return psf_kernel.ZernikePSF(
+            xextent=(-0.5, 38.5),
+            yextent=(-0.5, 38.5),
+            zextent=None,
+            img_shape=(39, 64),
+        )
+
+    def test_phase_ramp(self, psf):
+        ramp_x, ramp_y = psf._get_phase_ramp()
+
+        for r in [ramp_x, ramp_y]:
+            assert r.size() == torch.Size([39, 64])
+            assert r.min() == 0
+            assert r.max() == math.pi * 2

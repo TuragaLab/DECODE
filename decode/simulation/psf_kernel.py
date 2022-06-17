@@ -7,7 +7,7 @@ import numpy as np
 import spline  # cubic spline implementation
 import torch
 
-from decode.generic import slicing as gutil
+from ..generic import slicing as gutil
 import decode.generic.utils
 
 
@@ -965,34 +965,62 @@ class ZernikePSF(PSF):
         xextent,
         yextent,
         zextent,
+        img_shape: tuple[int, int],
         *,
         weight_real: list,
         weight_im: list,
-        theta: float,
-        num_aperture: float,
-        ref_index: float,
-        wavelength: float,
-        k_size: int,
+        # theta: float,
+        # num_aperture: float,
+        # ref_index: float,
+        # wavelength: float,
+        # k_size: int,
     ):
+        """
+        Zernike vectorial based PSF model.
+
+
+        Args:
+            xextent:
+            yextent:
+            zextent:
+            weight_real: weights of the real part of the zernike polynomials
+            weight_im: weights of the imaginary part of the zernike polynomials
+            theta:
+            num_aperture:
+            ref_index:
+            wavelength:
+            k_size:
+        """
         import zernike
 
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent)
 
+        self._img_shape = img_shape
+        self._pramp_x = None
+        self._pramp_y = None
+        self._pupil_e_field = None
+
         self._weight_real = torch.tensor(weight_real)
         self._weight_im = torch.tensor(weight_im)
-        self._theta = theta
-        self._num_aperture = num_aperture
-        self._ref_index = ref_index
-        self._wavelength = wavelength
-        self._k_size = k_size
+        # self._theta = theta
+        # self._num_aperture = num_aperture
+        # self._ref_index = ref_index
+        # self._wavelength = wavelength
+        # self._k_size = k_size
 
-        self._pupil_e_field = None
+        self._pramp_x, self._pramp_y = self._get_phase_ramp()
+
+    def _get_phase_ramp(self):
+        ramp_x, ramp_y = torch.meshgrid(
+            torch.linspace(0, 2 * math.pi, self._img_shape[0]),
+            torch.linspace(0, 2 * math.pi,self._img_shape[1]),
+        )
+
+        return ramp_x, ramp_y
 
     @staticmethod
     def pupile_field(
-        num_aperture: float,
         na: float,
-        wavelength: float,
         na_sample: float,
         na_oil: float,
         na_cover: float,
@@ -1003,9 +1031,7 @@ class ZernikePSF(PSF):
         Compute eletric field in pupile space
 
         Args:
-            num_aperture: numerical aperture
             na: refractive index
-            wavelength:
             na_sample: refractive index of sample medium
             na_oil: refractive index of oil
             na_cover: refractive index of cover slip
@@ -1023,20 +1049,10 @@ class ZernikePSF(PSF):
         )
         [xx, yy] = np.meshgrid(krange, krange)
         kr = np.lib.scimath.sqrt(xx**2 + yy**2)
-        kz = np.lib.scimath.sqrt(
-            (na_oil / wavelength) ** 2 - (kr * na / wavelength) ** 2
-        )
-
-        kr = np.lib.scimath.sqrt(xx**2 + yy**2)
-        kz = np.lib.scimath.sqrt(
-            (na_oil / wavelength) ** 2 - (kr * na / wavelength) ** 2
-        )
 
         cos_imm = np.lib.scimath.sqrt(1 - (kr * na / na_oil) ** 2)
         cos_med = np.lib.scimath.sqrt(1 - (kr * na / na_sample) ** 2)
         cos_cov = np.lib.scimath.sqrt(1 - (kr * na / na_cover) ** 2)
-
-        kz_med = na_sample / wavelength * cos_med
 
         FresnelPmedcov = (
             2 * na_sample * cos_med / (na_sample * cos_cov + na_cover * cos_med)
@@ -1070,14 +1086,18 @@ class ZernikePSF(PSF):
     @staticmethod
     def zernike_space(n):
         """Calculate zernike polynomials"""
-
         ef = torch.cat([ef_x, ef_y], 0)
         return
 
     def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
+        obj_fn = 1.
+        smoothing = 1.
+        bg = 0
+
         h = self.t_a * self.zernike_real * torch.exp(self.zernike_im)
-        h_k = h * self.e_mn * torch.exp(2j * math.pi * (1))
-        real = self.fft(h_k) * weight
+        h_k = h * self.e_mn * torch.exp(2j * math.pi * (kx * x + ky * y + kz * z))
+        u = self.fft(h_k).abs() ** 2  # missing sum
+        real = u * weight * obj_fn * smoothing + bg
 
         return real
 
