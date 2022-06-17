@@ -1,7 +1,7 @@
 import scipy.io as sio
 import torch
 
-import decode.simulation.psf_kernel as psf_kernel
+from ..simulation import psf_kernel
 
 
 class SMAPSplineCoefficient:
