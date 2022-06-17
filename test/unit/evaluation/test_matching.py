@@ -6,7 +6,6 @@ import torch
 import decode.evaluation
 import decode.evaluation.match_emittersets as match_em
 import decode.generic
-from decode import CoordinateOnlyEmitter
 
 
 class TestMatcherABC:
@@ -38,14 +37,14 @@ class TestMatcherABC:
 
     @pytest.fixture()
     def can_em_out(self):  # candidate emitter output
-        em = decode.emitter.RandomEmitterSet(1000, xy_unit='nm')
+        em = decode.emitter.factory(1000, xy_unit='nm')
         em.frame_ix = torch.randint_like(em.frame_ix, 100)
 
         return em
 
     @pytest.fixture()
     def can_em_tar(self, can_em_out):  # candidate emitter target
-        em = decode.emitter.RandomEmitterSet(len(can_em_out), xy_unit='nm')
+        em = decode.emitter.factory(len(can_em_out), xy_unit='nm')
         em.frame_ix = torch.randint_like(em.frame_ix, 50)
 
         return em
@@ -193,8 +192,8 @@ class TestGreedyMatching(TestMatcherABC):
 
         """Setup"""
         matcher.dist_lat = 1
-        em_tar = CoordinateOnlyEmitter(xyz_tar, xy_unit='nm')
-        em_out = CoordinateOnlyEmitter(xyz_out, xy_unit='nm')
+        em_tar = decode.emitter_factory(xyz=xyz_tar, xy_unit='nm')
+        em_out = decode.emitter_factory(xyz=xyz_out, xy_unit='nm')
 
         """Run"""
         tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
@@ -214,8 +213,8 @@ class TestGreedyMatching(TestMatcherABC):
         xyz_out = torch.zeros_like(xyz_tar)
         xyz_out[:, 0] = torch.randn_like(xyz_out[:, 0])
 
-        em_tar = CoordinateOnlyEmitter(xyz_tar, xy_unit='nm')
-        em_out = CoordinateOnlyEmitter(xyz_out, xy_unit='nm')
+        em_tar = decode.emitter_factory(xyz=xyz_tar, xy_unit='nm')
+        em_out = decode.emitter_factory(xyz=xyz_out, xy_unit='nm')
 
         """Run"""
         tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
