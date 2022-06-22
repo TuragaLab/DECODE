@@ -1,23 +1,24 @@
 import math
 import warnings
-from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Union
+from abc import ABC
+from typing import Tuple, Optional
 
 import numpy as np
 import spline  # cubic spline implementation
 import torch
+import zernike
 
-from ..generic import slicing as gutil
 import decode.generic.utils
+from ..generic import slicing as gutil
 
 
 class PSF(ABC):
     def __init__(
-        self,
-        xextent: Tuple[float, float] = (None, None),
-        yextent: Tuple[float, float] = (None, None),
-        zextent: Tuple[float, float] = (None, None),
-        img_shape: Tuple[int, int] = (None, None),
+            self,
+            xextent: Tuple[float, float] = (None, None),
+            yextent: Tuple[float, float] = (None, None),
+            zextent: Tuple[float, float] = (None, None),
+            img_shape: Tuple[int, int] = (None, None),
     ):
         """
         Abstract class to represent a point spread function.
@@ -48,12 +49,12 @@ class PSF(ABC):
         raise NotImplementedError
 
     def forward(
-        self,
-        xyz: torch.Tensor,
-        weight: torch.Tensor,
-        frame_ix: Optional[torch.Tensor] = None,
-        ix_low: Optional[int] = None,
-        ix_high: Optional[int] = None,
+            self,
+            xyz: torch.Tensor,
+            weight: torch.Tensor,
+            frame_ix: Optional[torch.Tensor] = None,
+            ix_low: Optional[int] = None,
+            ix_high: Optional[int] = None,
     ):
         """
         Forward coordinates frame index aware through the psf model.
@@ -89,11 +90,11 @@ class PSF(ABC):
 
     @staticmethod
     def _auto_filter_shift(
-        xyz: torch.Tensor,
-        weight: torch.Tensor,
-        frame_ix: torch.Tensor,
-        ix_low: int,
-        ix_high: int,
+            xyz: torch.Tensor,
+            weight: torch.Tensor,
+            frame_ix: torch.Tensor,
+            ix_low: int,
+            ix_high: int,
     ):
         # filter emitters by frame and shift frame index to start at 0
 
@@ -121,12 +122,12 @@ class PSF(ABC):
         raise NotImplementedError
 
     def _forward_single_frame_wrapper(
-        self,
-        xyz: torch.Tensor,
-        weight: torch.Tensor,
-        frame_ix: torch.Tensor,
-        ix_low: int,
-        ix_high: int,
+            self,
+            xyz: torch.Tensor,
+            weight: torch.Tensor,
+            frame_ix: torch.Tensor,
+            ix_low: int,
+            ix_high: int,
     ):
         """
         Convenience (fallback) wrapper that splits the input in frames and computes the
@@ -165,10 +166,10 @@ class PSF(ABC):
 
 class DeltaPSF(PSF):
     def __init__(
-        self,
-        xextent: Tuple[float, float],
-        yextent: Tuple[float, float],
-        img_shape: Tuple[int, int],
+            self,
+            xextent: Tuple[float, float],
+            yextent: Tuple[float, float],
+            img_shape: Tuple[int, int],
     ):
         """
         Delta function PSF. You input a list of coordinates, this class outputs a single
@@ -223,12 +224,12 @@ class DeltaPSF(PSF):
 
         if raise_outside:
             if (
-                ~(
-                    (x_ix >= 0)
-                    * (x_ix <= len(self._bin_x) - 2)
-                    * (y_ix >= 0)
-                    * (y_ix <= len(self._bin_y) - 2)
-                )
+                    ~(
+                            (x_ix >= 0)
+                            * (x_ix <= len(self._bin_x) - 2)
+                            * (y_ix >= 0)
+                            * (y_ix <= len(self._bin_y) - 2)
+                    )
             ).any():
                 raise ValueError(
                     "At least one value outside of the specified bin ranges."
@@ -237,12 +238,12 @@ class DeltaPSF(PSF):
         return x_ix, y_ix
 
     def forward(
-        self,
-        xyz: torch.Tensor,
-        weight: torch.Tensor,
-        frame_ix: Optional[torch.Tensor] = None,
-        ix_low: Optional[int] = None,
-        ix_high: Optional[int] = None,
+            self,
+            xyz: torch.Tensor,
+            weight: torch.Tensor,
+            frame_ix: Optional[torch.Tensor] = None,
+            ix_low: Optional[int] = None,
+            ix_high: Optional[int] = None,
     ):
         """
         Forward coordinates frame index aware through the psf model.
@@ -279,13 +280,13 @@ class DeltaPSF(PSF):
 
 class GaussianPSF(PSF):
     def __init__(
-        self,
-        xextent: Tuple[float, float],
-        yextent: Tuple[float, float],
-        zextent: Tuple[float, float],
-        img_shape: Tuple[int, int],
-        sigma_0: float,
-        peak_weight: bool = False,
+            self,
+            xextent: Tuple[float, float],
+            yextent: Tuple[float, float],
+            zextent: Tuple[float, float],
+            img_shape: Tuple[int, int],
+            sigma_0: float,
+            peak_weight: bool = False,
     ):
         """
         Gaussian PSF Model.If no z extent is provided we assume a 2D PSF.
@@ -385,19 +386,19 @@ class CubicSplinePSF(PSF):
     inv_default = torch.inverse
 
     def __init__(
-        self,
-        xextent: Tuple[float, float],
-        yextent: Tuple[float, float],
-        img_shape: Tuple[int, int],
-        ref0: tuple,
-        coeff: torch.Tensor,
-        vx_size: Tuple[int, int, int],
-        *,
-        roi_size: (None, tuple) = None,
-        ref_re: (None, torch.Tensor, tuple) = None,
-        roi_auto_center: bool = False,
-        device: str = "cuda:0",
-        max_roi_chunk: int = 500000,
+            self,
+            xextent: Tuple[float, float],
+            yextent: Tuple[float, float],
+            img_shape: Tuple[int, int],
+            ref0: tuple,
+            coeff: torch.Tensor,
+            vx_size: Tuple[int, int, int],
+            *,
+            roi_size: (None, tuple) = None,
+            ref_re: (None, torch.Tensor, tuple) = None,
+            roi_auto_center: bool = False,
+            device: str = "cuda:0",
+            max_roi_chunk: int = 500000,
     ):
         """
         Cubic spline PSF, i.e. a step-wise polynomial with coefficients of size X,Y,Z,64.
@@ -424,8 +425,8 @@ class CubicSplinePSF(PSF):
 
         self._coeff = coeff
         self._roi_native = self._coeff.size()[
-            :2
-        ]  # native roi based on the coeff's size
+                           :2
+                           ]  # native roi based on the coeff's size
         self.roi_size_px = (
             torch.Size(roi_size) if roi_size is not None else self._roi_native
         )
@@ -512,7 +513,7 @@ class CubicSplinePSF(PSF):
         """
         # test whether extent corresponds to img shape
         if (self.img_shape[0] != (self.xextent[1] - self.xextent[0])) or (
-            self.img_shape[1] != (self.yextent[1] - self.yextent[0])
+                self.img_shape[1] != (self.yextent[1] - self.yextent[0])
         ):
             raise ValueError("Unequal size of extent and image shape not supported.")
 
@@ -722,12 +723,12 @@ class CubicSplinePSF(PSF):
         return self._forward_rois_impl(xyz_, phot)
 
     def _forward_drv_chunks(
-        self,
-        xyz: torch.Tensor,
-        weight: torch.Tensor,
-        bg: torch.Tensor,
-        add_bg: bool,
-        chunk_size: int,
+            self,
+            xyz: torch.Tensor,
+            weight: torch.Tensor,
+            bg: torch.Tensor,
+            add_bg: bool,
+            chunk_size: int,
     ):
         """Forwards the ROIs in chunks through CUDA in order not to let the GPU explode."""
 
@@ -749,11 +750,11 @@ class CubicSplinePSF(PSF):
         return drv, rois
 
     def derivative(
-        self,
-        xyz: torch.Tensor,
-        phot: torch.Tensor,
-        bg: torch.Tensor,
-        add_bg: bool = True,
+            self,
+            xyz: torch.Tensor,
+            phot: torch.Tensor,
+            bg: torch.Tensor,
+            add_bg: bool = True,
     ):
         """
         Computes the px wise derivative per ROI. Outputs ROIs additionally
@@ -832,7 +833,8 @@ class CubicSplinePSF(PSF):
         return fisher, rois
 
     def crlb(
-        self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, inversion=None
+            self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor,
+            inversion=None
     ):
         """
         Computes the Cramer-Rao bound. Outputs ROIs additionally (since its computationally free of charge).
@@ -862,7 +864,8 @@ class CubicSplinePSF(PSF):
         return crlb, rois
 
     def crlb_sq(
-        self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor, inversion=None
+            self, xyz: torch.Tensor, phot: torch.Tensor, bg: torch.Tensor,
+            inversion=None
     ):
         """
         Function for the lazy ones to compute the sqrt Cramer-Rao bound. Outputs ROIs additionally (since its
@@ -882,13 +885,13 @@ class CubicSplinePSF(PSF):
         return crlb.sqrt(), rois
 
     def _forward_chunks(
-        self,
-        xyz: torch.Tensor,
-        weight: torch.Tensor,
-        frame_ix: torch.Tensor,
-        ix_low: int,
-        ix_high: int,
-        chunk_size: int,
+            self,
+            xyz: torch.Tensor,
+            weight: torch.Tensor,
+            frame_ix: torch.Tensor,
+            ix_low: int,
+            ix_high: int,
+            chunk_size: int,
     ):
 
         i = 0
@@ -904,12 +907,12 @@ class CubicSplinePSF(PSF):
         return f
 
     def forward(
-        self,
-        xyz: torch.Tensor,
-        weight: torch.Tensor,
-        frame_ix: Optional[torch.Tensor] = None,
-        ix_low: Optional[int] = None,
-        ix_high: Optional[int] = None,
+            self,
+            xyz: torch.Tensor,
+            weight: torch.Tensor,
+            frame_ix: Optional[torch.Tensor] = None,
+            ix_low: Optional[int] = None,
+            ix_high: Optional[int] = None,
     ):
         """
         Forward coordinates frame index aware through the psf model.
@@ -961,19 +964,20 @@ class CubicSplinePSF(PSF):
 
 class ZernikePSF(PSF):
     def __init__(
-        self,
-        xextent,
-        yextent,
-        zextent,
-        img_shape: tuple[int, int],
-        *,
-        weight_real: list,
-        weight_im: list,
-        # theta: float,
-        # num_aperture: float,
-        # ref_index: float,
-        # wavelength: float,
-        # k_size: int,
+            self,
+            xextent,
+            yextent,
+            zextent,
+            img_shape: tuple[int, int],
+            *,
+            weight_real: list,
+            weight_phase: list,
+            # theta: float,  # can be absorbed by zernike polynomial itself
+            num_aperture: float,
+            ref_index: float,
+            wavelength: float,
+            k_size: int,
+            zernike_order: int,
     ):
         """
         Zernike vectorial based PSF model.
@@ -984,14 +988,13 @@ class ZernikePSF(PSF):
             yextent:
             zextent:
             weight_real: weights of the real part of the zernike polynomials
-            weight_im: weights of the imaginary part of the zernike polynomials
+            weight_phase: weights of the imaginary part of the zernike polynomials
             theta:
             num_aperture:
             ref_index:
             wavelength:
             k_size:
         """
-        import zernike
 
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent)
 
@@ -1001,31 +1004,92 @@ class ZernikePSF(PSF):
         self._pupil_e_field = None
 
         self._weight_real = torch.tensor(weight_real)
-        self._weight_im = torch.tensor(weight_im)
-        # self._theta = theta
-        # self._num_aperture = num_aperture
-        # self._ref_index = ref_index
-        # self._wavelength = wavelength
-        # self._k_size = k_size
+        self._weight_phase = torch.tensor(weight_phase)
+        self._theta = 1.
+        self._t_a = 1.
+        self._num_aperture = num_aperture
+        self._ref_index = ref_index
+        self._wavelength = wavelength
+        self._k_size = k_size
+        self._zernike_order = zernike_order
 
         self._pramp_x, self._pramp_y = self._get_phase_ramp()
+        self._zernike_pol = self._get_zernike_poly()
+        self._zernike_real = self._get_zernike_real()
+        self._zernike_phase = self._get_zernike_phase()
+        self._kx, self._ky = self._get_kxy()
+        self._k = ref_index / wavelength
+
+        unit_x, unit_y = self._get_unit_vectors()
+        # decompose wave vector into radial and z component
+        self._kr = (unit_x**2 + unit_y**2).sqrt() * num_aperture / wavelength
+        self._kz = math.sqrt((ref_index / wavelength)**2 - self._kr**2)
+
+        # for now scalar model
+        self._emn = 1.
+
+    def _get_zernike_poly(self) -> torch.Tensor:
+        """
+        Compute zernike polynomials of size k_size x k_size up to zernike_order
+        """
+        p = zernike.RZern(self._zernike_order)
+        ddx = np.linspace(-1.0, 1.0, self._k_size)
+        ddy = np.linspace(-1.0, 1.0, self._k_size)
+        xv, yv = np.meshgrid(ddx, ddy)
+
+        p.make_cart_grid(xv, yv)
+        n_pol = p.nk
+
+        zpol = []
+        for i in range(n_pol):
+            c = np.zeros(n_pol)
+            c[i] = 1.
+            phi = p.eval_grid(c, matrix=True)
+            zpol.append(torch.from_numpy(phi))
+
+        return torch.stack(zpol, 0)
 
     def _get_phase_ramp(self):
         ramp_x, ramp_y = torch.meshgrid(
             torch.linspace(0, 2 * math.pi, self._img_shape[0]),
-            torch.linspace(0, 2 * math.pi,self._img_shape[1]),
+            torch.linspace(0, 2 * math.pi, self._img_shape[1]),
         )
 
         return ramp_x, ramp_y
 
+    def _get_zernike_real(self) -> torch.Tensor:
+        """Get zernike polynomial weighted by respective amplitude (real)"""
+        return (self._weight_real * self._zernike_pol).sum(0)
+
+    def _get_zernike_phase(self) -> torch.Tensor:
+        """Get zernike polynomial weighted by respective amplitude (phase)"""
+        return (self._weight_phase * self._zernike_pol).sum(0)
+
+    def _get_kxy(self):
+        """Get k vectors in x and y (fourier space)"""
+        L = self._img_shape[0]
+        assert self._img_shape[0] == self._img_shape[1]
+
+        xrange = np.linspace(-L / 2 + 0.5, L / 2 - 0.5, L)
+        [xx, yy] = np.meshgrid(xrange, xrange)
+        kx = xx / L
+        ky = yy / L
+
+        return kx, ky
+
+    def _get_unit_vectors(self):
+        kx, ky = torch.linspace(-1, 1, self._k_size), torch.linspace(-1, 1, self._k_size)
+        kx, ky = torch.meshgrid(kx, ky)
+        return kx, ky
+
     @staticmethod
     def pupile_field(
-        na: float,
-        na_sample: float,
-        na_oil: float,
-        na_cover: float,
-        k_size: int,
-        pupilradius: float = 1.0,
+            na: float,
+            na_sample: float,
+            na_oil: float,
+            na_cover: float,
+            k_size: int,
+            pupilradius: float = 1.0,
     ) -> torch.Tensor:
         """
         Compute eletric field in pupile space
@@ -1048,23 +1112,23 @@ class ZernikePSF(PSF):
             k_size,
         )
         [xx, yy] = np.meshgrid(krange, krange)
-        kr = np.lib.scimath.sqrt(xx**2 + yy**2)
+        kr = np.lib.scimath.sqrt(xx ** 2 + yy ** 2)
 
         cos_imm = np.lib.scimath.sqrt(1 - (kr * na / na_oil) ** 2)
         cos_med = np.lib.scimath.sqrt(1 - (kr * na / na_sample) ** 2)
         cos_cov = np.lib.scimath.sqrt(1 - (kr * na / na_cover) ** 2)
 
         FresnelPmedcov = (
-            2 * na_sample * cos_med / (na_sample * cos_cov + na_cover * cos_med)
+                2 * na_sample * cos_med / (na_sample * cos_cov + na_cover * cos_med)
         )
         FresnelSmedcov = (
-            2 * na_sample * cos_med / (na_sample * cos_med + na_sample * cos_med)
+                2 * na_sample * cos_med / (na_sample * cos_med + na_sample * cos_med)
         )
         FresnelPcovimm = (
-            2 * na_cover * cos_cov / (na_cover * cos_imm + na_oil * cos_cov)
+                2 * na_cover * cos_cov / (na_cover * cos_imm + na_oil * cos_cov)
         )
         FresnelScovimm = (
-            2 * na_cover * cos_cov / (na_cover * cos_cov + na_oil * cos_imm)
+                2 * na_cover * cos_cov / (na_cover * cos_cov + na_oil * cos_imm)
         )
         Tp = FresnelPmedcov * FresnelPcovimm
         Ts = FresnelSmedcov * FresnelScovimm
@@ -1083,19 +1147,16 @@ class ZernikePSF(PSF):
 
         return torch.from_numpy(h)
 
-    @staticmethod
-    def zernike_space(n):
-        """Calculate zernike polynomials"""
-        ef = torch.cat([ef_x, ef_y], 0)
-        return
-
     def _forward_single_frame(self, xyz: torch.Tensor, weight: torch.Tensor):
         obj_fn = 1.
         smoothing = 1.
-        bg = 0
+        bg = 0.
 
-        h = self.t_a * self.zernike_real * torch.exp(self.zernike_im)
-        h_k = h * self.e_mn * torch.exp(2j * math.pi * (kx * x + ky * y + kz * z))
+        x, y, z = xyz[:, 0], xyz[:, 1], xyz[:, 2]
+
+        # get from _get_zernike_real
+        h = self._t_a * self._zernike_real * torch.exp(1j * self._zernike_phase)
+        h_k = h * self._e_mn * torch.exp(2j * math.pi * (self._kx * x + self._ky * y + self._kz * z))
         u = self.fft(h_k).abs() ** 2  # missing sum
         real = u * weight * obj_fn * smoothing + bg
 
@@ -1103,5 +1164,6 @@ class ZernikePSF(PSF):
 
 
 class VoxelatedPSF(PSF):
-    # ToDo: cube based psf. Needs 3D voxel cube as input, and sufficient interpolation (e.g. fft).
+    # ToDo: cube based psf. Needs 3D voxel cube as input
+    #  and sufficient interpolation (e.g. fft).
     pass

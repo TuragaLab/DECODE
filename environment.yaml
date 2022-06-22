@@ -30,6 +30,7 @@ dependencies:
   - hypothesis
   - line_profiler
   - matplotlib
+  - numba>=0.55
   - pandas
   - pydantic
   - pytest
@@ -40,13 +41,11 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-  #  - spline>=0.10.1  # spline on apple silicon
-  - spline=0.10.0
+  - spline>=0.10.0  # spline on apple silicon
   - tensorboard
   - tifffile>=2020.2
   - tqdm
 
-  #  - pip
-  # in dev
-  #  - pip:
-  #      - zernike
+    - pip
+    - pip:
+        - zernike
