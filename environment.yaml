@@ -46,6 +46,6 @@ dependencies:
   - tifffile>=2020.2
   - tqdm
 
-    - pip
-    - pip:
-        - zernike
+  - pip
+  - pip:
+      - zernike
