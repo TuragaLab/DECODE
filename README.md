@@ -56,7 +56,7 @@ The data referred to in our paper can be accessed at the following locations:
 ## Contributors
 If you want to get in touch, the best way to get your questions answered is our [**GitHub discussions page**](https://github.com/TuragaLab/DECODE/discussions)
 - Artur Speiser ([@aspeiser](https://github.com/ASpeiser), arturspeiser@gmail.com)
-- Lucas-Raphael Müller ([@haydnspass](https://github.com/Haydnspass), lrm@lrm.dev)
+- Lucas-Raphael Müller ([@haydnspass](https://github.com/Haydnspass), lucas.mueller@embl.de)
 
 ## Support
 
