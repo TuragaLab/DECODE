@@ -5,6 +5,7 @@ from ..emitter.emitter import EmitterSet
 from . import psf_kernel
 
 
+# ToDo: Review relation to Microscope class
 class Simulation:
     """
     A simulation class that holds the necessary modules, i.e. an emitter source (either a static EmitterSet or
