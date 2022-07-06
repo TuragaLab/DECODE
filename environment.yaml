@@ -2,7 +2,7 @@ name: decode_dev
 
 channels:
   # mainly use dev channels for spline
-  # - turagalab/label/dev
+  - turagalab/label/dev
   # - turagalab/label/rc
   - turagalab
   - pytorch
@@ -21,7 +21,7 @@ dependencies:
 
   # actual package
   - python=3.10
-  - pytorch=1.11.0
+  - pytorch=1.12.0
   - cpuonly  # - cudatoolkit=11.3
   - click
   - deprecated
