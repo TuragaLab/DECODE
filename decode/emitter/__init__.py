@@ -1,4 +1,4 @@
 from . import emitter
 from . import process
 
-from .emitter import factory
+from .emitter import factory, EmitterSet
