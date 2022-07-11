@@ -978,6 +978,7 @@ class ZernikePSF(PSF):
             wavelength: float,
             k_size: int,
             zernike_order: int,
+            voxel_size: tuple[float, float, float],
     ):
         """
         Zernike vectorial based PSF model.
@@ -994,6 +995,8 @@ class ZernikePSF(PSF):
             ref_index:
             wavelength:
             k_size:
+            voxel_size: in units of wavelength e.g. (110, 120, 50)
+                if the intput is entirely in px units
         """
 
         super().__init__(xextent=xextent, yextent=yextent, zextent=zextent)
@@ -1012,18 +1015,19 @@ class ZernikePSF(PSF):
         self._wavelength = wavelength
         self._k_size = k_size
         self._zernike_order = zernike_order
+        self._voxel_size = torch.tensor(voxel_size)
 
         self._pramp_x, self._pramp_y = self._get_phase_ramp()
         self._zernike_pol = self._get_zernike_poly()
         self._zernike_real = self._get_zernike_real()
         self._zernike_phase = self._get_zernike_phase()
-        self._kx, self._ky = self._get_kxy()
+        self._kx, self._ky, self._kz = self._get_kxyz()
         self._k = ref_index / wavelength
 
         unit_x, unit_y = self._get_unit_vectors()
         # decompose wave vector into radial and z component
         self._kr = (unit_x**2 + unit_y**2).sqrt() * num_aperture / wavelength
-        self._kz = math.sqrt((ref_index / wavelength)**2 - self._kr**2)
+        self._pupil_radius = 1.
 
         # for now scalar model
         self._emn = 1.
@@ -1065,17 +1069,22 @@ class ZernikePSF(PSF):
         """Get zernike polynomial weighted by respective amplitude (phase)"""
         return (self._weight_phase * self._zernike_pol).sum(0)
 
-    def _get_kxy(self):
-        """Get k vectors in x and y (fourier space)"""
-        L = self._img_shape[0]
-        assert self._img_shape[0] == self._img_shape[1]
+    def _get_kxyz(self):
+        """Get k vectors in x, y and z (fourier space, inverse of micron units)"""
+        krange = np.linspace(-self._pupil_radius + self._pupil_radius / self._k_size,
+                             self._pupil_radius - self._pupil_radius / self._k_size, self._k_size)
 
-        xrange = np.linspace(-L / 2 + 0.5, L / 2 - 0.5, L)
-        [xx, yy] = np.meshgrid(xrange, xrange)
-        kx = xx / L
-        ky = yy / L
+        [yy, xx] = np.meshgrid(krange, krange)
+        kr = np.lib.scimath.sqrt((xx ** 2 + yy ** 2))
+        # pupilmag = np.complex64(kr < 1)
+        # cos_nimm = np.lib.scimath.sqrt(1 - (kr * self._num_aperture / self._ref_index) ** 2)
 
-        return kx, ky
+        kx = np.complex64(xx * self._num_aperture / self._wavelength)
+        ky = np.complex64(yy * self._num_aperture / self._wavelength)
+        kz = np.lib.scimath.sqrt(
+            (self._ref_index / self._wavelength) ** 2 - (kr * self._num_aperture / self._wavelength) ** 2)
+
+        return kx, ky, kz
 
     def _get_unit_vectors(self):
         kx, ky = torch.linspace(-1, 1, self._k_size), torch.linspace(-1, 1, self._k_size)
@@ -1152,6 +1161,7 @@ class ZernikePSF(PSF):
         smoothing = 1.
         bg = 0.
 
+        xyz *= self._voxelsize
         x, y, z = xyz[:, 0], xyz[:, 1], xyz[:, 2]
 
         # get from _get_zernike_real
