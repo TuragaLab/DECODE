@@ -1,8 +1,8 @@
 import pytest
 from omegaconf import OmegaConf
 
-from decode.generic.asset_handler import auto_asset
-from decode.simulation import psf_kernel
+from decode.generic import asset_handler
+from decode import simulation
 from decode.neuralfitter.train import train
 
 
@@ -23,15 +23,36 @@ def test_setup_logger(no_op, cfg, tmpdir):
     l[0].log_metrics({"a": 5})
 
 
-def test_setup_psf(cfg):
-    _test_setup_psf_impl(cfg)
+@pytest.fixture
+def path_bead_cal(scope="file"):
+    return asset_handler.load_asset("bead_cal")
 
 
-@auto_asset("bead_cal")
-def _test_setup_psf_impl(cfg, path_bead_cal):
-    # outsourced because otherwise decorator does not work in conjunction with pytest
+def test_setup_psf(path_bead_cal, cfg):
     cfg.InOut.calibration_file = path_bead_cal
     cfg.Hardware.device_simulation = "cpu"
 
     psf = train.setup_psf(cfg)
-    assert isinstance(psf, psf_kernel.CubicSplinePSF)
+    assert isinstance(psf, simulation.psf_kernel.CubicSplinePSF)
+
+
+def test_setup_background(cfg):
+    bg = train.setup_background(cfg)
+    assert isinstance(bg, simulation.background.Background)
+
+
+@pytest.mark.parametrize("preset", ["Perfect", None])
+def test_setup_noise(preset, cfg):
+    cfg.CameraPreset = preset
+
+    noise = train.setup_noise(cfg)
+    assert isinstance(noise, simulation.camera.Camera)
+    if preset == "Perfect":
+        assert isinstance(noise, simulation.camera.PerfectCamera)
+    else:
+        assert isinstance(noise, simulation.camera.Photon2Camera)
+
+
+def test_setup_prior(cfg):
+    p = train.setup_prior(cfg)
+    assert isinstance(p, simulation.structures.StructurePrior)
