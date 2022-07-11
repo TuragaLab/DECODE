@@ -85,6 +85,11 @@ InOut:
   experiment_out:  # main output dir
   checkpoint_init:   # initialise from checkpoint (i.e. resume training)
   model_init:
+Logging:
+  no_op: false
+  logger:
+    DummyLogger:
+
 Meta:
   version:
 PostProcessing: SpatialIntegration  # (blank) for no post-processing or LookUp
