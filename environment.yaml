@@ -31,6 +31,7 @@ dependencies:
   - line_profiler
   - matplotlib
   - numba>=0.55
+  - omegaconf
   - pandas
   - pydantic
   - pytest
