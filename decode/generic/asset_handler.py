@@ -47,7 +47,7 @@ def load_asset(name, path: Optional[Path] = None) -> Path:
     return AssetHandler().auto_load(name=name, path=path)
 
 
-def auto_asset(name, path: Optional[Path] = Path, return_path: bool=True):
+def auto_asset(name, path: Optional[Path] = None, return_path: bool = True):
     """
     Decorator to automatically retrieve asset and insert path into decorated functions
     signature (default).
@@ -57,6 +57,11 @@ def auto_asset(name, path: Optional[Path] = Path, return_path: bool=True):
         path:
         return_path: insert return path as "path_{name}" in decorated function's signature
 
+    Examples:
+
+        @auto_asset("bead_cal")
+        def some_fn(path_bead_cal: Path):
+            pass
     """
     def wrap_fn(fn):
         @wraps(fn)
