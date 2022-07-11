@@ -1,6 +1,6 @@
 import torch
 import torch.utils.data
-from collections import abc
+from torch._six import string_classes
 
 import decode.generic
 
@@ -25,7 +25,7 @@ def smlm_collate(batch):
             storage = elem.storage()._new_shared(numel)
             out = elem.new(storage)
         return torch.stack(batch, 0, out=out)
-    elif isinstance(elem, abc.Sequence):
+    elif isinstance(elem, (list, tuple)):
         # check to make sure that the elements in batch have consistent size
         it = iter(batch)
         elem_size = len(next(it))
@@ -36,7 +36,7 @@ def smlm_collate(batch):
     # END INSERT
     elif elem is None:
         return None
-    elif isinstance(elem, decode.emitter.EmitterSet):
+    elif isinstance(elem, decode.generic.emitter.EmitterSet):
         return [em for em in batch]
     else:
         return torch.utils.data.dataloader.default_collate(batch)
