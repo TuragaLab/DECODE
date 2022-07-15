@@ -99,6 +99,19 @@ class IxShifter:
     _pad_modes = (None, "same")
 
     def __init__(self, mode: str, window: int):
+        """
+        Shift index to allow for windowing without repeating samples
+
+        Args:
+            mode: either `None` (which will shift) or `same` (no-op)
+            window: window size
+
+        Examples:
+            >>> IxShifter(None, 3)[0]
+            1
+            >>> IxShifter("same", 100000)[0]
+            0
+        """
         self._mode = mode
         self._window = window
 
