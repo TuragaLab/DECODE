@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar, Protocol
+from typing import Any, TypeVar, Protocol, Optional
 
 import torch
 
+from . import process
 from ..emitter import emitter
 from ..simulation import microscope
-from . import process
 
 # ToDo: move those to a utils place
 T = TypeVar("T", bound="_Sliceable")
@@ -93,3 +93,52 @@ class SamplerSupervised(Sampler):
 
     def sample(self):
         self._frames = self._mic.forward(em=self._em, bg=self._bg)
+
+
+class IxShifter:
+    _pad_modes = (None, "same")
+
+    def __init__(self, mode: str, window: int):
+        self._mode = mode
+        self._window = window
+
+        if mode not in self._pad_modes:
+            raise NotImplementedError
+
+    def __call__(self, ix: int) -> int:
+        if self._mode is None:
+            # no padding means we need to shift indices, i.e. loose a few samples
+            if ix < 0:
+                raise ValueError("Negative indexing not supported.")
+            ix = ix + (self._window - 1) // 2
+
+        return ix
+
+
+class IxWindow:
+    def __init__(self, win: int, n: Optional[int]):
+        """
+        'Window' an index, that make convolution like.
+
+        Args:
+            win: window size
+            n: data size
+
+        Examples:
+            >>> IxWindow(3)(0)
+            [0, 0, 1]
+
+            >>> IxWindow(3)(5)
+            [4, 5, 6]
+        """
+        self._win = win
+        self._n = n
+
+    def __call__(self, ix: int) -> list[int]:
+        hw = (self._win - 1) // 2  # half window without centre
+        ix = torch.arange(ix - hw, ix + hw + 1).clamp(0)
+
+        if self._n is not None:
+            ix = ix.clamp(max=self._n - 1)
+
+        return ix.tolist()
