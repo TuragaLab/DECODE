@@ -11,6 +11,15 @@ class Processing:
         self._mode = mode
 
     def pre(self, *args, **kwargs):
+        """
+        Returns a processed training sample in `train` mode and an inference sample in
+        `eval` mode.
+
+        Args:
+            *args:
+            **kwargs:
+
+        """
         if self._mode == "train":
             return self.pre_train(*args, **kwargs)
         elif self._mode == "eval":

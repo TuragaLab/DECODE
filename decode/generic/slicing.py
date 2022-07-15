@@ -73,7 +73,24 @@ def ix_split(ix: torch.Tensor, ix_min: int, ix_max: int) -> list:
 
 class SliceForward:
     def __init__(self, on_getitem: Callable):
-        # forwards a getitem call to a callable
+        """
+        Helper class to forward slicing to a specified hook
+
+        Args:
+            on_getitem: call on __getitem__
+
+        Examples:
+            >>> class Dummy:
+            >>>    def __init__(self, v: list):
+            >>>        self.vals = v
+            >>>        self.val_slice = SliceForward(self._val_hook)
+            >>>    def _val_hook(self, item):
+            >>>        return self.vals[item]
+
+            >>> d = Dummy([1, 2, 3])
+            >>> d.val_slice[1]
+            2
+        """
         self._fn = on_getitem
 
     def __getitem__(self, item):
