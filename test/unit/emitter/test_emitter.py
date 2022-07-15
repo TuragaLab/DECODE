@@ -348,6 +348,18 @@ class TestEmitterSet:
             assert em_out.frame_ix.min() >= ix_range[0]
             assert em_out.frame_ix.max() < ix_range[1]
 
+    @pytest.mark.parametrize("ix,ix_low,ix_up,ix_expct", [
+        ([1, 2, 3], None, None, [1, 2, 3]),
+        ([1, 2, 3], 2, 2, []),
+        ([1, 2, 3], 2, 3, [2]),
+        ([1, 2, 3], 2, None, [2, 3]),
+        ([1, 2, 3], None, 1, []),
+        ([1, 2, 3], None, 2, [1])
+    ])
+    def test_get_subset_frame_optionals(self, ix, ix_low, ix_up, ix_expct):
+        em = emitter.factory(frame_ix=ix)
+        em_out = em.get_subset_frame(ix_low, ix_up)
+
     @pytest.mark.parametrize(
         "selector,expct",
         [

@@ -723,7 +723,11 @@ class EmitterSet:
             **data_subset
         )
 
-    def get_subset_frame(self, frame_start: int, frame_end: int, frame_ix_shift=None):
+    def get_subset_frame(
+            self, frame_start: Optional[int],
+            frame_end: Optional[int],
+            frame_ix_shift=None
+    ):
         """
         Returns emitters that are in the frame range as specified.
 
@@ -733,8 +737,12 @@ class EmitterSet:
             frame_ix_shift: shift frame index (additive)
 
         """
+        ix_low = self.frame_ix >= frame_start if frame_start is not None \
+            else torch.ones_like(self.frame_ix, dtype=torch.bool)
+        ix_high = self.frame_ix < frame_end if frame_end is not None \
+            else torch.ones_like(self.frame_ix, dtype=torch.bool)
 
-        ix = (self.frame_ix >= frame_start) * (self.frame_ix < frame_end)
+        ix = ix_low * ix_high
         em = self[ix]
 
         if not frame_ix_shift:
