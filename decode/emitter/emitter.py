@@ -497,6 +497,9 @@ class EmitterSet:
             true if as stated above.
 
         """
+        if len(self) != len(other):
+            return False
+
         if not self.eq_meta(other):
             return False
 

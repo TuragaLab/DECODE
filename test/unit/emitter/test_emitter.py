@@ -519,22 +519,28 @@ class TestEmitterSet:
         [
             # both are the same
             (
-                CoordinateOnlyEmitter(torch.tensor([[0.0, 1.0, 2.0]])),
-                CoordinateOnlyEmitter(torch.tensor([[0.0, 1.0, 2.0]])),
+                emitter.factory(xyz=torch.tensor([[0.0, 1.0, 2.0]])),
+                emitter.factory(xyz=torch.tensor([[0.0, 1.0, 2.0]])),
                 True,
             ),
             # different units
             (
-                CoordinateOnlyEmitter(torch.tensor([[0.0, 1.0, 2.0]]), xy_unit="px"),
-                CoordinateOnlyEmitter(torch.tensor([[0.0, 1.0, 2.0]]), xy_unit="nm"),
+                emitter.factory(xyz=torch.tensor([[0.0, 1.0, 2.0]]), xy_unit="px"),
+                emitter.factory(xyz=torch.tensor([[0.0, 1.0, 2.0]]), xy_unit="nm"),
                 False,
             ),
             # different coordinates
             (
-                CoordinateOnlyEmitter(torch.tensor([[0.0, 1.0, 2.0]]), xy_unit="px"),
-                CoordinateOnlyEmitter(torch.tensor([[1000.0, 1.1, 2.0]]), xy_unit="px"),
+                emitter.factory(xyz=torch.tensor([[0.0, 1.0, 2.0]]), xy_unit="px"),
+                emitter.factory(xyz=torch.tensor([[1000.0, 1.1, 2.0]]), xy_unit="px"),
                 False,
             ),
+            # different lenghts
+            (
+                emitter.factory(5),
+                emitter.factory(10),
+                False,
+            )
         ],
     )
     def test_eq(self, em_a, em_b, expct):
