@@ -5,6 +5,38 @@ import torch
 from ..emitter import emitter
 
 
+class IxWindow:
+    def __init__(self, win: int, n: Optional[int]):
+        """
+        'Window' an index, that make convolution like.
+
+        Args:
+            win: window size
+            n: data size
+
+        Examples:
+            >>> IxWindow(3)(0)
+            [0, 0, 1]
+
+            >>> IxWindow(3)(5)
+            [4, 5, 6]
+
+            >>> IxWindow(3, n=5)(4)
+            [3, 4, 4]
+        """
+        self._win = win
+        self._n = n
+
+    def __call__(self, ix: int) -> list[int]:
+        hw = (self._win - 1) // 2  # half window without centre
+        ix = torch.arange(ix - hw, ix + hw + 1).clamp(0)
+
+        if self._n is not None:
+            ix = ix.clamp(max=self._n - 1)
+
+        return ix.tolist()
+
+
 class Processing:
     def __init__(self, mode: str = "train"):
         """Signature illustration of processing wrapping class"""
