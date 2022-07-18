@@ -1,4 +1,7 @@
 from abc import ABC, abstractmethod
+from deprecated import deprecated
+
+import torch
 
 from .emitter import EmitterSet
 
@@ -20,12 +23,36 @@ class EmitterProcess(ABC):
 
 
 class EmitterIdentity(EmitterProcess):
-    """The no filter"""
-
     def forward(self, em: EmitterSet) -> EmitterSet:
         return em
 
 
+class EmitterFilterGeneric(EmitterProcess):
+    def __init__(self, **kwargs):
+        """
+        Generic emitter filter.
+
+        Args:
+            **kwargs: use emitter attribute and function that returns boolean
+
+        Examples:
+            # filters out emitters with less than 100 photons
+             >>> f = EmitterFilterGeneric(phot=lambda p: p >= 100)
+        """
+        super().__init__()
+
+        self._attr_fn = kwargs
+
+    def forward(self, em: EmitterSet) -> EmitterSet:
+        is_okay = torch.ones(len(em), dtype=torch.bool)
+
+        for k, fn in self._attr_fn.items():
+            is_okay *= fn(getattr(em, k))
+
+        return em[is_okay]
+
+
+@deprecated(reason="Use generic filter.", version="0.11.0")
 class TarFrameEmitterFilter(EmitterProcess):
     """Filters the emitters on the target frame index."""
 
@@ -51,6 +78,7 @@ class TarFrameEmitterFilter(EmitterProcess):
         return em[ix]
 
 
+@deprecated(reason="Use generic filter.", version="0.11.0")
 class PhotonFilter(EmitterProcess):
 
     def __init__(self, th):
