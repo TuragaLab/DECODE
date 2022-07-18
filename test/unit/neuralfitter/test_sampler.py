@@ -1,8 +1,6 @@
 from unittest import mock
 
-import numpy as np
 import pytest
-import torch
 
 from decode.neuralfitter import sampler
 
@@ -20,7 +18,7 @@ def test_slicer_delayed():
 
 
 @pytest.mark.parametrize("prop", ["input", "target"])
-def test_sampler_target(prop):
+def test_sampler_input_target(prop):
     em, frame, bg = mock.MagicMock(), mock.MagicMock(), mock.MagicMock()
     proc = mock.MagicMock()
 
@@ -43,3 +41,19 @@ def test_sampler_target(prop):
             mock_slicer.assert_called_once_with(proc.tar, em=em.iframe, bg=bg)
         else:
             raise NotImplementedError
+
+
+def test_sampler_len():
+    s = sampler.SamplerSupervised(
+        mock.MagicMock(),
+        mock.MagicMock(),
+        mock.MagicMock(),
+        mock.MagicMock(),
+    )
+
+    s._frame = mock.MagicMock()
+    s._frame.__len__.return_value = 42
+
+    assert len(s) == len(s.frame)
+    assert len(s) == 42
+

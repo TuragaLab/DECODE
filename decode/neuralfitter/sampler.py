@@ -20,6 +20,10 @@ class _Sliceable(Protocol):
 
 
 class Sampler(ABC):
+    @abstractmethod
+    def __len__(self) -> int:
+        raise NotImplementedError
+
     @property
     @abstractmethod
     def frame(self) -> _Sliceable:
@@ -63,7 +67,7 @@ class SamplerSupervised(Sampler):
         self._mic = mic
         self._proc = proc
         self._delay = delay
-        self._frames = None
+        self._frame = None
 
     @property
     def emitter(self) -> emitter.EmitterSet:
@@ -71,7 +75,7 @@ class SamplerSupervised(Sampler):
 
     @property
     def frame(self) -> torch.Tensor:
-        return self._frames
+        return self._frame
 
     @property
     def bg(self) -> torch.Tensor:
@@ -91,67 +95,8 @@ class SamplerSupervised(Sampler):
         """
         return _SlicerDelayed(self._proc.tar, em=self.emitter.iframe, bg=self.bg)
 
+    def __len__(self) -> int:
+        return len(self.frame)
+
     def sample(self):
-        self._frames = self._mic.forward(em=self._em, bg=self._bg)
-
-
-class IxShifter:
-    _pad_modes = (None, "same")
-
-    def __init__(self, mode: str, window: int):
-        """
-        Shift index to allow for windowing without repeating samples
-
-        Args:
-            mode: either `None` (which will shift) or `same` (no-op)
-            window: window size
-
-        Examples:
-            >>> IxShifter(None, 3)[0]
-            1
-            >>> IxShifter("same", 100000)[0]
-            0
-        """
-        self._mode = mode
-        self._window = window
-
-        if mode not in self._pad_modes:
-            raise NotImplementedError
-
-    def __call__(self, ix: int) -> int:
-        if self._mode is None:
-            # no padding means we need to shift indices, i.e. loose a few samples
-            if ix < 0:
-                raise ValueError("Negative indexing not supported.")
-            ix = ix + (self._window - 1) // 2
-
-        return ix
-
-
-class IxWindow:
-    def __init__(self, win: int, n: Optional[int]):
-        """
-        'Window' an index, that make convolution like.
-
-        Args:
-            win: window size
-            n: data size
-
-        Examples:
-            >>> IxWindow(3)(0)
-            [0, 0, 1]
-
-            >>> IxWindow(3)(5)
-            [4, 5, 6]
-        """
-        self._win = win
-        self._n = n
-
-    def __call__(self, ix: int) -> list[int]:
-        hw = (self._win - 1) // 2  # half window without centre
-        ix = torch.arange(ix - hw, ix + hw + 1).clamp(0)
-
-        if self._n is not None:
-            ix = ix.clamp(max=self._n - 1)
-
-        return ix.tolist()
+        self._frame = self._mic.forward(em=self._em, bg=self._bg)
