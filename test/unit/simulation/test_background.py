@@ -1,5 +1,3 @@
-from abc import ABC
-
 import pytest
 import torch
 
@@ -8,95 +6,67 @@ from decode.emitter import emitter
 from decode.generic import test_utils
 
 
-class BackgroundAbstractTest(ABC):
-    @pytest.fixture()
-    def bgf(self):
-        raise NotImplementedError
-
-    @pytest.fixture()
-    def rframe(self):
-        """
-        Just a random frame batch.
-
-        Returns:
-            rframe (torch.Tensor): random frame batch
-
-        """
-        return torch.rand((2, 3, 64, 64))
-
-    def test_sanity(self, bgf):
-        with pytest.raises(ValueError) as e_info:
-            bgf.__init__(forward_return="asjdfki")
-
-    def test_sample(self, bgf):
-        out = bgf.sample(size=(32, 32), device=torch.device("cpu"))
-
-        assert out.size() == torch.Size((32, 32))
-
-    def test_sample_like(self, bgf):
-        x = torch.rand((32, 32)).double()
-
-        out = bgf.sample_like(x)
-
-        assert x.size() == out.size()
-        assert x.device == out.device
-
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(),
-        reason="Makes only sense if we have another device to test on.",
-    )
-    def test_sample_like_cuda(self, bgf):
-        x = torch.rand((2, 32, 32)).cuda()
-
-        out = bgf.sample_like(x)
-
-        assert x.size() == out.size()
-        assert x.device == out.device
-
-    def test_shape(self, bgf, rframe):
-        rframe_bg, bg_term = bgf.forward(rframe)
-
-        assert rframe_bg.size() == rframe.size(), "Wrong shape after background."
-        assert (
-            bg_term.dim() <= rframe_bg.dim()
-        ), "Background term must be of less or equal dimension than input frame."
-
-    def test_additivity(self, bgf, rframe):
-        """
-        Tests whether the backgorund is additive
-
-        Args:
-            bgf: fixture as above
-            rframe: fixture as above
-
-        """
-        rframe_bg, bg_term = bgf.forward(rframe)
-        assert (
-            rframe_bg >= rframe
-        ).all(), "Background is not strictly unsigned additive."
-
-        # test whether one can add background to the rframe so that dimension etc. are correct
-        rframe + bg_term
+@pytest.fixture
+def bg_uniform():
+    return background.UniformBackground((1., 100.), size=(43, 74))
 
 
-class TestUniformBackground(BackgroundAbstractTest):
-    @pytest.fixture()
-    def bgf(self):
-        return background.UniformBackground((0.0, 100.0), forward_return="tuple")
+@pytest.mark.parametrize("bg", [
+    "bg_uniform",
+])
+@pytest.mark.parametrize("size,size_expct", [
+    ((1, 2), (1, 2)),
+    (None, (43, 74))
+])
+@pytest.mark.parametrize("device,device_expct", [
+    ("cpu", "cpu"),
+    ("cuda", "cuda"),
+    (None, "cpu")
+])
+def test_bg_overwrites(size, size_expct, device, device_expct, bg, request):
+    bg = request.getfixturevalue(bg)
 
-    def test_sample(self, bgf):
-        super().test_sample(bgf)
+    size_out, device_out = bg._arg_defaults(size, device)
+    assert size_out == size_expct
+    assert device_out == device_expct
 
-        out = bgf.sample((5, 32, 32))
 
-        assert (
-            len(out.unique()) == 5
-        ), "Should have as many unique values as we have batch size."
+@pytest.mark.parametrize("size,size_expct", [
+    ((31, 32), (31, 32)),
+    (None, (43, 74))
+])
+@pytest.mark.parametrize("bg", [
+    "bg_uniform",
+])
+def test_sample_size(size, size_expct, bg, request):
+    bg = request.getfixturevalue(bg)
+    sample = bg.sample(size=size)
 
-        for out_c in out:
-            assert len(out_c.unique()) == 1, "Background not spacially constant"
+    assert sample.size() == torch.Size(size_expct)
 
-        assert ((out >= 0) * (out <= 100)).all(), "Wrong output values."
+
+@pytest.mark.parametrize("bg", [
+    "bg_uniform",
+])
+def test_sample_like(bg, request):
+    bg = request.getfixturevalue(bg)
+
+    x = torch.rand(42, 43)
+    sample = bg.sample_like(torch.rand(42, 43))
+
+    assert sample.size() == x.size()
+
+
+def test_bg_uniform(bg_uniform):
+    out = bg_uniform.sample((5, 32, 32))
+
+    assert (
+        len(out.unique()) == 5
+    ), "Should have as many unique values as we have batch size."
+
+    for out_c in out:
+        assert len(out_c.unique()) == 1, "Background should constant per batch element"
+    assert ((out >= 0) * (out <= 100)).all(), "Wrong output values."
 
 
 class TestBgPerEmitterFromBgFrame:
