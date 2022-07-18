@@ -4,6 +4,17 @@ import torch
 from decode.simulation import code
 
 
+def test_code():
+    codes = [1, 2, 3]
+    c = code.Code(codes)
+
+    samples = c.sample(10)
+
+    assert len(samples) == 10
+    assert isinstance(samples, torch.LongTensor)
+    assert set(codes).issubset(set(samples.tolist()))
+
+
 @pytest.fixture()
 def codebook():
     return code.CodeBook({0: (True, False), 5: (True, True)})
