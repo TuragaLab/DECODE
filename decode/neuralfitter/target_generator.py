@@ -53,20 +53,13 @@ class TargetGenerator(ABC):
             em:
             ix_low:
             ix_high:
-
-        Returns:
-            em (EmitterSet): filtered EmitterSet
-            ix_low (int): lower frame index
-            ix_high (int): upper frame index
-
         """
 
-        if ix_low is None:
-            ix_low = self.ix_low
-        if ix_high is None:
-            ix_high = self.ix_high
+        ix_low = self.ix_low if ix_low is None else ix_low
+        ix_high = self.ix_high if ix_high is None else ix_high
 
-        """Limit the emitters to the frames of interest and shift the frame index to start at 0."""
+        # limit the emitters to the frames of interest and shift the frame
+        # index to start at 0
         em = em.get_subset_frame(ix_low, ix_high, -ix_low)
 
         return em, ix_low, ix_high
@@ -77,7 +70,6 @@ class TargetGenerator(ABC):
 
         Args:
             x: input of size :math:`(N,C,H,W)`
-
         """
 
         if self.squeeze_batch_dim:
@@ -183,14 +175,12 @@ class UnifiedEmbeddingTarget(TargetGenerator):
         yy = self.mesh_y.flatten().to(batch_ix.device)
         n_roi = xx.size(0)
 
-        """
-        Repeat the indices and add an ID for bookkeeping. 
-        The idea here is that for the ix we do 'repeat_interleave' and for the offsets we do repeat, such that they 
-        overlap correctly. E.g.
-        5  5  5  9  9  9 (indices)
-        +1 0  -1 +1 0  -1 (offset)
-        6  5  4  10 9  8 (final indices)
-        """
+        # Repeat the indices and add an ID for bookkeeping.
+        # The idea here is that for the ix we do 'repeat_interleave' and for the
+        # offsets we do repeat, such that they overlap correctly. E.g.
+        # 5  5  5  9  9  9 (indices)
+        # +1 0  -1 +1 0  -1 (offset)
+        # 6  5  4  10 9  8 (final indices)
         batch_ix_roi = batch_ix.repeat_interleave(n_roi)
         x_ix_roi = x_ix.repeat_interleave(n_roi)
         y_ix_roi = y_ix.repeat_interleave(n_roi)
@@ -331,11 +321,12 @@ class ParameterListTarget(TargetGenerator):
         squeeze_batch_dim: bool = False,
     ):
         """
-        Target corresponding to the Gausian-Mixture Model Loss. Simply cat all emitter's attributes up to a
-         maximum number of emitters as a list.
+        Target corresponding to the Gausian-Mixture Model Loss. Simply cat all emitter's
+        attributes up to a maximum number of emitters as a list.
 
         Args:
-            n_max: maximum number of emitters (should be multitude of what you draw on average)
+            n_max: maximum number of emitters (should be multitude of what you draw
+                on average)
             xextent: extent of the emitters in x
             yextent: extent of the emitters in y
             ix_low: lower frame index
@@ -358,14 +349,6 @@ class ParameterListTarget(TargetGenerator):
             xextent=xextent, yextent=yextent, xy_unit=xy_unit
         )
 
-    def _filter_forward(
-        self, em: EmitterSet, ix_low: (int, None), ix_high: (int, None)
-    ):
-        em, ix_low, ix_high = super()._filter_forward(em, ix_low, ix_high)
-        em = self._fov_filter.forward(em)
-
-        return em, ix_low, ix_high
-
     def forward(
         self,
         em: EmitterSet,
@@ -373,11 +356,17 @@ class ParameterListTarget(TargetGenerator):
         ix_low: int = None,
         ix_high: int = None,
     ):
-        em, ix_low, ix_high = self._filter_forward(em, ix_low, ix_high)
+        ix_low = ix_low if None else None
+        # frame filter
+        em = em.get_subset_frame(ix_low, ix_high, -ix_low)
+
+        # fov filter
+
 
         n_frames = ix_high - ix_low + 1
 
-        """Setup and compute parameter target (i.e. a matrix / tensor in which all params are concatenated)."""
+        # setup and compute parameter target (i.e. a matrix / tensor in which all params are
+        # concatenated)
         param_tar = torch.zeros((n_frames, self.n_max, 4))
         mask_tar = torch.zeros((n_frames, self.n_max)).bool()
 
@@ -388,9 +377,9 @@ class ParameterListTarget(TargetGenerator):
         else:
             raise NotImplementedError
 
-        """Set number of active elements per frame"""
+        # set number of active elements per frame
         for i in range(n_frames):
-            n_emitter = len(em.get_subset_frame(i, i))
+            n_emitter = len(em.iframe[i])
 
             if n_emitter > self.n_max:
                 raise ValueError(
