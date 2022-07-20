@@ -349,6 +349,9 @@ class ParameterListTarget(TargetGenerator):
             xextent=xextent, yextent=yextent, xy_unit=xy_unit
         )
 
+        if xy_unit not in {"px", "nm"}:
+            raise NotImplementedError
+
     def forward(
         self,
         em: EmitterSet,
@@ -356,26 +359,21 @@ class ParameterListTarget(TargetGenerator):
         ix_low: int = None,
         ix_high: int = None,
     ):
-        ix_low = ix_low if None else None
-        # frame filter
+        ix_low = ix_low if ix_low is not None else self.ix_low
+        ix_high = ix_high if ix_high is not None else self.ix_high
+
+        # frame filter and shift ix to 0
         em = em.get_subset_frame(ix_low, ix_high, -ix_low)
 
         # fov filter
+        em = self._fov_filter.forward(em)
 
-
-        n_frames = ix_high - ix_low + 1
+        n_frames = ix_high - ix_low
 
         # setup and compute parameter target (i.e. a matrix / tensor in which all params are
         # concatenated)
-        param_tar = torch.zeros((n_frames, self.n_max, 4))
-        mask_tar = torch.zeros((n_frames, self.n_max)).bool()
-
-        if self.xy_unit == "px":
-            xyz = em.xyz_px
-        elif self.xy_unit == "nm":
-            xyz = em.xyz_nm
-        else:
-            raise NotImplementedError
+        tar = torch.ones((n_frames, self.n_max, 4)) * float("nan")
+        mask = torch.zeros((n_frames, self.n_max), dtype=torch.bool)
 
         # set number of active elements per frame
         for i in range(n_frames):
@@ -386,17 +384,17 @@ class ParameterListTarget(TargetGenerator):
                     "Number of actual emitters exceeds number of max. emitters."
                 )
 
-            mask_tar[i, :n_emitter] = 1
+            mask[i, :n_emitter] = 1
 
-            ix = em.frame_ix == i
-            param_tar[i, :n_emitter, 0] = em[ix].phot
-            param_tar[i, :n_emitter, 1:] = xyz[ix]
+            em_onframe = em.iframe[i]
+            tar[i, :n_emitter, 0] = em_onframe.phot
+            tar[i, :n_emitter, 1:] = em_onframe.xyz_px \
+                if self.xy_unit == "px" else em_onframe.xyz_nm
 
-        return (
-            self._postprocess_output(param_tar),
-            self._postprocess_output(mask_tar),
-            bg,
-        )
+        tar = self._postprocess_output(tar)
+        mask = self._postprocess_output(mask)
+
+        return tar, mask, bg
 
 
 class DisableAttributes:

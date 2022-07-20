@@ -1,13 +1,15 @@
+import numpy as np
 import pytest
 import torch
 
-import decode
+
 import decode.simulation.psf_kernel as psf_kernel
 from decode.emitter.emitter import EmitterSet, factory
 from decode.generic import test_utils as tutil
 from decode.neuralfitter import target_generator
 
 
+# ToDo: Deprecate this complicated style test
 class TestTargetGenerator:
     @pytest.fixture()
     def targ(self):
@@ -301,63 +303,37 @@ class Test4FoldTarget(TestTargetGenerator):
             ).all()
 
 
-def test_param_list_shape():
-    t = target_generator.ParameterListTarget(
-        n_max=42,
-        xextent=(-0.5, 31.5),
-        yextent=(-0.5, 43.5),
-        ix_low=5,
-        ix_high=9,
-    )
-
-    tar_out = t.forward(decode.factory(10), torch.rand(4, 32, 44))
-
-
-class TestParameterListTarget(TestTargetGenerator):
-    @pytest.fixture()
-    def targ(self):
-        return target_generator.ParameterListTarget(
+def test_paramlist_tar():
+    tar = target_generator.ParameterListTarget(
             n_max=100,
             xextent=(-0.5, 63.5),
             yextent=(-0.5, 63.5),
             xy_unit="px",
             ix_low=0,
-            ix_high=1,
+            ix_high=3,
         )
 
-    @pytest.fixture()
-    def fem(self):
-        return EmitterSet(
-            xyz=torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
-            phot=torch.Tensor([3.0, 2.0]),
-            frame_ix=torch.tensor([0, 1]),
-            xy_unit="px",
-        )
+    em = EmitterSet(
+        xyz=[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        phot=[3.0, 2.0],
+        frame_ix=[0, 2],
+        xy_unit="px",
+    )
 
-    def test_default_range(self):
-        return
+    tar, mask, bg = tar.forward(em)
 
-    def test_shape(self, targ, fem):
+    assert tar.size() == torch.Size([3, 100, 4])
+    assert mask.size() == torch.Size([3, 100])
+    assert mask.dtype == torch.bool
+    assert mask.sum() == len(em)
 
-        n_frames_tar = fem.frame_ix.unique().size(0)
+    # check the emitters manually
+    np.testing.assert_array_equal(tar[0, 0, 0], em[0].phot)
+    np.testing.assert_array_equal(tar[0, 0, 1:], em[0].xyz.squeeze())
+    np.testing.assert_array_equal(tar[2, 0, 0], em[1].phot)
+    np.testing.assert_array_equal(tar[2, 0, 1:], em[1].xyz.squeeze())
 
-        param_tar, activation_tar, bg = targ.forward(fem)
-
-        """Test"""
-        assert param_tar.size() == torch.Size(
-            (n_frames_tar, targ.n_max, 4)
-        ), "Wrong size of param target."
-        assert activation_tar.size() == torch.Size(
-            (n_frames_tar, targ.n_max)
-        ), "Wrong size of activation target."
-
-    def test_forward(self, targ, fem):
-        param_tar, activation_tar, bg = targ.forward(fem)
-
-        assert (activation_tar == 1).sum() == len(fem), "Number of activations wrong."
-        assert activation_tar[:1, 0] == 1
-        assert torch.isnan(activation_tar[2:]).all()
-
-        assert (param_tar[[0, 1], 0, 0] == fem.phot).all()
-        assert (param_tar[[0, 1], 0, 1:] == fem.xyz_px).all()
-        assert (param_tar[2:] == 0.0).all()
+    # check that everything but the filled out emitters are nan
+    assert torch.isnan(tar[0, 1:]).all()
+    assert torch.isnan(tar[1]).all()
+    assert torch.isnan(tar[2, 1:]).all()
