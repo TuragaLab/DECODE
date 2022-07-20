@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Union, Optional
+from typing import Any, Callable, Union, Optional
 
 import torch
 
 import decode.emitter.process
 from decode.evaluation import predict_dist
 from decode.simulation.psf_kernel import DeltaPSF
+from .utils import processing
 from ..emitter.emitter import EmitterSet
 from ..emitter.process import RemoveOutOfFOV
 
@@ -14,8 +15,8 @@ class TargetGenerator(ABC):
     def __init__(
         self,
         xy_unit="px",
-        ix_low: int = None,
-        ix_high: int = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
         squeeze_batch_dim: bool = False,
     ):
         """
@@ -85,8 +86,8 @@ class TargetGenerator(ABC):
         self,
         em: EmitterSet,
         bg: torch.Tensor = None,
-        ix_low: int = None,
-        ix_high: int = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
     ) -> torch.Tensor:
         """
         Forward calculate target as by the emitters and background. Overwrite the default frame ix boundaries.
@@ -102,6 +103,74 @@ class TargetGenerator(ABC):
 
         """
         raise NotImplementedError
+
+
+class TargetGeneratorChain(TargetGenerator):
+    def __init__(self, components: list[TargetGenerator, Any, ...]):
+        """
+        Chain target generators togehter to create a new target generator. The first
+        component strictly has to be an instance TargetGenerator, the subsequent
+        elements can be `Any` but in their forward must accept the output of the
+        previous component.
+
+        Args:
+            components:
+        """
+        super().__init__()
+
+        self._components = components
+        self._chainer = processing.TransformSequence(components[1:])
+
+    def forward(
+        self,
+        em: EmitterSet,
+        bg: torch.Tensor = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
+    ) -> torch.Tensor:
+
+        out = self._components[0].forward(em, bg, ix_low, ix_high)
+        return self._chainer.forward(out)
+
+
+class TargetGeneratorFork(TargetGenerator):
+    def __init__(self, components: list[TargetGenerator, ...]):
+        """
+        Fork target generators to create a new target generator with parallel
+        independent components.
+
+        Args:
+            components:
+        """
+        super().__init__()
+
+        self._fork = processing.ParallelTransformSequence(components, input_slice=None)
+
+    def forward(
+        self,
+        em: EmitterSet,
+        bg: torch.Tensor = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
+    ) -> list:
+
+        return self._fork.forward(em, bg, ix_low, ix_high)
+
+
+class TargetGeneratorMerger(TargetGenerator):
+    def __init__(self, fn: Callable):
+        """
+        Helper to merge things after a fork.
+
+        Args:
+            fn: merge function
+        """
+        super().__init__()
+
+        self._fn = fn
+
+    def forward(self, *args: Any) -> Any:
+        return self._fn(*args)
 
 
 class UnifiedEmbeddingTarget(TargetGenerator):
@@ -289,8 +358,8 @@ class UnifiedEmbeddingTarget(TargetGenerator):
         self,
         em: EmitterSet,
         bg: torch.Tensor = None,
-        ix_low: int = None,
-        ix_high: int = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
     ) -> torch.Tensor:
         em, ix_low, ix_high = self._filter_forward(
             em, ix_low, ix_high
@@ -356,8 +425,8 @@ class ParameterListTarget(TargetGenerator):
         self,
         em: EmitterSet,
         bg: torch.Tensor = None,
-        ix_low: int = None,
-        ix_high: int = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
     ):
         ix_low = ix_low if ix_low is not None else self.ix_low
         ix_high = ix_high if ix_high is not None else self.ix_high
@@ -388,8 +457,9 @@ class ParameterListTarget(TargetGenerator):
 
             em_onframe = em.iframe[i]
             tar[i, :n_emitter, 0] = em_onframe.phot
-            tar[i, :n_emitter, 1:] = em_onframe.xyz_px \
-                if self.xy_unit == "px" else em_onframe.xyz_nm
+            tar[i, :n_emitter, 1:] = (
+                em_onframe.xyz_px if self.xy_unit == "px" else em_onframe.xyz_nm
+            )
 
         tar = self._postprocess_output(tar)
         mask = self._postprocess_output(mask)
@@ -532,8 +602,8 @@ class FourFoldEmbedding(TargetGenerator):
         self,
         em: EmitterSet,
         bg: torch.Tensor = None,
-        ix_low: int = None,
-        ix_high: int = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
     ) -> torch.Tensor:
         em, ix_low, ix_high = self._filter_forward(em, ix_low=ix_low, ix_high=ix_high)
 

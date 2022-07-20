@@ -4,7 +4,7 @@ import torch
 
 
 import decode.simulation.psf_kernel as psf_kernel
-from decode.emitter.emitter import EmitterSet, factory
+from decode.emitter import emitter
 from decode.generic import test_utils as tutil
 from decode.neuralfitter import target_generator
 
@@ -43,7 +43,7 @@ class TestTargetGenerator:
 
     @pytest.fixture()
     def fem(self):
-        return EmitterSet(
+        return emitter.EmitterSet(
             xyz=torch.tensor([[0.0, 0.0, 0.0]]),
             phot=torch.Tensor([1.0]),
             frame_ix=torch.tensor([0]),
@@ -68,7 +68,7 @@ class TestTargetGenerator:
 
     @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1)])
     @pytest.mark.parametrize(
-        "em_data", [factory(0, xy_unit="px"), factory(10, xy_unit="px")]
+        "em_data", [emitter.factory(0, xy_unit="px"), emitter.factory(10, xy_unit="px")]
     )
     def test_default_range(self, targ, ix_low, ix_high, em_data):
         targ.ix_low = ix_low
@@ -93,7 +93,7 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
 
     @pytest.fixture()
     def random_emitter(self):
-        em = factory(1000)
+        em = emitter.factory(1000)
         em.frame_ix = torch.randint_like(em.frame_ix, low=-20, high=30)
 
         return em
@@ -143,7 +143,7 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
         """Test a couple of handcrafted cases"""
 
         # one emitter outside fov the other one inside
-        em_set = factory(
+        em_set = emitter.factory(
             xyz=torch.tensor([[-50.0, 0.0, 0.0], [15.1, 19.6, 250.0]]), xy_unit="px"
         )
         em_set.phot = torch.tensor([5.0, 4.0])
@@ -169,7 +169,7 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
 
         frame_ix = torch.arange(n)
 
-        em = EmitterSet(xyz, torch.ones_like(xyz[:, 0]), frame_ix, xy_unit="px")
+        em = emitter.EmitterSet(xyz, torch.ones_like(xyz[:, 0]), frame_ix, xy_unit="px")
 
         out = targ.forward(em, None, 0, n - 1)
 
@@ -202,7 +202,7 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
         phot = torch.rand_like(xyz[:, 0])
         frame_ix = torch.arange(n)
 
-        em = EmitterSet(xyz, phot, frame_ix, xy_unit="px")
+        em = emitter.EmitterSet(xyz, phot, frame_ix, xy_unit="px")
 
         out = targ.forward(em, None, 0, n - 1)
 
@@ -249,7 +249,7 @@ class Test4FoldTarget(TestTargetGenerator):
 
     def test_forward(self, targ):
 
-        em = EmitterSet(
+        em = emitter.EmitterSet(
             xyz=torch.tensor(
                 [[0.0, 0.0, 0.0], [0.49, 0.0, 0.0], [0.0, 0.49, 0.0], [0.49, 0.49, 0.0]]
             ),
@@ -280,7 +280,7 @@ class Test4FoldTarget(TestTargetGenerator):
         else:
             xyz[:, axis] = pos_space
 
-        em = factory(xyz=xyz, xy_unit="px")
+        em = emitter.factory(xyz=xyz, xy_unit="px")
         em.frame_ix = torch.arange(pos_space.size(0)).type(em.id.dtype)
 
         tar_outs = targ.forward(em, None, 0, em.frame_ix.max().item())
@@ -303,17 +303,64 @@ class Test4FoldTarget(TestTargetGenerator):
             ).all()
 
 
+def _mock_tar_emitter_factory():
+    """
+    Produces a mock target generator that has the apropriate signature and outputs 
+    random frames of batch dim that equals the emitters frame span.
+    """
+    class _MockTargetGenerator:
+        @staticmethod
+        def forward(em, bg, ix_low, ix_high):
+            n_frames = em.frame_ix.max() - em.frame_ix.min() + 1
+            return torch.rand(n_frames, 32, 32)
+        
+    return _MockTargetGenerator()
+
+
+def test_tar_chain():
+    class _MockRescaler:
+        @staticmethod
+        def forward(x: torch.Tensor):
+            return x / x.max()
+
+    tar = target_generator.TargetGeneratorChain(
+        [_mock_tar_emitter_factory(), _MockRescaler()]
+    )
+
+    out = tar.forward(emitter.factory(frame_ix=[-5, 5]), None)
+
+    assert out.max() == 1.
+
+
+def test_tar_fork():
+    tar = target_generator.TargetGeneratorFork(
+        [_mock_tar_emitter_factory(), _mock_tar_emitter_factory()],
+    )
+    
+    out = tar.forward(emitter.factory(frame_ix=[-5, 5]))
+    assert len(out) == 2
+    assert out[0].size() == torch.Size([11, 32, 32])
+    assert out[1].size() == torch.Size([11, 32, 32])
+
+
+def test_tar_merge():
+    tar = target_generator.TargetGeneratorMerger(fn=lambda x, y: torch.cat([x, y]))
+    out = tar.forward(torch.rand(5, 32, 32), torch.rand(5, 32, 32))
+
+    assert out.size() == torch.Size([10, 32, 32])
+
+
 def test_paramlist_tar():
     tar = target_generator.ParameterListTarget(
-            n_max=100,
-            xextent=(-0.5, 63.5),
-            yextent=(-0.5, 63.5),
-            xy_unit="px",
-            ix_low=0,
-            ix_high=3,
-        )
+        n_max=100,
+        xextent=(-0.5, 63.5),
+        yextent=(-0.5, 63.5),
+        xy_unit="px",
+        ix_low=0,
+        ix_high=3,
+    )
 
-    em = EmitterSet(
+    em = emitter.EmitterSet(
         xyz=[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
         phot=[3.0, 2.0],
         frame_ix=[0, 2],
