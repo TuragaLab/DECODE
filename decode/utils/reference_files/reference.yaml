@@ -106,26 +106,21 @@ Simulation:
   density:  # either density xor emitter avg
   emitter_av: 20  # either density xor emitter avg
   emitter_extent:
-    - - -0.5
-      - 39.5
-    - - -0.5
-      - 39.5
-    - - -750
-      - 750
-  img_size:
-    - 40
-    - 40
-  intensity_mu_sig:  # tuple
+    x: [-0.5, 39.5]
+    y: [-0.5, 39.5]
+    z: [-750., 750.]
+  img_size: [40, 40]
+  intensity:
+    mean:  # mean intensity (i.e. photon flux)
+    std:  # intensity spread
   intensity_th:
   lifetime_avg:
   mode: acquisition
   photon_range:
   psf_extent:
-    - - -0.5
-      - 39.5
-    - - -0.5
-      - 39.5
-    -
+    x: [-0.5, 39.5]
+    y: [-0.5, 39.5]
+    z: null
   roi_size:  # if none, take the whole range of calibration
   roi_auto_center: false
   xy_unit: px
@@ -133,12 +128,7 @@ TestSet:
   mode:  simulated
   test_size: 512
   frame_extent:
-    - - -0.5
-      - 39.5
-    - - -0.5
-      - 39.5
-    - null
-  img_size:
-    - 40
-    - 40
-
+    x: [-0.5, 39.5]
+    y: [-0.5, 39.5]
+    z: null
+  img_size: [-40, 40]

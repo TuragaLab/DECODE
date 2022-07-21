@@ -16,17 +16,13 @@ Simulation:
     - 90
     - 150
   emitter_av: 25  # average number of emitters on a frame with extent as specified below
-  emitter_extent:  # specify the extent of the emitters in x,y,z on the frame. Please be careful with '-' signs
-    - - -0.5
-      - 39.5
-    - - -0.5
-      - 39.5
-    # adjust z range of emitters (as by your calibration),
-    # warning: when you go from -750, ... 750 you will have in the first row: '- - -750',
-    # second row '- 750' because the value is a tuple of tuples
-    - - -750
-      - 750
+  # specify the extent of the emitters in x,y,z where positions are randomly
+  # sampled from. This should match the valid calibration range in z
+  emitter_extent:
+    x: [-0.5, 39.5]
+    y: [-0.5, 39.5]
+    z: [-750., 750.]
   intensity_mu_sig:  # emitters brightness, mean and standard deviation
-    - 10000.0
-    - 3000.0
+    mean: 10000.0
+    std: 3000.0
   lifetime_avg: 2.0  # lifetime average of the emitters
