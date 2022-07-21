@@ -1,86 +1,15 @@
 import numpy as np
 import pytest
 import torch
+from deprecated import deprecated
 
-
-import decode.simulation.psf_kernel as psf_kernel
 from decode.emitter import emitter
 from decode.generic import test_utils as tutil
 from decode.neuralfitter import target_generator
 
 
-# ToDo: Deprecate this complicated style test
-class TestTargetGenerator:
-    @pytest.fixture()
-    def targ(self):
-        """
-        Setup dummy target generator for inheritors.
-
-        """
-
-        class DummyTarget(target_generator.TargetGenerator):
-            def __init__(self, xextent, yextent, img_shape):
-                super().__init__(ix_low=0, ix_high=0)
-                self.xextent = xextent
-                self.yextent = yextent
-                self.img_shape = img_shape
-
-                self.delta = psf_kernel.DeltaPSF(
-                    xextent=self.xextent, yextent=self.yextent, img_shape=self.img_shape
-                )
-
-            def forward(self, em, bg=None, ix_low=None, ix_high=None):
-                em, ix_low, ix_high = self._filter_forward(em, ix_low, ix_high)
-
-                return self.delta.forward(
-                    em.xyz, em.phot, None, ix_low, ix_high
-                ).unsqueeze(1)
-
-        xextent = (-0.5, 63.5)
-        yextent = (-0.5, 63.5)
-        img_shape = (64, 64)
-        return DummyTarget(xextent, yextent, img_shape)
-
-    @pytest.fixture()
-    def fem(self):
-        return emitter.EmitterSet(
-            xyz=torch.tensor([[0.0, 0.0, 0.0]]),
-            phot=torch.Tensor([1.0]),
-            frame_ix=torch.tensor([0]),
-            xy_unit="px",
-        )
-
-    def test_shape(self, targ, fem):
-        """
-        Tests the frame_shape of the target output
-
-        Args:
-            targ:
-            fem:
-
-        """
-
-        out = targ.forward(fem)
-
-        """Tests"""
-        assert out.dim() == 4, "Wrong dimensionality."
-        assert out.size()[-2:] == torch.Size(targ.img_shape), "Wrong output shape."
-
-    @pytest.mark.parametrize("ix_low,ix_high", [(0, 0), (-1, 1)])
-    @pytest.mark.parametrize(
-        "em_data", [emitter.factory(0, xy_unit="px"), emitter.factory(10, xy_unit="px")]
-    )
-    def test_default_range(self, targ, ix_low, ix_high, em_data):
-        targ.ix_low = ix_low
-        targ.ix_high = ix_high
-
-        out = targ.forward(em_data)
-
-        """Assertions"""
-        assert out.size(0) == ix_high - ix_low + 1
-
-
-class TestUnifiedEmbeddingTarget(TestTargetGenerator):
+@deprecated(version="0.12.0", reason="Remove complicated style test.")
+class TestUnifiedEmbeddingTarget:
     @pytest.fixture()
     def targ(self):
         xextent = (-0.5, 63.5)
@@ -93,10 +22,9 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
 
     @pytest.fixture()
     def random_emitter(self):
-        em = emitter.factory(1000)
-        em.frame_ix = torch.randint_like(em.frame_ix, low=-20, high=30)
-
-        return em
+        return emitter.factory(
+            frame_ix=torch.randint(low=-20, high=30, size=(1000,)), xy_unit="px"
+        )
 
     def test_central_px(self, targ, random_emitter):
         """
@@ -221,99 +149,18 @@ class TestUnifiedEmbeddingTarget(TestTargetGenerator):
                     )  # would only fail if either x or y are exactly % 1 == 0
 
 
-class Test4FoldTarget(TestTargetGenerator):
-    @pytest.fixture()
-    def targ(self):
-        xextent = (-0.5, 63.5)
-        yextent = (-0.5, 63.5)
-        img_shape = (64, 64)
-
-        return target_generator.FourFoldEmbedding(
-            xextent=xextent,
-            yextent=yextent,
-            img_shape=img_shape,
-            rim_size=0.125,
-            roi_size=3,
-            ix_low=0,
-            ix_high=5,
-        )
-
-    def test_filter_rim(self, targ):
-
-        xy = torch.tensor([[0.1, 0.9], [45.2, 47.8], [0.13, 0.9]]) - 0.5
-        ix_tar = torch.tensor([0, 1, 0]).bool()
-
-        ix_out = targ._filter_rim(xy, (-0.5, -0.5), 0.125, (1.0, 1.0))
-
-        assert (ix_out == ix_tar).all()
-
-    def test_forward(self, targ):
-
-        em = emitter.EmitterSet(
-            xyz=torch.tensor(
-                [[0.0, 0.0, 0.0], [0.49, 0.0, 0.0], [0.0, 0.49, 0.0], [0.49, 0.49, 0.0]]
-            ),
-            phot=torch.ones(4),
-            frame_ix=torch.tensor([0, 1, 2, 3]),
-            xy_unit="px",
-        )
-
-        tar_out = targ.forward(em, None)
-
-        assert tar_out.size() == torch.Size([6, 20, 64, 64])
-        # Negative samples
-        assert tar_out[1, 0, 0, 0] == 0.0
-        # Positive Samples
-        assert (
-            tar_out[[0, 1, 2, 3], [0, 5, 10, 15], 0, 0]
-            == torch.tensor([1.0, 1.0, 1.0, 1.0])
-        ).all()
-
-    @pytest.mark.parametrize("axis", [0, 1, "diag"])
-    def test_forward_systematic(self, targ, axis):
-
-        pos_space = torch.linspace(-1, 1, 1001)
-        xyz = torch.zeros((pos_space.size(0), 3))
-        if axis == "diag":
-            xyz[:, 0] = pos_space
-            xyz[:, 1] = pos_space
-        else:
-            xyz[:, axis] = pos_space
-
-        em = emitter.factory(xyz=xyz, xy_unit="px")
-        em.frame_ix = torch.arange(pos_space.size(0)).type(em.id.dtype)
-
-        tar_outs = targ.forward(em, None, 0, em.frame_ix.max().item())
-
-        assert (
-            tar_outs[:, 0, 0, 0] == (pos_space >= -0.375) * (pos_space < 0.375)
-        ).all(), "Central Pixel wrong."
-
-        if axis == 0:
-            assert (
-                tar_outs[:, 5, 0, 0] == (pos_space >= 0.125) * (pos_space < 0.875)
-            ).all()
-        elif axis == 1:
-            assert (
-                tar_outs[:, 10, 0, 0] == (pos_space >= 0.125) * (pos_space < 0.875)
-            ).all()
-        elif axis == "diag":
-            assert (
-                tar_outs[:, 15, 0, 0] == (pos_space >= 0.125) * (pos_space < 0.875)
-            ).all()
-
-
 def _mock_tar_emitter_factory():
     """
-    Produces a mock target generator that has the apropriate signature and outputs 
+    Produces a mock target generator that has the apropriate signature and outputs
     random frames of batch dim that equals the emitters frame span.
     """
+
     class _MockTargetGenerator:
         @staticmethod
         def forward(em, bg, ix_low, ix_high):
             n_frames = em.frame_ix.max() - em.frame_ix.min() + 1
             return torch.rand(n_frames, 32, 32)
-        
+
     return _MockTargetGenerator()
 
 
@@ -329,7 +176,7 @@ def test_tar_chain():
 
     out = tar.forward(emitter.factory(frame_ix=[-5, 5]), None)
 
-    assert out.max() == 1.
+    assert out.max() == 1.0
 
 
 @pytest.mark.parametrize("merge", [None, torch.cat])
@@ -341,7 +188,7 @@ def test_tar_fork(merge):
         [_mock_tar_emitter_factory(), _mock_tar_emitter_factory()],
         merger=merge,
     )
-    
+
     out = tar.forward(emitter.factory(frame_ix=[-5, 5]))
 
     if merge is None:
