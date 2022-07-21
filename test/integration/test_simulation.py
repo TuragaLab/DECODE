@@ -3,6 +3,7 @@ import torch
 from decode import emitter
 from decode import simulation
 from decode import neuralfitter
+from decode.neuralfitter import target_generator
 
 
 def test_simulation():
@@ -39,9 +40,9 @@ def test_simulation():
 
 
 def test_target():
-    tar_em_filter = emitter.process.EmitterFilterGeneric(phot=lambda p: p > 100)
+    from unittest import mock
 
-    tar = neuralfitter.utils.processing.TransformSequence(
+    lane_emitter = target_generator.TargetGeneratorChain(
         [
             neuralfitter.target_generator.ParameterListTarget(
                 n_max=100,
@@ -58,6 +59,15 @@ def test_target():
             ),
         ]
     )
+    lane_bg = mock.MagicMock()
+    lane_bg.forward = lambda x, y, _0, _1: y
 
-    em = emitter.factory(10, xy_unit="px")
-    frames = tar.forward(em)
+    tar = target_generator.TargetGeneratorFork(
+        components=[lane_emitter._components[0], lane_bg],
+        merger=None,
+    )
+
+    em = emitter.factory(frame_ix=[-6, -5, 10], phot=torch.rand(3) * 1000, xy_unit="px")
+    bg = torch.rand(10, 64, 64)
+
+    (tar_em, tar_em_mask), tar_bg = tar.forward(em, bg)
