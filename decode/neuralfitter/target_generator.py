@@ -119,7 +119,11 @@ class TargetGeneratorChain(TargetGenerator):
         super().__init__()
 
         self._components = components
-        self._chainer = processing.TransformSequence(components[1:])
+        self._chainer = (
+            processing.TransformSequence(components[1:])
+            if len(components) >= 2
+            else None
+        )
 
     def forward(
         self,
@@ -130,21 +134,31 @@ class TargetGeneratorChain(TargetGenerator):
     ) -> torch.Tensor:
 
         out = self._components[0].forward(em, bg, ix_low, ix_high)
-        return self._chainer.forward(out)
+        if self._chainer is not None:
+            out = self._chainer.forward(out)
+        return out
 
 
 class TargetGeneratorFork(TargetGenerator):
-    def __init__(self, components: list[TargetGenerator, ...]):
+    def __init__(
+        self,
+        components: list[TargetGenerator, ...],
+        merger: Optional["TargetGeneratorMerger"] = None,
+    ):
         """
         Fork target generators to create a new target generator with parallel
         independent components.
 
         Args:
             components:
+            merger:
         """
         super().__init__()
 
-        self._fork = processing.ParallelTransformSequence(components, input_slice=None)
+        merger = merger.forward if merger is not None else None
+        self._fork = processing.ParallelTransformSequence(
+            components, input_slice=None, merger=merger
+        )
 
     def forward(
         self,
@@ -464,7 +478,7 @@ class ParameterListTarget(TargetGenerator):
         tar = self._postprocess_output(tar)
         mask = self._postprocess_output(mask)
 
-        return tar, mask, bg
+        return tar, mask
 
 
 class DisableAttributes:

@@ -332,15 +332,24 @@ def test_tar_chain():
     assert out.max() == 1.
 
 
-def test_tar_fork():
+@pytest.mark.parametrize("merge", [None, torch.cat])
+def test_tar_fork(merge):
+    if merge is not None:
+        merge = target_generator.TargetGeneratorMerger(fn=merge)
+
     tar = target_generator.TargetGeneratorFork(
         [_mock_tar_emitter_factory(), _mock_tar_emitter_factory()],
+        merger=merge,
     )
     
     out = tar.forward(emitter.factory(frame_ix=[-5, 5]))
-    assert len(out) == 2
-    assert out[0].size() == torch.Size([11, 32, 32])
-    assert out[1].size() == torch.Size([11, 32, 32])
+
+    if merge is None:
+        assert len(out) == 2
+        assert out[0].size() == torch.Size([11, 32, 32])
+        assert out[1].size() == torch.Size([11, 32, 32])
+    else:
+        assert out.size() == torch.Size([22, 32, 32])
 
 
 def test_tar_merge():
@@ -367,7 +376,7 @@ def test_paramlist_tar():
         xy_unit="px",
     )
 
-    tar, mask, bg = tar.forward(em)
+    tar, mask = tar.forward(em)
 
     assert tar.size() == torch.Size([3, 100, 4])
     assert mask.size() == torch.Size([3, 100])
