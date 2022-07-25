@@ -2,10 +2,124 @@ import numpy as np
 import pytest
 import torch
 from deprecated import deprecated
+from unittest import mock
 
 from decode.emitter import emitter
 from decode.generic import test_utils as tutil
 from decode.neuralfitter import target_generator
+
+
+def _mock_tar_emitter_factory():
+    """
+    Produces a mock target generator that has the apropriate signature and outputs
+    random frames of batch dim that equals the emitters frame span.
+    """
+
+    class _MockTargetGenerator:
+        @staticmethod
+        def forward(em, bg, ix_low, ix_high):
+            n_frames = em.frame_ix.max() - em.frame_ix.min() + 1
+            return torch.rand(n_frames, 32, 32)
+
+    return _MockTargetGenerator()
+
+
+def test_tar_chain():
+    class _MockRescaler:
+        @staticmethod
+        def forward(x: torch.Tensor):
+            return x / x.max()
+
+    tar = target_generator.TargetGeneratorChain(
+        [_mock_tar_emitter_factory(), _MockRescaler()]
+    )
+
+    out = tar.forward(emitter.factory(frame_ix=[-5, 5]), None)
+
+    assert out.max() == 1.0
+
+
+@pytest.mark.parametrize("merge", [None, torch.cat])
+def test_tar_fork(merge):
+    if merge is not None:
+        merge = target_generator.TargetGeneratorMerger(fn=merge)
+
+    tar = target_generator.TargetGeneratorFork(
+        [_mock_tar_emitter_factory(), _mock_tar_emitter_factory()],
+        merger=merge,
+    )
+
+    out = tar.forward(emitter.factory(frame_ix=[-5, 5]))
+
+    if merge is None:
+        assert len(out) == 2
+        assert out[0].size() == torch.Size([11, 32, 32])
+        assert out[1].size() == torch.Size([11, 32, 32])
+    else:
+        assert out.size() == torch.Size([22, 32, 32])
+
+
+def test_tar_merge():
+    tar = target_generator.TargetGeneratorMerger(fn=lambda x, y: torch.cat([x, y]))
+    out = tar.forward(torch.rand(5, 32, 32), torch.rand(5, 32, 32))
+
+    assert out.size() == torch.Size([10, 32, 32])
+
+
+@pytest.mark.parametrize("attr", [[], ["em"], ["bg"], ["em", "bg"]])
+def test_tar_forwarder(attr):
+    tar = target_generator.TargetGeneratorForwarder(attr)
+
+    em = mock.MagicMock()
+    bg = mock.MagicMock()
+
+    out = tar.forward(em, bg)
+
+    if len(attr) == 0:
+        assert out is None
+    elif len(attr) != 1:
+        assert len(out) == len(attr)
+    else:
+        if "em" in attr:
+            assert out is em
+        if "bg" in attr:
+            assert out is bg
+
+
+def test_paramlist_tar():
+    tar = target_generator.ParameterListTarget(
+        n_max=100,
+        xextent=(-0.5, 63.5),
+        yextent=(-0.5, 63.5),
+        xy_unit="px",
+        ix_low=0,
+        ix_high=3,
+    )
+
+    em = emitter.EmitterSet(
+        xyz=[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        phot=[3.0, 2.0],
+        frame_ix=[0, 2],
+        xy_unit="px",
+    )
+
+    tar, mask = tar.forward(em)
+
+    assert tar.size() == torch.Size([3, 100, 4])
+    assert mask.size() == torch.Size([3, 100])
+    assert mask.dtype == torch.bool
+    assert mask.sum() == len(em)
+
+    # check the emitters manually
+    np.testing.assert_array_equal(tar[0, 0, 0], em[0].phot)
+    np.testing.assert_array_equal(tar[0, 0, 1:], em[0].xyz.squeeze())
+    np.testing.assert_array_equal(tar[2, 0, 0], em[1].phot)
+    np.testing.assert_array_equal(tar[2, 0, 1:], em[1].xyz.squeeze())
+
+    # check that everything but the filled out emitters are nan
+    assert torch.isnan(tar[0, 1:]).all()
+    assert torch.isnan(tar[1]).all()
+    assert torch.isnan(tar[2, 1:]).all()
 
 
 @deprecated(version="0.12.0", reason="Remove complicated style test.")
@@ -147,96 +261,3 @@ class TestUnifiedEmbeddingTarget:
                     assert (
                         out[ix_n, 2, ix_x, ix_y] != 0
                     )  # would only fail if either x or y are exactly % 1 == 0
-
-
-def _mock_tar_emitter_factory():
-    """
-    Produces a mock target generator that has the apropriate signature and outputs
-    random frames of batch dim that equals the emitters frame span.
-    """
-
-    class _MockTargetGenerator:
-        @staticmethod
-        def forward(em, bg, ix_low, ix_high):
-            n_frames = em.frame_ix.max() - em.frame_ix.min() + 1
-            return torch.rand(n_frames, 32, 32)
-
-    return _MockTargetGenerator()
-
-
-def test_tar_chain():
-    class _MockRescaler:
-        @staticmethod
-        def forward(x: torch.Tensor):
-            return x / x.max()
-
-    tar = target_generator.TargetGeneratorChain(
-        [_mock_tar_emitter_factory(), _MockRescaler()]
-    )
-
-    out = tar.forward(emitter.factory(frame_ix=[-5, 5]), None)
-
-    assert out.max() == 1.0
-
-
-@pytest.mark.parametrize("merge", [None, torch.cat])
-def test_tar_fork(merge):
-    if merge is not None:
-        merge = target_generator.TargetGeneratorMerger(fn=merge)
-
-    tar = target_generator.TargetGeneratorFork(
-        [_mock_tar_emitter_factory(), _mock_tar_emitter_factory()],
-        merger=merge,
-    )
-
-    out = tar.forward(emitter.factory(frame_ix=[-5, 5]))
-
-    if merge is None:
-        assert len(out) == 2
-        assert out[0].size() == torch.Size([11, 32, 32])
-        assert out[1].size() == torch.Size([11, 32, 32])
-    else:
-        assert out.size() == torch.Size([22, 32, 32])
-
-
-def test_tar_merge():
-    tar = target_generator.TargetGeneratorMerger(fn=lambda x, y: torch.cat([x, y]))
-    out = tar.forward(torch.rand(5, 32, 32), torch.rand(5, 32, 32))
-
-    assert out.size() == torch.Size([10, 32, 32])
-
-
-def test_paramlist_tar():
-    tar = target_generator.ParameterListTarget(
-        n_max=100,
-        xextent=(-0.5, 63.5),
-        yextent=(-0.5, 63.5),
-        xy_unit="px",
-        ix_low=0,
-        ix_high=3,
-    )
-
-    em = emitter.EmitterSet(
-        xyz=[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
-        phot=[3.0, 2.0],
-        frame_ix=[0, 2],
-        xy_unit="px",
-    )
-
-    tar, mask = tar.forward(em)
-
-    assert tar.size() == torch.Size([3, 100, 4])
-    assert mask.size() == torch.Size([3, 100])
-    assert mask.dtype == torch.bool
-    assert mask.sum() == len(em)
-
-    # check the emitters manually
-    np.testing.assert_array_equal(tar[0, 0, 0], em[0].phot)
-    np.testing.assert_array_equal(tar[0, 0, 1:], em[0].xyz.squeeze())
-    np.testing.assert_array_equal(tar[2, 0, 0], em[1].phot)
-    np.testing.assert_array_equal(tar[2, 0, 1:], em[1].xyz.squeeze())
-
-    # check that everything but the filled out emitters are nan
-    assert torch.isnan(tar[0, 1:]).all()
-    assert torch.isnan(tar[1]).all()
-    assert torch.isnan(tar[2, 1:]).all()

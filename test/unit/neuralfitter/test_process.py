@@ -38,3 +38,34 @@ def test_ix_window(ix, window, ix_expct):
 
     s = process.IxWindow(window, 100)
     np.testing.assert_array_equal(s(ix), ix_expct)
+
+
+def test_process_supervised_input():
+    pre = mock.MagicMock()
+    p = process.ProcessingSupervised(pre_input=pre)
+
+    p.input(mock.MagicMock(), mock.MagicMock(), mock.MagicMock())
+
+    pre.forward.assert_called_once()
+
+
+def test_process_supervised_tar():
+    pre = mock.MagicMock()
+    tar = mock.MagicMock()
+
+    p = process.ProcessingSupervised(pre_tar=pre, tar=tar)
+    p.tar(mock.MagicMock(), mock.MagicMock())
+
+    tar.forward.assert_called_once()
+    pre.forward.assert_called_once()
+
+
+def test_process_supervised_post():
+    post_model = mock.MagicMock()
+    post = mock.MagicMock()
+
+    p = process.ProcessingSupervised(post_model=post_model, post=post)
+
+    p.post(mock.MagicMock())
+    post.forward.assert_called_once()
+    post_model.forward.assert_called_once()

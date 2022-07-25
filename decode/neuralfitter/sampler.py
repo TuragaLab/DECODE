@@ -84,7 +84,7 @@ class SamplerSupervised(Sampler):
     @property
     def input(self) -> _SlicerDelayed:
         return _SlicerDelayed(
-            self._proc.input, frame=self.frame, em=self.emitter.iframe, bg=self.bg
+            self._proc.input, frame=self.frame, em=self.emitter.iframe, aux=self.bg
         )
 
     @property
@@ -93,7 +93,7 @@ class SamplerSupervised(Sampler):
         Returns a delayed target, i.e. the compute graph is attached, the actual
         computation happens when the elements are accessed via slicing (`__getitem__`).
         """
-        return _SlicerDelayed(self._proc.tar, em=self.emitter.iframe, bg=self.bg)
+        return _SlicerDelayed(self._proc.tar, em=self.emitter.iframe, aux=self.bg)
 
     def __len__(self) -> int:
         return len(self.frame)

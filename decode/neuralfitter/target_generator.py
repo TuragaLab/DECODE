@@ -186,6 +186,38 @@ class TargetGeneratorMerger(TargetGenerator):
         return self._fn(*args)
 
 
+class TargetGeneratorForwarder(TargetGenerator):
+    _args_valid = {"em", "bg"}
+
+    def __init__(self, args: list[str]):
+        super().__init__()
+        self._args = args
+
+        if not set(args).issubset(self._args_valid):
+            raise NotImplementedError(
+                f"Argument specifiction ({args}) is not valid for " f"forwarding."
+            )
+
+    def forward(
+        self,
+        em: EmitterSet,
+        bg: torch.Tensor = None,
+        ix_low: Optional[int] = None,
+        ix_high: Optional[int] = None,
+    ) -> Union[None, EmitterSet, torch.Tensor, tuple[EmitterSet, torch.Tensor]]:
+
+        if len(self._args) == 0:
+            return
+        elif "em" in self._args and "bg" in self._args:
+            return em, bg
+        elif "em" in self._args:
+            return em
+        elif "bg" in self._args:
+            return bg
+
+        raise NotImplementedError
+
+
 class UnifiedEmbeddingTarget(TargetGenerator):
     def __init__(
         self,

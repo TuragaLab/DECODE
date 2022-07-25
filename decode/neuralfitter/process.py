@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Protocol
 
 import torch
 
@@ -78,6 +78,10 @@ class Processing:
         """
         return self._pre_input(x)
 
+    def input(self, frame: torch.Tensor, em: emitter.EmitterSet, aux: Any) -> torch.Tensor:
+        # default: frame preparation only depends on frame
+        return self._pre_input(frame)
+
     def post(self, x: Any) -> emitter.EmitterSet:
         """
         Postprocessing takes intermediate transformed model output and returns final
@@ -101,27 +105,41 @@ class Processing:
             em: set of emitters
             aux:
         """
-        pass
+        raise NotImplementedError
 
     def _pre_input(self, x: torch.Tensor) -> torch.Tensor:
         """Independent input transformation"""
-        pass
+        raise NotImplementedError
 
     def _pre_tar(self, y: Any) -> Any:
         """Independent target transformation"""
-        pass
+        raise NotImplementedError
+
+
+class _Forwardable(Protocol):
+    def forward(self, x: Any) -> Any:  ...
 
 
 class ProcessingSupervised(Processing):
     def __init__(
         self,
-        pre_input: Optional = None,
-        pre_tar: Optional = None,
-        tar: Optional = None,
-        post_model: Optional = None,
-        post: Optional = None,
+        pre_input: Optional[_Forwardable] = None,
+        pre_tar: Optional[_Forwardable] = None,
+        tar: Optional[_Forwardable] = None,
+        post_model: Optional[_Forwardable] = None,
+        post: Optional[_Forwardable] = None,
         mode: str = "train",
     ):
+        """
+
+        Args:
+            pre_input: input processing (must return model input), forward depends on frame only
+            pre_tar:
+            tar:
+            post_model:
+            post:
+            mode:
+        """
         super().__init__(mode=mode)
 
         self._pre_input_impl = pre_input
@@ -131,9 +149,11 @@ class ProcessingSupervised(Processing):
         self._post = post
 
     def tar(self, em: emitter.EmitterSet, aux: Any) -> torch.Tensor:
+        em = self._pre_tar(em)
         return self._tar.forward(em, aux)
 
     def post(self, x: torch.Tensor) -> emitter.EmitterSet:
+        x = self.post_model(x)
         return self._post.forward(x)
 
     def post_model(self, x: torch.Tensor) -> torch.Tensor:

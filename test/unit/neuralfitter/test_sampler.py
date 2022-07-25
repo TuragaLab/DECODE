@@ -34,11 +34,11 @@ def test_sampler_input_target(prop):
             _ = s.input[0]
             # make sure that iframe is used and not simple emitter indexing
             mock_slicer.assert_called_once_with(
-                proc.input, frame=frame, em=em.iframe, bg=bg
+                proc.input, frame=frame, em=em.iframe, aux=bg
             )
         elif prop == "target":
             _ = s.target[0]
-            mock_slicer.assert_called_once_with(proc.tar, em=em.iframe, bg=bg)
+            mock_slicer.assert_called_once_with(proc.tar, em=em.iframe, aux=bg)
         else:
             raise NotImplementedError
 
