@@ -332,8 +332,8 @@ class EmitterSet:
 
     def to_dict(self) -> dict:
         """
-        Returns dictionary representation of this EmitterSet so that the keys and variables correspond to what an
-        EmitterSet would be initialised.
+        Returns dictionary representation of this EmitterSet so that the keys and
+        variables correspond to what an EmitterSet would be initialised.
 
         Example:
             >>> em_dict = em.to_dict()  # any emitterset instance
@@ -404,10 +404,11 @@ class EmitterSet:
 
     def _inplace_replace(self, em):
         """
-        Inplace replacement of this self instance. Does not work for inherited methods ...
+        Inplace replacement of this self instance.
+        Does not work for inherited methods ...
+
         Args:
             em: other EmitterSet instance that should replace self
-
 
         """
         self.__init__(sanity_check=False, **em.to_dict())
@@ -560,15 +561,21 @@ class EmitterSet:
         else:
             raise StopIteration
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: Union[int, slice]):
         """
         Implements array indexing for this class.
 
         Args:
-            item: (int), or indexing
+            item:
 
         Returns:
             EmitterSet
+
+        Notes:
+            Single element access will still not change the dimensionality of the data
+            attributes, i.e. if xyz is 2 dimensional em[0] will still result in an
+            EmitterSet where xyz is 2 dimensional (contrary to xyz[0] which would be
+            reduced by one dim).
 
         """
 
@@ -693,7 +700,7 @@ class EmitterSet:
 
         return em
 
-    def _get_subset(self, ix):
+    def _get_subset(self, ix: Union[int, slice]):
         """
         Returns subset of emitterset. Implementation of __getitem__ and __next__ methods.
         Args:
@@ -702,6 +709,8 @@ class EmitterSet:
         Returns:
             (EmitterSet)
         """
+        # ToDo: Does this makes sense? This leads to always keeping a batch dim, which
+        #   is maybe not wanted?
         if isinstance(ix, int):
             ix = [ix]
 
