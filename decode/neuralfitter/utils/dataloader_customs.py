@@ -1,10 +1,11 @@
 import torch
 import torch.utils.data
-from torch._six import string_classes
+from deprecated import deprecated
 
 import decode.generic
 
 
+@deprecated(reason="Code duplication and not necessary anymore.", version="0.11.0")
 def smlm_collate(batch):
     """
     Collate for dataloader that allows for None return and EmitterSet.
