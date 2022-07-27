@@ -50,9 +50,13 @@ class IxShifter:
 
 
 class DatasetSMLM(torch.utils.data.Dataset):
-
-    def __init__(self, *, sampler: sampler.Sampler, frame_window: int, ix_mod: IxShifter,
-                 validate: bool = True):
+    def __init__(
+        self,
+        *,
+        sampler: sampler.Sampler,
+        frame_window: int,
+        ix_mod: IxShifter,
+    ):
         """
         SMLM dataset.
 

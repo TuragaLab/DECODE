@@ -140,7 +140,7 @@ def test_processor(samplers, microscope, processor):
 
     frames = microscope.forward(em, bg)
 
-    _ = processor.input(frames)
+    _ = processor.input(frames, em, bg)
     _ = processor.tar(em, bg)
     _ = processor.post(torch.rand(2, 10, 64, 64))
 
