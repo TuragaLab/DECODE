@@ -1,6 +1,5 @@
 import torch
 import torch.utils.data
-from torch._six import container_abcs, string_classes, int_classes
 
 import decode.generic
 
@@ -14,7 +13,6 @@ def smlm_collate(batch):
         batch
     """
     elem = batch[0]
-    # ToDo: This is super ugly, however I don't know how to overcome this, because one must break out of recursion
     # BEGIN PARTLY INSERTION of default collate
     if isinstance(elem, torch.Tensor):
         out = None
@@ -25,7 +23,7 @@ def smlm_collate(batch):
             storage = elem.storage()._new_shared(numel)
             out = elem.new(storage)
         return torch.stack(batch, 0, out=out)
-    elif isinstance(elem, container_abcs.Sequence):
+    elif isinstance(elem, (list, tuple)):
         # check to make sure that the elements in batch have consistent size
         it = iter(batch)
         elem_size = len(next(it))
