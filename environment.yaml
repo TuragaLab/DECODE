@@ -1,8 +1,6 @@
 name: decode_dev
 
 channels:
-  - turagalab/label/dev
-  - turagalab/label/rc
   - turagalab
   - pytorch
   - conda-forge
@@ -22,6 +20,7 @@ dependencies:
   - python=3.8
   - pytorch=1.7.1
   - cpuonly  # or cudatoolkit
+  - numpy=1.19
   - click
   - deprecated
   - gitpython>=3.1
@@ -40,6 +39,3 @@ dependencies:
   - tensorboard
   - tifffile>=2020.2
   - tqdm
-
-  # add kernel to jupyter
-  - ipykernel
