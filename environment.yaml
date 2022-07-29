@@ -10,16 +10,15 @@ dependencies:
   - bump2version
 
   # docs
-  - recommonmark  # markdown for sphinx
-  - sphinx
-  - sphinx-autodoc-typehints
-  - sphinx-markdown-tables
   - pydata-sphinx-theme
+  - recommonmark  # markdown for sphinx
+  - sphinx>=5,<6
+  - sphinx-autodoc-typehints
 
   # actual package
   - python=3.9
   - pytorch=1.12.0
-  - cpuonly  # or cudatoolkit
+  - cpuonly  # - cudatoolkit=11.3
   - numpy=1.19
   - click
   - deprecated
@@ -39,3 +38,7 @@ dependencies:
   - tensorboard
   - tifffile >=2021.1,<2022
   - tqdm
+
+  - pip
+  - pip:
+      - sphinx-markdown-tables==0.0.17
