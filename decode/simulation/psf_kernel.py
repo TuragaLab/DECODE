@@ -397,7 +397,7 @@ class CubicSplinePSF(PSF):
             roi_size: (None, tuple) = None,
             ref_re: (None, torch.Tensor, tuple) = None,
             roi_auto_center: bool = False,
-            device: str = "cuda:0",
+            device: str = "cpu",
             max_roi_chunk: int = 500000,
     ):
         """
