@@ -13,11 +13,10 @@ dependencies:
   - bump2version
 
   # docs
-  - recommonmark  # markdown for sphinx
-  - sphinx
-  - sphinx-autodoc-typehints
-  - sphinx-markdown-tables
   - pydata-sphinx-theme
+  - recommonmark  # markdown for sphinx
+  - sphinx>=5,<6
+  - sphinx-autodoc-typehints
 
   # actual package
   - python=3.10
@@ -50,5 +49,6 @@ dependencies:
 
   - pip
   - pip:
+      - sphinx-markdown-tables==0.0.17
       - pytorch_lightning
       - zernike
