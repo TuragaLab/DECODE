@@ -17,8 +17,8 @@ dependencies:
   - pydata-sphinx-theme
 
   # actual package
-  - python=3.8
-  - pytorch=1.7.1
+  - python=3.9
+  - pytorch=1.12.0
   - cpuonly  # or cudatoolkit
   - numpy=1.19
   - click
@@ -37,5 +37,5 @@ dependencies:
   - scikit-learn
   - spline=0.10.0
   - tensorboard
-  - tifffile>=2020.2
+  - tifffile >=2021.1,<2022
   - tqdm
