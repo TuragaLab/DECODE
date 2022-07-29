@@ -25,7 +25,7 @@ class SimpleSMLMNet(unet_param.UNet2d):
         assert ch_out in (5, 6)
         self.ch_out = ch_out
         self.mt_heads = nn.ModuleList([
-            MLTHeads(inter_features, norm=norm_head, norm_groups=norm_head_groups, padding=True, activation=activation)
+            MLTHeads(inter_features, norm=norm_head, norm_groups=norm_head_groups, padding="same", activation=activation)
             for _ in range(self.ch_out)
         ])
 
@@ -154,7 +154,7 @@ class DoubleMUnet(nn.Module):
         self.mt_heads = nn.ModuleList(
             [MLTHeads(inter_features, out_channels=1, last_kernel=1,
                       norm=norm_head, norm_groups=norm_head_groups,
-                      padding=True, activation=activation) for _ in range(self.ch_out)])
+                      padding="same", activation=activation) for _ in range(self.ch_out)])
 
         self._use_last_nl = use_last_nl
 
@@ -296,10 +296,8 @@ class MLTHeads(nn.Module):
             groups_1 = None
             groups_2 = None
 
-        padding = padding
-
         self.core = self._make_core(in_channels, groups_1, groups_2, activation, padding, self.norm)
-        self.out_conv = nn.Conv2d(in_channels, out_channels, kernel_size=last_kernel, padding=False)
+        self.out_conv = nn.Conv2d(in_channels, out_channels, kernel_size=last_kernel, padding="valid")
 
     def forward(self, x):
         o = self.core.forward(x)

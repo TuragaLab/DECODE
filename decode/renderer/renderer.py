@@ -351,10 +351,8 @@ class RendererIndividual2D(Renderer2D):
         w = int((x_hist_ext[1] - x_hist_ext[0]) // self.px_size + 1)
         h = int((y_hist_ext[1] - y_hist_ext[0]) // self.px_size + 1)
 
-        s_inds = ((xy_mus - torch.Tensor([x_hist_ext[0], y_hist_ext[0]]).to(
-            self.device)) // self.px_size).type(
-            torch.LongTensor
-        )
+        s_inds = xy_mus - torch.Tensor([x_hist_ext[0], y_hist_ext[0]], device=self.device)
+        s_inds = torch.div(s_inds, self.px_size, rounding_mode="trunc").long()
 
         if col_vec is not None:
 
