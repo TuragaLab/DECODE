@@ -7,6 +7,13 @@ bead_cal:
   hash: e58613a8794d2ee8414c97dd3fc4485fdd0fa255b9510dbd0aceb9417211701b
 
 
+bead_cal_mat73:
+  file_name: bead_cal_for_testing_mat73_3dcal.mat
+  version: 0.1
+  url: https://oc.embl.de/index.php/s/BApQPwX8NaxBRiG/download
+  hash: 1bce834eb29ded34ed5a04b7616f8a6f042ea8dba3078938f26fb0625d9741ab
+
+
 test_param:
   file_name: test_param_for_load.json
   version: 0.1
