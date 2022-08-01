@@ -164,7 +164,7 @@ class WeightedErrors:
                 out = scipy.stats.norm.fit(input_data)
                 out = torch.tensor(out)
 
-            except RuntimeError:
+            except (ValueError, RuntimeError):
                 warnings.warn("Non-Finite values encountered during fitting.")
                 out = float('nan') * torch.ones(2)
 
