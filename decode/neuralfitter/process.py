@@ -28,6 +28,11 @@ class IxWindow:
         self._n = n
 
     def __call__(self, ix: int) -> list[int]:
+        if ix < 0:
+            raise NotImplementedError("Negative indexing not supported.")
+        if self._n is not None and ix >= self._n:
+            raise IndexError("index out of range.")
+
         hw = (self._win - 1) // 2  # half window without centre
         ix = torch.arange(ix - hw, ix + hw + 1).clamp(0)
 
@@ -35,6 +40,17 @@ class IxWindow:
             ix = ix.clamp(max=self._n - 1)
 
         return ix.tolist()
+
+    def attach(self, x: Any):
+        class _WrappedSliceable:
+            def __init__(self, obj):
+                self._obj = obj
+
+            def __getitem__(self_inner, item: int):
+                return self_inner._obj[self(item)]
+
+        self._n = len(x)
+        return _WrappedSliceable(x)
 
 
 class Processing:

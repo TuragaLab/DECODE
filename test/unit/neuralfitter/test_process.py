@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import torch
 from unittest import mock
+from contextlib import nullcontext
 
 from decode.neuralfitter import process
 
@@ -31,13 +32,28 @@ def test_pre(mode):
         (0, 5, [0, 0, 0, 1, 2]),
         (10, 3, [9, 10, 11]),
         (99, 3, [98, 99, 99]),
+        (-1, 3, NotImplementedError),
+        (100, 3, IndexError),
     ],
 )
 def test_ix_window(ix, window, ix_expct):
-    ix_expct = torch.LongTensor(ix_expct)
+    window = process.IxWindow(window, 100)
 
-    s = process.IxWindow(window, 100)
-    np.testing.assert_array_equal(s(ix), ix_expct)
+    # ToDo: Code smell
+    if isinstance(ix_expct, type) and isinstance(ix_expct(), Exception):
+        with pytest.raises(ix_expct):
+            window(ix)
+    else:
+        ix_expct = torch.LongTensor(ix_expct)
+        np.testing.assert_array_equal(window(ix), ix_expct)
+
+
+def test_ix_window_attach():
+    x = torch.rand(10, 32, 4)
+    windower = process.IxWindow(3, None)
+    x_sliced = windower.attach(x)
+
+    assert x_sliced[5].size() == torch.Size([3, 32, 4])
 
 
 def test_process_supervised_input():
