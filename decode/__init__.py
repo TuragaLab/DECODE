@@ -20,6 +20,7 @@ import decode.renderer
 import decode.simulation
 
 from . import emitter
+from . import io
 from .emitter.emitter import EmitterSet
 from .emitter.emitter import factory as emitter_factory
 
