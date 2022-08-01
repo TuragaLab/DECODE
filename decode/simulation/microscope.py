@@ -13,7 +13,7 @@ class Microscope:
     def __init__(
         self,
         psf: psf_kernel.PSF,
-        noise: noise_lib.NoiseDistribution,
+        noise: Optional[noise_lib.NoiseDistribution] = None,
         frame_range: Optional[tuple[int, int]] = None,
     ):
         """
@@ -48,10 +48,13 @@ class Microscope:
         ix_low = ix_low if ix_low is not None else self._frame_range[0]
         ix_high = ix_high if ix_high is not None else self._frame_range[1]
 
-        f = self._psf.forward(em.xyz_px, em.phot, em.frame_ix, ix_low, ix_high)
+        f = self._psf.forward(em.xyz_px, em.phot, em.frame_ix,
+                              ix_low=ix_low, ix_high=ix_high)
+
         if bg is not None:
             f += bg
-        f = self._noise.forward(f)
+        if self._noise is not None:
+            f = self._noise.forward(f)
 
         return f
 
@@ -60,7 +63,7 @@ class MicroscopeMultiChannel:
     def __init__(
         self,
         psf: list[psf_kernel.PSF],
-        noise: list[noise_lib.NoiseDistribution],
+        noise: list[Optional[noise_lib.NoiseDistribution]],
         frame_range: Optional[tuple[int, int]],
         ch_range: Optional[tuple[int, int]],
     ):
@@ -114,7 +117,7 @@ class MicroscopeMultiChannel:
 
 class MicroscopeChannelSplitter:
     def __init__(self):
-        pass
+        raise NotImplementedError
 
 
 class MicroscopeChannelModifier:

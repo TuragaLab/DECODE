@@ -2,6 +2,8 @@ import pytest
 import torch
 import numpy as np
 
+from unittest import mock
+
 from decode import emitter_factory, EmitterSet
 from decode.simulation import microscope
 from decode.simulation import noise as noise_lib
@@ -14,18 +16,25 @@ def psf():
 
 
 @pytest.fixture
-def noise():
+def noise_poisson():
     return noise_lib.Poisson()
 
 
-@pytest.mark.parametrize("bg", [None, torch.rand(32, 40)])
+@pytest.mark.parametrize("bg", [None, torch.ones(32, 40)])
+@pytest.mark.parametrize("noise", [None, mock.MagicMock()])
 def test_microscope(bg, psf, noise):
+    if noise is not None:
+        noise.forward.side_effect = lambda x: x * 1e5
+
     m = microscope.Microscope(psf, noise, frame_range=(0, 10))
-    em = emitter_factory(10, xy_unit="px")
+    em = emitter_factory(phot=torch.ones(10) * 1e5, xy_unit="px")
 
     frames = m.forward(em, bg)
 
-    assert frames.size() == torch.Size([10, 32, 40])
+    if noise is None:
+        assert frames.max() == pytest.approx(1e5, rel=0.01)
+    else:
+        assert frames.max() == pytest.approx(1e10, rel=0.01)
 
 
 def test_microscope_multi_channel():
