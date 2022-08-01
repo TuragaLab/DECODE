@@ -1,39 +1,70 @@
-import scipy.io as sio
+from pathlib import Path
+from typing import Union
+
+import mat73
+import scipy.io
 import torch
+from deprecated import deprecated
 
 from ..simulation import psf_kernel
+from ..utils import types
 
 
+def load_spline(
+    path: Union[str, Path],
+    xextent,
+    yextent,
+    img_shape,
+    **kwargs
+) -> psf_kernel.CubicSplinePSF:
+    """
+    Load spline calibration file. Currently old and new style `.mat` are supported.
+    This loader most likely expects calibration files from SMAP.
+
+    Args:
+        path: path to calibration file
+        xextent: x extent of psf
+        yextent: y extent of psf
+        img_shape: image shape
+        **kwargs: arbitrary kwargs to pass on to `CubicSplinePSF`
+
+    """
+    path = path if isinstance(path, Path) else Path(path)
+
+    try:
+        calib = scipy.io.loadmat(str(path), struct_as_record=False, squeeze_me=True)
+        calib = types.RecursiveNamespace(**calib).SXY
+        coeff = torch.from_numpy(calib.cspline.coeff)
+
+    except NotImplementedError:
+        calib = mat73.loadmat(path, use_attrdict=False)
+        calib = types.RecursiveNamespace(**calib).SXY
+        coeff = torch.from_numpy(calib.cspline.coeff[0])
+
+    ref0 = (
+        calib.cspline.x0 - 1,
+        calib.cspline.x0 - 1,
+        float(calib.cspline.z0),
+    )
+
+    dz = calib.cspline.dz
+
+    # necessary because this could be overwritten in kwargs
+    if "vx_size" not in kwargs:
+        kwargs.update({"vx_size": (1.0, 1.0, dz)})
+
+    if ref0 not in kwargs:
+        kwargs.update({"ref0": ref0})
+
+    return psf_kernel.CubicSplinePSF(
+        coeff=coeff,
+        xextent=xextent,
+        yextent=yextent,
+        img_shape=img_shape,
+        **kwargs
+    )
+
+
+@deprecated(version="0.11.0", reason="use functional interface `load_spline` instead.")
 class SMAPSplineCoefficient:
-    """Wrapper class as an interface for MATLAB Spline calibration data."""
-    def __init__(self, calib_file):
-        """
-        Loads a calibration file from SMAP and the relevant meta information
-        Args:
-            file:
-        """
-        self.calib_file = calib_file
-        self.calib_mat = sio.loadmat(self.calib_file, struct_as_record=False, squeeze_me=True)['SXY']
-
-        self.coeff = torch.from_numpy(self.calib_mat.cspline.coeff)
-        self.ref0 = (self.calib_mat.cspline.x0 - 1, self.calib_mat.cspline.x0 - 1, self.calib_mat.cspline.z0)
-        self.dz = self.calib_mat.cspline.dz
-        self.spline_roi_shape = self.coeff.shape[:3]
-
-    def init_spline(self, xextent, yextent, img_shape, device='cuda:0' if torch.cuda.is_available() else 'cpu', **kwargs):
-        """
-        Initializes the CubicSpline function
-
-        Args:
-            xextent:
-            yextent:
-            img_shape:
-            device: on which device to simulate
-
-        Returns:
-
-        """
-        psf = psf_kernel.CubicSplinePSF(xextent=xextent, yextent=yextent, img_shape=img_shape, ref0=self.ref0,
-                                        coeff=self.coeff, vx_size=(1., 1., self.dz), device=device, **kwargs)
-
-        return psf
+    pass

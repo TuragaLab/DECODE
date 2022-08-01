@@ -29,9 +29,8 @@ def setup_psf(cfg) -> simulation.psf_kernel.PSF:
     if list(cfg.Simulation.PSF.keys())[0] != "CubicSpline":
         raise NotImplementedError
 
-    psf = io.psf.SMAPSplineCoefficient(
-        calib_file=cfg.InOut.calibration_file
-    ).init_spline(
+    psf = io.psf.load_spline(
+        path=cfg.InOut.calibration_file,
         xextent=cfg.Simulation.psf_extent[0],
         yextent=cfg.Simulation.psf_extent[1],
         img_shape=cfg.Simulation.img_size,
