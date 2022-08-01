@@ -43,7 +43,7 @@ def setup_psf(cfg) -> simulation.psf_kernel.PSF:
 
 
 def setup_background(cfg) -> simulation.background.Background:
-    return simulation.background.UniformBackground(cfg.Simulation.bg_uniform)
+    return simulation.background.BackgroundUniform(cfg.Simulation.bg_uniform)
 
 
 def setup_noise(cfg) -> simulation.camera.Camera:

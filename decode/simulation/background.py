@@ -52,7 +52,7 @@ class Background(ABC):
         return size, device
 
 
-class UniformBackground(Background):
+class BackgroundUniform(Background):
     def __init__(
         self,
         bg: Union[float, tuple, Callable],

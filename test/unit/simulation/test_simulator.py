@@ -18,7 +18,7 @@ class TestSimulator:
             (request.param, request.param),
             sigma_0=1.0,
         )
-        bg = background.UniformBackground(10.0)
+        bg = background.BackgroundUniform(10.0)
         sim = simulator.Simulation(
             psf=psf, background=bg, noise=None, frame_range=(-1, 2)
         )

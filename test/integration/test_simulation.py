@@ -9,7 +9,7 @@ from decode.neuralfitter import target_generator
 
 @pytest.fixture
 def samplers() -> tuple[
-    simulation.sampler.EmitterSamplerBlinking, simulation.background.UniformBackground
+    simulation.sampler.EmitterSamplerBlinking, simulation.background.BackgroundUniform
 ]:
     struct = simulation.structures.RandomStructure(
         (-0.5, 31.5), (-0.5, 31.5), (-500.0, 500.0)
@@ -24,7 +24,7 @@ def samplers() -> tuple[
         code=color,
         xy_unit="px",
     )
-    bg = simulation.background.UniformBackground((1.0, 100.0), size=(10, 32, 32))
+    bg = simulation.background.BackgroundUniform((1.0, 100.0), size=(10, 32, 32))
 
     return em_sampler, bg
 

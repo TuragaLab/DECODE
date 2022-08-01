@@ -8,7 +8,7 @@ from decode.generic import test_utils
 
 @pytest.fixture
 def bg_uniform():
-    return background.UniformBackground((1., 100.), size=(43, 74))
+    return background.BackgroundUniform((1., 100.), size=(43, 74))
 
 
 @pytest.mark.parametrize("bg", [

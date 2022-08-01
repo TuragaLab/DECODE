@@ -69,7 +69,7 @@ class TestLiveDataset(Base):
 
     @pytest.fixture()
     def background(self):
-        return decode.simulation.background.UniformBackground((20., 100.))
+        return decode.simulation.background.BackgroundUniform((20., 100.))
 
     @pytest.fixture()
     def noise(self):
