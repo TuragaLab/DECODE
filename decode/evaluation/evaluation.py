@@ -10,7 +10,7 @@ import seaborn as sns
 import torch
 
 from decode.evaluation.metric import precision_recall_jaccard, rmse_mad_dist, efficiency
-from ..emitter.emitter import EmitterSet
+from ..emitter import EmitterSet
 
 
 @dataclass
