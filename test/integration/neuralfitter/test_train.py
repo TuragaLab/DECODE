@@ -57,9 +57,9 @@ def test_setup_noise(preset, cfg):
     noise = train.setup_noise(cfg)
     assert isinstance(noise, simulation.camera.Camera)
     if preset == "Perfect":
-        assert isinstance(noise, simulation.camera.PerfectCamera)
+        assert isinstance(noise, simulation.camera.CameraPerfect)
     else:
-        assert isinstance(noise, simulation.camera.Photon2Camera)
+        assert isinstance(noise, simulation.camera.CameraEMCCD)
 
 
 @pytest.mark.parametrize("fn", [

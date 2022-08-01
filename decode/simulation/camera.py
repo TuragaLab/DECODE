@@ -22,8 +22,7 @@ class Camera(ABC):
         raise NotImplementedError
 
 
-# ToDo: More meaningful name
-class Photon2Camera(Camera):
+class CameraEMCCD(Camera):
     def __init__(
         self,
         *,
@@ -49,7 +48,7 @@ class Photon2Camera(Camera):
             baseline: manufacturer baseline / offset
             read_sigma: readout sigma
             photon_units: convert back to photon units
-            device: device (cpu / cuda)
+            device: device
 
         """
         self.qe = qe
@@ -150,13 +149,46 @@ class Photon2Camera(Camera):
         return out
 
 
-class GammaCamera:
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # ToDo:
-        pass
+class CameraSCMOS(CameraEMCCD):
+    def __init__(
+            self,
+            *,
+            qe: float,
+            spur_noise: float,
+            e_per_adu: float,
+            baseline: float,
+            read_sigma: float,
+            photon_units: bool,
+            device: Union[str, torch.device] = None,
+    ):
+        """
+        Simulates a sCMOS camera device.
+        Inputs are the theoretical photon counts as by the psf and background model,
+        all the device specific things are modelled. The only difference to EMCCD is that
+        sCMOS does not have EM-Gain.
+
+        Args:
+            qe: quantum efficiency :math:`0 ... 1'
+            spur_noise: spurious noise
+            e_per_adu: electrons per analog digital unit
+            baseline: manufacturer baseline / offset
+            read_sigma: readout sigma
+            photon_units: convert back to photon units
+            device: device
+        """
+        super().__init__(
+            em_gain=None,
+            qe=qe,
+            spur_noise=spur_noise,
+            e_per_adu=e_per_adu,
+            baseline=baseline,
+            read_sigma=read_sigma,
+            photon_units=photon_units,
+            device=device,
+        )
 
 
-class PerfectCamera(Photon2Camera):
+class CameraPerfect(CameraEMCCD):
     def __init__(self, device: Union[str, torch.device] = None):
         """
         Convenience wrapper for perfect camera, i.e. only shot noise. By design in 'photon units'.
@@ -172,15 +204,11 @@ class PerfectCamera(Photon2Camera):
             device=device,
         )
 
-    @classmethod
-    def parse(cls, param):
-        return cls(device=param.Hardware.device_simulation)
-
 
 @deprecated(
     reason="Not yet ready implementation. Needs thorough testing and validation."
 )
-class SCMOS(Photon2Camera):
+class _SCMOS(CameraEMCCD):
     """
     Models a sCMOS camera. You need provide a pixel-wise sigma map of the readout noise of the camera.
 

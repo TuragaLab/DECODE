@@ -48,11 +48,11 @@ def setup_background(cfg) -> simulation.background.Background:
 
 def setup_noise(cfg) -> simulation.camera.Camera:
     if cfg.CameraPreset == "Perfect":
-        noise = simulation.camera.PerfectCamera(device=cfg.Hardware.device_simulation)
+        noise = simulation.camera.CameraPerfect(device=cfg.Hardware.device_simulation)
     elif cfg.CameraPreset is not None:
         raise NotImplementedError("Automatic camera chose not yet implemented.")
     else:
-        noise = simulation.camera.Photon2Camera(
+        noise = simulation.camera.CameraEMCCD(
             qe=cfg.Camera.qe,
             spur_noise=cfg.Camera.spur_noise,
             em_gain=cfg.Camera.em_gain,

@@ -73,7 +73,7 @@ class TestLiveDataset(Base):
 
     @pytest.fixture()
     def noise(self):
-        return decode.simulation.camera.Photon2Camera(
+        return decode.simulation.camera.CameraEMCCD(
             qe=0.9, spur_noise=0.02, em_gain=100., e_per_adu=45., baseline=100., read_sigma=74.4, photon_units=True,
             device='cpu')
 

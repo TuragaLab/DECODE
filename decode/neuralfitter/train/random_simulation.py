@@ -41,11 +41,11 @@ def setup_random_simulation(param):
     bg = decode.simulation.background.BackgroundUniform.parse(param)
 
     if param.CameraPreset == 'Perfect':
-        noise = decode.simulation.camera.PerfectCamera.parse(param)
+        noise = decode.simulation.camera.CameraPerfect.parse(param)
     elif param.CameraPreset is not None:
         raise NotImplementedError
     else:
-        noise = decode.simulation.camera.Photon2Camera.parse(param)
+        noise = decode.simulation.camera.CameraEMCCD.parse(param)
 
     simulation_train = decode.simulation.simulator.Simulation(psf=psf, em_sampler=prior_train, background=bg,
                                                               noise=noise, frame_range=frame_range_train)

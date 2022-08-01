@@ -55,7 +55,7 @@ if __name__ == '__main__':
                                                        mode_missing='include')
     param.Camera = decode.utils.param_io.RecursiveNamespace(**param.Camera)
 
-    camera = decode.simulation.camera.Photon2Camera.parse(param)
+    camera = decode.simulation.camera.CameraEMCCD.parse(param)
     camera.device = 'cpu'
 
     """Prepare Pre and post-processing"""
