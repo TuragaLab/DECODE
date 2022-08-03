@@ -5,7 +5,7 @@ import torch
 
 import decode.emitter.process
 from decode.simulation.psf_kernel import DeltaPSF
-from .utils import processing
+from .utils import process
 from ..emitter.emitter import EmitterSet
 from ..emitter.process import RemoveOutOfFOV
 

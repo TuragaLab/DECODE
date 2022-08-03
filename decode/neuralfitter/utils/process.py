@@ -39,20 +39,6 @@ class TransformSequence:
             if len(self._input_slice) != len(self):
                 raise ValueError("Input slices must be the same number as components")
 
-    @classmethod
-    def parse(cls, components, param: dict, **kwargs):
-        """
-        If all components implemented a parse method, you can do it globally only once
-        for the whole sequence.
-
-        Args:
-            components: component reference (unintialised) with forward method
-            param (dict): parameters which are forwarded to the constructor of the components
-            kwargs: arbitrary keyword arguments subject to this class constructor
-
-        """
-        return cls([cpt.parse(param) for cpt in components], **kwargs)
-
     def __len__(self) -> int:
         """
         Returns the number of components
@@ -130,17 +116,12 @@ class ParallelTransformSequence(TransformSequence):
             return out_cache
 
 
-def wrap_callable(func: Callable):
-    """
-    Wrapps a callable in a class to provide a forward method. This is mainly a helper to wrap arbitrary functions to
-    fit into the transform sequence as above.
+class InputMerger:
+    def __init__(self, noise: _ForwardableLast):
+        self._noise = noise
 
-    Args:
-        func:
-
-    """
-
-    return _TrafoWrapper(func=func)
+    def forward(self, frame, em, aux):
+        return self._noise.forward(frame + aux)
 
 
 T = TypeVar("T")
@@ -156,3 +137,16 @@ class _TrafoWrapper:
 
     def forward(self, *args, **kwargs) -> T:
         return self._wrapped_callable(*args, **kwargs)
+
+
+def wrap_callable(func: Callable):
+    """
+    Wrapps a callable in a class to provide a forward method. This is mainly a helper to wrap arbitrary functions to
+    fit into the transform sequence as above.
+
+    Args:
+        func:
+
+    """
+
+    return _TrafoWrapper(func=func)

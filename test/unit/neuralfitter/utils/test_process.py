@@ -1,8 +1,9 @@
+from unittest import mock
+
 import pytest
 import torch
-import unittest.mock
 
-from decode.neuralfitter.utils import processing
+from decode.neuralfitter.utils import process
 
 
 class TestTransformSequence:
@@ -22,7 +23,7 @@ class TestTransformSequence:
             def forward(self, a):
                 return a, a * 2
 
-        return processing.TransformSequence([MockCom0(), MockCom1(), MockCom2()],
+        return process.TransformSequence([MockCom0(), MockCom1(), MockCom2()],
                                             input_slice=[[0, 1], [0], [0]])
 
     def test_len(self, trafo):
@@ -50,7 +51,7 @@ class TestParallelTransformSequence(TestTransformSequence):
         def mock_combiner(out_cache):
             return torch.cat(out_cache, dim=1).squeeze(0)
 
-        return processing.ParallelTransformSequence([MockCom0(), MockCom1()],
+        return process.ParallelTransformSequence([MockCom0(), MockCom1()],
                                                     input_slice=[[0, 2], [0, 1, 2]],
                                                     merger=mock_combiner)
 
@@ -73,10 +74,10 @@ class TestWrapCallable:
         def dummy(x):
             return x.clone()
 
-        assert hasattr(processing.wrap_callable(dummy), 'forward')
+        assert hasattr(process.wrap_callable(dummy), 'forward')
 
         x = torch.rand(5, 5)
-        assert (dummy(x) == processing.wrap_callable(dummy).forward(x)).all()
+        assert (dummy(x) == process.wrap_callable(dummy).forward(x)).all()
 
     @staticmethod
     def test_pickleability():
@@ -85,8 +86,14 @@ class TestWrapCallable:
         from decode.simulation.camera import CameraEMCCD
 
         camera = CameraEMCCD(qe=1.0, spur_noise=0., em_gain=100., e_per_adu=10., baseline=100., read_sigma=25, photon_units=True, device='cpu')
-        wrapped = processing.wrap_callable(camera.backward)
+        wrapped = process.wrap_callable(camera.backward)
 
         """Tests"""
         s = pickle.dumps(wrapped)
         w = pickle.loads(s)
+
+
+def test_input_merger():
+    noise = mock.MagicMock()
+
+    process.InputMerger(noise)

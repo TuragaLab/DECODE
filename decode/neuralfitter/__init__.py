@@ -5,7 +5,7 @@ import decode.neuralfitter.loss
 import decode.neuralfitter.models
 import decode.neuralfitter.coord_transform
 import decode.neuralfitter.post_processing
-import decode.neuralfitter.utils.processing
+import decode.neuralfitter.utils.process
 import decode.neuralfitter.scale_transform
 import decode.neuralfitter.weight_generator
 import decode.neuralfitter.train_val_impl
