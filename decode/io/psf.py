@@ -1,15 +1,20 @@
 from pathlib import Path
 from typing import Union
 
-import mat73
+try:
+    import mat73
+except ImportError:
+    pass
 import scipy.io
 import torch
 from deprecated import deprecated
 
+from ..generic import deploy
 from ..simulation import psf_kernel
 from ..utils import types
 
 
+@deploy.raise_optional_deps("mat73", "mat73 not available, please use `pip install mat73`.")
 def load_spline(
     path: Union[str, Path],
     xextent,
@@ -49,7 +54,7 @@ def load_spline(
 
     dz = calib.cspline.dz
 
-    # necessary because this could be overwritten in kwargs
+    # necessary because these could be overwritten in kwargs
     if "vx_size" not in kwargs:
         kwargs.update({"vx_size": (1.0, 1.0, dz)})
 
