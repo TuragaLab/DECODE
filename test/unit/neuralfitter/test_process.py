@@ -32,6 +32,8 @@ def test_pre(mode):
         (0, 5, [0, 0, 0, 1, 2]),
         (10, 3, [9, 10, 11]),
         (99, 3, [98, 99, 99]),
+        (slice(2, 4), 3, [[1, 2, 3], [2, 3, 4]]),
+        (slice(2, 5, 2), 3, [[1, 2, 3], [3, 4, 5]]),
         (-1, 3, NotImplementedError),
         (100, 3, IndexError),
     ],
@@ -39,13 +41,21 @@ def test_pre(mode):
 def test_ix_window(ix, window, ix_expct):
     window = process.IxWindow(window, 100)
 
-    # ToDo: Code smell
     if isinstance(ix_expct, type) and isinstance(ix_expct(), Exception):
         with pytest.raises(ix_expct):
-            window(ix)
+            window._compute(ix)
     else:
         ix_expct = torch.LongTensor(ix_expct)
         np.testing.assert_array_equal(window(ix), ix_expct)
+
+
+@pytest.mark.parametrize("alias", ["__call__", "__getitem__"])
+def test_ix_window_aliases(alias):
+    w = process.IxWindow(3, None)
+
+    with mock.patch.object(w, "_compute") as mock_compute:
+        _ = getattr(w, alias)(0)
+    mock_compute.assert_called_once()
 
 
 def test_ix_window_attach():

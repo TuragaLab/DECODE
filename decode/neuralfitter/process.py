@@ -1,4 +1,4 @@
-from typing import Any, Optional, Protocol
+from typing import Any, Optional, Protocol, Union
 
 import torch
 
@@ -12,7 +12,7 @@ class IxWindow:
 
         Args:
             win: window size
-            n: data size
+            n: data size to clamp upper index values
 
         Examples:
             >>> IxWindow(3)(0)
@@ -27,7 +27,30 @@ class IxWindow:
         self._win = win
         self._n = n
 
-    def __call__(self, ix: int) -> list[int]:
+    def __call__(self, ix: Union[int, slice]) -> Union[list[int], list[list[int]]]:
+        return self._compute(ix)
+
+    def __getitem__(self, ix: Union[int, slice]) -> Union[list[int], list[list[int]]]:
+        return self._compute(ix)
+
+    def __len__(self) -> int:
+        if self._n is None:
+            raise ValueError
+
+        return self._n
+
+    def _compute(self, ix: Union[int, slice]) -> Union[list[int], list[list[int]]]:
+        if isinstance(ix, slice):
+            # for slice, recurse via ints
+            ix = list(
+                range(
+                    ix.start if ix.start is not None else 0,
+                    ix.stop if ix.stop is not None else self._n,
+                    ix.step if ix.step is not None else 1,
+                )
+            )
+            return [self._compute(i) for i in ix]
+
         if ix < 0:
             raise NotImplementedError("Negative indexing not supported.")
         if self._n is not None and ix >= self._n:
@@ -94,7 +117,9 @@ class Processing:
         """
         return self._pre_input(x)
 
-    def input(self, frame: torch.Tensor, em: emitter.EmitterSet, aux: Any) -> torch.Tensor:
+    def input(
+        self, frame: torch.Tensor, em: emitter.EmitterSet, aux: Any
+    ) -> torch.Tensor:
         # default: frame preparation only depends on frame
         return self._pre_input(frame)
 
@@ -133,7 +158,8 @@ class Processing:
 
 
 class _Forwardable(Protocol):
-    def forward(self, x: Any) -> Any:  ...
+    def forward(self, x: Any) -> Any:
+        ...
 
 
 class ProcessingSupervised(Processing):
