@@ -161,3 +161,36 @@ def test_sampler(samplers, processor, microscope):
 
     s.input[5]
     s.target[5]
+
+
+def test_sampler_training(samplers, microscope):
+    # during training we can not sample background once for all frames and simply add it,
+    # as it needs to vary for different samples but stay constant within one window
+
+    em_sampler, bg_sampler = samplers
+    em = em_sampler.sample()
+    bg = bg_sampler.sample(size=(100, 32, 32))
+
+    noise = microscope._noise
+    microscope._noise = None
+
+    # combines frame and bg and applies noise
+    class IDK:
+        def __init__(self, noise):
+            self._noise = noise
+
+        def forward(self, frame, em, aux):
+            return self._noise.forward(frame + aux)
+
+    proc = neuralfitter.process.ProcessingSupervised(shared_input=IDK(noise))
+
+    s = neuralfitter.sampler.SamplerSupervised(
+        em=em,
+        bg=bg,
+        proc=proc,
+        mic=microscope,
+        bg_mode="sample"
+    )
+    s.sample()
+
+    s.input[5]

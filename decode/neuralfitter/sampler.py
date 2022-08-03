@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, TypeVar, Protocol, Optional
+from typing import Callable, TypeVar, Protocol, Optional
 
 import torch
 
 from . import process
+from .utils import indexing
 from ..emitter import emitter
 from ..simulation import microscope
 
@@ -68,11 +69,22 @@ class SamplerSupervised(Sampler):
     def __init__(
         self,
         em: emitter.EmitterSet,
-        bg: torch.Tensor,
+        bg: Optional[torch.Tensor],
         mic: microscope.Microscope,
         proc: process.Processing,
         window: Optional[int] = 1,
+        bg_mode: Optional[str] = None,
     ):
+        """
+
+        Args:
+            em:
+            bg:
+            mic:
+            proc:
+            window:
+            bg_mode: `global` or `sample`
+        """
         super().__init__()
 
         self._em = em
@@ -80,6 +92,7 @@ class SamplerSupervised(Sampler):
         self._mic = mic
         self._proc = proc
         self._window = window
+        self._bg_mode = bg_mode
 
         self._frame = None
         self._frame_samples = None  # must be set toegther with _frame
@@ -95,7 +108,7 @@ class SamplerSupervised(Sampler):
     @frame.setter
     def frame(self, v: torch.Tensor):
         self._frame = v
-        self._frame_samples = process.IxWindow(self._window, None).attach(self._frame)
+        self._frame_samples = indexing.IxWindow(self._window, None).attach(self._frame)
 
     @property
     def frame_samples(self) -> _Sliceable:
@@ -123,4 +136,11 @@ class SamplerSupervised(Sampler):
         return len(self.frame)
 
     def sample(self):
-        self.frame = self._mic.forward(em=self._em, bg=self._bg)
+        if self._bg is None or self._bg_mode == "sample":
+            f = self._mic.forward(em=self._em, bg=None)
+        elif self._bg_mode == "global":
+            f = self._mic.forward(em=self._em, bg=self._bg)
+        else:
+            raise NotImplementedError("If bg is not None, a bg_mode needs to be specified.")
+
+        self.frame = f

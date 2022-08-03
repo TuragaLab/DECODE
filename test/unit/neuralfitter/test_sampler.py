@@ -46,6 +46,7 @@ def test_sampler_input_target(prop):
 
 
 def test_sampler_frame_samples():
+    # tests windowing
     s = sampler.SamplerSupervised(
         em=mock.MagicMock(),
         bg=mock.MagicMock(),
@@ -53,9 +54,29 @@ def test_sampler_frame_samples():
         proc=mock.MagicMock(),
         window=3,
     )
-    s._frame = torch.rand(15, 32, 32)
+    s.frame = torch.rand(15, 32, 32)
     x = s.frame_samples[5]
     assert x.size() == torch.Size([3, 32, 32])
+
+
+@pytest.mark.parametrize("bg_mode", ["global", "sample"])
+def test_sampler_input(bg_mode):
+    mic = mock.MagicMock()
+
+    # tests windowing
+    s = sampler.SamplerSupervised(
+        em=mock.MagicMock(),
+        bg=mock.MagicMock(),
+        mic=mic,
+        proc=mock.MagicMock(),
+        bg_mode=bg_mode,
+    )
+    s.sample()
+
+    if bg_mode == "global":
+        mic.forward.assert_called_once_with(em=s._em, bg=s._bg)
+    elif bg_mode == "sample":
+        mic.forward.assert_called_once_with(em=s._em, bg=None)
 
 
 def test_sampler_len():
@@ -66,8 +87,9 @@ def test_sampler_len():
         mock.MagicMock(),
     )
 
-    s._frame = mock.MagicMock()
-    s._frame.__len__.return_value = 42
+    frame = mock.MagicMock()
+    frame.__len__.return_value = 42
+    s.frame = frame
 
     assert len(s) == len(s.frame)
     assert len(s) == 42

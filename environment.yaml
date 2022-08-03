@@ -43,7 +43,7 @@ dependencies:
   - seaborn=0.10
   - scikit-image
   - scikit-learn
-  - spline>=0.10.0  # spline on apple silicon
+  - spline>=0.10.0
   - tensorboard
   - tifffile>=2020.2
   - tqdm

@@ -143,13 +143,16 @@ def wrap_callable(func: Callable):
     return _TrafoWrapper(func=func)
 
 
+T = TypeVar("T")
+
+
 class _TrafoWrapper:
-    def __init__(self, func: Callable):
+    def __init__(self, func: Callable[..., T]):
         """
         Wrapps a callable. Useful because this way they can be element of a Transform Sequence.
         Only to be used in conjunction with wrap_callable function above.
         """
         self._wrapped_callable = func
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> T:
         return self._wrapped_callable(*args, **kwargs)
