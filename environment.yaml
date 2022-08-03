@@ -22,6 +22,7 @@ dependencies:
   - python=3.10
   - pytorch=1.12.0
   - cpuonly  # - cudatoolkit=11.3
+  - pytorch-lightning
   - click
   - deprecated
   - gitpython>=3.1
@@ -49,6 +50,6 @@ dependencies:
 
   - pip
   - pip:
+      - mat73
       - sphinx-markdown-tables==0.0.17
-      - pytorch_lightning
       - zernike
