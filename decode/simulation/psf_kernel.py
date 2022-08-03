@@ -6,10 +6,14 @@ from typing import Tuple, Optional
 import numpy as np
 import spline  # cubic spline implementation
 import torch
-import zernike
+try:
+    import zernike
+except ImportError:
+    zernike = None
 
 import decode.generic.utils
 from ..generic import slicing as gutil
+from ..generic import deploy
 
 
 class PSF(ABC):
@@ -963,6 +967,7 @@ class CubicSplinePSF(PSF):
 
 
 class ZernikePSF(PSF):
+    @deploy.raise_optional_deps("zernike", "please install zernike via `pip install zernike`")
     def __init__(
             self,
             xextent,
