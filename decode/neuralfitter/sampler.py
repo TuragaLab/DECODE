@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar, Protocol, Optional
+from typing import Any, Callable, TypeVar, Protocol, Optional
 
 import torch
 
@@ -38,13 +38,26 @@ class Sampler(ABC):
         raise NotImplementedError
 
 
+T = TypeVar("T")
+
+
 class _SlicerDelayed:
-    def __init__(self, fn, *args, **kwargs):
+    def __init__(self, fn: Callable[..., T], *args, **kwargs):
+        """
+        Returns a sliceable handle and executes a function on __getitem__ where input
+        arguments are then sliced and passed on to the function. Useful for delaying
+        function executions.
+
+        Args:
+            fn:
+            *args:
+            **kwargs:
+        """
         self._args = args
         self._kwargs = kwargs
         self._fn = fn
 
-    def __getitem__(self, item) -> Any:
+    def __getitem__(self, item) -> T:
         args = [o[item] for o in self._args]
         kwargs = {k: v[item] for k, v in self._kwargs.items()}
 
@@ -58,7 +71,7 @@ class SamplerSupervised(Sampler):
         bg: torch.Tensor,
         mic: microscope.Microscope,
         proc: process.Processing,
-        delay: bool = True,
+        window: Optional[int] = 1,
     ):
         super().__init__()
 
@@ -66,8 +79,10 @@ class SamplerSupervised(Sampler):
         self._bg = bg
         self._mic = mic
         self._proc = proc
-        self._delay = delay
+        self._window = window
+
         self._frame = None
+        self._frame_samples = None  # must be set toegther with _frame
 
     @property
     def emitter(self) -> emitter.EmitterSet:
@@ -77,6 +92,15 @@ class SamplerSupervised(Sampler):
     def frame(self) -> torch.Tensor:
         return self._frame
 
+    @frame.setter
+    def frame(self, v: torch.Tensor):
+        self._frame = v
+        self._frame_samples = process.IxWindow(self._window, None).attach(self._frame)
+
+    @property
+    def frame_samples(self) -> _Sliceable:
+        return self._frame_samples
+
     @property
     def bg(self) -> torch.Tensor:
         return self._bg
@@ -84,7 +108,7 @@ class SamplerSupervised(Sampler):
     @property
     def input(self) -> _SlicerDelayed:
         return _SlicerDelayed(
-            self._proc.input, frame=self.frame, em=self.emitter.iframe, aux=self.bg
+            self._proc.input, frame=self.frame_samples, em=self.emitter.iframe, aux=self.bg
         )
 
     @property
@@ -99,4 +123,4 @@ class SamplerSupervised(Sampler):
         return len(self.frame)
 
     def sample(self):
-        self._frame = self._mic.forward(em=self._em, bg=self._bg)
+        self.frame = self._mic.forward(em=self._em, bg=self._bg)
