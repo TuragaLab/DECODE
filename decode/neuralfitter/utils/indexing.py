@@ -64,11 +64,11 @@ class IxWindow:
 
     def attach(self, x: Any):
         class _WrappedSliceable:
-            def __init__(self, obj):
-                self._obj = obj
+            def __init__(self_inner, obj):
+                self_inner._obj = obj
 
             def __getitem__(self_inner, item: int):
-                return self_inner._obj[self(item)]
+                return self_inner._obj[self._compute(item), ...]
 
         self._n = len(x)
         return _WrappedSliceable(x)

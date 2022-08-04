@@ -43,9 +43,21 @@ def test_ix_window_aliases(alias):
     mock_compute.assert_called_once()
 
 
-def test_ix_window_attach():
-    x = torch.rand(10, 32, 4)
-    windower = indexing.IxWindow(3, None)
-    x_sliced = windower.attach(x)
+@pytest.mark.parametrize(
+    "ix,window,size_expct,elements_expct",
+    [
+        # assumption: input tensor of size 10 x 1 x 1
+        (0, 1, [1, 1, 1], {0}),
+        (slice(None), 1, [10, 1, 1, 1], set(torch.arange(10).tolist())),
+        (0, 3, [3, 1, 1], {0, 1}),
+        (5, 3, [3, 1, 1], {4, 5, 6}),
+        (slice(None), 3, [10, 3, 1, 1], set(torch.arange(10).tolist())),
+    ],
+)
+def test_ix_window_attach(ix, window, size_expct, elements_expct):
+    x = torch.arange(10).view(-1, 1, 1)
+    ix_win = indexing.IxWindow(window, None)
+    x_sliced = ix_win.attach(x)
 
-    assert x_sliced[5].size() == torch.Size([3, 32, 4])
+    assert x_sliced[ix].size() == torch.Size(size_expct)
+    assert set(x_sliced[ix].view(-1).tolist()) == elements_expct
