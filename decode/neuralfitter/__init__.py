@@ -14,5 +14,6 @@ import decode.neuralfitter.inference
 from . import process
 from . import sampler
 from . import target_generator
+from . import utils
 
 from decode.neuralfitter.inference.inference import Infer, LiveInfer

@@ -2,21 +2,17 @@ from operator import itemgetter
 from typing import Any, Callable, Iterable, Optional, Union, Protocol, TypeVar, Sequence
 
 
-_TLast = TypeVar("_TLast")
+T = TypeVar("T")
 
 
-class _Forwardable(Protocol):
-    def forward(self, x: Any) -> Any: ...
-
-
-class _ForwardableLast(Protocol[_TLast]):
-    def forward(self, x: Any) -> _TLast: ...
+class _Forwardable(Protocol[T]):
+    def forward(self, x: Any) -> T: ...
 
 
 class TransformSequence:
     def __init__(
         self,
-        components: tuple[..., _ForwardableLast],
+        components: tuple[..., _Forwardable[T]],
         input_slice: Optional[list[list]] = None,
     ):
         """
@@ -45,7 +41,7 @@ class TransformSequence:
         """
         return len(self.com)
 
-    def forward(self, *x) -> _TLast:
+    def forward(self, *x) -> T:
         """
         Forwards the input data sequentially through all components
 
@@ -117,14 +113,11 @@ class ParallelTransformSequence(TransformSequence):
 
 
 class InputMerger:
-    def __init__(self, noise: _ForwardableLast):
+    def __init__(self, noise: _Forwardable[T]):
         self._noise = noise
 
-    def forward(self, frame, em, aux):
+    def forward(self, frame, em, aux) -> T:
         return self._noise.forward(frame + aux)
-
-
-T = TypeVar("T")
 
 
 class _TrafoWrapper:

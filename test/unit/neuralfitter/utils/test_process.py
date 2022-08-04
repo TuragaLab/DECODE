@@ -96,4 +96,6 @@ class TestWrapCallable:
 def test_input_merger():
     noise = mock.MagicMock()
 
-    process.InputMerger(noise)
+    m = process.InputMerger(noise)
+    m.forward(3, None, 5)
+    noise.forward.assert_called_once_with(8)
