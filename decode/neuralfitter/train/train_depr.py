@@ -362,9 +362,9 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
 
             decode.neuralfitter.target_generator.DisableAttributes.parse(param),
 
-            decode.neuralfitter.scale_transform.ParameterListRescale(
-                phot_max=param.Scaling.phot_max,
-                z_max=param.Scaling.z_max,
+            decode.neuralfitter.scale_transform.ScalerTargetList(
+                phot=param.Scaling.phot_max,
+                z=param.Scaling.z_max,
                 bg_max=param.Scaling.bg_max)
         ])
 
@@ -418,7 +418,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     elif param.PostProcessing == 'LookUp':
         post_processor = decode.neuralfitter.utils.processing.TransformSequence([
 
-            decode.neuralfitter.scale_transform.InverseParamListRescale(
+            decode.neuralfitter.scale_transform.ScalerModelOutput(
                 phot_max=param.Scaling.phot_max,
                 z_max=param.Scaling.z_max,
                 bg_max=param.Scaling.bg_max),
@@ -435,7 +435,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     elif param.PostProcessing in ('SpatialIntegration', 'NMS'):  # NMS as legacy support
         post_processor = decode.neuralfitter.utils.processing.TransformSequence([
 
-            decode.neuralfitter.scale_transform.InverseParamListRescale(
+            decode.neuralfitter.scale_transform.ScalerModelOutput(
                 phot_max=param.Scaling.phot_max,
                 z_max=param.Scaling.z_max,
                 bg_max=param.Scaling.bg_max),

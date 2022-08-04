@@ -103,9 +103,8 @@ class TestLiveDataset(Base):
 
                 decode.neuralfitter.target_generator.DisableAttributes(None),
 
-                decode.neuralfitter.scale_transform.ParameterListRescale(phot_max=20000,
-                                                                         z_max=1000.,
-                                                                         bg_max=120.)
+                decode.neuralfitter.scale_transform.ScalerTargetList(phot=20000,
+                                                                     z=1000.)
             ])
 
         return tar_gen

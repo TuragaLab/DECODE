@@ -62,9 +62,9 @@ def target():
                 ix_high=5,
                 squeeze_batch_dim=False,
             ),
-            neuralfitter.scale_transform.ParameterListRescale(
-                phot_max=1000.0,
-                z_max=1000.0,
+            neuralfitter.scale_transform.ScalerTargetList(
+                phot=1000.0,
+                z=1000.0,
                 bg_max=100,
             ),
         ]
@@ -72,7 +72,7 @@ def target():
     lane_bg = target_generator.TargetGeneratorForwarder(["bg"])
 
     return target_generator.TargetGeneratorFork(
-        components=[lane_emitter._components[0], lane_bg],
+        components=[lane_emitter, lane_bg],
         merger=None,
     )
 
@@ -87,7 +87,7 @@ def test_target(target):
 
 @pytest.fixture
 def post_model():
-    return neuralfitter.scale_transform.InverseParamListRescale(
+    return neuralfitter.scale_transform.ScalerModelOutput(
                 phot_max=1000.0,
                 z_max=1000.0,
                 bg_max=100,
@@ -95,7 +95,7 @@ def post_model():
 
 
 @pytest.fixture
-def post_processor() -> neuralfitter.utils.processing.TransformSequence:
+def post_processor():
     return neuralfitter.utils.processing.TransformSequence(
         (
             neuralfitter.coord_transform.Offset2Coordinate(
@@ -145,52 +145,34 @@ def test_processor(samplers, microscope, processor):
     _ = processor.post(torch.rand(2, 10, 64, 64))
 
 
-def test_sampler(samplers, processor, microscope):
-    em_sampler, bg_sampler = samplers
-
-    em = em_sampler.sample()
-    bg = bg_sampler.sample()
-
-    s = neuralfitter.sampler.SamplerSupervised(
-        em=em,
-        bg=bg,
-        proc=processor,
-        mic=microscope
-    )
-    s.sample()
-
-    s.input[5]
-    s.target[5]
-
-
 def test_sampler_training(samplers, microscope):
-    # during training we can not sample background once for all frames and simply add it,
+    # during training, we can not sample background once for all frames and simply add it,
     # as it needs to vary for different samples but stay constant within one window
 
     em_sampler, bg_sampler = samplers
     em = em_sampler.sample()
-    bg = bg_sampler.sample(size=(100, 32, 32))
+    bg = bg_sampler.sample(size=(10, 1, 32, 32))
 
     noise = microscope._noise
     microscope._noise = None
 
-    # combines frame and bg and applies noise
-    class IDK:
-        def __init__(self, noise):
-            self._noise = noise
-
-        def forward(self, frame, em, aux):
-            return self._noise.forward(frame + aux)
-
-    proc = neuralfitter.process.ProcessingSupervised(shared_input=IDK(noise))
+    # noise thing
+    shared_input = neuralfitter.utils.process.InputMerger(noise)
+    proc = neuralfitter.process.ProcessingSupervised(shared_input=shared_input)
 
     s = neuralfitter.sampler.SamplerSupervised(
         em=em,
         bg=bg,
         proc=proc,
         mic=microscope,
-        bg_mode="sample"
+        bg_mode="sample",
+        window=3,
     )
     s.sample()
 
-    s.input[5]
+    x = s.input
+    x.size = lambda _: torch.Size([100])
+
+    # wrap in a dataset and try dataloader
+    ds = torch.utils.data.TensorDataset(x)
+

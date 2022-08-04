@@ -13,9 +13,17 @@ def test_slicer_delayed():
     a = [1, 2, 3]
     b = [4, 5, 6]
 
-    s = sampler._SlicerDelayed(product, a, y=b)
+    s = sampler._DelayedSlicer(product, a, y=b)
     assert s[0] == 5
     assert s[:] == [1, 2, 3, 4, 5, 6]
+
+
+def test_tensor_delayed():
+    def unsqueezer(x):
+        return x.unsqueeze(0)
+
+    s = sampler._DelayedTensor(unsqueezer, size=torch.Size([1, 5]), x=torch.rand(5))
+    assert s.size() == torch.Size([1, 5])
 
 
 @pytest.mark.parametrize("prop", ["input", "target"])

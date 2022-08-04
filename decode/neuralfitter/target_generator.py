@@ -119,7 +119,7 @@ class TargetGeneratorChain(TargetGenerator):
 
         self._components = components
         self._chainer = (
-            processing.TransformSequence(components[1:])
+            process.TransformSequence(components[1:])
             if len(components) >= 2
             else None
         )
@@ -155,7 +155,7 @@ class TargetGeneratorFork(TargetGenerator):
         super().__init__()
 
         merger = merger.forward if merger is not None else None
-        self._fork = processing.ParallelTransformSequence(
+        self._fork = process.ParallelTransformSequence(
             components, input_slice=None, merger=merger
         )
 
@@ -427,10 +427,11 @@ class ParameterListTarget(TargetGenerator):
         """
         Target corresponding to the Gausian-Mixture Model Loss. Simply cat all emitter's
         attributes up to a maximum number of emitters as a list.
+        The mapping is of size *, 4 with the mapping 0: phtoons, 1: x, 2: y, 3: z
 
         Args:
-            n_max: maximum number of emitters (should be multitude of what you draw
-                on average)
+            n_max: maximum number of emitters (should be much higher than what you draw
+             on average)
             xextent: extent of the emitters in x
             yextent: extent of the emitters in y
             ix_low: lower frame index

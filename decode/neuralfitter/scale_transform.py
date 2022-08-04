@@ -1,5 +1,6 @@
 import functools
 from typing import Tuple
+
 import torch
 
 
@@ -11,7 +12,7 @@ class SpatialInterpolation:
         dim (int): dimensionality for safety checks
     """
 
-    def __init__(self, mode='nearest', size=None, scale_factor=None, impl=None):
+    def __init__(self, mode="nearest", size=None, scale_factor=None, impl=None):
         """
 
         Args:
@@ -23,8 +24,12 @@ class SpatialInterpolation:
         if impl is not None:
             self._inter_impl = impl
         else:
-            self._inter_impl = functools.partial(torch.nn.functional.interpolate,
-                                                 mode=mode, size=size, scale_factor=scale_factor)
+            self._inter_impl = functools.partial(
+                torch.nn.functional.interpolate,
+                mode=mode,
+                size=size,
+                scale_factor=scale_factor,
+            )
 
     @staticmethod
     def _unsq_call_sq(func, x: torch.Tensor, dim: int) -> any:
@@ -75,20 +80,19 @@ class AmplitudeRescale:
         norm-value (float): Value to which to norm the data.
     """
 
-    def __init__(self, scale: float = 1., offset: float = 0.):
+    def __init__(self, scale: float = 1.0, offset: float = 0.0):
         """
 
         Args:
             offset:
             scale (float): reference value
         """
-        self.scale = scale if scale is not None else 1.
-        self.offset = offset if offset is not None else 0.
+        self.scale = scale if scale is not None else 1.0
+        self.offset = offset if offset is not None else 0.0
 
     @classmethod
     def parse(cls, param):
-        return cls(scale=param.Scaling.input_scale,
-                   offset=param.Scaling.input_offset)
+        return cls(scale=param.Scaling.input_scale, offset=param.Scaling.input_offset)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -106,12 +110,21 @@ class AmplitudeRescale:
 
 class OffsetRescale:
     """
-       The purpose of this class is to rescale the (target) data from the network value world back to the real values.
-       This class is used if we want to know the actual values and do not want to just use it for the loss.
-       """
+    The purpose of this class is to rescale the (target) data from the network value world back to the real values.
+    This class is used if we want to know the actual values and do not want to just use it for the loss.
+    """
 
-    def __init__(self, *, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, mu_sig_bg=(None, None),
-                 buffer=1., power=1.):
+    def __init__(
+        self,
+        *,
+        scale_x: float,
+        scale_y: float,
+        scale_z: float,
+        scale_phot: float,
+        mu_sig_bg=(None, None),
+        buffer=1.0,
+        power=1.0,
+    ):
         """
         Assumes scale_x, scale_y, scale_z to be symmetric ranged, scale_phot, ranged between 0-1
 
@@ -135,12 +148,14 @@ class OffsetRescale:
 
     @staticmethod
     def parse(param):
-        return OffsetRescale(scale_x=param.Scaling.dx_max,
-                             scale_y=param.Scaling.dy_max,
-                             scale_z=param.Scaling.z_max,
-                             scale_phot=param.Scaling.phot_max,
-                             mu_sig_bg=param.Scaling.mu_sig_bg,
-                             buffer=param.Scaling.linearisation_buffer)
+        return OffsetRescale(
+            scale_x=param.Scaling.dx_max,
+            scale_y=param.Scaling.dy_max,
+            scale_z=param.Scaling.z_max,
+            scale_phot=param.Scaling.phot_max,
+            mu_sig_bg=param.Scaling.mu_sig_bg,
+            buffer=param.Scaling.linearisation_buffer,
+        )
 
     def return_inverse(self):
         """
@@ -150,13 +165,15 @@ class OffsetRescale:
             InverseOffSetRescale: Inverse counterpart.
 
         """
-        return InverseOffsetRescale(scale_x=self.sc_x,
-                                    scale_y=self.sc_y,
-                                    scale_z=self.sc_z,
-                                    scale_phot=self.sc_phot,
-                                    mu_sig_bg=self.mu_sig_bg,
-                                    buffer=self.buffer,
-                                    power=self.power)
+        return InverseOffsetRescale(
+            scale_x=self.sc_x,
+            scale_y=self.sc_y,
+            scale_z=self.sc_z,
+            scale_phot=self.sc_phot,
+            mu_sig_bg=self.mu_sig_bg,
+            buffer=self.buffer,
+            power=self.power,
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -196,8 +213,17 @@ class InverseOffsetRescale(OffsetRescale):
     The purpose of this class is to scale the target data for the loss to an apropriate range.
     """
 
-    def __init__(self, *, scale_x: float, scale_y: float, scale_z: float, scale_phot: float, mu_sig_bg=(None, None),
-                 buffer=1., power=1.):
+    def __init__(
+        self,
+        *,
+        scale_x: float,
+        scale_y: float,
+        scale_z: float,
+        scale_phot: float,
+        mu_sig_bg=(None, None),
+        buffer=1.0,
+        power=1.0,
+    ):
         """
         Assumes scale_x, scale_y, scale_z to be symmetric ranged, scale_phot, ranged between 0-1
 
@@ -210,17 +236,15 @@ class InverseOffsetRescale(OffsetRescale):
             buffer: buffer to extend the scales overall
             power: power factor
         """
-        super().__init__(scale_x=scale_x, scale_y=scale_y, scale_z=scale_z, scale_phot=scale_phot,
-                         mu_sig_bg=mu_sig_bg, buffer=buffer, power=power)
-
-    @classmethod
-    def parse(cls, param):
-        return cls(scale_x=param.Scaling.dx_max,
-                   scale_y=param.Scaling.dy_max,
-                   scale_z=param.Scaling.z_max,
-                   scale_phot=param.Scaling.phot_max,
-                   mu_sig_bg=param.Scaling.mu_sig_bg,
-                   buffer=param.Scaling.linearisation_buffer)
+        super().__init__(
+            scale_x=scale_x,
+            scale_y=scale_y,
+            scale_z=scale_z,
+            scale_phot=scale_phot,
+            mu_sig_bg=mu_sig_bg,
+            buffer=buffer,
+            power=power,
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -255,70 +279,60 @@ class InverseOffsetRescale(OffsetRescale):
             return x_
 
 
-class FourFoldInverseOffsetRescale(InverseOffsetRescale):
+class ScalerTargetList:
+    def __init__(self, phot, z):
+        """
+        Rescale output of `ParameterListTarget`
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        Args:
+            phot: scale of photon
+            z: scale of z
+        """
+        self.phot_max = phot
+        self.z_max = z
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x_no_bg = torch.cat([super(FourFoldInverseOffsetRescale, self).forward(x[..., i:(i + 5), :, :]) for i in range(0, 20, 5)], dim=1 if x.dim() == 4 else 0)
-        bg = (x[..., [20], :, :] - self.mu_sig_bg[0]) / (self.mu_sig_bg[1] * self.buffer) ** self.power
+    def forward(
+        self, x: torch.Tensor, mask: torch.BoolTensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        return torch.cat([x_no_bg, bg], 1 if x.dim() == 4 else 0)
-
-
-class ParameterListRescale:
-
-    def __init__(self, phot_max, z_max, bg_max):
-        self.phot_max = phot_max
-        self.z_max = z_max
-        self.bg_max = bg_max
-
-    def forward(self, x: torch.Tensor, mask: torch.Tensor, bg: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-
-        if x.dim() not in (2, 3) or x.size(-1) != 4:
-            raise ValueError(f"Unsupported shape of input {x.size()}")
+        if x.size(-1) != 4:
+            raise ValueError(f"Last dim must be of size 4 not {x.size()}")
 
         x = x.clone()
-        x[..., 0] = x[..., 0] / self.phot_max
-        x[..., 3] = x[..., 3] / self.z_max
-        bg = bg / self.bg_max
+        x[..., 0] /= self.phot_max
+        x[..., 3] /= self.z_max
 
-        return x, mask, bg
-
-    @classmethod
-    def parse(cls, param):
-        return cls(phot_max=param.Scaling.phot_max,
-                   z_max=param.Scaling.z_max,
-                   bg_max=param.Scaling.bg_max)
+        return x, mask
 
 
-class InverseParamListRescale(ParameterListRescale):
+class ScalerModelOutput(ScalerTargetList):
     """
-    Rescale network output trained with GMM Loss.
+    Rescale network output which had been downscaled by parameter list rescale.
     """
+
+    def __init__(self, phot, z, bg):
+        super().__init__(phot, z)
+
+        self._bg_max = bg
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
+        Invert scale of network output according to previous scale.
 
         Args:
             x: model output
 
-        Returns:
-            torch.Tensor (rescaled model output)
-
         """
 
-        if x.dim() != 4 or x.size(1) != 10:
-            raise ValueError(f"Unsupported size of input {x.size()}")
+        if x.size(-1) != 10:
+            raise ValueError(f"Last dim must be of size 10 not {x.size()}")
 
         x = x.clone()
+        x[..., 1] *= self.phot_max
+        x[..., 5] *= self.phot_max  # sigma rescaling
 
-        x[:, 1] *= self.phot_max
-        x[:, 5] *= self.phot_max  # sigma rescaling
-
-        x[:, 4] *= self.z_max
-        x[:, 8] *= self.z_max
-        x[:, -1] *= self.bg_max
+        x[..., 4] *= self.z_max
+        x[..., 8] *= self.z_max
+        x[..., -1] *= self._bg_max
 
         return x

@@ -154,10 +154,10 @@ def setup_tar_disable(cfg) -> neuralfitter.target_generator.DisableAttributes:
     )
 
 
-def setup_tar_scaling(cfg) -> neuralfitter.scale_transform.ParameterListRescale:
-    return neuralfitter.scale_transform.ParameterListRescale(
-        phot_max=cfg.Scaling.phot_max,
-        z_max=cfg.Scaling.z_max,
+def setup_tar_scaling(cfg) -> neuralfitter.scale_transform.ScalerTargetList:
+    return neuralfitter.scale_transform.ScalerTargetList(
+        phot=cfg.Scaling.phot_max,
+        z=cfg.Scaling.z_max,
         bg_max=cfg.Scaling.bg_max,
     )
 
@@ -167,7 +167,7 @@ def setup_post_process(cfg) -> neuralfitter.post_processing.PostProcessing:
 
     post = neuralfitter.utils.processing.TransformSequence(
         [
-            neuralfitter.scale_transform.InverseParamListRescale(
+            neuralfitter.scale_transform.ScalerModelOutput(
                 phot_max=cfg.Scaling.phot_max,
                 z_max=cfg.Scaling.z_max,
                 bg_max=cfg.Scaling.bg_max,

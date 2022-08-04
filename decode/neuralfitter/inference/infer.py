@@ -80,7 +80,7 @@ if __name__ == '__main__':
     # It's a sequence of backscaling, relative to abs. coord conversion and frame2emitter conversion
     post_proc = decode.neuralfitter.utils.processing.TransformSequence([
 
-        decode.neuralfitter.scale_transform.InverseParamListRescale.parse(param),
+        decode.neuralfitter.scale_transform.ScalerModelOutput.parse(param),
 
         decode.neuralfitter.coord_transform.Offset2Coordinate(xextent=frame_extent[0],
                                                               yextent=frame_extent[1],
