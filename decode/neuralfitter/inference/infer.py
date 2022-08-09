@@ -62,7 +62,7 @@ if __name__ == '__main__':
     frame_proc = [
         decode.neuralfitter.utils.processing.wrap_callable(camera.backward),
         decode.neuralfitter.frame_processing.AutoCenterCrop(8),
-        decode.neuralfitter.scale_transform.AmplitudeRescale.parse(param)
+        decode.neuralfitter.scale_transform.ScalerAmplitude.parse(param)
     ]
     if param.Camera.mirror_dim is not None:
         frame_proc.insert(2, decode.neuralfitter.frame_processing.Mirror2D(

@@ -120,7 +120,7 @@ def setup_em_filter(cfg) -> emitter.process.EmitterProcess:
     if cfg.HyperParameter.emitter_label_photon_min is not None:
         f = emitter.process.PhotonFilter(cfg.HyperParameter.emitter_label_photon_min)
     else:
-        f = emitter.process.EmitterIdentity()
+        f = emitter.process.EmitterProcessNoOp()
 
     return f
 

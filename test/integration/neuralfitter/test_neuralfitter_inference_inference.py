@@ -8,7 +8,7 @@ import torch
 
 from decode.emitter import emitter
 from decode.generic import test_utils
-from decode.emitter.process import EmitterIdentity
+from decode.emitter.process import EmitterProcessNoOp
 from decode.neuralfitter import post_processing
 from decode.neuralfitter.inference import inference
 from decode.utils import frames_io
@@ -58,7 +58,7 @@ class TestInfer:
     def test_forward_frames(self, infer, batch_size):
         # reinit because now we output frames
         infer = inference.Infer(model=infer.model, batch_size=batch_size, ch_in=3,
-                                frame_proc=None, post_proc=EmitterIdentity(), forward_cat='frames',
+                                frame_proc=None, post_proc=EmitterProcessNoOp(), forward_cat='frames',
                                 device='cuda' if torch.cuda.is_available() else 'cpu')
 
         out = infer.forward(torch.rand((100, 64, 64)))

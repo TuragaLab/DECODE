@@ -88,7 +88,7 @@ class TestLiveDataset(Base):
 
     @pytest.fixture()
     def frame_processing(self):
-        return decode.neuralfitter.scale_transform.AmplitudeRescale(100., 5.)
+        return decode.neuralfitter.scale_transform.ScalerAmplitude(100., 5.)
 
     @pytest.fixture()
     def target_generator(self, psf):

@@ -6,7 +6,7 @@ from decode.emitter import process
 
 def test_process_identity():
     em = emitter.factory(100)
-    em_out = process.EmitterIdentity().forward(em)
+    em_out = process.EmitterProcessNoOp().forward(em)
 
     assert em == em_out
 
@@ -27,7 +27,7 @@ def test_remove_out_of_field():
     em = emitter.factory(100000, extent=100)
     em.xyz[:, 2] = torch.rand_like(em.xyz[:, 2]) * 1500 - 750
 
-    rmf = process.RemoveOutOfFOV((0.0, 31.0), (7.5, 31.5), (-500, 700))
+    rmf = process.EmitterFilterFoV((0.0, 31.0), (7.5, 31.5), (-500, 700))
     em_out = rmf.forward(em)
 
     assert len(em_out) <= len(em)

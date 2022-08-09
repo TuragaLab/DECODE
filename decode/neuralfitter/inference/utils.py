@@ -27,7 +27,7 @@ def get_preprocessing(scale_offset: Tuple[float, ...], camera: Optional = None,
     if mirror_dim is not None:
         proc_sequence.append(neuralfitter.frame_processing.Mirror2D(dims=mirror_dim))
 
-    proc_sequence.append(neuralfitter.scale_transform.AmplitudeRescale(*scale_offset))
+    proc_sequence.append(neuralfitter.scale_transform.ScalerAmplitude(*scale_offset))
     proc_sequence = neuralfitter.utils.processing.TransformSequence(proc_sequence)
 
     return proc_sequence

@@ -184,9 +184,9 @@ class DeltaPSF(PSF):
         """
         super().__init__(xextent=xextent, yextent=yextent, img_shape=img_shape)
 
-        from decode.emitter.process import RemoveOutOfFOV
+        from decode.emitter.process import EmitterFilterFoV
 
-        self._fov_filter = RemoveOutOfFOV(
+        self._fov_filter = EmitterFilterFoV(
             xextent=self.xextent, yextent=self.yextent, zextent=None
         )
 
@@ -270,7 +270,7 @@ class DeltaPSF(PSF):
         )
 
         # remove Emitters that are out of the frame
-        mask = self._fov_filter.clean_emitter(xyz)
+        mask = self._fov_filter._clean_emitter(xyz)
 
         x_ix, y_ix = self.search_bin_index(xyz[mask], raise_outside=True)
         n_ix = frame_ix[mask].long()

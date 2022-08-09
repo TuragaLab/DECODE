@@ -4,7 +4,7 @@ from typing import Tuple
 import torch
 
 
-class SpatialInterpolation:
+class InterpolationSpatial:
     """
     Up or downscales by a given method.
 
@@ -16,8 +16,8 @@ class SpatialInterpolation:
         """
 
         Args:
-            mode (string, None): mode which is used for interpolation. Those are the modes by the torch interpolation
-            function
+            mode (string, None): mode which is used for interpolation.
+                Those are the modes by the torch interpolation function
             impl (optional): override function for interpolation
         """
 
@@ -34,7 +34,8 @@ class SpatialInterpolation:
     @staticmethod
     def _unsq_call_sq(func, x: torch.Tensor, dim: int) -> any:
         """
-        Unsqueeze input tensor until dimensionality 'dim' is matched and squeeze output before return
+        Unsqueeze input tensor until dimensionality 'dim' is matched and squeeze output
+        before return
 
         Args:
             func:
@@ -72,48 +73,27 @@ class SpatialInterpolation:
         return self._unsq_call_sq(self._inter_impl, x, 4)
 
 
-class AmplitudeRescale:
-    """
-    Simple Processing that rescales the amplitude, i.e. the pixel values.
-
-    Attributes:
-        norm-value (float): Value to which to norm the data.
-    """
+class ScalerAmplitude:
 
     def __init__(self, scale: float = 1.0, offset: float = 0.0):
         """
+        Simple Processing that rescales the amplitude, i.e. the pixel values.
 
         Args:
-            offset:
             scale (float): reference value
+            offset: offset value
         """
         self.scale = scale if scale is not None else 1.0
         self.offset = offset if offset is not None else 0.0
 
-    @classmethod
-    def parse(cls, param):
-        return cls(scale=param.Scaling.input_scale, offset=param.Scaling.input_offset)
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward the tensor and rescale it.
-
-        Args:
-            x (torch.Tensor):
-
-        Returns:
-            x_ (torch.Tensor): rescaled tensor
-
         """
         return (x - self.offset) / self.scale
 
 
-class OffsetRescale:
-    """
-    The purpose of this class is to rescale the (target) data from the network value world back to the real values.
-    This class is used if we want to know the actual values and do not want to just use it for the loss.
-    """
-
+class ScalerOffset:
     def __init__(
         self,
         *,
@@ -146,17 +126,6 @@ class OffsetRescale:
         self.buffer = buffer
         self.power = power
 
-    @staticmethod
-    def parse(param):
-        return OffsetRescale(
-            scale_x=param.Scaling.dx_max,
-            scale_y=param.Scaling.dy_max,
-            scale_z=param.Scaling.z_max,
-            scale_phot=param.Scaling.phot_max,
-            mu_sig_bg=param.Scaling.mu_sig_bg,
-            buffer=param.Scaling.linearisation_buffer,
-        )
-
     def return_inverse(self):
         """
         Returns the inverse counterpart of this class (instance).
@@ -165,7 +134,7 @@ class OffsetRescale:
             InverseOffSetRescale: Inverse counterpart.
 
         """
-        return InverseOffsetRescale(
+        return ScalerInverseOffset(
             scale_x=self.sc_x,
             scale_y=self.sc_y,
             scale_z=self.sc_z,
@@ -181,9 +150,6 @@ class OffsetRescale:
 
         Args:
             x (torch.Tensor): input tensor N x 5/6 x H x W
-
-        Returns:
-            x_ (torch.Tensor): scaled
 
         """
         if x.dim() == 3:
@@ -208,7 +174,7 @@ class OffsetRescale:
             return x_
 
 
-class InverseOffsetRescale(OffsetRescale):
+class ScalerInverseOffset(ScalerOffset):
     def __init__(
         self,
         *,
@@ -250,10 +216,6 @@ class InverseOffsetRescale(OffsetRescale):
 
         Args:
             x (torch.Tensor): input tensor N x 5/6 x H x W
-
-        Returns:
-            x_ (torch.Tensor): (inverse) scaled
-
         """
         if x.dim() == 3:
             x.unsqueeze_(0)
@@ -304,11 +266,15 @@ class ScalerTargetList:
 
 
 class ScalerModelOutput:
-    """
-    Rescale network output which had been downscaled by parameter list rescale.
-    """
+    def __init__(self, phot: float, z: float, bg: float):
+        """
+        Rescale network output which had been downscaled by parameter list rescale.
 
-    def __init__(self, phot, z, bg):
+        Args:
+            phot: scale factor photon
+            z: scale factor z value
+            bg: scale factor background
+        """
         self._phot = phot
         self._z = z
         self._bg_max = bg
@@ -319,7 +285,6 @@ class ScalerModelOutput:
 
         Args:
             x: model output
-
         """
 
         if x.size(-1) != 10:

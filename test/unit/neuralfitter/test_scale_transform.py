@@ -11,14 +11,14 @@ import decode.neuralfitter.scale_transform as scale
 class TestSpatialinterpolation:
     @pytest.fixture(scope="class")
     def interp(self):
-        return scale.SpatialInterpolation(mode="nearest", scale_factor=2)
+        return scale.InterpolationSpatial(mode="nearest", scale_factor=2)
 
     @pytest.fixture(scope="class")
     def interp_new_impl(self):
         impl = functools.partial(
             torch.nn.functional.interpolate, mode="nearest", scale_factor=2
         )
-        return scale.SpatialInterpolation(mode=None, impl=impl)
+        return scale.InterpolationSpatial(mode=None, impl=impl)
 
     def test_default_forward(self, interp):
         """
@@ -31,11 +31,8 @@ class TestSpatialinterpolation:
         x = torch.rand((1, 1, 32, 32))
         x_out = interp.forward(x)
 
-        """Dimension"""
         assert x.size(-1) * 2 == x_out.size(-1)
         assert x.size(-2) * 2 == x_out.size(-2)
-
-        """Values"""
         assert (x_out[0, 0, :2, :2] == x[0, 0, 0, 0]).all()
 
     @pytest.mark.parametrize(
@@ -53,7 +50,7 @@ class TestSpatialinterpolation:
 class TestAmplitudeRescale:
     @pytest.fixture()
     def amp_rescale(self):
-        return scale.AmplitudeRescale(scale=1000, offset=5.0)
+        return scale.ScalerAmplitude(scale=1000, offset=5.0)
 
     def test_rescale_noop(self):
         """
@@ -61,14 +58,11 @@ class TestAmplitudeRescale:
 
         """
 
-        """Setup"""
-        rescaler = scale.AmplitudeRescale()
+        rescaler = scale.ScalerAmplitude()
         x = torch.rand((2, 3, 64, 64))
 
-        """Run"""
         x_out = rescaler.forward(x.clone())
 
-        """Assert"""
         t_util.tens_almeq(x, x_out)
 
     def test_rescale(self, amp_rescale):
@@ -80,13 +74,13 @@ class TestAmplitudeRescale:
 class TestTargetRescale:
     @pytest.fixture(scope="class")
     def offset_rescale(self):
-        return scale.OffsetRescale(
+        return scale.ScalerOffset(
             scale_x=0.5, scale_y=0.5, scale_z=750.0, scale_phot=10000.0, buffer=1.2
         )
 
     @pytest.fixture(scope="class")
     def inv_offset_rescale(self, offset_rescale):
-        return scale.InverseOffsetRescale(
+        return scale.ScalerInverseOffset(
             scale_x=offset_rescale.sc_x,
             scale_y=offset_rescale.sc_y,
             scale_z=offset_rescale.sc_z,
@@ -124,11 +118,9 @@ class TestTargetRescale:
             offset_rescale:
 
         """
-        """Setup"""
         x = torch.rand(2, 5, 64, 64)
         inv_derived = offset_rescale.return_inverse()  # derived inverse from offset
 
-        """Run"""
         x_hat = offset_rescale.forward(inv_offset_rescale.forward(x))
         assert t_util.tens_almeq(x, x_hat, 1e-6)
         x_hat = offset_rescale.forward(inv_derived.forward(x))

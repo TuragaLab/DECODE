@@ -337,14 +337,14 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
         # raise RuntimeError("Your dummy input is wrong. Please update it.")
 
     """Transform input data, compute weight mask and target data"""
-    frame_proc = decode.neuralfitter.scale_transform.AmplitudeRescale.parse(param)
+    frame_proc = decode.neuralfitter.scale_transform.ScalerAmplitude.parse(param)
     bg_frame_proc = None
 
     if param.HyperParameter.emitter_label_photon_min is not None:
         em_filter = decode.emitter.em_filter.PhotonFilter(
             param.HyperParameter.emitter_label_photon_min)
     else:
-        em_filter = decode.emitter.em_filter.EmitterIdentity()
+        em_filter = decode.emitter.em_filter.EmitterProcessNoOp()
 
     tar_frame_ix_train = (0, 0)
     tar_frame_ix_test = (0, param.TestSet.test_size)
