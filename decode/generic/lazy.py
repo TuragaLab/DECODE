@@ -14,7 +14,7 @@ def no_op_on(attr: str):
         >>>    def __init__(self, factor):
         >>>        self._factor = factor
         >>>    @no_op_on("_factor")
-        >>>    def multiply(self, x):
+        >>>    def multiply(self, /, x):
         >>>        return x * self._factor
 
     """
