@@ -1,5 +1,4 @@
 import functools
-from typing import Tuple
 
 import torch
 
@@ -74,7 +73,6 @@ class InterpolationSpatial:
 
 
 class ScalerAmplitude:
-
     def __init__(self, scale: float = 1.0, offset: float = 0.0):
         """
         Simple Processing that rescales the amplitude, i.e. the pixel values.
@@ -240,7 +238,7 @@ class ScalerInverseOffset(ScalerOffset):
 
 
 class ScalerTargetList:
-    def __init__(self, phot, z):
+    def __init__(self, phot: float, z: float):
         """
         Rescale output of `ParameterListTarget`
 
@@ -251,9 +249,7 @@ class ScalerTargetList:
         self.phot_max = phot
         self.z_max = z
 
-    def forward(
-        self, x: torch.Tensor, mask: torch.BoolTensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
 
         if x.size(-1) != 4:
             raise ValueError(f"Last dim must be of size 4 not {x.size()}")
@@ -262,7 +258,7 @@ class ScalerTargetList:
         x[..., 0] /= self.phot_max
         x[..., 3] /= self.z_max
 
-        return x, mask
+        return x
 
 
 class ScalerModelOutput:

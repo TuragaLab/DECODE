@@ -130,11 +130,9 @@ class TestTargetRescale:
 def test_scaler_tar_list():
     s = scale.ScalerTargetList(2.0, 4.0)
     tar = torch.tensor([2.0, 1.0, 1.0, 4.0])
-    mask = mock.MagicMock()
-    tar_out, mask_out = s.forward(tar, mask)
+    tar_out = s.forward(tar)
 
     assert tar_out is not tar
-    assert mask_out is mask
     assert (tar_out == 1).all()
 
 
