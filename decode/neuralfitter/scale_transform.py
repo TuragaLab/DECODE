@@ -209,10 +209,6 @@ class OffsetRescale:
 
 
 class InverseOffsetRescale(OffsetRescale):
-    """
-    The purpose of this class is to scale the target data for the loss to an apropriate range.
-    """
-
     def __init__(
         self,
         *,
@@ -225,7 +221,9 @@ class InverseOffsetRescale(OffsetRescale):
         power=1.0,
     ):
         """
-        Assumes scale_x, scale_y, scale_z to be symmetric ranged, scale_phot, ranged between 0-1
+        The purpose of this class is to scale the target data for the loss to an
+        appropriate range. Assumes scale_x, scale_y, scale_z to be symmetric ranged,
+        scale_phot, ranged between 0-1
 
         Args:
             scale_x (float): scale factor in x
@@ -305,14 +303,14 @@ class ScalerTargetList:
         return x, mask
 
 
-class ScalerModelOutput(ScalerTargetList):
+class ScalerModelOutput:
     """
     Rescale network output which had been downscaled by parameter list rescale.
     """
 
     def __init__(self, phot, z, bg):
-        super().__init__(phot, z)
-
+        self._phot = phot
+        self._z = z
         self._bg_max = bg
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -328,11 +326,11 @@ class ScalerModelOutput(ScalerTargetList):
             raise ValueError(f"Last dim must be of size 10 not {x.size()}")
 
         x = x.clone()
-        x[..., 1] *= self.phot_max
-        x[..., 5] *= self.phot_max  # sigma rescaling
+        x[..., 1] *= self._phot
+        x[..., 5] *= self._phot  # sigma rescaling
 
-        x[..., 4] *= self.z_max
-        x[..., 8] *= self.z_max
+        x[..., 4] *= self._z
+        x[..., 8] *= self._z
         x[..., -1] *= self._bg_max
 
         return x
