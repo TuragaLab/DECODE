@@ -40,7 +40,8 @@ def frame_grid(
         img_size, xextent=None, yextent=None, *, origin=None, px_size=None
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Get pixel center coordinates based on extent and img shape. Either specify extents XOR origin and px size.
+    Get pixel center coordinates based on extent and img shape.
+    Either specify extents XOR origin and px size.
 
     Args:
         img_size: image size in pixels
