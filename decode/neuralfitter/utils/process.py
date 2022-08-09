@@ -57,9 +57,8 @@ class TransformSequence:
             if isinstance(x, tuple):
 
                 if self._input_slice is not None:
-                    com_in = itemgetter(*self._input_slice[i])(
-                        x
-                    )  # get specific outputs as input for next com
+                    # get specific outputs as input for next com
+                    com_in = itemgetter(*self._input_slice[i])(x)
                     if len(self._input_slice[i]) >= 2:
                         x = com.forward(*com_in)
                     else:
