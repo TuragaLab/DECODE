@@ -1,12 +1,96 @@
+from typing import Optional, Any
+from unittest import mock
+
 import numpy as np
 import pytest
 import torch
-from deprecated import deprecated
-from unittest import mock
 
 from decode.emitter import emitter
-from decode.generic import test_utils as tutil
 from decode.neuralfitter import target_generator
+
+
+@pytest.fixture
+def tar_pseudo_abstract():
+    # such that we can still test the abstract class
+    class _TarGen(target_generator.TargetGenerator):
+        def forward(self, em: emitter.EmitterSet, aux: Optional[Any] = None) -> Any:
+            raise NotImplementedError
+
+    class _EmitterFilter:
+        @staticmethod
+        def forward(em):
+            return em[em.phot >= 100.]
+
+    class _Scaler:
+        @staticmethod
+        def forward(x):
+            return x / 10
+
+    return _TarGen(-5, 5, filter=_EmitterFilter(), scaler=_Scaler())
+
+
+@pytest.mark.parametrize("tar", ["tar_pseudo_abstract"])
+def test_targen_limit_shift_frames(tar, request):
+    t = request.getfixturevalue(tar)
+    em = emitter.factory(frame_ix=[-17, 23, -4, -5, 5])  # only one left should be -4 --> 1
+
+    em_out = t._limit_shift_frames(em)
+    assert em_out.frame_ix.tolist() == [1, 0]
+
+
+@pytest.mark.parametrize("tar", ["tar_pseudo_abstract"])
+def test_targen_filter_emitters(tar, request):
+    tar = request.getfixturevalue(tar)
+
+    em = emitter.factory(phot=[99, 100, 101])
+    em_out = tar._filter_emitters(em)
+
+    assert em != em_out
+    assert (em_out.phot >= 100).all()
+
+
+@pytest.mark.parametrize("tar", ["tar_pseudo_abstract"])
+def test_targen_scaler(tar, request):
+    tar = request.getfixturevalue(tar)
+
+    x = torch.ones(10) * 10
+    x_out = tar._scale(x)
+
+    assert x_out is not x
+    assert (x_out == 1.).all()
+
+
+@pytest.mark.parametrize("switch", [True, False])
+def test_target_gaussian_mixture(switch):
+    m_filter = mock.MagicMock()
+    m_filter.forward.side_effect = lambda x: x
+    m_scaler = mock.MagicMock()
+    m_scaler.forward.side_effect = lambda x: x
+    m_bg_lane = mock.MagicMock()
+    m_bg_lane.forward.side_effect = lambda x: x + 5
+
+    tar = target_generator.TargetGaussianMixture(
+        filter=m_filter,
+        scaler=m_scaler,
+        switch=target_generator.DisableAttributes(-1) if switch else None,
+        aux_lane=m_bg_lane,
+        n_max=100,
+        ix_low=-5,
+        ix_high=5,
+    )
+
+    em = emitter.factory(phot=[10.], xyz=[[1., 2., 3.]], xy_unit="px")
+    aux = torch.rand(10, 32, 32)
+
+    (tar_em, tar_mask), aux_out = tar.forward(em, aux)
+    m_filter.forward.assert_called_once()
+    m_scaler.forward.assert_called_once()
+
+    if switch:
+        (tar_em[..., -1] == 0.).all()
+    else:
+        (tar_em[..., -1] == 3.).all()
+    assert (aux_out > 5).all()
 
 
 def _mock_tar_emitter_factory():
@@ -89,8 +173,6 @@ def test_tar_forwarder(attr):
 def test_paramlist_tar():
     tar = target_generator.ParameterListTarget(
         n_max=100,
-        xextent=(-0.5, 63.5),
-        yextent=(-0.5, 63.5),
         xy_unit="px",
         ix_low=0,
         ix_high=3,
@@ -122,142 +204,11 @@ def test_paramlist_tar():
     assert torch.isnan(tar[2, 1:]).all()
 
 
-@deprecated(version="0.12.0", reason="Remove complicated style test.")
-class TestUnifiedEmbeddingTarget:
-    @pytest.fixture()
-    def targ(self):
-        xextent = (-0.5, 63.5)
-        yextent = (-0.5, 63.5)
-        img_shape = (64, 64)
+def test_disable_attr():
+    t = target_generator.DisableAttributes(1, 5.)
 
-        return target_generator.UnifiedEmbeddingTarget(
-            xextent, yextent, img_shape, roi_size=5, ix_low=0, ix_high=5
-        )
+    x = torch.rand(1, 3, 7)
+    out = t.forward(x)
 
-    @pytest.fixture()
-    def random_emitter(self):
-        return emitter.factory(
-            frame_ix=torch.randint(low=-20, high=30, size=(1000,)), xy_unit="px"
-        )
-
-    def test_central_px(self, targ, random_emitter):
-        """
-        Check whether central pixels agree with delta function are correct.
-        """
-
-        x_ix, y_ix = targ._delta_psf.search_bin_index(random_emitter.xyz)
-
-        assert (x_ix == random_emitter.xyz[:, 0].round().long()).all()
-        assert (y_ix == random_emitter.xyz[:, 1].round().long()).all()
-
-    @pytest.mark.parametrize("roi_size", torch.tensor([1, 3, 5, 7]))
-    def test_roi_px(self, targ, random_emitter, roi_size):
-
-        targ.__init__(
-            xextent=targ.xextent,
-            yextent=targ.yextent,
-            img_shape=targ.img_shape,
-            roi_size=roi_size,
-            ix_low=targ.ix_low,
-            ix_high=targ.ix_high,
-        )
-
-        # mask, ix = targ._get_central_px(random_emitter.xyz, random_emitter.frame_ix)
-        x_ix, y_ix = targ._delta_psf.search_bin_index(random_emitter.xyz_px)
-        batch_ix = random_emitter.frame_ix
-        batch_ix, x_ix, y_ix, off_x, off_y, id = targ._get_roi_px(batch_ix, x_ix, y_ix)
-
-        assert (x_ix >= 0).all()
-        assert (y_ix >= 0).all()
-        assert (x_ix <= 63).all()
-        assert (y_ix <= 63).all()
-        assert batch_ix.size() == off_x.size()
-        assert off_x.size() == off_y.size()
-
-        expct_vals = torch.arange(
-            -(targ._roi_size - 1) // 2, (targ._roi_size - 1) // 2 + 1
-        )
-
-        assert (off_x.unique() == expct_vals).all()
-        assert (off_y.unique() == expct_vals).all()
-
-    def test_forward_handcrafted(self, targ):
-        """Test a couple of handcrafted cases"""
-
-        # one emitter outside fov the other one inside
-        em_set = emitter.factory(
-            xyz=torch.tensor([[-50.0, 0.0, 0.0], [15.1, 19.6, 250.0]]), xy_unit="px"
-        )
-        em_set.phot = torch.tensor([5.0, 4.0])
-
-        out = targ.forward(em_set)[0]  # single frame
-        assert tutil.tens_almeq(
-            out[:, 15, 20], torch.tensor([1.0, 4.0, 0.1, -0.4, 250.0]), 1e-5
-        )
-        assert tutil.tens_almeq(
-            out[:, 16, 20], torch.tensor([0.0, 4.0, -0.9, -0.4, 250.0]), 1e-5
-        )
-        assert tutil.tens_almeq(
-            out[:, 15, 21], torch.tensor([0.0, 4.0, 0.1, -1.4, 250.0]), 1e-5
-        )
-
-    def test_forward_statistical(self, targ):
-
-        n = 1000
-
-        xyz = torch.zeros((n, 3))
-        xyz[:, 0] = torch.linspace(-10, 78.0, n)
-        xyz[:, 1] = 30.0
-
-        frame_ix = torch.arange(n)
-
-        em = emitter.EmitterSet(xyz, torch.ones_like(xyz[:, 0]), frame_ix, xy_unit="px")
-
-        out = targ.forward(em, None, 0, n - 1)
-
-        assert (out[:, 0, :, 29] == 0).all()
-        assert (out[:, 0, :, 31] == 0).all()
-        assert (out[(xyz[:, 0] < -0.5) * (xyz[:, 0] >= 63.5)] == 0).all()
-        assert (
-            out.nonzero()[:, 0].unique()
-            == frame_ix[(xyz[:, 0] >= -0.5) * (xyz[:, 0] < 63.5)]
-        ).all()
-
-    def test_forward_different_impl(self, targ):
-        """
-        Test the implementation with a slow for loop
-
-        Args:
-            targ:
-
-        Returns:
-
-        """
-
-        n = 5000
-        xyz = torch.rand(n, 3) * 100
-
-        # move them a bit away from zero for this test (otherwise it might fail)
-        ix_close_zero = xyz.abs() < 1e-6
-        xyz[ix_close_zero] = xyz[ix_close_zero] + 0.01
-
-        phot = torch.rand_like(xyz[:, 0])
-        frame_ix = torch.arange(n)
-
-        em = emitter.EmitterSet(xyz, phot, frame_ix, xy_unit="px")
-
-        out = targ.forward(em, None, 0, n - 1)
-
-        non_zero_detect = out[:, [0]].nonzero()
-
-        for i in range(non_zero_detect.size(0)):
-            for x in range(-(targ._roi_size - 1) // 2, (targ._roi_size - 1) // 2 + 1):
-                for y in range(
-                    -(targ._roi_size - 1) // 2, (targ._roi_size - 1) // 2 + 1
-                ):
-                    ix_n = non_zero_detect[i, 0]
-                    ix_x = torch.clamp(non_zero_detect[i, -2] + x, 0, 63)
-                    ix_y = torch.clamp(non_zero_detect[i, -1] + y, 0, 63)
-                    assert (
-                        out[ix_n, 2, ix_x, ix_y] != 0
-                    )  # would only fail if either x or y are exactly % 1 == 0
+    assert out is not x
+    assert (out[..., 1] == 5.).all()
