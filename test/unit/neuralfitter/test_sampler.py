@@ -6,7 +6,7 @@ import torch
 from decode.neuralfitter import sampler
 
 
-def test_slicer_delayed():
+def test_delayed_slicer():
     def product(x, *, y):
         return x + y
 
@@ -22,8 +22,24 @@ def test_tensor_delayed():
     def unsqueezer(x):
         return x.unsqueeze(0)
 
-    s = sampler._DelayedTensor(unsqueezer, size=torch.Size([1, 5]), x=torch.rand(5))
+    s = sampler._DelayedTensor(
+        unsqueezer, size=torch.Size([1, 5]), kwargs={"x": torch.rand(5)}
+    )
     assert s.size() == torch.Size([1, 5])
+    assert s.size(0) == 1
+    assert s.size(1) == 5
+
+
+@pytest.mark.parametrize("args,kwargs", [
+    ([torch.rand(20, 2)], None),
+    (None, {"x": torch.rand(20, 2)}),
+])
+def test_tensor_delayed_auto_size(args, kwargs):
+    s = sampler._DelayedTensor(lambda x: x.view(2, 1), size=None, args=args, kwargs=kwargs)
+    s = s.auto_size()
+
+    assert s.size() == torch.Size([20, 2, 1])
+    assert s.size(0) == 20
 
 
 @pytest.mark.parametrize("prop", ["input", "target"])
