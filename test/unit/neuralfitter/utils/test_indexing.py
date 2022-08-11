@@ -61,3 +61,4 @@ def test_ix_window_attach(ix, window, size_expct, elements_expct):
 
     assert x_sliced[ix].size() == torch.Size(size_expct)
     assert set(x_sliced[ix].view(-1).tolist()) == elements_expct
+    assert len(x_sliced) == len(ix_win)

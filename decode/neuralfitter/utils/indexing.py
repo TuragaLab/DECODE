@@ -67,6 +67,9 @@ class IxWindow:
             def __init__(self_inner, obj):
                 self_inner._obj = obj
 
+            def __len__(self_inner) -> int:
+                return len(self_inner._obj)
+
             def __getitem__(self_inner, item: int):
                 return self_inner._obj[self._compute(item), ...]
 
