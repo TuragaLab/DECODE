@@ -86,18 +86,22 @@ class _DelayedTensor(_DelayedSlicer):
         else:
             return self._size[dim]
 
-    def auto_size(self) -> "_DelayedTensor":
+    def auto_size(self, n: Optional[int] = None) -> "_DelayedTensor":
         """
         Automatically determine, by running the callable on the first element,
         inspecting output and concatenating this to batch dim.
+
+        Args:
+            n: manually specify first (batch) dim
         """
-        if len(self._args) >= 1:
-            n = len(self._args[0])
-        elif len(self._kwargs) >= 1:
-            n = len(next(iter(self._kwargs.values())))
-        else:
-            raise ValueError("Cannot auto-determine size if neither arguments nor keyword "
-                             "arguments were specified.")
+        if n is None:
+            if len(self._args) >= 1:
+                n = len(self._args[0])
+            elif len(self._kwargs) >= 1:
+                n = len(next(iter(self._kwargs.values())))
+            else:
+                raise ValueError("Cannot auto-determine size if neither arguments nor "
+                                 "keyword arguments were specified.")
 
         size_last_dims = self[0].size()
         self._size = torch.Size([n, *size_last_dims])

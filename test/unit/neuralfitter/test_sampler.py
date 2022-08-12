@@ -30,16 +30,17 @@ def test_tensor_delayed():
     assert s.size(1) == 5
 
 
-@pytest.mark.parametrize("args,kwargs", [
-    ([torch.rand(20, 2)], None),
-    (None, {"x": torch.rand(20, 2)}),
+@pytest.mark.parametrize("n,args,kwargs,size_expct", [
+    (None, [torch.rand(20, 2)], None, [20, 2, 1]),
+    (None, None, {"x": torch.rand(20, 2)}, [20, 2, 1]),
+    (42, [torch.rand(20, 2)], None, [42, 2, 1]),  # manually set first dim
 ])
-def test_tensor_delayed_auto_size(args, kwargs):
+def test_tensor_delayed_auto_size(n, args, kwargs, size_expct):
     s = sampler._DelayedTensor(lambda x: x.view(2, 1), size=None, args=args, kwargs=kwargs)
-    s = s.auto_size()
+    s = s.auto_size(n)
 
-    assert s.size() == torch.Size([20, 2, 1])
-    assert s.size(0) == 20
+    assert s.size() == torch.Size(size_expct)
+    assert s.size(0) == size_expct[0]
 
 
 @pytest.mark.parametrize("prop", ["input", "target"])
