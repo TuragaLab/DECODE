@@ -1,9 +1,9 @@
+import pickle
 from unittest import mock
 
 import numpy as np
 import pytest
 import torch
-
 
 from decode.neuralfitter.utils import indexing
 
@@ -62,3 +62,12 @@ def test_ix_window_attach(ix, window, size_expct, elements_expct):
     assert x_sliced[ix].size() == torch.Size(size_expct)
     assert set(x_sliced[ix].view(-1).tolist()) == elements_expct
     assert len(x_sliced) == len(ix_win)
+
+
+def test_ix_window_pickleable():
+    x = torch.rand(32, 63, 64)
+    win = indexing.IxWindow(3, None)
+
+    x_win = win.attach(x)
+    x_re = pickle.loads(pickle.dumps(x_win))
+    assert (x_re[5] == x_win[5]).all()

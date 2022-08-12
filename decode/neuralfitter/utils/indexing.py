@@ -1,4 +1,4 @@
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, Callable, TypeVar
 
 import torch
 
@@ -63,15 +63,26 @@ class IxWindow:
         return ix.tolist()
 
     def attach(self, x: Any):
-        class _WrappedSliceable:
-            def __init__(self_inner, obj):
-                self_inner._obj = obj
-
-            def __len__(self_inner) -> int:
-                return len(self_inner._obj)
-
-            def __getitem__(self_inner, item: int):
-                return self_inner._obj[self._compute(item), ...]
-
         self._n = len(x)
-        return _WrappedSliceable(x)
+        return _WindowDelayed(x, self._compute)
+
+
+T = TypeVar("T")
+
+
+class _WindowDelayed:
+    def __init__(self, obj, fn: Callable[..., T]):
+        """
+        Helper class to delay slicing for ix_window.
+        Args:
+            obj: object to window
+            fn: callable to compute window
+        """
+        self._obj = obj
+        self._fn = fn
+
+    def __len__(self) -> int:
+        return len(self._obj)
+
+    def __getitem__(self, item: int) -> T:
+        return self._obj[self._fn(item), ...]
