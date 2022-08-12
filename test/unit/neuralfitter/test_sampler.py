@@ -41,6 +41,7 @@ def test_tensor_delayed_auto_size(n, args, kwargs, size_expct):
 
     assert s.size() == torch.Size(size_expct)
     assert s.size(0) == size_expct[0]
+    assert len(s) == s.size(0)
 
 
 @pytest.mark.parametrize("prop", ["input", "target"])

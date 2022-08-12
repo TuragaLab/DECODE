@@ -77,6 +77,12 @@ class _DelayedTensor(_DelayedSlicer):
 
         self._size = size
 
+    def __len__(self) -> int:
+        if self._size is None:
+            raise ValueError("Unable to return length because size was not set.")
+
+        return self._size[0]
+
     def size(self, dim=None) -> torch.Size:
         if self._size is None:
             raise ValueError("Unable to return size because it was not set.")
@@ -193,18 +199,16 @@ class SamplerSupervised(Sampler):
         ).auto_size()
 
     @property
-    def target(self) -> _DelayedTensor:
+    def target(self) -> _DelayedSlicer:
         """
         Returns a delayed target, i.e. the compute graph is attached, the actual
         computation happens when the elements are accessed via slicing (`__getitem__`).
         """
-        return _DelayedTensor(
+        return _DelayedSlicer(
             self._proc.tar,
-            kwargs={
-                "em": self.emitter.iframe,
-                "aux": self.bg
-            }
-        ).auto_size()
+            em=self.emitter.iframe,
+            aux=self.bg,
+        )
 
     def __len__(self) -> int:
         return len(self.frame)
