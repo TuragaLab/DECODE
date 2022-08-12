@@ -49,37 +49,17 @@ class IxShifter:
         return ix
 
 
-class DatasetSMLM(torch.utils.data.Dataset):
-    def __init__(
-        self,
-        *,
-        sampler: sampler.Sampler,
-        frame_window: int,
-        ix_mod: IxShifter,
-    ):
-        """
-        SMLM dataset.
-
-        Args:
-            sampler:
-            frame_window: number of frames per sample / size of frame window
-            ix_mod: _pad mode, applicable for first few, last few frames (relevant when frame
-            window is used)
-            window: window on
-            validate: run sanity check
-        """
+class DatasetGausianMixture(torch.utils.data.Dataset):
+    def __init__(self, input, target):
         super().__init__()
 
-        self._sampler = sampler
-        self._frame_window = frame_window
-        self._ix_mod = ix_mod
+        self._input = input
+        self._target = target
 
     def __len__(self) -> int:
-        return len(self._ix_mod)
+        return len(self._input)
 
-    @property
-    def _len_raw(self) -> int:
-        return len(self._sampler)
-
-    def __getitem__(self, ix: int):
-        return self._sampler.input[ix], self._sampler.target[ix]
+    def __getitem__(self, item: int):
+        x = self._input[item]
+        (tar_em, tar_mask), tar_bg = self._target[item]
+        return x, tar_em, tar_mask, tar_bg

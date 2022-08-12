@@ -1,6 +1,7 @@
 from unittest import mock
 
 import pytest
+import torch
 
 from decode.neuralfitter import dataset
 
@@ -30,26 +31,10 @@ def test_pad_index_len(window, pad, n, len_expct):
     assert len(s) == len_expct
 
 
-class TestDatasetSMLM:
-    @pytest.fixture
-    def ds(self):
-        return dataset.DatasetSMLM(
-            sampler=mock.MagicMock(),
-            frame_window=3,
-            ix_mod=mock.MagicMock()
-        )
+def test_dataset_gmm():
+    tar = mock.MagicMock()
+    tar.__getitem__.return_value = (torch.rand(100, 4), torch.zeros(100, dtype=torch.bool)), torch.rand(32, 32)
+    ds = dataset.DatasetGausianMixture(torch.rand(32, 3, 40, 41), tar)
 
-    def test_len(self, ds):
-        ds._ix_mod.__len__.return_value = 42
-        assert len(ds) == 42
-
-    def test_len_raw(self, ds):
-        ds._sampler.__len__.return_value = 100
-        assert ds._len_raw == 100
-
-    def test_getitem(self, ds):
-        sample = ds[42]
-
-        assert len(sample) == 2
-        ds._sampler.input.__getitem__.assert_called_once_with(42)
-        ds._sampler.target.__getitem__.assert_called_once_with(42)
+    assert len(ds) == 32
+    x, tar_em, tar_mask, tar_bg = ds[14]
