@@ -55,16 +55,20 @@ def test_sampler_input_target(prop):
     _ = getattr(s, prop)[0]
     _ = getattr(s, prop)[:]
 
-    with mock.patch.object(sampler, "_SlicerDelayed") as mock_slicer:
+    with mock.patch.object(sampler, "_DelayedTensor") as mock_delayed:
         if prop == "input":
             _ = s.input[0]
             # make sure that iframe is used and not simple emitter indexing
-            mock_slicer.assert_called_once_with(
-                proc.input, frame=s.frame_samples, em=em.iframe, aux=bg
+            mock_delayed.assert_called_once_with(
+                proc.input,
+                kwargs={"frame": s.frame_samples, "em": em.iframe, "aux": bg}
             )
         elif prop == "target":
             _ = s.target[0]
-            mock_slicer.assert_called_once_with(proc.tar, em=em.iframe, aux=bg)
+            mock_delayed.assert_called_once_with(
+                proc.tar,
+                kwargs={"em": em.iframe, "aux": bg}
+            )
         else:
             raise NotImplementedError
 

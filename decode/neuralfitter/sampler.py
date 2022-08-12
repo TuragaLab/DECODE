@@ -39,7 +39,6 @@ class _DelayedSlicer:
             **kwargs:
         """
         self._fn = fn
-        self._registered_attr = dict()
         self._args = args
         self._kwargs = kwargs
 
@@ -48,11 +47,6 @@ class _DelayedSlicer:
         kwargs = {k: v[item] for k, v in self._kwargs.items()}
 
         return self._fn(*args, **kwargs)
-
-    def __getattr__(self, item):
-        if item in self._registered_attr:
-            return self._registered_attr[item]
-        raise AttributeError
 
 
 class _DelayedTensor(_DelayedSlicer):
