@@ -168,8 +168,9 @@ class TargetGaussianMixture(TargetGenerator):
     def __init__(
         self,
         n_max: int,
-        ix_low: int,
-        ix_high: int,
+        ix_low: Optional[int],
+        ix_high: Optional[int],
+        ignore_ix: Optional[bool] = False,
         xy_unit: str = "px",
         filter: Optional[list] = None,
         scaler: Optional = None,
@@ -184,6 +185,7 @@ class TargetGaussianMixture(TargetGenerator):
                 (should be much higher than average, otherwise an error might be raised).
             ix_low: lower frame ix
             ix_high: upper frame ix
+            ignore_ix: ignore frame ix
             xy_unit: xy unit used for target
             filter: emitter filter, forward must take emitters and return emitters
             scaler: scaling, forward must take tensor and return tensor
@@ -194,7 +196,11 @@ class TargetGaussianMixture(TargetGenerator):
         super().__init__(ix_low=ix_low, ix_high=ix_high, filter=filter, scaler=scaler)
 
         self._list_impl = ParameterList(
-            n_max=n_max, ix_low=ix_low, ix_high=ix_high, xy_unit=xy_unit
+            n_max=n_max,
+            ix_low=ix_low,
+            ix_high=ix_high,
+            ignore_ix=ignore_ix,
+            xy_unit=xy_unit
         )
         self._switch = switch
         self._bg_lane = aux_lane

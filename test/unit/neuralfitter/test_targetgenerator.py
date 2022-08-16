@@ -61,7 +61,8 @@ def test_targen_scaler(tar, request):
 
 
 @pytest.mark.parametrize("switch", [True, False])
-def test_target_gaussian_mixture(switch):
+@pytest.mark.parametrize("ignore_ix", [True, False])
+def test_target_gaussian_mixture(switch, ignore_ix):
     m_filter = mock.MagicMock()
     m_filter.forward.side_effect = lambda x: x
     m_scaler = mock.MagicMock()
@@ -77,6 +78,7 @@ def test_target_gaussian_mixture(switch):
         n_max=100,
         ix_low=-5,
         ix_high=5,
+        ignore_ix=ignore_ix,
     )
 
     em = emitter.factory(phot=[10.], xyz=[[1., 2., 3.]], xy_unit="px")
@@ -90,6 +92,14 @@ def test_target_gaussian_mixture(switch):
         (tar_em[..., -1] == 0.).all()
     else:
         (tar_em[..., -1] == 3.).all()
+
+    if ignore_ix:
+        tar_em.size() == torch.Size([100, 4])
+        tar_mask.size() == torch.Size([100])
+    else:
+        tar_em.size() == torch.Size([10, 100, 4])
+        tar_mask.size() == torch.Size([10, 100])
+
     assert (aux_out > 5).all()
 
 
