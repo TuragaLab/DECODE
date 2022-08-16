@@ -352,7 +352,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     """Setup Target generator consisting possibly multiple steps in a transformation sequence."""
     tar_gen = decode.neuralfitter.utils.processing.TransformSequence(
         [
-            decode.neuralfitter.target_generator.ParameterListTarget(
+            decode.neuralfitter.target_generator.ParameterList(
                 n_max=param.HyperParameter.max_number_targets,
                 xextent=param.Simulation.psf_extent[0],
                 yextent=param.Simulation.psf_extent[1],

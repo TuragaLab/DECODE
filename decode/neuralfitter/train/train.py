@@ -137,8 +137,8 @@ def setup_tar(ix_low, ix_high, cfg):
 
 def setup_tar_tensor_parameter(
     ix_low, ix_high, cfg
-) -> neuralfitter.target_generator.ParameterListTarget:
-    return neuralfitter.target_generator.ParameterListTarget(
+) -> neuralfitter.target_generator.ParameterList:
+    return neuralfitter.target_generator.ParameterList(
         n_max=cfg.HyperParameter.max_number_targets,
         xextent=cfg.Simulation.psf_extent[0],
         yextent=cfg.Simulation.psf_extent[1],
