@@ -36,44 +36,22 @@ def microscope():
     return simulation.microscope.Microscope(psf=psf, noise=noise, frame_range=(-5, 5))
 
 
-def test_simulation(samplers, microscope):
-    """
-    Tests combination of structure sampler, psf, bg, microscope and samples from it
-    """
-    em_sampler, bg_sampler = samplers
-
-    # sample
-    em = em_sampler.sample()
-    bg_sample = bg_sampler.sample()
-    frames = microscope.forward(em, bg_sample)
-
-    assert frames.size() == torch.Size([10, 32, 32])
-
-
 @pytest.fixture
 def target():
-    lane_emitter = target_generator.TargetGeneratorChain(
-        [
-            neuralfitter.target_generator.ParameterListTarget(
-                n_max=100,
-                xextent=(-0.5, 31.5),
-                yextent=(-0.5, 31.5),
-                ix_low=-5,
-                ix_high=5,
-                squeeze_batch_dim=False,
-            ),
-            neuralfitter.scale_transform.ScalerTargetList(
-                phot=1000.0,
-                z=1000.0,
-                bg_max=100,
-            ),
-        ]
+    scaler = neuralfitter.scale_transform.ScalerTargetList(
+        phot=1000.0,
+        z=1000.0,
     )
-    lane_bg = target_generator.TargetGeneratorForwarder(["bg"])
-
-    return target_generator.TargetGeneratorFork(
-        components=[lane_emitter, lane_bg],
-        merger=None,
+    filter = emitter.process.EmitterFilterFoV((-0.5, 31.5), (-0.5, 31.5))
+    bg_lane = neuralfitter.scale_transform.ScalerAmplitude(100.0)
+    return target_generator.TargetGaussianMixture(
+        n_max=100,
+        ix_low=None,
+        ix_high=None,
+        ignore_ix=True,
+        scaler=scaler,
+        filter=filter,
+        aux_lane=bg_lane,
     )
 
 
@@ -82,16 +60,15 @@ def test_target(target):
     bg = torch.rand(10, 64, 64)
 
     (tar_em, tar_em_mask), tar_bg = target.forward(em, bg)
-    assert tar_bg is bg
 
 
 @pytest.fixture
 def post_model():
     return neuralfitter.scale_transform.ScalerModelOutput(
-                phot_max=1000.0,
-                z_max=1000.0,
-                bg_max=100,
-            )
+        phot=1000.0,
+        z=1000.0,
+        bg=100,
+    )
 
 
 @pytest.fixture
@@ -121,12 +98,11 @@ def test_post_processor(post_processor):
 
 @pytest.fixture
 def processor(target, post_model, post_processor):
-    frame_scale = neuralfitter.scale_transform.AmplitudeRescale(scale=1000.)
+    frame_scale = neuralfitter.scale_transform.ScalerAmplitude(scale=1000.0)
     em_filter = emitter.process.EmitterFilterGeneric(phot=lambda x: x > 100.0)
 
     return neuralfitter.process.ProcessingSupervised(
         pre_input=frame_scale,
-        pre_tar=em_filter,
         tar=target,
         post_model=post_model,
         post=post_processor,
@@ -145,9 +121,10 @@ def test_processor(samplers, microscope, processor):
     _ = processor.post(torch.rand(2, 10, 64, 64))
 
 
-def test_sampler_training(samplers, microscope):
-    # during training, we can not sample background once for all frames and simply add it,
-    # as it needs to vary for different samples but stay constant within one window
+@pytest.mark.parametrize("num_workers", [0, 2])
+def test_sampler_training(num_workers, samplers, microscope, target):
+    # during training, we can not sample background once for all frames and simply add
+    # it, as it needs to vary for different samples but stay constant within one window
 
     em_sampler, bg_sampler = samplers
     em = em_sampler.sample()
@@ -158,7 +135,10 @@ def test_sampler_training(samplers, microscope):
 
     # noise thing
     shared_input = neuralfitter.utils.process.InputMerger(noise)
-    proc = neuralfitter.process.ProcessingSupervised(shared_input=shared_input)
+    proc = neuralfitter.process.ProcessingSupervised(
+        shared_input=shared_input,
+        tar=target,
+    )
 
     s = neuralfitter.sampler.SamplerSupervised(
         em=em,
@@ -170,9 +150,34 @@ def test_sampler_training(samplers, microscope):
     )
     s.sample()
 
-    x = s.input
-    x.size = lambda _: torch.Size([100])
-
     # wrap in a dataset and try dataloader
-    ds = torch.utils.data.TensorDataset(x)
+    ds = neuralfitter.dataset.DatasetGausianMixture(s.input, s.target)
+    assert len(ds) == 10
 
+    x, (tar_em, tar_mask, tar_bg) = ds[5]
+
+    assert x.size() == torch.Size([3, 32, 32])
+    assert tar_em.size() == torch.Size([100, 4])
+    assert tar_mask.size() == torch.Size([100])
+    assert tar_bg.size() == torch.Size([1, 32, 32])
+
+    dl = torch.utils.data.DataLoader(ds, batch_size=4, num_workers=num_workers)
+    assert len(dl) == 3
+
+    x_batch, (tar_em_batch, tar_mask_batch, tar_bg_batch) = next(iter(dl))
+
+    assert x_batch.size() == torch.Size([4, 3, 32, 32])
+    assert tar_em_batch.size() == torch.Size([4, 100, 4])
+    assert tar_mask_batch.size() == torch.Size([4, 100])
+    assert tar_bg_batch.size() == torch.Size([4, 1, 32, 32])
+
+    # # dummy model output
+    # out = torch.rand(dl.batch_size, 10, 32, 32, requires_grad=True)
+    #
+    # loss = neuralfitter.loss.GaussianMMLoss(
+    #     xextent=(-0.5, 31.5),
+    #     yextent=(-0.5, 31.5),
+    #     img_shape=(32, 32),
+    #     device="cpu"
+    # )
+    # loss.forward(out, y, None)
