@@ -37,4 +37,4 @@ def test_dataset_gmm():
     ds = dataset.DatasetGausianMixture(torch.rand(32, 3, 40, 41), tar)
 
     assert len(ds) == 32
-    x, tar_em, tar_mask, tar_bg = ds[14]
+    x, (tar_em, tar_mask, tar_bg) = ds[14]

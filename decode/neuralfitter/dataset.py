@@ -62,4 +62,4 @@ class DatasetGausianMixture(torch.utils.data.Dataset):
     def __getitem__(self, item: int):
         x = self._input[item]
         (tar_em, tar_mask), tar_bg = self._target[item]
-        return x, tar_em, tar_mask, tar_bg
+        return x, (tar_em, tar_mask, tar_bg)
