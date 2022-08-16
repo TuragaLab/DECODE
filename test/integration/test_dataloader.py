@@ -94,12 +94,12 @@ class TestLiveDataset(Base):
     def target_generator(self, psf):
         tar_gen = decode.neuralfitter.utils.processing.TransformSequence(
             [
-                decode.neuralfitter.target_generator.ParameterListTarget(n_max=250,
-                                                                         xextent=psf.xextent,
-                                                                         yextent=psf.yextent,
-                                                                         ix_low=0,
-                                                                         ix_high=0,
-                                                                         squeeze_batch_dim=True),
+                decode.neuralfitter.target_generator.ParameterList(n_max=250,
+                                                                   xextent=psf.xextent,
+                                                                   yextent=psf.yextent,
+                                                                   ix_low=0,
+                                                                   ix_high=0,
+                                                                   squeeze_batch_dim=True),
 
                 decode.neuralfitter.target_generator.DisableAttributes(None),
 
