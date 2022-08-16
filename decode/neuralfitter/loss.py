@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod  # abstract class
 from typing import Union, Tuple
 
 import torch
-from deprecated import deprecated
 from torch import distributions
 
 # from . import MixtureSameFamily as mixture
@@ -214,31 +213,28 @@ class GaussianMMLoss(Loss):
 
         prob_normed = p / p.sum(-1).sum(-1).view(-1, 1, 1)
 
-        """Hacky way to get all prob indices"""
+        # hacky way to get all prob indices
         p_inds = tuple((p + 1).nonzero(as_tuple=False).transpose(1, 0))
         pxyz_mu = pxyz_mu[p_inds[0], :, p_inds[1], p_inds[2]]
 
-        """Convert px shifts to absolute coordinates"""
+        # convert px shifts to absolute coordinates
         pxyz_mu[:, 1] += self._offset2coord.bin_ctr_x[p_inds[1]].to(pxyz_mu.device)
         pxyz_mu[:, 2] += self._offset2coord.bin_ctr_y[p_inds[2]].to(pxyz_mu.device)
 
-        """Flatten img dimension --> N x (HxW) x 4"""
+        # flatten img dimension --> N x (HxW) x 4
         pxyz_mu = pxyz_mu.reshape(batch_size, -1, 4)
         pxyz_sig = pxyz_sig[p_inds[0], :, p_inds[1], p_inds[2]].reshape(batch_size, -1, 4)
 
-        """Set up mixture family"""
+        # set up mixture family
         mix = distributions.Categorical(prob_normed[p_inds].reshape(batch_size, -1))
         comp = distributions.Independent(distributions.Normal(pxyz_mu, pxyz_sig), 1)
         gmm = distributions.mixture_same_family.MixtureSameFamily(mix, comp)
 
-        """Calc log probs if there is anything there"""
+        # calc log probs if there is anything there
         if mask.sum():
             gmm_log = gmm.log_prob(pxyz_tar.transpose(0, 1)).transpose(0, 1)
             gmm_log = (gmm_log * mask).sum(-1)
-            # print(f"LogProb: {log_prob.mean()}, GMM_log: {gmm_log.mean()}")
             log_prob = log_prob + gmm_log
-
-        # log_prob = log_prob.reshape(batch_size, 1)  # need?
 
         loss = log_prob * (-1)
 
@@ -270,8 +266,8 @@ class GaussianMMLoss(Loss):
         bg_loss = self._bg_loss(bg, tar_bg).sum(-1).sum(-1)
         gmm_loss = self._compute_gmm_loss(p, pxyz_mu, pxyz_sig, tar_param, tar_mask)
 
-        """Stack in 2 channels. 
-        Factor 2 because original impl. adds the two terms, but this way it's better for logging."""
+        # stack in 2 channels
+        # factor 2 because original impl. adds the two terms, but this way
+        # it's better for logging
         loss = 2 * torch.stack((gmm_loss, bg_loss), 1) * self._ch_weight
-
         return loss
