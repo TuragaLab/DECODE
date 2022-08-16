@@ -65,12 +65,13 @@ class TargetGenerator(ABC):
         raise NotImplementedError
 
 
-class ParameterListTarget:
+class ParameterList:
     def __init__(
         self,
         n_max: int,
         ix_low: Optional[int] = None,
         ix_high: Optional[int] = None,
+        ignore_ix: Optional[bool] = False,
         xy_unit: str = "px",
     ):
         """
@@ -82,13 +83,15 @@ class ParameterListTarget:
                 (should be much higher than what you draw on average)
             ix_low: lower frame index
             ix_high: upper frame index
+            ignore_ix: ignore frame ix and put all emitter attributes on a single non-batched
+                tensor
             xy_unit: xy unit
         """
 
         super().__init__()
         self._ix_low = ix_low
         self._ix_high = ix_high
-        self._n_frames = ix_high - ix_low
+        self._ignore_ix = ignore_ix
         self._n_em = n_max
         self._xy_unit = xy_unit
 
@@ -96,15 +99,23 @@ class ParameterListTarget:
             raise NotImplementedError
 
     def forward(self, em: EmitterSet) -> tuple[torch.Tensor, torch.BoolTensor]:
-        # frame filter and shift ix to 0
-        em = em.get_subset_frame(self._ix_low, self._ix_high, -self._ix_low)
+        if self._ignore_ix:
+            em = em.clone()
+            em.frame_ix[:] = 0
+
+            n_frames = 1
+        else:
+            # frame filter and shift ix to 0
+            em = em.get_subset_frame(self._ix_low, self._ix_high, -self._ix_low)
+
+            n_frames = self._ix_high - self._ix_low
 
         # compute target (i.e. a matrix / tensor in which all params are concatenated)
-        tar = torch.ones((self._n_frames, self._n_em, 4)) * float("nan")
-        mask = torch.zeros((self._n_frames, self._n_em), dtype=torch.bool)
+        tar = torch.ones((n_frames, self._n_em, 4)) * float("nan")
+        mask = torch.zeros((n_frames, self._n_em), dtype=torch.bool)
 
         # set number of active elements per frame
-        for i in range(self._n_frames):
+        for i in range(n_frames):
             em_frame = em.iframe[i]
             n_emitter = len(em_frame)
 
@@ -116,6 +127,10 @@ class ParameterListTarget:
             mask[i, :n_emitter] = True
             tar[i, :n_emitter, 0] = em_frame.phot
             tar[i, :n_emitter, 1:] = getattr(em_frame, f"xyz_{self._xy_unit}")
+
+        if self._ignore_ix:
+            tar.squeeze_(0)
+            mask.squeeze_(0)
 
         return tar, mask
 
@@ -178,7 +193,7 @@ class TargetGaussianMixture(TargetGenerator):
         """
         super().__init__(ix_low=ix_low, ix_high=ix_high, filter=filter, scaler=scaler)
 
-        self._list_impl = ParameterListTarget(
+        self._list_impl = ParameterList(
             n_max=n_max, ix_low=ix_low, ix_high=ix_high, xy_unit=xy_unit
         )
         self._switch = switch

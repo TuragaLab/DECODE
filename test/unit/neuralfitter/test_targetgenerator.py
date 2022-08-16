@@ -170,12 +170,14 @@ def test_tar_forwarder(attr):
             assert out is bg
 
 
-def test_paramlist_tar():
-    tar = target_generator.ParameterListTarget(
+@pytest.mark.parametrize("ignore_ix", [True, False])
+def test_paramlist(ignore_ix):
+    tar = target_generator.ParameterList(
         n_max=100,
         xy_unit="px",
         ix_low=0,
         ix_high=3,
+        ignore_ix=ignore_ix,
     )
 
     em = emitter.EmitterSet(
@@ -187,21 +189,31 @@ def test_paramlist_tar():
 
     tar, mask = tar.forward(em)
 
-    assert tar.size() == torch.Size([3, 100, 4])
-    assert mask.size() == torch.Size([3, 100])
     assert mask.dtype == torch.bool
     assert mask.sum() == len(em)
 
-    # check the emitters manually
-    np.testing.assert_array_equal(tar[0, 0, 0], em[0].phot)
-    np.testing.assert_array_equal(tar[0, 0, 1:], em[0].xyz.squeeze())
-    np.testing.assert_array_equal(tar[2, 0, 0], em[1].phot)
-    np.testing.assert_array_equal(tar[2, 0, 1:], em[1].xyz.squeeze())
+    if not ignore_ix:
+        assert tar.size() == torch.Size([3, 100, 4])
+        assert mask.size() == torch.Size([3, 100])
 
-    # check that everything but the filled out emitters are nan
-    assert torch.isnan(tar[0, 1:]).all()
-    assert torch.isnan(tar[1]).all()
-    assert torch.isnan(tar[2, 1:]).all()
+        # manual emitter checks
+        np.testing.assert_array_equal(tar[0, 0, 0], em[0].phot)
+        np.testing.assert_array_equal(tar[0, 0, 1:], em[0].xyz.squeeze())
+        np.testing.assert_array_equal(tar[2, 0, 0], em[1].phot)
+        np.testing.assert_array_equal(tar[2, 0, 1:], em[1].xyz.squeeze())
+
+        # check that everything but the filled out emitters are nan
+        assert torch.isnan(tar[0, 1:]).all()
+        assert torch.isnan(tar[1]).all()
+        assert torch.isnan(tar[2, 1:]).all()
+
+    else:
+        assert tar.size() == torch.Size([100, 4])
+        assert mask.size() == torch.Size([100])
+
+        np.testing.assert_array_equal(tar[:2, 0], em.phot)
+        np.testing.assert_array_equal(tar[:2, 1:], em.xyz)
+        assert torch.isnan(tar[2:]).all()
 
 
 def test_disable_attr():
