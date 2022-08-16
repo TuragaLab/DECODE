@@ -96,7 +96,6 @@ class ProcessingSupervised(Processing):
         self,
         shared_input: Optional[_Forwardable] = None,
         pre_input: Optional[_Forwardable] = None,
-        pre_tar: Optional[_Forwardable] = None,
         tar: Optional[_Forwardable] = None,
         post_model: Optional[_Forwardable] = None,
         post: Optional[_Forwardable] = None,
@@ -117,7 +116,6 @@ class ProcessingSupervised(Processing):
 
         self._shared_input = shared_input
         self._pre_input_impl = pre_input
-        self._pre_tar_impl = pre_tar
         self._tar = tar
         self._post_model = post_model
         self._post = post
@@ -133,7 +131,6 @@ class ProcessingSupervised(Processing):
         return frame
 
     def tar(self, em: emitter.EmitterSet, aux: Any) -> torch.Tensor:
-        em = self._pre_tar(em)
         return self._tar.forward(em, aux)
 
     def post(self, x: torch.Tensor) -> emitter.EmitterSet:
@@ -142,6 +139,3 @@ class ProcessingSupervised(Processing):
 
     def post_model(self, x: torch.Tensor) -> torch.Tensor:
         return self._post_model.forward(x)
-
-    def _pre_tar(self, em: emitter.EmitterSet) -> emitter.EmitterSet:
-        return self._pre_tar_impl.forward(em)
