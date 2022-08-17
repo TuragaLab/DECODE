@@ -1,87 +1,52 @@
-import threading
-import queue
-import time
+from pathlib import Path
+from unittest import mock
+
+import numpy as np
+import torch
 import pytest
 
-import tifffile
-import torch
-
-from decode.generic import test_utils
-from decode.io import frames as frames_io
+from decode.io import frames
 
 
-def online_tiff_writer(path, iterations: int, sleep: float, out_queue=None):
-    """Creates a tiff file and writes for n iterations to it with at least 1s in between."""
-    assert iterations >= 2
+@pytest.mark.parametrize("path,memmap", [
+    (["", ""], False),  # simulate list of tiffs
+    ("", False),
+    ("", True)
+])
+@mock.patch.object(frames.tifffile, "imread")
+@mock.patch.object(frames.tifffile, "memmap")
+def test_load_tif(mock_mem, mock_imread, path, memmap, tmpdir):
+    frames_tensor = torch.rand(5, 32, 34)
 
-    batch_size = 100
+    p = Path(tmpdir) / "mm.dat"
+    mm = np.memmap(p, shape=(5, 32, 34), mode="w+", dtype="float32")
+    mm[:] = frames_tensor.numpy()
+    mm.flush()
 
-    img = torch.randint(255, (iterations * batch_size, 64, 64), dtype=torch.short)
-    if out_queue is not None:
-        out_queue.put(img)  # put image to queue already here so that the other side can take it already
+    mock_imread.return_value = frames_tensor.numpy()
+    mock_mem.return_value = mm
 
-    img_chunked = torch.chunk(img, iterations, dim=0)
-
-    # write batches of img
-    for chunk in img_chunked:
-        time.sleep(sleep)
-        tifffile.imwrite(path, data=chunk.numpy(), ome=True, append=True)
-
-
-def test_tiff_tensor(tmpdir):
-    fname = tmpdir / 'static.tiff'
-
-    data = torch.randint(255, (1000, 64, 64), dtype=torch.short)
-    tifffile.imwrite(fname, data=data.numpy())
-
-    data_tensor = frames_io.TiffTensor(fname)
-
-    # test complete load
-    assert (data == data_tensor[:]).all()
-
-    # test integer slice load
-    ix = torch.randint(len(data), size=(10, ), dtype=torch.long)
-    assert (data[ix] == data_tensor[ix]).all()
-
-    # test subslice
-    ix_sub = torch.randint(data.size(1), size=(10, ), dtype=torch.long)
-    assert (data[ix[0].item(), ix_sub] == data_tensor[ix[0].item(), ix_sub]).all()
-    assert (data[ix[0].item(), ...,  ix_sub] == data_tensor[ix[0].item(), ..., ix_sub]).all()
+    f = frames.load_tif(path, memmap=memmap)
+    if isinstance(path, list):
+        assert f.size() == torch.Size([2, *frames_tensor.size()])
+        assert (f[0] == frames_tensor).all()
+    else:
+        assert f.size() == frames_tensor.size()
+        assert (f[:] == frames_tensor).all()
 
 
-@pytest.mark.skip(reason="Online Tiff Writer not stable.")
-@pytest.mark.skipif(int(tifffile.__version__[:4]) <= 2020, reason="Online writer does not work with this version.")
-def test_tiff_tensor_online(tmpdir):
-    fname = tmpdir / 'online.tiff'
+def test_tensor_memmap(tmpdir):
+    x = torch.rand(32, 34, 36)
 
-    # start a thread that continuously write to a tiff file
-    q = queue.Queue()
-    thread = threading.Thread(target=online_tiff_writer, args=[str(fname), 10, 1, q])
-    thread.start()
+    p = Path(tmpdir) / "memmap.dat"
+    x_mm = np.memmap(p, shape=(32, 34, 36), mode="w+", dtype="float32")
+    x_mm[:] = x[:]
+    x_mm.flush()
 
-    # get ground through tensor already to be able to check against it
-    tiff_gt = q.get()
+    x_tensor_mm = frames.TensorMemMap(x_mm)
 
-    # wait until file is there
-    while not test_utils.file_loadable(fname, tifffile.TiffFile, mode='rb',
-                                       exceptions=(KeyError, tifffile.TiffFileError)):
-        time.sleep(0.5)
-
-    tiff = frames_io.TiffTensor(fname)
-
-    lengths = []
-    for i in range(15):
-        n = len(tiff)
-
-        # check that what is loadable is correct
-        assert(tiff[:n] == tiff_gt[:n]).all()
-
-        lengths.append(n)
-        time.sleep(0.5)
-
-    # wait for last write
-    thread.join()
-    lengths.append(len(tiff))
-
-    assert len(torch.Tensor(n).unique()) >= 5  # kind of stochastic, would fail for ultra slow write
-    assert lengths[-1] == 1000
+    assert (x_tensor_mm[:] == x[:]).all()
+    assert (x_tensor_mm[27:49, 29:] == x[27:49, 29:]).all()
+    assert len(x_tensor_mm) == len(x)
+    assert x_tensor_mm.size() == x.size()
+    assert x_tensor_mm.dim() == x.dim()

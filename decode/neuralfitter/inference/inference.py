@@ -194,7 +194,7 @@ class LiveInfer(Infer):
         self._time_wait = time_wait
         self._buffer_length = safety_buffer
 
-    def forward(self, frames: Union[torch.Tensor, frames_io.TiffTensor]):
+    def forward(self, frames: Union[torch.Tensor]):
 
         n_fitted = 0
         n_waited = 0
