@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, TypeVar, Protocol, Optional, Union
 
 import torch
+from deprecated import deprecated
 
 from . import process
 from .utils import indexing
@@ -213,6 +214,7 @@ class SamplerSupervised(Sampler):
     def __len__(self) -> int:
         return len(self.frame)
 
+    @deprecated(version="dev", reason="this does not fit here")
     def sample(self):
         if self._bg is None or self._bg_mode == "sample":
             f = self._mic.forward(em=self._em, bg=None)
