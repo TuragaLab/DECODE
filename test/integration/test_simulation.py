@@ -30,6 +30,16 @@ def samplers() -> tuple[
 
 
 @pytest.fixture
+def psf():
+    return simulation.psf_kernel.DeltaPSF((-0.5, 31.5), (-0.5, 31.5), (32, 32))
+
+
+@pytest.fixture
+def noise():
+    return simulation.noise.Poisson()
+
+
+@pytest.fixture
 def microscope():
     psf = simulation.psf_kernel.DeltaPSF((-0.5, 31.5), (-0.5, 31.5), (32, 32))
     noise = simulation.noise.Poisson()
@@ -122,7 +132,7 @@ def test_processor(samplers, microscope, processor):
 
 
 @pytest.mark.parametrize("num_workers", [0, 2])
-def test_sampler_training(num_workers, samplers, microscope, target):
+def test_sampler_dataset_dataloader(num_workers, samplers, psf, target, noise):
     # during training, we can not sample background once for all frames and simply add
     # it, as it needs to vary for different samples but stay constant within one window
 
@@ -130,11 +140,9 @@ def test_sampler_training(num_workers, samplers, microscope, target):
     em = em_sampler.sample()
     bg = bg_sampler.sample(size=(10, 1, 32, 32))
 
-    noise = microscope._noise
-    microscope._noise = None
+    mic = simulation.microscope.Microscope(psf=psf, noise=None, frame_range=(-5, 5))
+    shared_input = neuralfitter.utils.process.InputMerger(noise=noise)
 
-    # noise thing
-    shared_input = neuralfitter.utils.process.InputMerger(noise)
     proc = neuralfitter.process.ProcessingSupervised(
         shared_input=shared_input,
         tar=target,
@@ -144,7 +152,7 @@ def test_sampler_training(num_workers, samplers, microscope, target):
         em=em,
         bg=bg,
         proc=proc,
-        mic=microscope,
+        mic=mic,
         bg_mode="sample",
         window=3,
     )
@@ -170,14 +178,3 @@ def test_sampler_training(num_workers, samplers, microscope, target):
     assert tar_em_batch.size() == torch.Size([4, 100, 4])
     assert tar_mask_batch.size() == torch.Size([4, 100])
     assert tar_bg_batch.size() == torch.Size([4, 1, 32, 32])
-
-    # # dummy model output
-    # out = torch.rand(dl.batch_size, 10, 32, 32, requires_grad=True)
-    #
-    # loss = neuralfitter.loss.GaussianMMLoss(
-    #     xextent=(-0.5, 31.5),
-    #     yextent=(-0.5, 31.5),
-    #     img_shape=(32, 32),
-    #     device="cpu"
-    # )
-    # loss.forward(out, y, None)
