@@ -1,16 +1,22 @@
+from abc import ABC, abstractmethod
+
 import numpy as np
 import torch
 from typing import Callable
+from collections.abc import Sequence
+from typing import Optional, Union, Any
 
 
 def split_sliceable(x, x_ix: torch.LongTensor, ix_low: int, ix_high: int) -> list:
     """
-    Split a sliceable / iterable according to an index into list of elements between lower and upper bound.
-    Not present elements will be filled with empty instances of the iterable itself.
+    Split a sliceable / iterable according to an index into list of elements between
+    lower and upper bound. Not present elements will be filled with empty instances of
+    the iterable itself.
 
-    This function is mainly used to split the EmitterSet in list of EmitterSets according to its frame index.
-    This function can also be called with arguments x and x_ix being the same. In this case you get a list of indices
-        out which can be used for further indexing.
+    This function is mainly used to split the EmitterSet in list of EmitterSets
+    according to its frame index. This function can also be called with arguments x and
+    x_ix being the same. In this case you get a list of indices out which can be used
+    for further indexing.
 
     Examples:
         x: [5, 6, 7], x_ix: [4, 3, 2], ix_low: 0, ix_high: 6
@@ -28,7 +34,6 @@ def split_sliceable(x, x_ix: torch.LongTensor, ix_low: int, ix_high: int) -> lis
 
     """
 
-    """Safety checks"""
     if x_ix.numel() >= 1 and not isinstance(x_ix, (torch.IntTensor, torch.ShortTensor, torch.LongTensor)):
         raise TypeError("Index must be subtype of integer.")
 
@@ -69,6 +74,100 @@ def ix_split(ix: torch.Tensor, ix_min: int, ix_max: int) -> list:
 
     log_ix = [ix == ix_c for ix_c in range(ix_min, ix_max)]
     return log_ix
+
+
+class ChainedSequence:
+    def __init__(self, s: list[Sequence]):
+        """
+        Chain a sequence to access linearly and map to respective component
+
+        Args:
+            s: list of sequence that do not mutate in length anymore
+        """
+        self._s = s
+        self._map = self._compute_map()
+
+    def __len__(self):
+        return sum([len(s) for s in self._s])
+
+    def __getitem__(self, item):
+        comp, ix_comp = self._map[item].tolist()
+        return self._s[comp][ix_comp]
+
+    def _compute_map(self) -> torch.LongTensor:
+        # cols: ix of component, ix in component
+        ix = torch.zeros(len(self), 2, dtype=torch.long)
+
+        block_start = 0
+        for i, s in enumerate(self._s):
+            block_end = block_start + len(s)
+
+            ix[block_start:block_end, 0] = i
+            ix[block_start:block_end, 1] = torch.arange(len(s))
+
+            block_start = block_end
+
+        return ix
+
+
+class ChainedTensor(ChainedSequence):
+    def __init__(self, t: list[torch.Tensor]):
+        super().__init__(t)
+
+    def __getitem__(self, item: Union[int, tuple[int, slice], slice]):
+        pass
+
+    def size(self, dim: Optional[int] = None) -> Union[int, torch.Size]:
+        size = torch.Size([len(self), *self._s[0].size()[1:]])
+
+        if dim is not None:
+            return size[dim]
+
+        return size
+
+
+class _LinearGetitemMixin(ABC):
+    """
+    Helper to make first index in getitem integer (useful for memory maps etc.)
+    """
+    @abstractmethod
+    def _get_element(self, item: int):
+        # get element from batch dim
+        pass
+
+    @abstractmethod
+    def _collect_batch(self, batch: list) -> Any:
+        # collect batch, e.g. torch.stack for tensors, or just keep as is (list)
+        return batch
+
+    @abstractmethod
+    def __len__(self) -> int:
+        pass
+
+    def __getitem__(self, item: Union[int, slice, tuple[int, slice]]):
+        # convert to tuple if not already
+        if not isinstance(item, tuple):
+            item = list([item])
+        else:
+            item = list(item)
+
+        # ellipsis not supported as of now
+        for p in item:
+            if isinstance(p, type(...)):
+                raise NotImplementedError(f"Ellipsis not yet supported.")
+
+        # case A: batch dim is reduced (e.g. because of integer access in first dim)
+        if isinstance(item[0], int):
+            v = self._get_batch(item[0])
+            return v if len(item) == 1 else v[item[1:]]
+
+        # case B: batch dim not reduced, e.g. slicing or list access in first dim
+        # linearize  slice
+        if isinstance(item[0], slice):
+            item[0] = list(range(len(self)))[item[0]]
+
+        non_batch_getter = (slice(None), *item[1:])  # helper for correct reduction
+        return self._collect_batch([self._get_batch(i) for i in item[0]])[non_batch_getter]
 
 
 class SliceForward:
