@@ -193,7 +193,8 @@ def test_linear_mixin():
     x = torch.rand(25, 3, 4)
     d = Dummy(x)
 
-    torch.testing.assert_close(d[0], x[0], msg="Integer indexing failed")
+    torch.testing.assert_close(d[0], x[0], msg="Unsigned Integer indexing failed")
+    torch.testing.assert_close(d[-1], x[-1], msg="Signed integer indexing failed")
     torch.testing.assert_close(d[0:3], x[0:3], msg="Slicing in batch dim failed")
     torch.testing.assert_allclose(
         d[0, 2, 2:5], x[0, 2, 2:5], msg="Slicing in non-batch failed"

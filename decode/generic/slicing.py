@@ -158,16 +158,16 @@ class _LinearGetitemMixin(ABC):
 
         # case A: batch dim is reduced (e.g. because of integer access in first dim)
         if isinstance(item[0], int):
-            v = self._get_batch(item[0])
+            v = self._get_element(item[0])
             return v if len(item) == 1 else v[item[1:]]
 
         # case B: batch dim not reduced, e.g. slicing or list access in first dim
         # linearize  slice
         if isinstance(item[0], slice):
-            item[0] = list(range(len(self)))[item[0]]
+            item[0] = list(range(len(self)))[item[0]]  # convert slice to equivalent list
 
         non_batch_getter = (slice(None), *item[1:])  # helper for correct reduction
-        return self._collect_batch([self._get_batch(i) for i in item[0]])[non_batch_getter]
+        return self._collect_batch([self._get_element(i) for i in item[0]])[non_batch_getter]
 
 
 class SliceForward:
