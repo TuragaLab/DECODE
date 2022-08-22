@@ -31,7 +31,7 @@ class _DelayedSlicer:
         """
         Returns a sliceable handle and executes a function on __getitem__ where input
         arguments are then sliced and passed on to the function. Useful for delaying
-        function executions.
+        function executions that are optionally batched.
 
         Args:
             fn:
