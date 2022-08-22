@@ -170,6 +170,23 @@ class _LinearGetitemMixin(ABC):
         return self._collect_batch([self._get_element(i) for i in item[0]])[non_batch_getter]
 
 
+class _SizebyFirstMixin(ABC):
+    """
+    Helper to determine `.size()` by length plus the size of the first element.
+    """
+    @abstractmethod
+    def __len__(self) -> int:
+        pass
+
+    def size(self, dim: Optional[int] = None) -> torch.Size:
+        s = torch.Size([len(self), *tuple(self[0].size())])
+
+        if dim is None:
+            return s
+
+        return s[dim]
+
+
 class SliceForward:
     def __init__(self, on_getitem: Callable):
         """

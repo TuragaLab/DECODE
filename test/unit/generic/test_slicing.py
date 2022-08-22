@@ -202,3 +202,20 @@ def test_linear_mixin():
     torch.testing.assert_allclose(
         d[0:5, 2, 2:5], x[0:5, 2, 2:5], msg="Combined slicing " "failed."
     )
+
+
+@pytest.mark.parametrize("dim,expct", [
+    (None, [100, 3, 32, 34]),
+    (0, 100),
+    (-1, 34),
+])
+def test_size_mixin(dim, expct):
+    class Dummy(gutils._SizebyFirstMixin):
+        def __len__(self):
+            return 100
+
+        def __getitem__(self, item):
+            return torch.rand(3, 32, 34)
+
+    d = Dummy()
+    assert d.size(dim) == torch.Size(expct) if isinstance(expct, list) else expct
