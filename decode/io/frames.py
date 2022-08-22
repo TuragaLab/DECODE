@@ -1,7 +1,10 @@
 import collections
 import pathlib
 import warnings
-from typing import Union, Optional
+import re
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Union, Optional, Any
 
 import numpy as np
 import tifffile
@@ -9,13 +12,15 @@ import torch
 from deprecated import deprecated
 from pydantic import validate_arguments
 
+from ..generic import slicing
 
-@validate_arguments
+
 def load_tif(
-    path: Union[list[pathlib.Path], pathlib.Path],
-    multifile: bool = True,
+    path: Union[str, pathlib.Path],
+    auto_ome: bool = True,
     memmap: bool = False,
     dtype: str = "float32",
+    dtype_inter: torch.dtype = torch.float32
 ) -> torch.Tensor:
     """
     Reads the tif(f) files. When a list of paths is specified, multiple tiffs are
@@ -23,68 +28,132 @@ def load_tif(
 
     Args:
         path: path to the tiff / or list of paths
-        multifile: auto-load multi-file tiff (for large files)
+        auto_ome: autoload ome files
         memmap: load as memory mapped tensor
+        dtype: output dtype
+        dtype_inter: intermediate read dtype
     """
+    path = Path(path) if not isinstance(path, Path) else path
 
     # if dir, load multiple files and stack them if more than one found
     if isinstance(path, collections.abc.Sequence):
         if memmap:
             raise NotImplementedError("Memory map not supported for sequence of paths.")
-        return torch.stack(
-            [load_tif(p, multifile=multifile, memmap=False) for p in path], dim=0
-        )
 
     if memmap:
-        mm = tifffile.memmap(path)
-        frames = TensorMemMap(mm)
+        frames = TiffTensor(path, auto_ome=auto_ome, dtype=dtype, dtype_inter=dtype_inter)
     else:
-        im = tifffile.imread(path, multifile=multifile)
-        frames = torch.from_numpy(im.astype(dtype))
+        if not auto_ome:
+            raise ValueError(f"Auto OME is always on when not using memmap.")
+        im = tifffile.imread(path)
+        frames = torch.from_numpy(im.astype(dtype_inter)).type(dtype)
 
     if frames.dim() <= 2:
-        warnings.warn(
-            f"Frames seem to be of wrong dimension ({frames.size()}), "
-            f"or could only find a single frame.",
-            ValueError,
-        )
+        warnings.warn(f"Frames are of dimension {frames.size()}.")
 
     return frames
 
 
-class TensorMemMap:
-    def __init__(self, np_memmap: np.memmap):
+class TiffTensor:
+    def __init__(
+        self,
+        path: Path,
+        auto_ome: bool = True,
+        pattern_ome: str = ".ome",
+        pattern_ome_suffix: str = "_[0-9]{1,2}",
+    ):
         """
-        Memory-mapped tensor from numpy memmap.
-        Note that data is loaded only to the extent to  which the object is accessed
-        through brackets '[ ]' Therefore, this tensor has no value and no state until it
-        is sliced and then returns a torch tensor.
-        You can of course enforce loading the whole tiff by tiff_tensor[:]
+        Construct memory mapped tensor from path to tiff file
 
         Args:
-            np_memmap: numpy memory map
+            path:
+            auto_ome: autodiscover ome connected files
+            pattern_ome: pattern of ome, e.g. `.ome`
+            pattern_suffix: regex compatible pattern of suffixes,
+             default searches for _1, _2, ..., _99
         """
-        self._memmap = np_memmap
+        if auto_ome:
+            path = auto_discover_ome(
+                path,
+                pattern_ome=pattern_ome,
+                pattern_suffix=pattern_ome_suffix,
+            )
+        else:
+            path = [path] if not isinstance(path, Sequence) else path
 
-    def __getitem__(self, pos: Union[int, tuple, slice]) -> torch.Tensor:
-        return torch.from_numpy(self._memmap[pos])
+        self._tifffile_raw = [tifffile.TiffFile(p, mode="rb") for p in path]
+        self._data = TiffFilesTensor(self._tifffile_raw)
 
-    def __setitem__(self, key, value):
-        raise NotImplementedError
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # close files on exit
+        [t.close() for t in self._tifffile_raw]
+
+    def __getitem__(self, item):
+        return self._data[item]
 
     def __len__(self) -> int:
-        return len(self._memmap)
+        return len(self._data)
 
-    def size(self, dim: Optional[int] = None) -> Union[torch.Size, int]:
-        size = torch.Size(self._memmap.shape)
+    def size(self, dim: Optional[int] = None):
+        return self._data.size()
 
-        if dim is not None:
-            return size[dim]
 
-        return size
+class TiffFilesTensor(slicing._LinearGetitemMixin, slicing._SizebyFirstMixin):
+    def __init__(
+        self,
+        container: Union[tifffile.TiffFile, Sequence[tifffile.TiffFile]],
+        dtype_inter: str = "int32",
+        dtype: torch.dtype = torch.float32,
+    ):
+        """
+        Wraps tifffile.TiffFile's into a quasi-memory mapped tensor.
 
-    def dim(self) -> int:
-        return self._memmap.ndim
+        Args:
+            container: list of tifffile.TiffFiles
+            dtype_inter: numpy dtype to convert to before converting to tensor
+            dtype: torch dtype to convert to
+        """
+        container = [container] if not isinstance(container, Sequence) else container
+
+        self._seq = slicing.ChainedSequence([c.pages for c in container])
+        self._dtype_inter = dtype_inter
+        self._dtype = dtype
+
+    def __len__(self):
+        return len(self._seq)
+
+    def _collect_batch(self, batch: list) -> Any:
+        return torch.stack(batch, 0)
+
+    def _get_element(self, item: int) -> torch.Tensor:
+        return torch.from_numpy(
+            self._seq[item].asarray().astype(self._dtype_inter)
+        ).type(self._dtype)
+
+
+def auto_discover_ome(
+    p: Path, pattern_ome: str = ".ome", pattern_suffix: str = "_[0-9]{1,2}"
+) -> list[Path]:
+    """
+    Auto discovers adjacent .ome files in directory based on main .ome files path.
+    Note that this is entirley based on naming conventions, no metadata or similiar is
+    touched.
+
+    Args:
+        p: path of main ome file
+        pattern_ome: pattern of ome, e.g. `.ome`
+        pattern_suffix: regex compatible pattern of suffixes,
+         default searches for _1, _2, ..., _99
+
+    Returns:
+        list of paths
+    """
+    base = p.stem.strip(pattern_ome)
+
+    files = sorted(p.parent.glob(f"{base}*{p.suffix}"))
+    files = [files[0]] + [f for f in files[1:] if re.search(pattern_suffix, f.stem)]
+
+    return files
 
 
 @deprecated(version="0.11", reason="nonsense")

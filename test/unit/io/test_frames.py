@@ -8,45 +8,55 @@ import pytest
 from decode.io import frames
 
 
-@pytest.mark.parametrize("path,memmap", [
-    (["", ""], False),  # simulate list of tiffs
-    ("", False),
-    ("", True)
+@pytest.fixture()
+def tifffile_pages():
+    # mocked tifffile pages
+    pages_raw = torch.unbind(torch.randint(256, size=(200, 32, 34), dtype=torch.uint8))
+    pages = [None] * len(pages_raw)
+    for i, pr in enumerate(pages_raw):
+        m = mock.MagicMock()
+        m.asarray.return_value = pr.numpy().astype("uint16")
+        pages[i] = m
+    return pages
+
+
+@pytest.fixture
+def tifffile_tifffile(tifffile_pages):  # aka tifffile.TiffFile
+    t = mock.MagicMock()
+    t.pages = tifffile_pages
+    t.__len__.return_value = len(tifffile_pages)
+    return t
+
+
+def test_tiff_tensor(tifffile_tifffile):
+    tiff = frames.TiffTensor([], auto_ome=False)
+    tiff._data = torch.rand(200, 2, 4)
+
+    assert len(tiff) == len(tiff._data)
+    assert (tiff[0] == tiff._data[0]).all()
+    assert tiff.size() == tiff._data.size()
+
+
+def test_tiff_file_tensor(tifffile_tifffile):
+    tiff = frames.TiffFilesTensor([tifffile_tifffile, tifffile_tifffile])
+
+    assert len(tiff) == 2 * len(tifffile_tifffile)
+    assert tiff.size() == torch.Size([400, 32, 34])
+    assert isinstance(tiff._get_element(0), torch.Tensor)
+    assert tiff[5:10].size() == torch.Size([5, 32, 34])
+
+
+@pytest.mark.parametrize("paths", [
+    ["a.ome.tif", "a_1.ome.tif"],
+    ["b.ome.tif"],
 ])
-@mock.patch.object(frames.tifffile, "imread")
-@mock.patch.object(frames.tifffile, "memmap")
-def test_load_tif(mock_mem, mock_imread, path, memmap, tmpdir):
-    frames_tensor = torch.rand(5, 32, 34)
+def test_auto_discover_ome(paths):
+    paths = [Path(pp) for pp in paths]
 
-    p = Path(tmpdir) / "mm.dat"
-    mm = np.memmap(p, shape=(5, 32, 34), mode="w+", dtype="float32")
-    mm[:] = frames_tensor.numpy()
-    mm.flush()
+    p = mock.MagicMock()
+    p.stem.strip.return_value = "a"
+    p.parent.glob.return_value = paths
 
-    mock_imread.return_value = frames_tensor.numpy()
-    mock_mem.return_value = mm
+    path_out = frames.auto_discover_ome(p)
 
-    f = frames.load_tif(path, memmap=memmap)
-    if isinstance(path, list):
-        assert f.size() == torch.Size([2, *frames_tensor.size()])
-        assert (f[0] == frames_tensor).all()
-    else:
-        assert f.size() == frames_tensor.size()
-        assert (f[:] == frames_tensor).all()
-
-
-def test_tensor_memmap(tmpdir):
-    x = torch.rand(32, 34, 36)
-
-    p = Path(tmpdir) / "memmap.dat"
-    x_mm = np.memmap(p, shape=(32, 34, 36), mode="w+", dtype="float32")
-    x_mm[:] = x[:]
-    x_mm.flush()
-
-    x_tensor_mm = frames.TensorMemMap(x_mm)
-
-    assert (x_tensor_mm[:] == x[:]).all()
-    assert (x_tensor_mm[27:49, 29:] == x[27:49, 29:]).all()
-    assert len(x_tensor_mm) == len(x)
-    assert x_tensor_mm.size() == x.size()
-    assert x_tensor_mm.dim() == x.dim()
+    assert path_out == paths
