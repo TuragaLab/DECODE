@@ -10,7 +10,7 @@ import tifffile
 import torch
 from deprecated import deprecated
 
-from ..generic import slicing
+from ..generic import slicing, tensor
 
 
 def load_tif(
@@ -52,7 +52,7 @@ def load_tif(
     return frames
 
 
-class TiffTensor:
+class TiffTensor(tensor.TensorMemoryMapped):
     def __init__(
         self,
         path: Path,
@@ -96,7 +96,11 @@ class TiffTensor:
         return self._data.size()
 
 
-class TiffFilesTensor(slicing._LinearGetitemMixin, slicing._SizebyFirstMixin):
+class TiffFilesTensor(
+    slicing._LinearGetitemMixin,
+    slicing._SizebyFirstMixin,
+    tensor.TensorMemoryMapped
+):
     def __init__(
         self,
         container: Union[tifffile.TiffFile, Sequence[tifffile.TiffFile]],
