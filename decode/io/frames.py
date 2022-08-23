@@ -1,16 +1,14 @@
 import collections
 import pathlib
-import warnings
 import re
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Union, Optional, Any
 
-import numpy as np
 import tifffile
 import torch
 from deprecated import deprecated
-from pydantic import validate_arguments
 
 from ..generic import slicing
 
@@ -19,8 +17,8 @@ def load_tif(
     path: Union[str, pathlib.Path],
     auto_ome: bool = True,
     memmap: bool = False,
-    dtype: str = "float32",
-    dtype_inter: torch.dtype = torch.float32
+    dtype: str = torch.float32,
+    dtype_inter: torch.dtype = "float32"
 ) -> torch.Tensor:
     """
     Reads the tif(f) files. When a list of paths is specified, multiple tiffs are
@@ -88,13 +86,13 @@ class TiffTensor:
         # close files on exit
         [t.close() for t in self._tifffile_raw]
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> torch.Tensor:
         return self._data[item]
 
     def __len__(self) -> int:
         return len(self._data)
 
-    def size(self, dim: Optional[int] = None):
+    def size(self, dim: Optional[int] = None) -> torch.Size:
         return self._data.size()
 
 

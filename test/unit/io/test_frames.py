@@ -1,11 +1,27 @@
 from pathlib import Path
 from unittest import mock
 
-import numpy as np
-import torch
 import pytest
+import torch
 
 from decode.io import frames
+
+
+@pytest.mark.parametrize("memmap", [True, False])
+@mock.patch.object(frames, "TiffTensor")
+@mock.patch.object(frames.tifffile, "imread")
+def test_load_tif(mock_imread, mock_tensor, memmap):
+    mock_tensor.return_value = torch.rand(200, 32, 34)
+    mock_imread.return_value = torch.randint(255, size=(200, 32, 34)).numpy().astype("uint16")
+    p = mock.MagicMock()
+
+    f = frames.load_tif(p, memmap=memmap)
+    assert f[:100].size() == torch.Size([100, 32, 34])
+
+    if memmap:
+        mock_tensor.assert_called_once()
+    else:
+        mock_imread.assert_called_once_with(Path(p))
 
 
 @pytest.fixture()
