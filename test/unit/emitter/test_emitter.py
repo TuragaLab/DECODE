@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import pytest
 import torch
@@ -601,7 +603,14 @@ class TestEmitterSet:
         )
 
 
-def test_emitter_phot_multiple():
+def test_emitter_pickleability():
+    em = emitter.factory(100)
+    em_pickled = pickle.dumps(em)
+
+    assert pickle.loads(em_pickled) == em
+
+
+def test_emitter_phot_2d():
     em = emitter.factory(100, phot=torch.rand(100, 16))
     assert em[:10].phot.size() == torch.Size([10, 16])
 
