@@ -637,7 +637,7 @@ def test_factory():
     assert (em.phot_cr == 1).all()
 
 
-def test_factory_empty():
+def test_factory_edge_cases():
     em = emitter.factory(0)
     assert len(em) == 0
 
@@ -651,7 +651,10 @@ def test_factory_empty():
         ("abcdefg", 42, "raise"),
     ],
 )
-def test_factory_inferred_length(attr, val, exp_len):
+def test_factory_length(attr, val, exp_len):
+    """
+    Tests whether factory inferrs length correctly
+    """
     kwargs = {attr: val}
 
     if exp_len == "raise":
@@ -668,7 +671,9 @@ def test_factory_inferred_length(attr, val, exp_len):
     [(None, 17), ("xyz", 42), ("phot", 84), ("frame_ix", 122), ("id", 180)],
 )
 def test_random_emitterset(attr, len_exp):
-    """Test whether random emitterset is constructed from attribute correctly"""
+    """
+    Test whether random emitterset is correctly constructed from provided attrs
+    """
     if attr is None:
         em = emitter.factory(n=len_exp)
     elif attr == "xyz":
@@ -683,7 +688,7 @@ def test_random_emitterset(attr, len_exp):
     assert len(em) == len_exp
 
 
-def test_frame_distribution():
+def test_fluorophore_frame_bucketize():
     fluo = FluorophoreSet(
         xyz=torch.Tensor([[1.0, 2.0, 3.0], [7.0, 8.0, 9.0]]),
         flux=torch.Tensor([1.0, 2.0]),
@@ -713,13 +718,13 @@ def test_frame_distribution():
 @pytest.mark.parametrize("t_start,t_end,repeats,ontime", [
     ([-0.5, 3.2, 0.1], [-0.1, 5.2, 1.2], [1, 3, 2], [0.4, 0.8, 1, 0.2, 0.9, 0.2])
 ])
-def _compute_time_distribution(t_start, t_end, repeats, ontime):
+def test_fluorophore_compute_time_distribution(t_start, t_end, repeats, ontime):
     t_start = torch.tensor(t_start)
     t_end = torch.tensor(t_end)
     repeats = torch.tensor(repeats, dtype=torch.long)
     ontime = torch.tensor(ontime)
 
-    repeats_out, ontime_out = FluorophoreSet._compute_distribution(t_start, t_end)
+    repeats_out, ontime_out = FluorophoreSet._compute_time_distribution(t_start, t_end)
 
     np.testing.assert_array_equal(repeats_out, repeats)
     np.testing.assert_allclose(ontime_out, ontime, atol=1e-5)
