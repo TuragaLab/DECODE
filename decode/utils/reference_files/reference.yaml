@@ -2,8 +2,6 @@
 # You may modify each of those, those with values are defaults, those without values are
 #   1. needed
 #   2. derived / automatically determined
-#
-CameraPreset:
 Camera:
   baseline:
   convert2photons: true
@@ -20,14 +18,28 @@ Evaluation:
   dist_vol:
   match_dims: 3
 Hardware:
-  device: cuda:0
-  device_simulation: cuda:0
-  num_worker_train: 4
-  torch_threads: 4
-  unix_niceness: 0
-  torch_multiprocessing_sharing_strategy:
-HyperParameter:
-  arch_param:
+  device:
+    training: cuda:0
+    simulation: cuda:0
+  cpu:
+    worker: 4
+    threads: 4
+    niceness: 0  # only applicable to unix
+    multiprocessing_sharing_strategy:
+InOut:
+  calibration_file:  # spline calib
+  experiment_out:  # main output dir
+  checkpoint_init:   # initialise from checkpoint (i.e. resume training)
+  model_init:  # model weights
+Logging:
+  no_op: false
+  logger:
+    DummyLogger:
+Meta:
+  version:
+Model:
+  backbone: SigmaMUNet
+  backbone_specs:
     activation: ELU
     depth:
     depth_shared: 2
@@ -50,51 +62,16 @@ HyperParameter:
     skip_gn_level:
     up_mode: upsample
     use_last_nl:
-  architecture: SigmaMUNet
-  auto_restart_param:
-    num_restarts: 5
-    restart_treshold: 100
-  batch_size: 64
   channels_in: 3
-  channels_out:
-  chweight_stat:
-    - 1.0
-    - 1.0
-  disabled_attributes:
-  ds_lifetime:
-  epoch_0:
-  epochs: 1000
-  fgbg_factor:
-  grad_mod: true
-  emitter_label_photon_min: 100.0
-  loss_impl: MixtureModel
-  learning_rate_scheduler: StepLR
-  learning_rate_scheduler_param:
-    step_size: 10
-    gamma: 0.9
-  max_number_targets: 250
-  moeller_gradient_rescale: false
-  opt_param:
+Optimizer:
+  name: AdamW
+  specs:
     lr: 0.0002
     weight_decay: 0.1
-  optimizer: AdamW
-  photon_threshold:
-  pseudo_ds_size: 10000
-InOut:
-  calibration_file:  # spline calib
-  experiment_out:  # main output dir
-  checkpoint_init:   # initialise from checkpoint (i.e. resume training)
-  model_init:
-Logging:
-  no_op: false
-  logger:
-    DummyLogger:
-
-Meta:
-  version:
-PostProcessing: SpatialIntegration  # (blank) for no post-processing or LookUp
-PostProcessingParam:
-  raw_th: 0.5
+PostProcessing:
+  name: SpatialIntegration  # (blank) for no post-processing or LookUp
+  specs:
+    raw_th: 0.5
 Scaling:  # if some values are missing they will be auto-set as described in the respective comments below
   input_scale:  # intensity_mu / 50
   input_offset:  # bg_uniform (mean)
@@ -115,7 +92,6 @@ Simulation:
     std:  # intensity spread
   intensity_th:
   lifetime_avg:
-  mode: acquisition
   photon_range:
   psf_extent:
     x: [-0.5, 39.5]
@@ -123,12 +99,24 @@ Simulation:
     z: null
   roi_size:  # if none, take the whole range of calibration
   roi_auto_center: false
+  samples: 10000
   xy_unit: px
-TestSet:
-  mode:  simulated
-  test_size: 512
-  frame_extent:
-    x: [-0.5, 39.5]
-    y: [-0.5, 39.5]
-    z: null
-  img_size: [-40, 40]
+Trainer:
+  train_dim: 3  # 3 or 2 or 3D or 2D respectively
+  batch_size: 64
+  max_epochs: 500
+  schedulers:
+    learning_rate:
+      name: StepLR
+      specs:
+        step_size: 10
+        gamma: 0.9
+    restarter:
+      max_tries: 5
+      threshold: 100
+Target:
+  max_emitters: 250
+  filter:
+    photon: [100., null]
+TestSet:  # those overwrite the other Simulation parameters (applicable to test set)
+  samples: 512
