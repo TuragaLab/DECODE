@@ -55,3 +55,4 @@ def test_model_validation(mock_model):
 
 def test_model_on_validation_epoch_end(mock_model):
     mock_model.on_validation_epoch_end()
+    mock_model._evaluator.assert_called_once()
