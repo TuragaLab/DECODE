@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 from decode.generic import asset_handler
 from decode import simulation
 from decode import neuralfitter
-from decode.neuralfitter.train import train
+from decode.neuralfitter.train import setup_cfg
 
 
 @pytest.fixture
