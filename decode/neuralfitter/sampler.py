@@ -153,7 +153,9 @@ class SamplerSupervised(Sampler):
             mic:
             proc:
             window:
-            bg_mode: `global` or `sample`
+            bg_mode: `global` or `sample`.
+             - sample: apply bg independently
+             - global: apply bg once globally
         """
         super().__init__()
 
@@ -165,7 +167,7 @@ class SamplerSupervised(Sampler):
         self._bg_mode = bg_mode
 
         self._frame = None
-        self._frame_samples = None  # must be set toegther with _frame
+        self._frame_samples = None  # must be set together with _frame
 
     @property
     def emitter(self) -> emitter.EmitterSet:

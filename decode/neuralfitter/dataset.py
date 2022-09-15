@@ -2,8 +2,6 @@ from typing import Optional
 
 import torch
 
-from . import sampler
-
 
 class IxShifter:
     _pad_modes = (None, "same")
