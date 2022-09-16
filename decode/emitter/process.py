@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from deprecated import deprecated
+from typing import Any, Optional
 
 import torch
 
@@ -33,13 +34,19 @@ class EmitterFilterGeneric(EmitterProcess):
         Generic emitter filter.
 
         Args:
-            **kwargs: use emitter attribute and function that returns boolean
+            **kwargs: use emitter attribute and tuples to specify range,
+             or specify callable that returns boolean
 
         Examples:
-            # filters out emitters with less than 100 photons
-             >>> f = EmitterFilterGeneric(phot=lambda p: p >= 100)
+            # filters out emitters where color ix < 1 and photon count is <= 100.
+             >>> f = EmitterFilterGeneric(color=[1, None], phot=lambda p: p > 100.)
         """
         super().__init__()
+
+        # construct filter if tuples are specified
+        for k, v in kwargs.items():
+            if not callable(v):
+                kwargs[k] = _RangeFilter(*v)
 
         self._attr_fn = kwargs
 
@@ -57,7 +64,7 @@ class EmitterFilterFoV(EmitterProcess):
         self,
         xextent: tuple[float, float],
         yextent: tuple[float, float],
-        zextent=None,
+        zextent: Optional[tuple[float, float]] = None,
         xy_unit="px",
     ):
         """
@@ -117,6 +124,27 @@ class EmitterFilterFoV(EmitterProcess):
         is_emit = self._clean_emitter(em_mat)
 
         return em[is_emit]
+
+
+class _RangeFilter:
+    def __init__(self, low: Optional[Any], high: Optional[Any], inverse: bool = False):
+        self._low = low
+        self._high = high
+        self._inverse = inverse
+
+    def __call__(self, em_attr) -> bool:
+        is_ok = torch.ones(len(em_attr), dtype=torch.bool)
+
+        if self._low is not None:
+            is_ok *= em_attr >= self._low
+
+        if self._high is not None:
+            is_ok *= em_attr < self._high
+
+        if self._inverse:
+            is_ok = ~is_ok
+
+        return is_ok
 
 
 @deprecated(reason="Use generic filter.", version="0.11.0")
