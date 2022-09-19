@@ -2,8 +2,8 @@ import inspect
 
 import pytest
 import torch.nn
-from omegaconf import OmegaConf
 
+import decode.io.param
 from decode.generic import asset_handler
 from decode import simulation
 from decode import neuralfitter
@@ -12,8 +12,7 @@ from decode.neuralfitter.train import setup_cfg
 
 @pytest.fixture
 def cfg(repo_dir):
-    p = repo_dir / "config/config.yaml"
-    cfg = OmegaConf.load(p)
+    cfg = decode.io.param.load_reference()
 
     # overwrite hardware, because testing is only on cpu
     cfg.Hardware.device = "cpu"
@@ -24,12 +23,11 @@ def cfg(repo_dir):
 
 @pytest.mark.parametrize("no_op", [True, False])
 def test_setup_logger(no_op, cfg, tmpdir):
+    cfg.Paths.logging = str(tmpdir)
     cfg.Logging.no_op = no_op
-    for logger in cfg.Logging.logger.values():
-        logger.offline = True
-        logger.save_dir = str(tmpdir)
 
-    l = train.setup_logger(cfg)
+    l = setup_cfg.setup_logger(cfg)
+
     l[0].log_metrics({"a": 5})
 
 
@@ -39,14 +37,14 @@ def path_bead_cal(scope="file"):
 
 
 def test_setup_psf(path_bead_cal, cfg):
-    cfg.InOut.calibration_file = path_bead_cal
+    cfg.Paths.calibration = path_bead_cal
 
-    psf = train.setup_psf(cfg)
+    psf = setup_cfg.setup_psf(cfg)
     assert isinstance(psf, simulation.psf_kernel.CubicSplinePSF)
 
 
 def test_setup_background(cfg):
-    bg = train.setup_background(cfg)
+    bg = setup_cfg.setup_background(cfg)
     assert isinstance(bg, simulation.background.Background)
 
 
@@ -54,7 +52,7 @@ def test_setup_background(cfg):
 def test_setup_noise(preset, cfg):
     cfg.CameraPreset = preset
 
-    noise = train.setup_noise(cfg)
+    noise = setup_cfg.setup_noise(cfg)
     assert isinstance(noise, simulation.camera.Camera)
     if preset == "Perfect":
         assert isinstance(noise, simulation.camera.CameraPerfect)
@@ -63,13 +61,14 @@ def test_setup_noise(preset, cfg):
 
 
 @pytest.mark.parametrize("fn", [
-    train.setup_structure,
-    train.setup_model,
-    train.setup_loss,
-    train.setup_em_filter,
-    train.setup_tar_disable,
-    train.setup_post_process_frame_emitter,
-    train.setup_matcher,
+    setup_cfg.setup_structure,
+    setup_cfg.setup_code,
+    setup_cfg.setup_model,
+    setup_cfg.setup_loss,
+    setup_cfg.setup_em_filter,
+    setup_cfg.setup_tar_disable,
+    setup_cfg.setup_post_process_frame_emitter,
+    setup_cfg.setup_matcher,
 ])
 def test_setup_atomic_signature(fn, cfg):
     # this tests that the annotated return type is actually returned
@@ -81,28 +80,29 @@ def test_setup_atomic_signature(fn, cfg):
 
 
 def test_setup_optimizer(cfg):
-    model = train.setup_model(cfg)
-    o = train.setup_optimizer(model, cfg)
+    model = setup_cfg.setup_model(cfg)
+    o = setup_cfg.setup_optimizer(model, cfg)
 
     assert isinstance(o, torch.optim.Optimizer)
 
 
+@pytest.mark.skip(reason="deprecated")
 def test_setup_scheduler(cfg):
-    model = train.setup_model(cfg)
-    opt = train.setup_optimizer(model, cfg)
-    sched = train.setup_scheduler(opt, cfg)
+    model = setup_cfg.setup_model(cfg)
+    opt = setup_cfg.setup_optimizer(model, cfg)
+    sched = setup_cfg.setup_scheduler(opt, cfg)
 
     assert isinstance(sched, torch.optim.lr_scheduler.StepLR)
 
 
 def test_setup_tar(cfg):
-    train.setup_tar(None, None, cfg)
+    setup_cfg.setup_tar(None, None, cfg)
 
 
 def test_tar_tensor_parameter(cfg):
-    tar = train.setup_tar_tensor_parameter(None, None, cfg)
+    tar = setup_cfg.setup_tar_tensor_parameter(None, None, cfg)
     assert isinstance(tar, neuralfitter.target_generator.TargetGenerator)
 
 
 def test_setup_post_process(cfg):
-    train.setup_post_process(cfg)
+    setup_cfg.setup_post_process(cfg)
