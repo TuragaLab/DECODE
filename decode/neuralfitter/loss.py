@@ -145,7 +145,8 @@ class GaussianMMLoss(Loss):
             yextent: extent in y
             img_shape: image size
             device: device used in training (cuda / cpu)
-            chweight_stat: static channel weight, mainly to disable background prediction
+            chweight_stat: static channel weight,
+             e.g. to disable background prediction
             forward_safety: check inputs to the forward method
         """
         super().__init__()
