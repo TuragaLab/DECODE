@@ -1,5 +1,5 @@
 import copy
-from typing import Optional, Iterable, Callable
+from typing import Optional, Iterable, Callable, Union
 
 import torch
 
@@ -14,7 +14,7 @@ class Microscope:
         self,
         psf: psf_kernel.PSF,
         noise: Optional[noise_lib.NoiseDistribution] = None,
-        frame_range: Optional[tuple[int, int]] = None,
+        frame_range: Optional[Union[int, tuple[int, int]]] = None,
     ):
         """
         Microscope consisting of psf and noise model.
@@ -26,7 +26,8 @@ class Microscope:
         """
         self._psf = psf
         self._noise = noise
-        self._frame_range = frame_range
+        # default to 0 ... frame_range if int
+        self._frame_range = frame_range if not isinstance(frame_range, int) else (0, frame_range)
 
     def forward(
         self,
@@ -65,7 +66,7 @@ class MicroscopeMultiChannel:
         psf: list[psf_kernel.PSF],
         noise: list[Optional[noise_lib.NoiseDistribution]],
         frame_range: Optional[tuple[int, int]],
-        ch_range: Optional[tuple[int, int]],
+        ch_range: Optional[Union[int, tuple[int, int]]],
     ):
         """
         A microscope that has multi channels. Internally this is modelled as a list
