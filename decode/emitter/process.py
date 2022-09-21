@@ -119,6 +119,25 @@ class EmitterFilterFoV(EmitterProcess):
         return em[is_emit]
 
 
+class EmitterFilterFrame(EmitterProcess):
+    def __init__(self, ix_low: int, ix_high: int, shift: int):
+        """
+        Filter emitters by frame. Thin wrapper around `em.get_subset_frame`.
+
+        Args:
+            ix_low: lower frame ix
+            ix_high: upper frame ix
+            shift: shift frames by
+        """
+        super().__init__()
+        self._ix_low = ix_low
+        self._ix_high = ix_high
+        self._shift = shift
+
+    def forward(self, em: EmitterSet) -> EmitterSet:
+        return em.get_subset_frame(self._ix_low, self._ix_high, self._shift)
+
+
 @deprecated(reason="Use generic filter.", version="0.11.0")
 class TarFrameEmitterFilter(EmitterProcess):
     pass
