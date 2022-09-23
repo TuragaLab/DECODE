@@ -1,6 +1,6 @@
 import torch
 
-from decode.neuralfitter.target_generator import UnifiedEmbeddingTarget
+from decode.neuralfitter.target_generator import EmbeddingTarget
 
 
 class Offset2Coordinate:
@@ -17,9 +17,9 @@ class Offset2Coordinate:
             img_shape (tuple): image shape
         """
 
-        off_psf = UnifiedEmbeddingTarget(xextent=xextent,
-                                         yextent=yextent,
-                                         img_shape=img_shape, roi_size=1)
+        off_psf = EmbeddingTarget(xextent=xextent,
+                                  yextent=yextent,
+                                  img_shape=img_shape, roi_size=1)
 
         xv, yv = torch.meshgrid([off_psf._bin_ctr_x, off_psf._bin_ctr_y])
         self._x_mesh = xv.unsqueeze(0)
@@ -40,12 +40,6 @@ class Offset2Coordinate:
         x_coord = self._x_mesh.repeat(batch_size, 1, 1).to(x_offset.device) + x_offset
         y_coord = self._y_mesh.repeat(batch_size, 1, 1).to(y_offset.device) + y_offset
         return x_coord, y_coord
-
-    @classmethod
-    def parse(cls, param):
-        return cls(param.TestSet.frame_extent[0],
-                   param.TestSet.frame_extent[1],
-                   param.TestSet.img_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """

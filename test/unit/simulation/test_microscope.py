@@ -20,16 +20,22 @@ def noise_poisson():
     return noise_lib.Poisson()
 
 
+@pytest.mark.parametrize("frame_range,len_expct", [
+    ((-5, 5), 10),
+    (17, 17),
+])
 @pytest.mark.parametrize("bg", [None, torch.ones(32, 40)])
 @pytest.mark.parametrize("noise", [None, mock.MagicMock()])
-def test_microscope(bg, psf, noise):
+def test_microscope(frame_range, len_expct, bg, psf, noise):
     if noise is not None:
         noise.forward.side_effect = lambda x: x * 1e5
 
-    m = microscope.Microscope(psf, noise, frame_range=(0, 10))
+    m = microscope.Microscope(psf, noise, frame_range=frame_range)
     em = emitter_factory(phot=torch.ones(10) * 1e5, xy_unit="px")
 
     frames = m.forward(em, bg)
+
+    assert len(frames) == len_expct
 
     if noise is None:
         assert frames.max() == pytest.approx(1e5, rel=0.01)

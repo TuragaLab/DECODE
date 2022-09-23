@@ -234,3 +234,114 @@ def test_disable_attr():
 
     assert out is not x
     assert (out[..., 1] == 5.).all()
+
+
+@pytest.fixture()
+def tar_embd():
+    return target_generator.EmbeddingTarget(
+        xextent=(-0.5, 63.5),
+        yextent=(-0.5, 63.5),
+        img_shape=(64, 64),
+        roi_size=5,
+        ix_low=0,
+        ix_high=6,
+    )
+
+
+@pytest.mark.parametrize("roi_size", [1, 3, 5, 7])
+def test_tar_embedding_central_pix(roi_size, tar_embd):
+    """Check agreement between central pixel target and emitter"""
+    tar = target_generator.EmbeddingTarget(
+        xextent=(-0.5, 63.5),
+        yextent=(-0.5, 63.5),
+        img_shape=(64, 64),
+        roi_size=roi_size,
+        ix_low=0,
+        ix_high=5,
+    )
+
+    em = emitter.factory(
+        frame_ix=torch.randint(low=-20, high=30, size=(1000, )),
+        xy_unit="px"
+    )
+
+    x_ix, y_ix = tar._delta_psf.search_bin_index(em.xyz_px)
+    batch_ix = em.frame_ix
+    batch_ix, x_ix, y_ix, off_x, off_y, id = tar._get_roi_px(batch_ix, x_ix, y_ix)
+
+    assert (x_ix >= 0).all()
+    assert (y_ix >= 0).all()
+    assert (x_ix <= 63).all()
+    assert (y_ix <= 63).all()
+    assert batch_ix.size() == off_x.size()
+    assert off_x.size() == off_y.size()
+
+    expct_vals = torch.arange(-(roi_size - 1) // 2, (roi_size - 1) // 2 + 1)
+
+    assert (off_x.unique() == expct_vals).all()
+    assert (off_y.unique() == expct_vals).all()
+
+
+@pytest.mark.parametrize("roi_size", torch.tensor([1, 3, 5, 7]))
+def test_tar_embd_roi_px(roi_size):
+    tar = target_generator.EmbeddingTarget(
+        xextent=(-0.5, 63.5),
+        yextent=(-0.5, 63.5),
+        img_shape=(64, 64),
+        roi_size=roi_size,
+        ix_low=0,
+        ix_high=5,
+    )
+
+    em = emitter.factory(frame_ix=torch.randint(-20, 30, size=(1000, )), xy_unit="px")
+
+    x_ix, y_ix = tar._delta_psf.search_bin_index(em.xyz_px)
+    batch_ix = em.frame_ix
+    batch_ix, x_ix, y_ix, off_x, off_y, id = tar._get_roi_px(batch_ix, x_ix, y_ix)
+
+    assert (x_ix >= 0).all()
+    assert (y_ix >= 0).all()
+    assert (x_ix <= 63).all()
+    assert (y_ix <= 63).all()
+    assert batch_ix.size() == off_x.size()
+    assert off_x.size() == off_y.size()
+
+    expct_vals = torch.arange(-(tar._roi_size - 1) // 2, (tar._roi_size - 1) // 2 + 1)
+
+    assert (off_x.unique() == expct_vals).all()
+    assert (off_y.unique() == expct_vals).all()
+
+
+def test_tar_embd_forward_dims(tar_embd):
+    out, _ = tar_embd.forward(emitter.factory(0, xy_unit="px"), None)
+    assert out.size() == torch.Size([6, 5, 64, 64])
+
+
+def test_tar_embd_forward_handcrafted(tar_embd):
+    """test a couple of handcrafted cases"""
+
+    # one emitter outside fov the other one inside
+    em_set = emitter.factory(
+        xyz=[[-50., 0., 0.], [15.1, 19.6, 250.]],
+        phot=[5., 4.],
+        xy_unit="px"
+    )
+
+    out, _ = tar_embd.forward(em_set)
+    out = out[0]  # single frame
+
+    np.testing.assert_allclose(
+        out[:, 15, 20],
+        torch.tensor([1., 4., 0.1, -0.4, 250.]),
+        atol=1e-5
+    )
+    np.testing.assert_allclose(
+        out[:, 16, 20],
+        torch.tensor([0., 4., -0.9, -0.4, 250.]),
+        atol=1e-5
+    )
+    np.testing.assert_allclose(
+        out[:, 15, 21],
+        torch.tensor([0., 4., 0.1, -1.4, 250.]),
+        atol=1e-5
+    )

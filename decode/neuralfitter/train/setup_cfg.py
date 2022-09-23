@@ -1,5 +1,7 @@
 import torch
 from pytorch_lightning import loggers
+from deprecated import deprecated
+from typing import Union
 
 from decode import emitter
 from decode import simulation
@@ -7,7 +9,7 @@ from decode import neuralfitter
 from decode import evaluation
 
 
-def setup_logger(cfg) -> list[loggers.LightningLoggerBase]:
+def setup_logger(cfg) -> Union[loggers.LightningLoggerBase, list[loggers.LightningLoggerBase]]:
     """
     Set up logging.
 
@@ -15,9 +17,19 @@ def setup_logger(cfg) -> list[loggers.LightningLoggerBase]:
         cfg: config
     """
     if cfg.Logging.no_op:
-        return [loggers.base.DummyLogger()]
+        return loggers.base.DummyLogger()
 
-    return [getattr(loggers, l)(**cfg.Logging.logger[l]) for l in cfg.Logging.logger]
+    l = []
+
+    if "TensorBoardLogger" in cfg.Logging.logger:
+        if (kwargs := cfg.Logging.logger.TensorBoardLogger) is None:
+            kwargs = dict()
+        tb = loggers.TensorBoardLogger(save_dir=cfg.Paths.logging, **kwargs)
+        l.append(tb)
+    else:
+        raise NotImplementedError
+
+    return l
 
 
 def setup_psf(cfg) -> simulation.psf_kernel.PSF:
@@ -30,9 +42,9 @@ def setup_psf(cfg) -> simulation.psf_kernel.PSF:
         raise NotImplementedError
 
     psf = io.psf.load_spline(
-        path=cfg.InOut.calibration_file,
-        xextent=cfg.Simulation.psf_extent[0],
-        yextent=cfg.Simulation.psf_extent[1],
+        path=cfg.Paths.calibration,
+        xextent=cfg.Simulation.psf_extent.x,
+        yextent=cfg.Simulation.psf_extent.y,
         img_shape=cfg.Simulation.img_size,
         device=cfg.Hardware.device_simulation,
         roi_size=cfg.Simulation.PSF.CubicSpline.roi_size,
@@ -67,31 +79,51 @@ def setup_noise(cfg) -> simulation.camera.Camera:
 
 def setup_structure(cfg) -> simulation.structures.StructurePrior:
     return simulation.structures.RandomStructure(
-        xextent=cfg.Simulation.emitter_extent[0],
-        yextent=cfg.Simulation.emitter_extent[1],
-        zextent=cfg.Simulation.emitter_extent[2],
+        xextent=cfg.Simulation.emitter_extent.x,
+        yextent=cfg.Simulation.emitter_extent.y,
+        zextent=cfg.Simulation.emitter_extent.z,
     )
 
 
-def setup_model(cfg) -> torch.nn.Module:
-    catalog = {
-        "SigmaMUNet": neuralfitter.models.SigmaMUNet,
-        "DoubleMUnet": neuralfitter.models.model_param.DoubleMUnet,
-        "SimpleSMLMNet": neuralfitter.models.model_param.SimpleSMLMNet,
-    }
+def setup_code(cfg) -> simulation.code.Code:
+    return simulation.code.Code(codes=cfg.Simulation.code)
 
-    model = catalog[cfg.HyperParameter.architecture]
-    # ToDo: Get rid .parse?
-    return model.parse(cfg)
+
+def setup_model(cfg) -> torch.nn.Module:
+    if cfg.Model.backbone != "SigmaMUNet":
+        raise NotImplementedError
+
+    specs = cfg.Model.backbone_specs
+    activation = getattr(torch.nn, cfg.Model.backbone_specs.activation)()
+    disabled_attr = 3 if cfg.Trainer.train_dim == 2 else None
+
+    model = neuralfitter.models.SigmaMUNet(
+        ch_in=cfg.Model.channels_in,
+        depth_shared=specs.depth_shared,
+        depth_union=specs.depth_union,
+        initial_features=specs.initial_features,
+        inter_features=specs.inter_features,
+        activation=activation,
+        norm=specs.norm,
+        norm_groups=specs.norm_groups,
+        norm_head=specs.norm_head,
+        norm_head_groups=specs.norm_head_groups,
+        pool_mode=specs.pool_mode,
+        upsample_mode=specs.upsample_mode,
+        skip_gn_level=specs.skip_gn_level,
+        disabled_attributes=disabled_attr,
+        kaiming_normal=specs.init_custom
+    )
+    return model
 
 
 def setup_loss(cfg) -> neuralfitter.loss.Loss:
     loss = neuralfitter.loss.GaussianMMLoss(
-        xextent=cfg.Simulation.psf_extent[0],
-        yextent=cfg.Simulation.psf_extent[1],
+        xextent=cfg.Simulation.psf_extent.x,
+        yextent=cfg.Simulation.psf_extent.y,
         img_shape=cfg.Simulation.img_size,
         device=cfg.Hardware.device,
-        chweight_stat=cfg.HyperParameter.chweight_stat,
+        chweight_stat=cfg.Loss.ch_weight,
     )
     return loss
 
@@ -99,12 +131,13 @@ def setup_loss(cfg) -> neuralfitter.loss.Loss:
 def setup_optimizer(model: torch.nn.Module, cfg) -> torch.optim.Optimizer:
     catalog = {"Adam": torch.optim.Adam, "AdamW": torch.optim.AdamW}
 
-    opt = catalog[cfg.HyperParameter.optimizer]
-    opt = opt(model.parameters(), **cfg.HyperParameter.opt_param)
+    opt = catalog[cfg.Optimizer.name]
+    opt = opt(model.parameters(), **cfg.Optimizer.specs)
 
     return opt
 
 
+@deprecated(reason="Will be deprecated.", version="0.11")
 def setup_scheduler(opt: torch.optim.Optimizer, cfg) -> torch.optim.lr_scheduler.StepLR:
     catalog = {
         "ReduceLROnPlateau": torch.optim.lr_scheduler.ReduceLROnPlateau,
@@ -117,10 +150,10 @@ def setup_scheduler(opt: torch.optim.Optimizer, cfg) -> torch.optim.lr_scheduler
 
 
 def setup_em_filter(cfg) -> emitter.process.EmitterProcess:
-    if cfg.HyperParameter.emitter_label_photon_min is not None:
-        f = emitter.process.PhotonFilter(cfg.HyperParameter.emitter_label_photon_min)
+    if cfg.Target.filter is not None:
+        f = emitter.process.EmitterFilterGeneric(**cfg.Target.filter)
     else:
-        f = emitter.process.EmitterProcessNoOp()
+        f = None
 
     return f
 
@@ -139,7 +172,7 @@ def setup_tar_tensor_parameter(
     ix_low, ix_high, cfg
 ) -> neuralfitter.target_generator.ParameterList:
     return neuralfitter.target_generator.ParameterList(
-        n_max=cfg.HyperParameter.max_number_targets,
+        n_max=cfg.Target.max_emitters,
         xextent=cfg.Simulation.psf_extent[0],
         yextent=cfg.Simulation.psf_extent[1],
         ix_low=ix_low,
@@ -184,23 +217,23 @@ def setup_post_process_frame_emitter(
 ) -> neuralfitter.post_processing.PostProcessing:
     # last bit that transforms frames to emitters
 
-    if cfg.PostProcessing is None:
+    if cfg.PostProcessing.name is None:
         post = neuralfitter.post_processing.NoPostProcessing(
-            xy_unit="px", px_size=cfg.Camera.px_size
+            xy_unit=cfg.Simulation.xy_unit, px_size=cfg.Camera.px_size
         )
 
-    elif cfg.PostProcessing == "LookUp":
+    elif cfg.PostProcessing.name == "LookUp":
         post = neuralfitter.post_processing.LookUpPostProcessing(
-            raw_th=cfg.PostProcessingParam.raw_th,
+            raw_th=cfg.PostProcessing.specs.raw_th,
             pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],  # ToDo: remove hard-coding
-            xy_unit="px",
+            xy_unit=cfg.Simulation.xy_unit,
             px_size=cfg.Camera.px_size,
         )
 
-    elif cfg.PostProcessing == "SpatialIntegration":
+    elif cfg.PostProcessing.name == "SpatialIntegration":
         post = neuralfitter.post_processing.SpatialIntegration(
-            raw_th=cfg.PostProcessingParam.raw_th,
-            xy_unit="px",
+            raw_th=cfg.PostProcessing.specs.raw_th,
+            xy_unit=cfg.Simulation.xy_unit,
             px_size=cfg.Camera.px_size,
         )
     else:

@@ -42,6 +42,18 @@ def test_remove_out_of_field():
     assert (em_out.xyz[:, 2] < 700.0).all()
 
 
+@pytest.mark.parametrize("frame_ix,ix_low,ix_high,shift,frame_expct", [
+    ([-1, 0, 1], None, None, 1, [0, 1, 2]),
+    ([5, 6, 7], 5, 7, -5, [0, 1]),
+])
+def test_filter_frame(frame_ix, ix_low, ix_high, shift, frame_expct):
+    em = emitter.factory(frame_ix=frame_ix)
+
+    f = process.EmitterFilterFrame(ix_low=ix_low, ix_high=ix_high, shift=shift)
+
+    assert f.forward(em).frame_ix.tolist() == frame_expct
+
+
 @pytest.mark.parametrize("low,high,t,expct", [
     (None, None, [1, 2], [True, True]),
     (None, 1., [0., 1.], [True, False]),

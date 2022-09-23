@@ -1,6 +1,8 @@
 import pytest
 from pathlib import Path
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
+
+from decode import io
 
 
 @pytest.fixture
@@ -22,3 +24,26 @@ def secrets(repo_dir):
         raise FileNotFoundError("Secret file 'secrets.yaml' not existing.")
 
     return OmegaConf.load(p)
+
+
+@pytest.fixture
+def cfg() -> DictConfig:
+    cfg = io.param.load_reference()
+
+    # overwrite hardware, because testing is only on cpu
+    cfg.Hardware.device = "cpu"
+    cfg.Hardware.device_simulation = "cpu"
+
+    return cfg
+
+
+@pytest.fixture
+def cfg_trainable(cfg) -> DictConfig:
+    # ToDo: A trainable cfg, i.e. all necessary assets and directories present
+
+    cfg.Simulation.intensity.mean = 5000
+    cfg.Simulation.intensity.std = 1000
+
+    cfg.Simulation.lifetime_avg = 1.
+
+    return cfg

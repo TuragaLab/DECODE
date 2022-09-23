@@ -153,3 +153,6 @@ dmypy.json
 
 # logs
 events.out.tf*
+
+# mac file-system
+.DS_Store
