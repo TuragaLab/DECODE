@@ -1,4 +1,4 @@
-import decode.neuralfitter.dataset
+import decode.neuralfitter.data.dataset
 import decode.neuralfitter.de_bias
 import decode.neuralfitter.frame_processing
 import decode.neuralfitter.loss
@@ -10,6 +10,7 @@ import decode.neuralfitter.scale_transform
 import decode.neuralfitter.train_val_impl
 import decode.neuralfitter.train
 import decode.neuralfitter.inference
+from . import data
 from . import model
 from . import process
 from . import sampler

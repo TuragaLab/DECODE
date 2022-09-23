@@ -376,7 +376,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
     tar_gen_test.com[0].sanity_check()
 
     if param.Simulation.mode == 'acquisition':
-        train_ds = decode.neuralfitter.dataset.SMLMLiveDataset(
+        train_ds = decode.neuralfitter.data.dataset.SMLMLiveDataset(
             simulator=simulator_train,
             em_proc=em_filter,
             frame_proc=frame_proc,
@@ -388,7 +388,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
         train_ds.sample(True)
 
     elif param.Simulation.mode == 'samples':
-        train_ds = decode.neuralfitter.dataset.SMLMLiveSampleDataset(
+        train_ds = decode.neuralfitter.data.dataset.SMLMLiveSampleDataset(
             simulator=simulator_train,
             em_proc=em_filter,
             frame_proc=frame_proc,
@@ -399,7 +399,7 @@ def setup_trainer(simulator_train, simulator_test, logger, model_out, ckpt_path,
             return_em=False,
             ds_len=param.HyperParameter.pseudo_ds_size)
 
-    test_ds = decode.neuralfitter.dataset.SMLMAPrioriDataset(
+    test_ds = decode.neuralfitter.data.dataset.SMLMAPrioriDataset(
         simulator=simulator_test,
         em_proc=em_filter,
         frame_proc=frame_proc,

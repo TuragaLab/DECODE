@@ -3,22 +3,10 @@ import inspect
 import pytest
 import torch.nn
 
-import decode.io.param
 from decode.generic import asset_handler
 from decode import simulation
 from decode import neuralfitter
 from decode.neuralfitter.train import setup_cfg
-
-
-@pytest.fixture
-def cfg(repo_dir):
-    cfg = decode.io.param.load_reference()
-
-    # overwrite hardware, because testing is only on cpu
-    cfg.Hardware.device = "cpu"
-    cfg.Hardware.device_simulation = "cpu"
-
-    return cfg
 
 
 @pytest.mark.parametrize("no_op", [True, False])
@@ -66,8 +54,13 @@ def test_setup_noise(preset, cfg):
     setup_cfg.setup_model,
     setup_cfg.setup_loss,
     setup_cfg.setup_em_filter,
-    setup_cfg.setup_tar_disable,
+    setup_cfg.setup_frame_scaling,
+    setup_cfg.setup_tar_scaling,
+    setup_cfg.setup_bg_scaling,
+    setup_cfg.setup_post_model_scaling,
     setup_cfg.setup_post_process_frame_emitter,
+    setup_cfg.setup_post_process_offset,
+    setup_cfg.setup_post_process,
     setup_cfg.setup_matcher,
 ])
 def test_setup_atomic_signature(fn, cfg):

@@ -159,7 +159,7 @@ def test_sampler_dataset_dataloader(num_workers, samplers, psf, target, noise):
     s.sample()
 
     # wrap in a dataset and try dataloader
-    ds = neuralfitter.dataset.DatasetGausianMixture(s.input, s.target)
+    ds = neuralfitter.data.dataset.DatasetGausianMixture(s.input, s.target)
     assert len(ds) == 10
 
     x, (tar_em, tar_mask, tar_bg) = ds[5]
