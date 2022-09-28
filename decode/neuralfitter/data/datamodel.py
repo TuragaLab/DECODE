@@ -3,10 +3,16 @@ import torch.utils.data
 from torch.utils import data
 
 from . import dataset
+from . import experiment
 
 
 class DataModel(pl.LightningDataModule):
-    def __init__(self, experiment_train, experiment_val, num_workers: int):
+    def __init__(
+            self,
+            experiment_train: experiment.Experiment,
+            experiment_val: experiment.Experiment,
+            num_workers: int
+    ):
         super().__init__()
 
         self._exp_train = experiment_train
