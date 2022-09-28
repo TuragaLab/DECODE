@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Union, Optional
+from typing import Any, Callable, Union, Optional, Iterable
 
 import torch
 
@@ -15,7 +15,9 @@ class TargetGenerator(ABC):
         self,
         ix_low: Optional[int],
         ix_high: Optional[int],
-        filter: Optional,
+        filter: Optional[
+            Union[process_em.EmitterProcess, Iterable[process_em.EmitterProcess]]
+        ],
         scaler: Optional,
     ):
         """
@@ -173,7 +175,9 @@ class TargetGaussianMixture(TargetGenerator):
         ix_high: Optional[int],
         ignore_ix: Optional[bool] = False,
         xy_unit: str = "px",
-        filter: Optional[list] = None,
+        filter: Optional[
+            Union[process_em.EmitterProcess, Iterable[process_em.EmitterProcess]]
+        ] = None,
         scaler: Optional = None,
         switch: Optional = None,
         aux_lane: Optional = None,
@@ -186,7 +190,7 @@ class TargetGaussianMixture(TargetGenerator):
                 (should be much higher than average, otherwise an error might be raised).
             ix_low: lower frame ix
             ix_high: upper frame ix
-            ignore_ix: ignore frame ix
+            ignore_ix: ignore frame ix and put all emitters on a single tensor
             xy_unit: xy unit used for target
             filter: emitter filter, forward must take emitters and return emitters
             scaler: scaling, forward must take tensor and return tensor
@@ -393,10 +397,7 @@ class EmbeddingTarget(TargetGenerator):
         self._bin_ctr_y = self._delta_psf.bin_ctr_y
 
     def _get_roi_px(
-            self,
-            batch_ix: torch.LongTensor,
-            x_ix: torch.LongTensor,
-            y_ix: torch.LongTensor
+        self, batch_ix: torch.LongTensor, x_ix: torch.LongTensor, y_ix: torch.LongTensor
     ):
         """
         For each pixel index (aka bin), get the pixel indices around the center
@@ -502,7 +503,9 @@ class EmbeddingTarget(TargetGenerator):
         Returns:
 
         """
-        phot_tar = torch.zeros((batch_size, *self.img_shape), device=batch_ix_roi.device)
+        phot_tar = torch.zeros(
+            (batch_size, *self.img_shape), device=batch_ix_roi.device
+        )
         phot_tar[batch_ix_roi, x_ix_roi, y_ix_roi] = phot[id]
 
         return phot_tar
@@ -530,8 +533,7 @@ class EmbeddingTarget(TargetGenerator):
         """
 
         xy_tar = torch.zeros(
-            (batch_size, 2, *self.img_shape),
-            device=batch_ix_roi.device
+            (batch_size, 2, *self.img_shape), device=batch_ix_roi.device
         )
         xy_tar[batch_ix_roi, 0, x_ix_roi, y_ix_roi] = (
             xy[id, 0] - self._bin_ctr_x[x_ix_roi]
