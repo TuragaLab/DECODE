@@ -1,6 +1,6 @@
 import torch
 
-from decode.neuralfitter.target_generator import EmbeddingTarget
+from ..generic import utils
 
 
 class Offset2Coordinate:
@@ -17,11 +17,9 @@ class Offset2Coordinate:
             img_shape (tuple): image shape
         """
 
-        off_psf = EmbeddingTarget(xextent=xextent,
-                                  yextent=yextent,
-                                  img_shape=img_shape, roi_size=1)
+        *_, bin_ctr_x, bin_ctr_y = utils.frame_grid(img_shape, xextent, yextent)
 
-        xv, yv = torch.meshgrid([off_psf._bin_ctr_x, off_psf._bin_ctr_y])
+        xv, yv = torch.meshgrid([bin_ctr_x, bin_ctr_y])
         self._x_mesh = xv.unsqueeze(0)
         self._y_mesh = yv.unsqueeze(0)
 
@@ -54,7 +52,7 @@ class Offset2Coordinate:
         if x.dim() != 4:
             raise ValueError("Wrong dimensionality. Needs to be N x C x H x W.")
 
-        """Convert the channel values to coordinates"""
+        # convert the channel values to coordinates
         x_coord, y_coord = self._subpx_to_absolute(x[:, 2], x[:, 3])
 
         output_converted = x.clone()
