@@ -42,7 +42,7 @@ class TestStaticDataset(Base):
         emitter = factory(10000)
         emitter.frame_ix = torch.randint_like(emitter.frame_ix, 0, 1000)
 
-        ds = decode.neuralfitter.dataset.SMLMStaticDataset(frames=frames, emitter=emitter.split_in_frames(0, 999))
+        ds = decode.neuralfitter.data.dataset.SMLMStaticDataset(frames=frames, emitter=emitter.split_in_frames(0, 999))
 
         return ds
 
@@ -111,10 +111,10 @@ class TestLiveDataset(Base):
 
     @pytest.fixture()
     def dataset(self, simulator, emitter_processing, frame_processing, target_generator):
-        ds = decode.neuralfitter.dataset.SMLMLiveDataset(simulator=simulator,
-                                                         em_proc=emitter_processing, frame_proc=frame_processing,
-                                                         bg_frame_proc=None, tar_gen=target_generator, weight_gen=None,
-                                                         frame_window=3, pad='same', return_em=False)
+        ds = decode.neuralfitter.data.dataset.SMLMLiveDataset(simulator=simulator,
+                                                              em_proc=emitter_processing, frame_proc=frame_processing,
+                                                              bg_frame_proc=None, tar_gen=target_generator, weight_gen=None,
+                                                              frame_window=3, pad='same', return_em=False)
         ds.sample(True)
         return ds
 
@@ -134,11 +134,11 @@ class TestAprioriDataset(TestLiveDataset):
         target_generator.com[0].squeeze_batch_dim = False
         target_generator.com[0].sanity_check()
 
-        ds = decode.neuralfitter.dataset.SMLMAPrioriDataset(simulator=simulator,
-                                                            em_proc=emitter_processing, frame_proc=frame_processing,
-                                                            bg_frame_proc=None, tar_gen=target_generator,
-                                                            weight_gen=None,
-                                                            frame_window=3, pad='same', return_em=False)
+        ds = decode.neuralfitter.data.dataset.SMLMAPrioriDataset(simulator=simulator,
+                                                                 em_proc=emitter_processing, frame_proc=frame_processing,
+                                                                 bg_frame_proc=None, tar_gen=target_generator,
+                                                                 weight_gen=None,
+                                                                 frame_window=3, pad='same', return_em=False)
 
         ds.sample(True)
         return ds
