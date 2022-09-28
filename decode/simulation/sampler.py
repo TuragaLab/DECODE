@@ -30,7 +30,7 @@ class EmitterSampler(ABC):
         self,
         structure: Union[structures.StructurePrior, Sampleable],
         code: Union[code.CodeBook, Sampleable],
-        frame_range: tuple[int, int],
+        frame_range: Union[int, tuple[int, int]],
         xy_unit,
         px_size,
     ):
@@ -41,7 +41,8 @@ class EmitterSampler(ABC):
 
         self.structure = structure
         self.code_sampler = code
-        self._frame_range = frame_range
+        # allow int which defaults to (0, frame_range)
+        self._frame_range = frame_range if not isinstance(frame_range, int) else (0, frame_range)
         self._xy_unit = xy_unit
         self._px_size = px_size
 
@@ -64,7 +65,7 @@ class EmitterSamplerStatic(EmitterSampler):
         intensity: Union[tuple, Sampleable],
         em_num: float,
         frame: Union[tuple[int, int], Sampleable],
-        frame_range: tuple[int, int],
+        frame_range: Union[int, tuple[int, int]],
         code: Optional[Union[code.CodeBook, Sampleable]] = None,
         xy_unit: Optional[str] = None,
         px_size: Optional[tuple[float, float]] = None,
@@ -149,7 +150,7 @@ class EmitterSamplerBlinking(EmitterSampler):
         intensity: tuple[float, float],
         em_num: float,
         lifetime: float,
-        frame_range: tuple[int, int],
+        frame_range: Union[int, tuple[int, int]],
         code: Optional[Union[code.CodeBook, Sampleable]] = None,
         xy_unit: Optional[str] = None,
         px_size: Optional[tuple[float, float]] = None,
