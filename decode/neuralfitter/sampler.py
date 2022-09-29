@@ -17,7 +17,7 @@ class _Sliceable(Protocol):
     def __len__(self) -> int:
         ...
 
-    def __getitem__(self: T, i: slice) -> T:
+    def __getitem__(self: T, i: Union[int, slice]) -> T:
         ...
 
 
@@ -138,36 +138,44 @@ class Sampler(ABC):
 class SamplerSupervised(Sampler):
     def __init__(
         self,
-        em: emitter.EmitterSet,
-        bg: Optional[torch.Tensor],
-        mic: microscope.Microscope,
+        em: Union[emitter.EmitterSet, "Sampleable"],
+        bg: Optional[Union[torch.Tensor, "Sampleable"]],
+        frames:  Optional[torch.Tensor],
         proc: process.Processing,
         window: Optional[int] = 1,
         bg_mode: Optional[str] = None,
+        mic: Optional[microscope.Microscope] = None,
     ):
         """
+        The purpose of this is to attach processing to an experiment to generate input
+        and target.
 
         Args:
-            em:
-            bg:
-            mic:
-            proc:
-            window:
+            em: emitters or sampleable that returns emitters
+            bg: background or sampleable that returns background
+            frames: (raw) frames or sampleable that returns (raw) frames
+            proc: processing that is able to produce input and target
+            window: window size for input
             bg_mode: `global` or `sample`.
              - sample: apply bg independently
              - global: apply bg once globally
         """
         super().__init__()
 
-        self._em = em
-        self._bg = bg
-        self._mic = mic
+        self._em = em if not hasattr(em, "sample") else None
+        self._em_sampler = em if self._em is None else None
+        self._bg = bg if not hasattr(bg, "sample") else None
+        self._bg_sampler = bg if self._bg is None else None
+        self._frames = None  # later
+        self._frame_samples = None
         self._proc = proc
         self._window = window
         self._bg_mode = bg_mode
+        self._mic = mic
 
-        self._frame = None
-        self._frame_samples = None  # must be set together with _frame
+        # let property setter automatically determine
+        # (therefore actually set with self.frame instead of self._frame)
+        self.frame = frames
 
     @property
     def emitter(self) -> emitter.EmitterSet:
@@ -175,12 +183,13 @@ class SamplerSupervised(Sampler):
 
     @property
     def frame(self) -> torch.Tensor:
-        return self._frame
+        return self._frames
 
     @frame.setter
     def frame(self, v: torch.Tensor):
-        self._frame = v
-        self._frame_samples = indexing.IxWindow(self._window, None).attach(self._frame)
+        self._frames = v
+        if v is not None:
+            self._frame_samples = indexing.IxWindow(self._window, None).attach(self._frames)
 
     @property
     def frame_samples(self) -> _Sliceable:
@@ -216,15 +225,18 @@ class SamplerSupervised(Sampler):
     def __len__(self) -> int:
         return len(self.frame)
 
-    @deprecated(version="dev", reason="this does not fit here")
     def sample(self):
-        if self._bg is None or self._bg_mode == "sample":
-            f = self._mic.forward(em=self._em, bg=None)
+        em = self._em_sampler.sample()
+        bg = self._bg_sampler.sample()
+
+        if self._bg_mode == "sample":
+            f = self._mic.forward(em=em, bg=None)
         elif self._bg_mode == "global":
-            f = self._mic.forward(em=self._em, bg=self._bg)
+            f = self._mic.forward(em=em, bg=bg)
         else:
             raise NotImplementedError(
                 "If bg is not None, a bg_mode needs to be specified."
             )
 
         self.frame = f
+
