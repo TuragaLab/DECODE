@@ -2,12 +2,11 @@ from abc import ABC, abstractmethod
 from typing import Callable, TypeVar, Protocol, Optional, Union
 
 import torch
-from deprecated import deprecated
 
 from . import process
 from .utils import indexing
 from ..emitter import emitter
-from ..simulation import microscope
+from ..simulation import microscope, sampler as em_sampler
 
 
 T = TypeVar("T", bound="_Sliceable")
@@ -138,7 +137,7 @@ class Sampler(ABC):
 class SamplerSupervised(Sampler):
     def __init__(
         self,
-        em: Union[emitter.EmitterSet, "Sampleable"],
+        em: Union[emitter.EmitterSet, em_sampler.EmitterSampler],
         bg: Optional[Union[torch.Tensor, "Sampleable"]],
         frames:  Optional[torch.Tensor],
         proc: process.Processing,
@@ -238,5 +237,6 @@ class SamplerSupervised(Sampler):
                 "If bg is not None, a bg_mode needs to be specified."
             )
 
+        self._em = em
+        self._bg = bg
         self.frame = f
-

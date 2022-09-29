@@ -111,3 +111,7 @@ def test_sampler_sample(bg_mode, proc):
         mic.forward.assert_called_once_with(em=em_return, bg=bg_return)
     else:
         raise ValueError
+
+    assert s.emitter is not None
+    assert s.bg is not None
+    assert s.frame is not None
