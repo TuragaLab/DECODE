@@ -1,6 +1,6 @@
 ### Project specific
 .idea/
-data/
+/data/
 log/
 network/
 
@@ -131,18 +131,6 @@ dmypy.json
 .pyre/
 /.vscode/
 /config/
-/config_gpu7
-/config_gpu7/
-/config_pcries20/
-/config_pcries20
-/data_gpu7/
-/data_gpu7
-/data_pcries20/
-/data_pcries20
-/network_gpu7/
-/network_pcries20/
-/runs_gpu7/
-/config_gpu7/
 
 # VS Code
 .vscode
