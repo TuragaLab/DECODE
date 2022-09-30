@@ -4,12 +4,9 @@ from ..generic import utils
 
 
 class Offset2Coordinate:
-    """
-    Convert sub-pixel pointers to absolute coordinates.
-    """
-
     def __init__(self, xextent: tuple, yextent: tuple, img_shape: tuple):
         """
+        Convert sub-pixel pointers to absolute coordinates.
 
         Args:
             xextent (tuple): extent in x
@@ -44,19 +41,21 @@ class Offset2Coordinate:
         Forward frames through post-processor.
 
         Args:
-            x (torch.Tensor): features to be converted. Expecting x/y coordinates in channel index 2, 3.
-             expected shape :math:`(N, C, H, W)`
+            x (torch.Tensor): features to be converted.
+                Expecting x/y coordinates in channel index 0, 1.
+                Expected shape :math:`(N, C=2, H, W)`
 
         """
 
-        if x.dim() != 4:
-            raise ValueError("Wrong dimensionality. Needs to be N x C x H x W.")
+        if x.dim() != 4 or x.size(1) != 2:
+            raise ValueError(f"Wrong dimensionality. Needs to be N x C=2 x H x W."
+                             f"Input is of size {x.size()}")
 
         # convert the channel values to coordinates
-        x_coord, y_coord = self._subpx_to_absolute(x[:, 2], x[:, 3])
+        x_coord, y_coord = self._subpx_to_absolute(x[:, 0], x[:, 1])
 
         output_converted = x.clone()
-        output_converted[:, 2] = x_coord
-        output_converted[:, 3] = y_coord
+        output_converted[:, 0] = x_coord
+        output_converted[:, 1] = y_coord
 
         return output_converted
