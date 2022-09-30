@@ -2,8 +2,6 @@ import pytest
 import torch
 
 import decode.simulation.background as background
-from decode.emitter import emitter
-from decode.generic import test_utils
 
 
 @pytest.fixture
@@ -67,61 +65,3 @@ def test_bg_uniform(bg_uniform):
     for out_c in out:
         assert len(out_c.unique()) == 1, "Background should constant per batch element"
     assert ((out >= 0) * (out <= 100)).all(), "Wrong output values."
-
-
-class TestBgPerEmitterFromBgFrame:
-    @pytest.fixture(scope="class")
-    def extractor(self):
-        return background.BgPerEmitterFromBgFrame(
-            17, (-0.5, 63.5), (-0.5, 63.5), (64, 64)
-        )
-
-    def test_mean_filter(self, extractor):
-        x_in = []
-        x_in.append(torch.randn((1, 1, 64, 64)))
-        x_in.append(torch.zeros((1, 1, 64, 64)))
-        x_in.append(
-            torch.meshgrid(torch.arange(64), torch.arange(64))[0]
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .float()
-        )
-
-        # excpt outcome
-        expect = []
-        expect.append(torch.zeros_like(x_in[0]))
-        expect.append(torch.zeros_like(x_in[0]))
-        expect.append(8)
-
-        out = []
-        for x in x_in:
-            out.append(extractor._mean_filter(x))
-
-        assert test_utils.tens_almeq(out[0], expect[0], 1)  # 10 sigma
-        assert test_utils.tens_almeq(out[1], expect[1])
-        assert test_utils.tens_almeq(
-            out[2][0, 0, 8, :], 8 * torch.ones_like(out[2][0, 0, 0, :]), 1e-4
-        )
-
-    test_data = [
-        (torch.zeros((1, 1, 64, 64)), emitter.factory(100), torch.zeros((100,))),
-        (
-            torch.meshgrid(torch.arange(64), torch.arange(64))[0]
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .float(),
-            emitter.factory(xyz=[[8.0, 0.0, 0.0]]),
-            torch.tensor([8.0]),
-        ),
-        (
-            torch.rand((1, 1, 64, 64)),
-            emitter.factory(xyz=[[70.0, 32.0, 0.0]]),
-            torch.tensor([float("nan")]),
-        ),
-    ]
-
-    @pytest.mark.parametrize("bg,em,expect_bg", test_data)
-    def test_forward(self, extractor, bg, em, expect_bg):
-        out = extractor.forward(em, bg)
-
-        assert test_utils.tens_almeq(out.bg, expect_bg, 1e-4, nan=True)
