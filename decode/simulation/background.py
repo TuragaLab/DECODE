@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod  # abstract class
-from typing import Callable, Optional, Union
+from typing import Callable, Iterable, Optional, Union
 
 import numpy as np
 import torch
 
-from decode.simulation import psf_kernel as psf_kernel
+from decode.emitter import emitter
+from decode.generic import utils
 
 
 class Background(ABC):
@@ -72,8 +73,10 @@ class BackgroundUniform(Background):
 
         if callable(bg):
             self._bg_dist = bg
-        if isinstance(bg, (list, tuple)):
-            self._bg_dist = torch.distributions.uniform.Uniform(*bg).sample
+        if isinstance(bg, Iterable):
+            self._bg_dist = torch.distributions.uniform.Uniform(
+                *bg,
+            ).sample
         else:
             self._bg_dist = _get_delta_sampler(bg)
 
@@ -83,13 +86,14 @@ class BackgroundUniform(Background):
         device: str = "cpu",
     ):
         size = size if size is not None else self._size
+        device = device if device is not None else self._device
 
         if len(size) not in (2, 3, 4):
             raise NotImplementedError("Not implemented size spec.")
 
         # create as many sample as there are batch-dims
         bg = self._bg_dist(
-            sample_shape=[size[0]] if len(size) >= 3 else torch.Size([])
+            sample_shape=[size[0]] if len(size) >= 3 else torch.Size([]),
         )
 
         # unsqueeze until we have enough dimensions
@@ -106,14 +110,14 @@ def _get_delta_sampler(val: float):
     return delta_sampler
 
 
-# ToDo: It is not immediately apparent in the doc strings what this thing really does
 class BgPerEmitterFromBgFrame:
     def __init__(
         self, filter_size: int, xextent: tuple, yextent: tuple, img_shape: tuple
     ):
         """
         Extract a background value per localisation from a background frame.
-        This is done by mean filtering.
+        What this does is performing mean filter smoothing on the background frame
+        and then picking up the value at the pixel where the emitter is located.
 
         Args:
             filter_size (int): size of the mean filter
@@ -128,25 +132,23 @@ class BgPerEmitterFromBgFrame:
         if filter_size % 2 == 0:
             raise ValueError("ROI size must be odd.")
 
-        self.filter_size = [filter_size, filter_size]
-        self.img_shape = img_shape
+        self._filter_size = [filter_size, filter_size]
+        self._img_shape = img_shape
 
-        pad_x = padcalc.pad_same_calc(self.img_shape[0], self.filter_size[0], 1, 1)
-        pad_y = padcalc.pad_same_calc(self.img_shape[1], self.filter_size[1], 1, 1)
+        pad_x = padcalc.pad_same_calc(self._img_shape[0], self._filter_size[0], 1, 1)
+        pad_y = padcalc.pad_same_calc(self._img_shape[1], self._filter_size[1], 1, 1)
 
         # to get the same output dim
-        self.padding = torch.nn.ReplicationPad2d((pad_x, pad_x, pad_y, pad_y))
+        self._padding = torch.nn.ReplicationPad2d((pad_x, pad_x, pad_y, pad_y))
 
-        self.kernel = torch.ones((1, 1, filter_size, filter_size)) / (
+        self._kernel = torch.ones((1, 1, filter_size, filter_size)) / (
             filter_size * filter_size
         )
-        self.delta_psf = psf_kernel.DeltaPSF(xextent, yextent, img_shape)
-        self.bin_x = self.delta_psf._bin_x
-        self.bin_y = self.delta_psf._bin_y
+        self._bin_x, self._bin_y, *_ = utils.frame_grid(img_shape, xextent, yextent)
 
     def _mean_filter(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Actual magic
+        Mean filter
 
         Args:
             x: torch.Tensor of size N x C=1 x H x W
@@ -156,47 +158,58 @@ class BgPerEmitterFromBgFrame:
         """
 
         # put the kernel to the right device
-        if x.size()[-2:] != torch.Size(self.img_shape):
+        if x.size()[-2:] != torch.Size(self._img_shape):
             raise ValueError("Background does not match specified image size.")
 
-        if self.filter_size[0] <= 1:
+        if self._filter_size[0] <= 1:
             return x
 
-        self.kernel = self.kernel.to(x.device)
+        self._kernel = self._kernel.to(x.device)
         x_mean = torch.nn.functional.conv2d(
-            self.padding(x), self.kernel, stride=1, padding=0
+            self._padding(x), self._kernel, stride=1, padding=0
         )  # since already padded
         return x_mean
 
-    def forward(self, tar_em, tar_bg):
+    def forward(self, em: emitter.EmitterSet, bg: torch.Tensor) -> emitter.EmitterSet:
+        """
 
-        if tar_bg.dim() == 3:
-            tar_bg = tar_bg.unsqueeze(1)
+        Args:
+            em: emitter to fill out background
+            bg: background tensor
 
-        if len(tar_em) == 0:
-            return tar_em
+        Returns:
 
-        local_mean = self._mean_filter(tar_bg)
+        """
+
+        if bg.dim() == 3:
+            bg = bg.unsqueeze(1)
+
+        if len(em) == 0:
+            return em
+
+        local_mean = self._mean_filter(bg)
 
         # extract background values at the position where the emitter is and write it
-        pos_x = tar_em.xyz[:, 0]
-        pos_y = tar_em.xyz[:, 1]
-        bg_frame_ix = (-int(tar_em.frame_ix.min()) + tar_em.frame_ix).long()
+        pos_x = em.xyz[:, 0]
+        pos_y = em.xyz[:, 1]
+        bg_frame_ix = (-int(em.frame_ix.min()) + em.frame_ix).long()
 
-        ix_x = torch.from_numpy(np.digitize(pos_x.numpy(), self.bin_x, right=False) - 1)
-        ix_y = torch.from_numpy(np.digitize(pos_y.numpy(), self.bin_y, right=False) - 1)
+        ix_x = torch.from_numpy(np.digitize(pos_x.numpy(), self._bin_x, right=False) - 1)
+        ix_y = torch.from_numpy(np.digitize(pos_y.numpy(), self._bin_y, right=False) - 1)
 
         # kill everything that is outside
         in_frame = torch.ones_like(ix_x).bool()
         in_frame *= (
             (ix_x >= 0)
-            * (ix_x <= self.img_shape[0] - 1)
+            * (ix_x <= self._img_shape[0] - 1)
             * (ix_y >= 0)
-            * (ix_y <= self.img_shape[1] - 1)
+            * (ix_y <= self._img_shape[1] - 1)
         )
 
-        tar_em.bg[in_frame] = local_mean[
+        if em.bg is None:
+            em.bg = float("nan") * torch.ones_like(em.xyz[..., 0])
+
+        em.bg[in_frame] = local_mean[
             bg_frame_ix[in_frame], 0, ix_x[in_frame], ix_y[in_frame]
         ]
-
-        return tar_em
+        return em

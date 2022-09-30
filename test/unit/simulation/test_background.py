@@ -110,12 +110,12 @@ class TestBgPerEmitterFromBgFrame:
             .unsqueeze(0)
             .unsqueeze(0)
             .float(),
-            emitter.CoordinateOnlyEmitter(torch.tensor([[8.0, 0.0, 0.0]])),
+            emitter.factory(xyz=[[8.0, 0.0, 0.0]]),
             torch.tensor([8.0]),
         ),
         (
             torch.rand((1, 1, 64, 64)),
-            emitter.CoordinateOnlyEmitter(torch.tensor([[70.0, 32.0, 0.0]])),
+            emitter.factory(xyz=[[70.0, 32.0, 0.0]]),
             torch.tensor([float("nan")]),
         ),
     ]
