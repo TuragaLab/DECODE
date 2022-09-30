@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod  # abstract class
-from typing import Tuple, Optional, Union, Protocol
+from typing import Optional, Union, Protocol
 
 import pydantic
 import torch
