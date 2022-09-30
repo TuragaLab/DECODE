@@ -38,7 +38,7 @@ def cum_count_per_group(arr: torch.Tensor):
 
 def frame_grid(
         img_size, xextent=None, yextent=None, *, origin=None, px_size=None
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Get pixel center coordinates based on extent and img shape.
     Either specify extents XOR origin and px size.
