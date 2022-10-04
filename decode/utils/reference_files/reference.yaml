@@ -23,18 +23,14 @@ Hardware:
     simulation: cuda:0
   cpu:
     worker: 4
-    threads: 4
     niceness: 0  # only applicable to unix
     multiprocessing_sharing_strategy:
-InOut:
-  calibration_file:  # spline calib
-  experiment_out:  # main output dir
-  checkpoint_init:   # initialise from checkpoint (i.e. resume training)
-  model_init:  # model weights
 Logging:
   no_op: false
   logger:
-    DummyLogger:
+    TensorBoardLogger:
+Loss:
+  ch_weight:
 Meta:
   version:
 Model:
@@ -68,6 +64,12 @@ Optimizer:
   specs:
     lr: 0.0002
     weight_decay: 0.1
+Paths:
+  calibration:  # spline calib
+  experiment:  # main output dir
+  logging:  # logging dir
+  checkpoint_init:   # initialise from checkpoint (i.e. resume training)
+  model_init:  # model weights
 PostProcessing:
   name: SpatialIntegration  # (blank) for no post-processing or LookUp
   specs:
@@ -80,19 +82,25 @@ Scaling:  # if some values are missing they will be auto-set as described in the
   z_max:  # 1.2 * upper simulation extent
 Simulation:
   bg_uniform:  # tuple or single value
+  code: [0]  # color / channel code
   density:  # either density xor emitter avg
-  emitter_av: 20  # either density xor emitter avg
+  emitter_avg: 20  # either density xor emitter avg
   emitter_extent:
     x: [-0.5, 39.5]
     y: [-0.5, 39.5]
     z: [-750., 750.]
+  frame_extent:
+    x: [-0.5, 39.5]
+    y: [-0.5, 39.5]
   img_size: [40, 40]
   intensity:
     mean:  # mean intensity (i.e. photon flux)
     std:  # intensity spread
-  intensity_th:
   lifetime_avg:
-  photon_range:
+  PSF:
+    CubicSpline:
+      roi_size:  # if null, take the whole range of calibration
+      roi_auto_center: false
   psf_extent:
     x: [-0.5, 39.5]
     y: [-0.5, 39.5]
@@ -102,6 +110,7 @@ Simulation:
   samples: 10000
   xy_unit: px
 Trainer:
+  frame_window: 3
   train_dim: 3  # 3 or 2 or 3D or 2D respectively
   batch_size: 64
   max_epochs: 500
@@ -117,6 +126,6 @@ Trainer:
 Target:
   max_emitters: 250
   filter:
-    photon: [100., null]
-TestSet:  # those overwrite the other Simulation parameters (applicable to test set)
+    phot: [100., null]
+Test:  # those overwrite the other Simulation parameters (applicable to test set)
   samples: 512
