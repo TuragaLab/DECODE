@@ -212,7 +212,7 @@ class TargetGaussianMixture(TargetGenerator):
 
     def forward(
         self, em: EmitterSet, aux: Optional[torch.Tensor] = None
-    ) -> tuple[[torch.Tensor, torch.BoolTensor], torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.BoolTensor, torch.Tensor]:
 
         em = self._filter_emitters(em)
         tar_list, tar_mask = self._list_impl.forward(em)
@@ -225,7 +225,7 @@ class TargetGaussianMixture(TargetGenerator):
         if self._bg_lane is not None:
             aux = self._bg_lane.forward(aux)
 
-        return (tar_list, tar_mask), aux
+        return tar_list, tar_mask, aux
 
 
 class TargetGeneratorChain(TargetGenerator):

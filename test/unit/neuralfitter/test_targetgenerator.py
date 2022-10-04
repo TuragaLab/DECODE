@@ -84,7 +84,7 @@ def test_target_gaussian_mixture(switch, ignore_ix):
     em = emitter.factory(phot=[10.], xyz=[[1., 2., 3.]], xy_unit="px")
     aux = torch.rand(10, 32, 32)
 
-    (tar_em, tar_mask), aux_out = tar.forward(em, aux)
+    tar_em, tar_mask, aux_out = tar.forward(em, aux)
     m_filter.forward.assert_called_once()
     m_scaler.forward.assert_called_once()
 
