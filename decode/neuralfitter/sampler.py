@@ -9,7 +9,7 @@ from ..emitter import emitter
 from ..simulation import microscope, sampler as em_sampler
 
 
-T = TypeVar("T", bound="_Sliceable")
+T = TypeVar("T", bound="_TypedSequence")
 
 
 class _Sliceable(Protocol):
