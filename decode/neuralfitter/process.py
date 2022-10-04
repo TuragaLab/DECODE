@@ -97,6 +97,7 @@ class ProcessingSupervised(Processing):
         shared_input: Optional[_Forwardable] = None,
         pre_input: Optional[_Forwardable] = None,
         tar: Optional[_Forwardable] = None,
+        tar_em: Optional[_Forwardable] = None,
         post_model: Optional[_Forwardable] = None,
         post: Optional[_Forwardable] = None,
         mode: str = "train",
@@ -106,8 +107,9 @@ class ProcessingSupervised(Processing):
         Args:
             shared_input:
             pre_input: input processing (must return model input), forward depends on frame only
-            pre_tar:
-            tar:
+            tar: compute target
+            tar_em: compute target emitters without actually computing the target,
+             useful for validation
             post_model:
             post:
             mode:
@@ -117,6 +119,7 @@ class ProcessingSupervised(Processing):
         self._shared_input = shared_input
         self._pre_input_impl = pre_input
         self._tar = tar
+        self._tar_em = tar_em
         self._post_model = post_model
         self._post = post
 
@@ -132,6 +135,9 @@ class ProcessingSupervised(Processing):
 
     def tar(self, em: emitter.EmitterSet, aux: Any) -> torch.Tensor:
         return self._tar.forward(em, aux)
+
+    def tar_em(self, em: emitter.EmitterSet) -> emitter.EmitterSet:
+        return self._tar_em.forward(em)
 
     def post(self, x: torch.Tensor) -> emitter.EmitterSet:
         x = self.post_model(x)

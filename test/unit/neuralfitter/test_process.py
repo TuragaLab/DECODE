@@ -38,14 +38,15 @@ def test_process_supervised_input(pre_input, shared_input):
 
 
 def test_process_supervised_tar():
-    pre = mock.MagicMock()
     tar = mock.MagicMock()
+    tar_em = mock.MagicMock()
 
-    p = process.ProcessingSupervised(pre_tar=pre, tar=tar)
+    p = process.ProcessingSupervised(tar=tar, tar_em=tar_em)
     p.tar(mock.MagicMock(), mock.MagicMock())
-
     tar.forward.assert_called_once()
-    pre.forward.assert_called_once()
+
+    p.tar_em(mock.MagicMock())
+    tar_em.forward.assert_called_once()
 
 
 def test_process_supervised_post():
