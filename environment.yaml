@@ -28,6 +28,7 @@ dependencies:
   - gitpython>=3.1
   - h5py
   - hypothesis
+  - hydra-core=1.2
   - line_profiler
   - matplotlib
   - numba>=0.55
