@@ -5,6 +5,7 @@ from typing import Any, Union, Callable
 import numpy as np
 import scipy
 import torch
+from deprecated import deprecated
 from sklearn.cluster import AgglomerativeClustering
 
 from decode.evaluation import match_emittersets
@@ -58,27 +59,9 @@ class PostProcessing(ABC):
         return False
 
 
+@deprecated(version="0.11", reason="Deprecated in favour `ToEmitterEmpty`")
 class NoPostProcessing(PostProcessing):
-    """
-    The 'No' Post-Processing post-processing. Will always return an empty EmitterSet.
-
-    """
-
-    def __init__(self, xy_unit=None, px_size=None, return_format="batch-set"):
-        super().__init__(xy_unit=xy_unit, px_size=px_size)
-
-    def forward(self, x: Any = None) -> EmitterSet:
-        """
-
-        Args:
-            x (torch.Tensor): any input tensor where the first dim is the batch-dim.
-
-        Returns:
-            EmptyEmitterSet: An empty EmitterSet
-
-        """
-
-        return EmptyEmitterSet(xy_unit=self.xy_unit, px_size=self.px_size)
+    pass
 
 
 class LookUpPostProcessing(PostProcessing):
