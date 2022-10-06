@@ -1,6 +1,6 @@
 import warnings
 from abc import ABC, abstractmethod  # abstract class
-from typing import Union, Callable
+from typing import Any, Union, Callable
 
 import numpy as np
 import scipy
@@ -67,7 +67,7 @@ class NoPostProcessing(PostProcessing):
     def __init__(self, xy_unit=None, px_size=None, return_format="batch-set"):
         super().__init__(xy_unit=xy_unit, px_size=px_size)
 
-    def forward(self, x: torch.Tensor = None) -> EmitterSet:
+    def forward(self, x: Any = None) -> EmitterSet:
         """
 
         Args:
@@ -83,12 +83,12 @@ class NoPostProcessing(PostProcessing):
 
 class LookUpPostProcessing(PostProcessing):
     def __init__(
-        self,
-        raw_th: float,
-        xy_unit: str,
-        px_size=None,
-        pphotxyzbg_mapping: Union[list, tuple] = (0, 1, 2, 3, 4, -1),
-        photxyz_sigma_mapping: Union[list, tuple, None] = (5, 6, 7, 8),
+            self,
+            raw_th: float,
+            xy_unit: str,
+            px_size=None,
+            pphotxyzbg_mapping: Union[list, tuple] = (0, 1, 2, 3, 4, -1),
+            photxyz_sigma_mapping: Union[list, tuple, None] = (5, 6, 7, 8),
     ):
         """
         Simple post-processing in which we threshold the probability output
@@ -110,7 +110,7 @@ class LookUpPostProcessing(PostProcessing):
         assert len(self.pphotxyzbg_mapping) == 6, "Wrong length of mapping."
         if self.photxyz_sigma_mapping is not None:
             assert (
-                len(self.photxyz_sigma_mapping) == 4
+                    len(self.photxyz_sigma_mapping) == 4
             ), "Wrong length of sigma mapping."
 
     def _filter(self, detection) -> torch.BoolTensor:
@@ -191,22 +191,28 @@ class LookUpPostProcessing(PostProcessing):
         )
 
 
-class SpatialIntegration(LookUpPostProcessing):
+def _norm_sum(*args):
+    return torch.clamp(torch.add(*args), 0.0, 1.0)
 
+
+class SpatialIntegration(LookUpPostProcessing):
     _p_aggregations = ("sum", "norm_sum")  # , 'max', 'pbinom_cdf', 'pbinom_pdf')
-    _split_th = 0.6
 
     def __init__(
-        self,
-        raw_th: float,
-        xy_unit: str,
-        px_size=None,
-        pphotxyzbg_mapping: Union[list, tuple] = (0, 1, 2, 3, 4, -1),
-        photxyz_sigma_mapping: Union[list, tuple, None] = (5, 6, 7, 8),
-        p_aggregation: Union[str, Callable] = "norm_sum",
+            self,
+            raw_th: float,
+            xy_unit: str,
+            px_size=None,
+            pphotxyzbg_mapping: Union[list, tuple] = (0, 1, 2, 3, 4, -1),
+            photxyz_sigma_mapping: Union[list, tuple, None] = (5, 6, 7, 8),
+            p_aggregation: Union[str, Callable] = "norm_sum",
+            _split_th: float = 0.6,
     ):
         """
-        Spatial Integration post processing.
+        Spatial Integration to handle local clusters of non-zero probability.
+        The procedure is to cut off low probability predictions, get localizations with
+        high probabily which are used as is, but for local clusters find maxima and sum
+        up their probabilites.
 
         Args:
             raw_th: probability threshold from where detections are considered
@@ -214,7 +220,10 @@ class SpatialIntegration(LookUpPostProcessing):
             px_size: pixel size
             pphotxyzbg_mapping: channel index mapping
             photxyz_sigma_mapping: channel index mapping of sigma channels
-            p_aggregation: aggreation method to aggregate probabilities. can be 'sum', 'max', 'norm_sum'
+            p_aggregation: aggreation method to aggregate probabilities.
+             can be 'sum', 'max', 'norm_sum'
+            _split_th: threshold above which a prediction is treated as `easy` in that
+             it is a clear prediction.
         """
         super().__init__(
             raw_th=raw_th,
@@ -223,7 +232,7 @@ class SpatialIntegration(LookUpPostProcessing):
             pphotxyzbg_mapping=pphotxyzbg_mapping,
             photxyz_sigma_mapping=photxyz_sigma_mapping,
         )
-
+        self._split_th = _split_th
         self.p_aggregation = self.set_p_aggregation(p_aggregation)
 
     def forward(self, x: torch.Tensor) -> EmitterSet:
@@ -292,11 +301,7 @@ class SpatialIntegration(LookUpPostProcessing):
             elif p_aggr == "max":
                 return torch.max
             elif p_aggr == "norm_sum":
-
-                def norm_sum(*args):
-                    return torch.clamp(torch.add(*args), 0.0, 1.0)
-
-                return norm_sum
+                return _norm_sum
             else:
                 raise ValueError
 
@@ -315,22 +320,22 @@ class ConsistencyPostprocessing(PostProcessing):
     _xy_unit = "nm"
 
     def __init__(
-        self,
-        *,
-        raw_th,
-        em_th,
-        xy_unit: str,
-        img_shape,
-        ax_th=None,
-        vol_th=None,
-        lat_th=None,
-        p_aggregation="pbinom_cdf",
-        px_size=None,
-        match_dims=2,
-        diag=0,
-        pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
-        num_workers=0,
-        skip_th: (None, float) = None,
+            self,
+            *,
+            raw_th,
+            em_th,
+            xy_unit: str,
+            img_shape,
+            ax_th=None,
+            vol_th=None,
+            lat_th=None,
+            p_aggregation="pbinom_cdf",
+            px_size=None,
+            match_dims=2,
+            diag=0,
+            pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
+            num_workers=0,
+            skip_th: (None, float) = None,
     ):
         """
         PostProcessing implementation that divides the output in hard and easy samples.
@@ -422,8 +427,8 @@ class ConsistencyPostprocessing(PostProcessing):
             raise ValueError("Wrong dimensionality. Needs to be N x C x H x W.")
 
         features = features[
-            :, self.pphotxyzbg_mapping
-        ]  # change channel order if needed
+                   :, self.pphotxyzbg_mapping
+                   ]  # change channel order if needed
 
         p = features[:, [0], :, :]
         features = features[:, 1:, :, :]  # phot, x, y, z, bg
@@ -444,35 +449,26 @@ class ConsistencyPostprocessing(PostProcessing):
         )
 
     def sanity_check(self):
-        """
-        Performs some sanity checks. Part of the constructor; useful if you modify attributes later on and want to
-        double check.
-
-        """
-
-        super().sanity_check()
-
         if self.p_aggregation not in self._p_aggregations:
             raise ValueError("Unsupported probability aggregation type.")
 
         if len(self.pphotxyzbg_mapping) != 6:
             raise ValueError(f"Wrong channel mapping length.")
 
-    def skip_if(self, x):
+    def skip_if(self, x) -> bool:
+        """Returns condition when post-processing can be skipped."""
         if x.dim() != 4:
             raise ValueError("Unsupported dim.")
 
         if (
-            self.skip_th is not None
-            and (x[:, 0] >= self.raw_th).sum() > self.skip_th * x[:, 0].numel()
+                self.skip_th is not None
+                and (x[:, 0] >= self.raw_th).sum() > self.skip_th * x[:, 0].numel()
         ):
             return True
         else:
             return False
 
     def _cluster_batch(self, p: torch.Tensor, features: torch.Tensor):
-        """Cluster a batch of frames"""
-
         clusterer = self._clusterer
         p_aggregation = self.p_aggregation
 
@@ -584,10 +580,10 @@ class ConsistencyPostprocessing(PostProcessing):
                 binary_mask.device
             )
             count = (
-                torch.nn.functional.conv2d(
-                    binary_mask, self._neighbor_kernel, padding=1
-                )
-                * binary_mask
+                    torch.nn.functional.conv2d(
+                        binary_mask, self._neighbor_kernel, padding=1
+                    )
+                    * binary_mask
             )
 
             # divide in easy and difficult set
@@ -666,7 +662,7 @@ class ConsistencyPostprocessing(PostProcessing):
 
 class EmitterBackgroundByFrame:
     def __init__(
-        self, filter_size: int, xextent: tuple, yextent: tuple, img_shape: tuple
+            self, filter_size: int, xextent: tuple, yextent: tuple, img_shape: tuple
     ):
         """
         Extract a background value per localisation from a background frame.
@@ -695,7 +691,7 @@ class EmitterBackgroundByFrame:
         self._padding = torch.nn.ReplicationPad2d((pad_x, pad_x, pad_y, pad_y))
 
         self._kernel = torch.ones((1, 1, filter_size, filter_size)) / (
-            filter_size * filter_size
+                filter_size * filter_size
         )
         self._bin_x, self._bin_y, *_ = utils.frame_grid(img_shape, xextent, yextent)
 
@@ -747,16 +743,20 @@ class EmitterBackgroundByFrame:
         pos_y = em.xyz[:, 1]
         bg_frame_ix = (-int(em.frame_ix.min()) + em.frame_ix).long()
 
-        ix_x = torch.from_numpy(np.digitize(pos_x.numpy(), self._bin_x, right=False) - 1)
-        ix_y = torch.from_numpy(np.digitize(pos_y.numpy(), self._bin_y, right=False) - 1)
+        ix_x = torch.from_numpy(
+            np.digitize(pos_x.numpy(), self._bin_x, right=False) - 1
+        )
+        ix_y = torch.from_numpy(
+            np.digitize(pos_y.numpy(), self._bin_y, right=False) - 1
+        )
 
         # kill everything that is outside
         in_frame = torch.ones_like(ix_x).bool()
         in_frame *= (
-            (ix_x >= 0)
-            * (ix_x <= self._img_shape[0] - 1)
-            * (ix_y >= 0)
-            * (ix_y <= self._img_shape[1] - 1)
+                (ix_x >= 0)
+                * (ix_x <= self._img_shape[0] - 1)
+                * (ix_y >= 0)
+                * (ix_y <= self._img_shape[1] - 1)
         )
 
         if em.bg is None:
