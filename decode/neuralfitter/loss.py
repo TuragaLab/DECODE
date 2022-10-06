@@ -1,35 +1,32 @@
 from abc import ABC, abstractmethod  # abstract class
-from typing import Union, Tuple, Optional
+from typing import Any, Union, Tuple, Optional
 
 import torch
 from torch import distributions
 
+from . import logger as log
 from ..simulation import psf_kernel
 
 
 class Loss(ABC):
-    """Abstract class for my loss functions."""
-
-    def __init__(self):
+    def __init__(self, logger: Optional[log.Logger] = None):
         super().__init__()
 
+        self._logger = logger
+
     def __call__(self, output, target, weight):
-        """
-        calls functional
-        """
         return self.forward(output, target, weight)
 
-    @abstractmethod
-    def log(self, loss_val):
+    def log(self, val: Any, step: Optional[int] = None) -> None:
         """
 
         Args:
-            loss_val:
-
-        Returns:
-            float: single scalar that is subject to the backprop algorithm
-            dict:  dictionary with values being floats, describing additional information (e.g. loss components)
+            val:
+            step:
         """
+        if self._logger is None:
+            return
+
         raise NotImplementedError
 
     def _forward_checks(
@@ -42,7 +39,6 @@ class Loss(ABC):
             output:
             target:
             weight:
-
         """
         if not (output.size() == target.size() and target.size() == weight.size()):
             raise ValueError(
@@ -64,14 +60,13 @@ class Loss(ABC):
 
         Returns:
             torch.Tensor
-
         """
         raise NotImplementedError
 
 
 class PPXYZBLoss(Loss):
     """
-    Loss implementation for 6 channel output for SMLM data, where the channels are
+    Loss implementation for 6 channel output where the channels are
 
         0: probabilities (without sigmoid)
         1: photon count
@@ -117,25 +112,6 @@ class PPXYZBLoss(Loss):
         )
         self._phot_xyzbg_loss = torch.nn.MSELoss(reduction="none")
 
-    def log(self, loss_val) -> (float, dict):
-        loss_vec = loss_val.mean(-1).mean(-1).mean(0)
-        return loss_vec.mean().item(), {
-            "p": loss_vec[0].item(),
-            "phot": loss_vec[1].item(),
-            "x": loss_vec[2].item(),
-            "y": loss_vec[3].item(),
-            "z": loss_vec[4].item(),
-            "bg": loss_vec[5].item(),
-        }
-
-    def _forward_checks(
-        self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor
-    ):
-        super()._forward_checks(output, target, weight)
-
-        if output.size(1) != 6:
-            raise ValueError("Not supported number of channels for this loss function.")
-
     def forward(
         self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor
     ) -> torch.Tensor:
@@ -150,6 +126,14 @@ class PPXYZBLoss(Loss):
         tot_loss = tot_loss * weight * self._ch_weight
 
         return tot_loss
+
+    def _forward_checks(
+        self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor
+    ):
+        super()._forward_checks(output, target, weight)
+
+        if output.size(1) != 6:
+            raise ValueError("Not supported number of channels for this loss function.")
 
 
 class GaussianMMLoss(Loss):
@@ -166,6 +150,7 @@ class GaussianMMLoss(Loss):
         device: Union[str, torch.device],
         chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
         forward_safety: bool = True,
+        logger: Optional[log.Logger] = None,
     ):
         """
 
@@ -177,8 +162,9 @@ class GaussianMMLoss(Loss):
             chweight_stat: static channel weight,
              e.g. to disable background prediction
             forward_safety: check inputs to the forward method
+            logger:
         """
-        super().__init__()
+        super().__init__(logger=logger)
 
         if chweight_stat is not None:
             self._ch_weight = (
@@ -196,14 +182,38 @@ class GaussianMMLoss(Loss):
         )
         self.forward_safety = forward_safety
 
-    def log(self, loss_val):
-        return loss_val.mean().item(), {
-            "gmm": loss_val[:, 0].mean().item(),
-            "bg": loss_val[:, 1].mean().item(),
-        }
+    def forward(
+        self,
+        output: torch.Tensor,
+        target: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        weight: Optional = None,
+    ) -> torch.Tensor:
+
+        if self.forward_safety:
+            self._forward_checks(output, target, weight)
+
+        tar_param, tar_mask, tar_bg = target
+        p, pxyz_mu, pxyz_sig, bg = self._format_model_output(output)
+
+        bg_loss = self._bg_loss(bg, tar_bg).sum(-1).sum(-1)
+        gmm_loss = self._compute_gmm_loss(p, pxyz_mu, pxyz_sig, tar_param, tar_mask)
+
+        # stack in 2 channels
+        # factor 2 because original impl. adds the two terms, but this way
+        # it's better for logging
+        loss = 2 * torch.stack((gmm_loss, bg_loss), 1) * self._ch_weight
+        return loss
+
+    def log(self, val: torch.Tensor, step: Optional[int] = None) -> None:
+        if self._logger is not None:
+            to_log = {
+                "gmm": val[:, 0].mean().item(),
+                "bg": val[:, 1].mean().item(),
+            }
+            self._logger.log_metrics(to_log, step)
 
     @staticmethod
-    def _format_model_output(output: torch.Tensor) -> tuple:
+    def _format_model_output(output: torch.Tensor) -> tuple[torch.Tensor, ...]:
         """
         Transforms solely channel based model output into more meaningful variables.
 
@@ -302,25 +312,3 @@ class GaussianMMLoss(Loss):
 
         if len(target) != 3:
             raise ValueError(f"Wrong length of target.")
-
-    def forward(
-        self,
-        output: torch.Tensor,
-        target: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-        weight: Optional = None,
-    ) -> torch.Tensor:
-
-        if self.forward_safety:
-            self._forward_checks(output, target, weight)
-
-        tar_param, tar_mask, tar_bg = target
-        p, pxyz_mu, pxyz_sig, bg = self._format_model_output(output)
-
-        bg_loss = self._bg_loss(bg, tar_bg).sum(-1).sum(-1)
-        gmm_loss = self._compute_gmm_loss(p, pxyz_mu, pxyz_sig, tar_param, tar_mask)
-
-        # stack in 2 channels
-        # factor 2 because original impl. adds the two terms, but this way
-        # it's better for logging
-        loss = 2 * torch.stack((gmm_loss, bg_loss), 1) * self._ch_weight
-        return loss
