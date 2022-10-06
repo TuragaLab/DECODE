@@ -6,28 +6,52 @@ from ..utils import last_layer_dynamics as lyd
 
 
 class SimpleSMLMNet(unet_param.UNet2d):
-
-    def __init__(self, ch_in, ch_out, depth=3, initial_features=64, inter_features=64, p_dropout=0.,
-                 activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
-                 norm_head_groups=None, pool_mode='StrideConv', upsample_mode='bilinear', skip_gn_level=None):
-        super().__init__(in_channels=ch_in,
-                         out_channels=inter_features,
-                         depth=depth,
-                         initial_features=initial_features,
-                         pad_convs=True,
-                         norm=norm,
-                         norm_groups=norm_groups,
-                         p_dropout=p_dropout,
-                         pool_mode=pool_mode,
-                         activation=activation,
-                         skip_gn_level=skip_gn_level)
+    def __init__(
+        self,
+        ch_in,
+        ch_out,
+        depth=3,
+        initial_features=64,
+        inter_features=64,
+        p_dropout=0.0,
+        activation=nn.ReLU(),
+        use_last_nl=True,
+        norm=None,
+        norm_groups=None,
+        norm_head=None,
+        norm_head_groups=None,
+        pool_mode="StrideConv",
+        upsample_mode="bilinear",
+        skip_gn_level=None,
+    ):
+        super().__init__(
+            in_channels=ch_in,
+            out_channels=inter_features,
+            depth=depth,
+            initial_features=initial_features,
+            pad_convs=True,
+            norm=norm,
+            norm_groups=norm_groups,
+            p_dropout=p_dropout,
+            pool_mode=pool_mode,
+            activation=activation,
+            skip_gn_level=skip_gn_level,
+        )
 
         assert ch_out in (5, 6)
         self.ch_out = ch_out
-        self.mt_heads = nn.ModuleList([
-            MLTHeads(inter_features, norm=norm_head, norm_groups=norm_head_groups, padding=True, activation=activation)
-            for _ in range(self.ch_out)
-        ])
+        self.mt_heads = nn.ModuleList(
+            [
+                MLTHeads(
+                    inter_features,
+                    norm=norm_head,
+                    norm_groups=norm_head_groups,
+                    padding=True,
+                    activation=activation,
+                )
+                for _ in range(self.ch_out)
+            ]
+        )
 
         self._use_last_nl = use_last_nl
 
@@ -54,7 +78,7 @@ class SimpleSMLMNet(unet_param.UNet2d):
             norm_groups=param.HyperParameter.arch_param.norm_groups,
             norm_head=param.HyperParameter.arch_param.norm_head,
             norm_head_groups=param.HyperParameter.arch_param.norm_head_groups,
-            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level
+            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level,
         )
 
     @staticmethod
@@ -62,10 +86,18 @@ class SimpleSMLMNet(unet_param.UNet2d):
 
         assert y_tar.dim() == 4, "Wrong dim."
         assert y_tar.size(1) == 6, "Wrong num. of channels"
-        assert ((y_tar[:, 0] >= 0.) * (y_tar[:, 0] <= 1.)).all(), "Probability outside of the range."
-        assert ((y_tar[:, 1] >= 0.) * (y_tar[:, 1] <= 1.)).all(), "Photons outside of the range."
-        assert ((y_tar[:, 2:5] >= -1.) * (y_tar[:, 2:5] <= 1.)).all(), "XYZ outside of the range."
-        assert ((y_tar[:, 1] >= 0.) * (y_tar[:, 1] <= 1.)).all(), "BG outside of the range."
+        assert (
+            (y_tar[:, 0] >= 0.0) * (y_tar[:, 0] <= 1.0)
+        ).all(), "Probability outside of the range."
+        assert (
+            (y_tar[:, 1] >= 0.0) * (y_tar[:, 1] <= 1.0)
+        ).all(), "Photons outside of the range."
+        assert (
+            (y_tar[:, 2:5] >= -1.0) * (y_tar[:, 2:5] <= 1.0)
+        ).all(), "XYZ outside of the range."
+        assert (
+            (y_tar[:, 1] >= 0.0) * (y_tar[:, 1] <= 1.0)
+        ).all(), "BG outside of the range."
 
     def rescale_last_layer_grad(self, loss, optimizer):
         """
@@ -129,32 +161,74 @@ class SimpleSMLMNet(unet_param.UNet2d):
 
 
 class DoubleMUnet(nn.Module):
-    def __init__(self, ch_in, ch_out, ext_features=0, depth_shared=3, depth_union=3, initial_features=64,
-                 inter_features=64,
-                 activation=nn.ReLU(), use_last_nl=True, norm=None, norm_groups=None, norm_head=None,
-                 norm_head_groups=None, pool_mode='Conv2d', upsample_mode='bilinear', skip_gn_level=None, disabled_attributes=None):
+    def __init__(
+        self,
+        ch_in,
+        ch_out,
+        ext_features=0,
+        depth_shared=3,
+        depth_union=3,
+        initial_features=64,
+        inter_features=64,
+        activation=nn.ReLU(),
+        use_last_nl=True,
+        norm=None,
+        norm_groups=None,
+        norm_head=None,
+        norm_head_groups=None,
+        pool_mode="Conv2d",
+        upsample_mode="bilinear",
+        skip_gn_level=None,
+        disabled_attributes=None,
+    ):
         super().__init__()
 
-        self.unet_shared = unet_param.UNet2d(1 + ext_features, inter_features, depth=depth_shared, pad_convs=True,
-                                             initial_features=initial_features,
-                                             activation=activation, norm=norm, norm_groups=norm_groups,
-                                             pool_mode=pool_mode, upsample_mode=upsample_mode,
-                                             skip_gn_level=skip_gn_level)
+        self.unet_shared = unet_param.UNet2d(
+            1 + ext_features,
+            inter_features,
+            depth=depth_shared,
+            pad_convs=True,
+            initial_features=initial_features,
+            activation=activation,
+            norm=norm,
+            norm_groups=norm_groups,
+            pool_mode=pool_mode,
+            upsample_mode=upsample_mode,
+            skip_gn_level=skip_gn_level,
+        )
 
-        self.unet_union = unet_param.UNet2d(ch_in * inter_features, inter_features, depth=depth_union, pad_convs=True,
-                                            initial_features=initial_features,
-                                            activation=activation, norm=norm, norm_groups=norm_groups,
-                                            pool_mode=pool_mode, upsample_mode=upsample_mode,
-                                            skip_gn_level=skip_gn_level)
+        self.unet_union = unet_param.UNet2d(
+            ch_in * inter_features,
+            inter_features,
+            depth=depth_union,
+            pad_convs=True,
+            initial_features=initial_features,
+            activation=activation,
+            norm=norm,
+            norm_groups=norm_groups,
+            pool_mode=pool_mode,
+            upsample_mode=upsample_mode,
+            skip_gn_level=skip_gn_level,
+        )
 
         assert ch_in in (1, 3)
         # assert ch_out in (5, 6)
         self.ch_in = ch_in
         self.ch_out = ch_out
         self.mt_heads = nn.ModuleList(
-            [MLTHeads(inter_features, out_channels=1, last_kernel=1,
-                      norm=norm_head, norm_groups=norm_head_groups,
-                      padding=True, activation=activation) for _ in range(self.ch_out)])
+            [
+                MLTHeads(
+                    inter_features,
+                    out_channels=1,
+                    last_kernel=1,
+                    norm=norm_head,
+                    norm_groups=norm_head_groups,
+                    padding=True,
+                    activation=activation,
+                )
+                for _ in range(self.ch_out)
+            ]
+        )
 
         self._use_last_nl = use_last_nl
 
@@ -162,12 +236,14 @@ class DoubleMUnet(nn.Module):
         self.phot_nl = torch.sigmoid
         self.xyz_nl = torch.tanh
         self.bg_nl = torch.sigmoid
-        
+
         # convert to list
-        if disabled_attributes is None or isinstance(disabled_attributes, (tuple, list)):
+        if disabled_attributes is None or isinstance(
+            disabled_attributes, (tuple, list)
+        ):
             self.disabled_attr_ix = disabled_attributes
         else:
-            self.disabled_attr_ix = [disabled_attributes]   
+            self.disabled_attr_ix = [disabled_attributes]
 
     @classmethod
     def parse(cls, param, **kwargs):
@@ -292,7 +368,16 @@ class DoubleMUnet(nn.Module):
 
 
 class MLTHeads(nn.Module):
-    def __init__(self, in_channels, out_channels, last_kernel, norm, norm_groups, padding, activation):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        last_kernel,
+        norm,
+        norm_groups,
+        padding,
+        activation,
+    ):
         super().__init__()
         self.norm = norm
         self.norm_groups = norm_groups
@@ -305,8 +390,12 @@ class MLTHeads(nn.Module):
 
         padding = padding
 
-        self.core = self._make_core(in_channels, groups_1, groups_2, activation, padding, self.norm)
-        self.out_conv = nn.Conv2d(in_channels, out_channels, kernel_size=last_kernel, padding=False)
+        self.core = self._make_core(
+            in_channels, groups_1, groups_2, activation, padding, self.norm
+        )
+        self.out_conv = nn.Conv2d(
+            in_channels, out_channels, kernel_size=last_kernel, padding=False
+        )
 
     def forward(self, x):
         o = self.core.forward(x)
@@ -316,16 +405,17 @@ class MLTHeads(nn.Module):
 
     @staticmethod
     def _make_core(in_channels, groups_1, groups_2, activation, padding, norm):
-        if norm == 'GroupNorm':
-            return nn.Sequential(nn.GroupNorm(groups_1, in_channels),
-                                 nn.Conv2d(in_channels, in_channels,
-                                           kernel_size=3, padding=padding),
-                                 activation,
-                                 # nn.GroupNorm(groups_2, in_channels)
-                                 )
+        if norm == "GroupNorm":
+            return nn.Sequential(
+                nn.GroupNorm(groups_1, in_channels),
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=padding),
+                activation,
+                # nn.GroupNorm(groups_2, in_channels)
+            )
         elif norm is None:
-            return nn.Sequential(nn.Conv2d(in_channels, in_channels,
-                                           kernel_size=3, padding=padding),
-                                 activation)
+            return nn.Sequential(
+                nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=padding),
+                activation,
+            )
         else:
             raise NotImplementedError
