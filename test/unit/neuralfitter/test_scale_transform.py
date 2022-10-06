@@ -136,10 +136,17 @@ def test_scaler_tar_list():
     assert (tar_out == 1).all()
 
 
-def test_scaler_model_out():
+@pytest.mark.parametrize("x", [
+    torch.ones(10, 64, 64),
+    torch.ones(2, 10, 64, 64),
+])
+def test_scaler_model_out(x):
     s = scale.ScalerModelOutput(2, 4, 8)
     # prob, phot, x, y, z, phot_sig, x_sig, y_sig, z_sig, bg
-    x = torch.tensor([1.0, 0.5, 1.0, 1.0, 0.25, 0.5, 1.0, 1.0, 0.25, 0.125])
+    # x = torch.tensor([1.0, 0.5, 1.0, 1.0, 0.25, 0.5, 1.0, 1.0, 0.25, 0.125])
 
     out = s.forward(x)
     assert out is not x
+    assert (out[..., [1, 5], :, :] == 2.).all()
+    assert (out[..., [4, 8], :, :] == 4.).all()
+    assert (out[..., -1, :, :] == 8.).all()

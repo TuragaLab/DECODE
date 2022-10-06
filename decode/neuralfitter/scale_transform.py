@@ -277,21 +277,22 @@ class ScalerModelOutput:
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Invert scale of network output according to previous scale.
+        Scale network output.
 
         Args:
-            x: model output
+            x:
         """
 
-        if x.size(-1) != 10:
-            raise ValueError(f"Last dim must be of size 10 not {x.size()}")
+        if x.size(-3) != 10:
+            raise ValueError(f"Channel dim must be of size 10, "
+                             f"input tensor is of size {x.size()}")
 
         x = x.clone()
-        x[..., 1] *= self._phot
-        x[..., 5] *= self._phot  # sigma rescaling
+        x[..., 1, :, :] *= self._phot
+        x[..., 5, :, :] *= self._phot  # sigma_phot rescaling
 
-        x[..., 4] *= self._z
-        x[..., 8] *= self._z
-        x[..., -1] *= self._bg_max
+        x[..., 4, :, :] *= self._z  # z
+        x[..., 8, :, :] *= self._z  # sig_z
+        x[..., -1, :, :] *= self._bg_max
 
         return x
