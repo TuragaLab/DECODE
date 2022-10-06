@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod  # abstract class
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 
 import torch
 from torch import distributions
 
-# from . import MixtureSameFamily as mixture
 from ..simulation import psf_kernel
 
 
@@ -33,7 +32,9 @@ class Loss(ABC):
         """
         raise NotImplementedError
 
-    def _forward_checks(self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor):
+    def _forward_checks(
+        self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor
+    ):
         """
         Some sanity checks for forward data
 
@@ -44,11 +45,15 @@ class Loss(ABC):
 
         """
         if not (output.size() == target.size() and target.size() == weight.size()):
-            raise ValueError(f"Dimensions of output, target and weight do not match "
-                             f"({output.size(), target.size(), weight.size()}.")
+            raise ValueError(
+                f"Dimensions of output, target and weight do not match "
+                f"({output.size(), target.size(), weight.size()}."
+            )
 
     @abstractmethod
-    def forward(self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor
+    ) -> torch.Tensor:
         """
         Computes the loss term
 
@@ -76,8 +81,13 @@ class PPXYZBLoss(Loss):
         5: background
     """
 
-    def __init__(self, device: Union[str, torch.device], chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
-                 p_fg_weight: float = 1., forward_safety: bool = True):
+    def __init__(
+        self,
+        device: Union[str, torch.device],
+        chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
+        p_fg_weight: float = 1.0,
+        forward_safety: bool = True,
+    ):
         """
 
         Args:
@@ -91,32 +101,44 @@ class PPXYZBLoss(Loss):
         self.forward_safety = forward_safety
 
         if chweight_stat is not None:
-            self._ch_weight = chweight_stat if isinstance(chweight_stat, torch.Tensor) else torch.Tensor(chweight_stat)
+            self._ch_weight = (
+                chweight_stat
+                if isinstance(chweight_stat, torch.Tensor)
+                else torch.Tensor(chweight_stat)
+            )
         else:
-            self._ch_weight = torch.tensor([1., 1., 1., 1., 1., 1.])
-        self._ch_weight = self._ch_weight.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).to(device)
+            self._ch_weight = torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+        self._ch_weight = (
+            self._ch_weight.unsqueeze(0).unsqueeze(-1).unsqueeze(-1).to(device)
+        )
 
-        self._p_loss = torch.nn.BCEWithLogitsLoss(reduction='none', pos_weight=torch.tensor(p_fg_weight).to(device))
-        self._phot_xyzbg_loss = torch.nn.MSELoss(reduction='none')
+        self._p_loss = torch.nn.BCEWithLogitsLoss(
+            reduction="none", pos_weight=torch.tensor(p_fg_weight).to(device)
+        )
+        self._phot_xyzbg_loss = torch.nn.MSELoss(reduction="none")
 
     def log(self, loss_val) -> (float, dict):
         loss_vec = loss_val.mean(-1).mean(-1).mean(0)
         return loss_vec.mean().item(), {
-            'p': loss_vec[0].item(),
-            'phot': loss_vec[1].item(),
-            'x': loss_vec[2].item(),
-            'y': loss_vec[3].item(),
-            'z': loss_vec[4].item(),
-            'bg': loss_vec[5].item()
+            "p": loss_vec[0].item(),
+            "phot": loss_vec[1].item(),
+            "x": loss_vec[2].item(),
+            "y": loss_vec[3].item(),
+            "z": loss_vec[4].item(),
+            "bg": loss_vec[5].item(),
         }
 
-    def _forward_checks(self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor):
+    def _forward_checks(
+        self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor
+    ):
         super()._forward_checks(output, target, weight)
 
         if output.size(1) != 6:
             raise ValueError("Not supported number of channels for this loss function.")
 
-    def forward(self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor
+    ) -> torch.Tensor:
 
         if self.forward_safety:
             self._forward_checks(output, target, weight)
@@ -135,9 +157,16 @@ class GaussianMMLoss(Loss):
     Model output is a mean and sigma value which forms a gaussian mixture model.
     """
 
-    def __init__(self, *, xextent: tuple, yextent: tuple, img_shape: tuple, device: Union[str, torch.device],
-                 chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
-                 forward_safety: bool = True):
+    def __init__(
+        self,
+        *,
+        xextent: tuple,
+        yextent: tuple,
+        img_shape: tuple,
+        device: Union[str, torch.device],
+        chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
+        forward_safety: bool = True,
+    ):
         """
 
         Args:
@@ -152,18 +181,26 @@ class GaussianMMLoss(Loss):
         super().__init__()
 
         if chweight_stat is not None:
-            self._ch_weight = chweight_stat if isinstance(chweight_stat, torch.Tensor) else torch.Tensor(chweight_stat)
+            self._ch_weight = (
+                chweight_stat
+                if isinstance(chweight_stat, torch.Tensor)
+                else torch.Tensor(chweight_stat)
+            )
         else:
             self._ch_weight = torch.ones(2)
         self._ch_weight = self._ch_weight.reshape(1, 2).to(device)
 
-        self._bg_loss = torch.nn.MSELoss(reduction='none')
-        self._offset2coord = psf_kernel.DeltaPSF(xextent=xextent, yextent=yextent, img_shape=img_shape)
+        self._bg_loss = torch.nn.MSELoss(reduction="none")
+        self._offset2coord = psf_kernel.DeltaPSF(
+            xextent=xextent, yextent=yextent, img_shape=img_shape
+        )
         self.forward_safety = forward_safety
 
     def log(self, loss_val):
-        return loss_val.mean().item(), {'gmm': loss_val[:, 0].mean().item(),
-                                        'bg': loss_val[:, 1].mean().item()}
+        return loss_val.mean().item(), {
+            "gmm": loss_val[:, 0].mean().item(),
+            "bg": loss_val[:, 1].mean().item(),
+        }
 
     @staticmethod
     def _format_model_output(output: torch.Tensor) -> tuple:
@@ -187,7 +224,14 @@ class GaussianMMLoss(Loss):
 
         return p, pxyz_mu, pxyz_sig, bg
 
-    def _compute_gmm_loss(self, p, pxyz_mu, pxyz_sig, pxyz_tar, mask) -> torch.Tensor:
+    def _compute_gmm_loss(
+        self,
+        p: torch.Tensor,
+        pxyz_mu: torch.Tensor,
+        pxyz_sig: torch.Tensor,
+        pxyz_tar: torch.Tensor,
+        mask: torch.BoolTensor,
+    ) -> torch.Tensor:
         """
         Computes the Gaussian Mixture Loss.
 
@@ -207,7 +251,7 @@ class GaussianMMLoss(Loss):
         log_prob = 0
 
         p_mean = p.sum(-1).sum(-1)
-        p_var = (p - p ** 2).sum(-1).sum(-1)  # var estimate of bernoulli
+        p_var = (p - p**2).sum(-1).sum(-1)  # var estimate of bernoulli
         p_gauss = distributions.Normal(p_mean, torch.sqrt(p_var))
 
         log_prob = log_prob + p_gauss.log_prob(mask.sum(-1)) * mask.sum(-1)
@@ -224,15 +268,17 @@ class GaussianMMLoss(Loss):
 
         # flatten img dimension --> N x (HxW) x 4
         pxyz_mu = pxyz_mu.reshape(batch_size, -1, 4)
-        pxyz_sig = pxyz_sig[p_inds[0], :, p_inds[1], p_inds[2]].reshape(batch_size, -1, 4)
+        pxyz_sig = pxyz_sig[p_inds[0], :, p_inds[1], p_inds[2]].reshape(
+            batch_size, -1, 4
+        )
 
         # set up mixture family
         mix = distributions.Categorical(prob_normed[p_inds].reshape(batch_size, -1))
         comp = distributions.Independent(distributions.Normal(pxyz_mu, pxyz_sig), 1)
         gmm = distributions.mixture_same_family.MixtureSameFamily(mix, comp)
 
-        # calc log probs if there is anything there
-        if mask.sum():
+        if mask.sum():  # calc log probs if there is anything there
+            pxyz_tar[~mask] = 0.0  # non target could be NaN, needs to be masked out
             gmm_log = gmm.log_prob(pxyz_tar.transpose(0, 1)).transpose(0, 1)
             gmm_log = (gmm_log * mask).sum(-1)
             log_prob = log_prob + gmm_log
@@ -244,7 +290,9 @@ class GaussianMMLoss(Loss):
     def _forward_checks(self, output: torch.Tensor, target: tuple, weight: None):
 
         if weight is not None:
-            raise NotImplementedError(f"Weight must be None for this loss implementation.")
+            raise NotImplementedError(
+                f"Weight must be None for this loss implementation."
+            )
 
         if output.dim() != 4:
             raise ValueError(f"Output must have 4 dimensions (N,C,H,W).")
@@ -255,8 +303,12 @@ class GaussianMMLoss(Loss):
         if len(target) != 3:
             raise ValueError(f"Wrong length of target.")
 
-    def forward(self, output: torch.Tensor, target: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-                weight: None) -> torch.Tensor:
+    def forward(
+        self,
+        output: torch.Tensor,
+        target: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        weight: Optional = None,
+    ) -> torch.Tensor:
 
         if self.forward_safety:
             self._forward_checks(output, target, weight)
