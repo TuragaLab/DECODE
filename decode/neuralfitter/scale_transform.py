@@ -264,7 +264,7 @@ class ScalerTargetList:
 class ScalerModelOutput:
     def __init__(self, phot: float, z: float, bg: float):
         """
-        Rescale network output which had been downscaled by parameter list rescale.
+        Rescale network output.
 
         Args:
             phot: scale factor photon
