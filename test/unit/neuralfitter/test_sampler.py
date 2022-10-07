@@ -59,6 +59,9 @@ def proc():
         def tar(self, em, aux):
             return em
 
+        def tar_em(self, em):
+            return em.iframe[0]
+
     return _DummyProc()
 
 
@@ -113,5 +116,7 @@ def test_sampler_sample(bg_mode, proc):
         raise ValueError
 
     assert s.emitter is not None
+    assert s.emitter != s.emitter_tar
+    assert len(s.emitter_tar) < len(s.emitter)
     assert s.bg is not None
     assert s.frame is not None

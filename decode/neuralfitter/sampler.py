@@ -140,7 +140,7 @@ class SamplerSupervised(Sampler):
         em: Union[emitter.EmitterSet, em_sampler.EmitterSampler],
         bg: Optional[Union[torch.Tensor, "Sampleable"]],
         frames:  Optional[torch.Tensor],
-        proc: process.Processing,
+        proc: process.ProcessingSupervised,
         window: Optional[int] = 1,
         bg_mode: Optional[str] = None,
         mic: Optional[microscope.Microscope] = None,
@@ -179,6 +179,10 @@ class SamplerSupervised(Sampler):
     @property
     def emitter(self) -> emitter.EmitterSet:
         return self._em
+
+    @property
+    def emitter_tar(self):
+        return self._proc.tar_em(self._em)
 
     @property
     def frame(self) -> torch.Tensor:
