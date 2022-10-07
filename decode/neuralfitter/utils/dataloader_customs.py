@@ -2,7 +2,7 @@ import torch
 import torch.utils.data
 from deprecated import deprecated
 
-import decode.generic
+from ... import emitter
 
 
 @deprecated(reason="Code duplication and not necessary anymore.", version="0.11.0")
@@ -15,7 +15,7 @@ def smlm_collate(batch):
         batch
     """
     elem = batch[0]
-    # ToDo: This is super ugly, however I don't know how to overcome this, because one must break out of recursion
+    # ToDo: possible rewrite? One must break out of recursion
     # BEGIN PARTLY INSERTION of default collate
     if isinstance(elem, torch.Tensor):
         out = None
@@ -37,7 +37,7 @@ def smlm_collate(batch):
     # END INSERT
     elif elem is None:
         return None
-    elif isinstance(elem, decode.generic.emitter.EmitterSet):
+    elif isinstance(elem, emitter.EmitterSet):
         return [em for em in batch]
     else:
         return torch.utils.data.dataloader.default_collate(batch)
