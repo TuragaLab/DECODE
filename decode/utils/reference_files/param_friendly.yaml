@@ -1,28 +1,23 @@
-# Minimal set of parameters to train DECODE. All of these fields need to be filled out.
-Camera:  # camera specs, exemplary shown are the values of the camera used in the challenge
-  baseline: 100.0
-  e_per_adu: 45.0
-  em_gain: 300.0
+# Minimal set of parameters to train DECODE. The fields shown here are most commonly
+# filled out or are possibly changed.
+Camera:
+  baseline:
+  e_per_adu:
+  em_gain:
+  mirror_dim:   # this field is only active during fitting per inference .py file
   px_size:
-    - 100.0
-    - 100.0
-  read_sigma: 74.4
-  spur_noise: 0.002
-InOut:
-  calibration_file:  # path to 3d calibration
-  experiment_out:  # place your path to the output folder here
+  read_sigma:
+  spur_noise:
+Paths:
+  calibration:  # spline calib
+  experiment:  # training output dir
+  logging:  # logging base dir
+  checkpoint:  # path to checkpoint (e.g. resume training or for fitting)
 Simulation:
-  bg_uniform:  # background range to sample from. You can also specify a const. value as 'bg_uniform: 100'
-    - 90
-    - 150
-  emitter_av: 25  # average number of emitters on a frame with extent as specified below
-  # specify the extent of the emitters in x,y,z where positions are randomly
-  # sampled from. This should match the valid calibration range in z
-  emitter_extent:
-    x: [-0.5, 39.5]
-    y: [-0.5, 39.5]
-    z: [-750., 750.]
-  intensity_mu_sig:  # emitters brightness, mean and standard deviation
-    mean: 10000.0
-    std: 3000.0
-  lifetime_avg: 2.0  # lifetime average of the emitters
+  bg_uniform:  # tuple or single value
+  intensity:
+    mean:  # mean intensity (i.e. photon flux)
+    std:  # intensity spread
+  lifetime_avg:
+Trainer:
+  train_dim: 3  # 3 or 2 or 3D or 2D respectively
