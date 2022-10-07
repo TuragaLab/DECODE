@@ -32,8 +32,9 @@ def test_setup_psf(path_bead_cal, cfg):
 
 
 def test_setup_background(cfg):
-    bg = setup_cfg.setup_background(cfg)
+    bg, bg_val = setup_cfg.setup_background(cfg)
     assert isinstance(bg, simulation.background.Background)
+    assert isinstance(bg_val, simulation.background.Background)
 
 
 @pytest.mark.parametrize("preset", ["Perfect", None])

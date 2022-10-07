@@ -54,8 +54,21 @@ def setup_psf(cfg) -> simulation.psf_kernel.PSF:
     return psf
 
 
-def setup_background(cfg) -> simulation.background.Background:
-    return simulation.background.BackgroundUniform(cfg.Simulation.bg_uniform)
+def setup_background(cfg) -> tuple[
+    simulation.background.Background,
+    simulation.background.Background
+]:
+    bg_train = simulation.background.BackgroundUniform(
+        bg=cfg.Simulation.bg_uniform,
+        size=(cfg.Simulation.samples, *cfg.Simulation.img_size),
+        device=cfg.Hardware.device_simulation,
+    )
+    bg_val = simulation.background.BackgroundUniform(
+        bg=cfg.Simulation.bg_uniform,
+        size=(cfg.Test.samples, *cfg.Simulation.img_size),
+        device=cfg.Hardware.device_simulation,
+    )
+    return bg_train, bg_val
 
 
 def setup_noise(cfg) -> simulation.camera.Camera:
