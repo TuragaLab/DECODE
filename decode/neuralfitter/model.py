@@ -41,17 +41,17 @@ class Model(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_ix: int):
-        x, y_loss, y_val = batch
+        x, y_ref, y_em_val = batch
 
         y_out = self._model.forward(x)
         y_out_proc = self._proc.post_model(y_out)
-        loss = self._loss.forward(y, y_out_proc)
+        loss = self._loss.forward(y_out_proc, y_ref)
 
         em_out = self._proc.post(y_out)
         em_out.frame_ix += batch_ix * self.trainer.batch_size
 
         self._em_val_out.append(em_out)
-        self._em_val_tar.append(y_val)
+        self._em_val_tar.append(y_em_val)
 
         self.log("loss/val", loss, on_step=True, on_epoch=True)
 
