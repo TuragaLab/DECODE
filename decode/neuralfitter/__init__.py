@@ -6,7 +6,6 @@ import decode.neuralfitter.models
 import decode.neuralfitter.coord_transform
 import decode.neuralfitter.utils.process
 import decode.neuralfitter.scale_transform
-import decode.neuralfitter.train_val_impl
 import decode.neuralfitter.train
 import decode.neuralfitter.inference
 from . import data
