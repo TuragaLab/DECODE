@@ -1,28 +1,18 @@
 from abc import ABC, abstractmethod  # abstract class
+from typing import Optional, Union
 
 import torch
 from deprecated import deprecated
 
-from ...emitter.emitter import EmitterSet
+from ...emitter import emitter
 from . import to_emitter
+from .. import scale_transform
+from .. import coord_transform
 
 
 class PostProcessing(ABC):
-    def __init__(self, xy_unit, px_size):
-        """
-
-        Args:
-            one instance of EmitterSet will be returned per forward call, if 'frame-set' a tuple of EmitterSet one
-            per frame will be returned
-            sanity_check (bool): perform sanity check
-        """
-
-        super().__init__()
-        self.xy_unit = xy_unit
-        self.px_size = px_size
-
     @abstractmethod
-    def forward(self, x: torch.Tensor) -> EmitterSet:
+    def forward(self, x: torch.Tensor) -> emitter.EmitterSet:
         """
         Forward anything through the post-processing and return an EmitterSet
 
@@ -49,6 +39,51 @@ class PostProcessing(ABC):
         return False
 
 
+class PostProcessingGaussianMixture(PostProcessing):
+    def __init__(
+        self,
+        scaler: Optional[scale_transform.ScalerModelOutput] = None,
+        coord_convert: Optional[coord_transform.Offset2Coordinate] = None,
+        frame_to_emitter: Optional[to_emitter.ToEmitter] = None,
+        coord_ch_ix: tuple[int, ...] = (2, 3),
+    ):
+        """
+
+        Args:
+            scaler: re-scales model output
+            coord_convert: convert coordinates
+            frame_to_emitter: extracts emitters from frame
+            coord_ch_ix: define which channels are x, y to be passed on to the coord
+             converter
+        """
+        super().__init__()
+        self._scaler = scaler
+        self._coord = coord_convert
+        self._frame2em = frame_to_emitter
+        self._coord_ch_ix = coord_ch_ix
+
+    def forward(self, x: torch.Tensor) -> Union[emitter.EmitterSet, torch.Tensor]:
+        """
+        Applies post-processing pipeline
+
+        Args:
+            x:
+
+        Returns:
+
+        """
+        if self._scaler is not None:
+            x = self._scaler.forward(x)
+        if self._coord is not None:
+            x[..., self._coord_ch_ix, :, :] = self._coord.forward(
+                x[..., self._coord_ch_ix, :, :]
+            )
+        if self._frame2em is not None:
+            x = self._frame2em.forward(x)
+
+        return x
+
+
 class PostProcessingLookUp(to_emitter.ToEmitterLookUpPixelwise, PostProcessing):
     # quasi-alias for backwards compatibility
     pass
@@ -72,7 +107,6 @@ class PostProcessingConsistency(PostProcessing):
     detection channel, hard samples are pixels in the detection channel where the
     adjacent pixels are also active (i.e. above a certain initial threshold).
     """
-    def forward(self, x: torch.Tensor) -> EmitterSet:
+
+    def forward(self, x: torch.Tensor) -> emitter.EmitterSet:
         raise NotImplementedError
-
-
