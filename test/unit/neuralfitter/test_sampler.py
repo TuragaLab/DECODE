@@ -93,7 +93,7 @@ def test_sampler_input_target(sampler_sup):
 
 @pytest.mark.parametrize("bg_mode", ["sample", "global"])
 def test_sampler_sample(bg_mode, proc):
-    em_return = emitter.factory(100)
+    em_return = emitter.factory(frame_ix=torch.randint(100, size=(10000, )))
     bg_return = torch.rand(100, 32, 32)
     em = mock.MagicMock()
     em.sample.return_value = em_return
