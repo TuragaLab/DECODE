@@ -195,43 +195,44 @@ def setup_tar_scaling(cfg) -> neuralfitter.scale_transform.ScalerTargetList:
     )
 
 
-def setup_post_process(cfg) -> neuralfitter.post_processing.PostProcessing:
-    post_frame_em = setup_post_process_frame_emitter(cfg)
-
-    post = neuralfitter.utils.processing.TransformSequence(
-        [
-            neuralfitter.scale_transform.ScalerModelOutput(
-                phot_max=cfg.Scaling.phot_max,
-                z_max=cfg.Scaling.z_max,
-                bg_max=cfg.Scaling.bg_max,
-            ),
-            neuralfitter.coord_transform.Offset2Coordinate.parse(cfg),
-            post_frame_em,
-        ]
+def setup_post_process(cfg) -> neuralfitter.processing.post.PostProcessing:
+    post = neuralfitter.processing.post.PostProcessingGaussianMixture(
+        scaler=setup_post_model_scaling(cfg),
+        coord_convert=setup_post_process_offset(cfg),
+        frame_to_emitter=setup_post_process_frame_emitter(cfg),
     )
     return post
 
 
+def setup_post_process_offset(cfg) -> neuralfitter.coord_transform.Offset2Coordinate:
+    return neuralfitter.coord_transform.Offset2Coordinate(
+        xextent=cfg.Simulation.frame_extent.x,
+        yextent=cfg.Simulation.frame_extent.y,
+        img_shape=cfg.Simulation.img_size,
+    )
+
+
 def setup_post_process_frame_emitter(
     cfg,
-) -> neuralfitter.post_processing.PostProcessing:
+) -> neuralfitter.processing.to_emitter.ToEmitter:
     # last bit that transforms frames to emitters
 
     if cfg.PostProcessing.name is None:
-        post = neuralfitter.post_processing.NoPostProcessing(
-            xy_unit=cfg.Simulation.xy_unit, px_size=cfg.Camera.px_size
+        post = neuralfitter.processing.to_emitter.ToEmitterEmpty(
+            xy_unit=cfg.Simulation.xy_unit,
+            px_size=cfg.Camera.px_size
         )
 
     elif cfg.PostProcessing.name == "LookUp":
-        post = neuralfitter.post_processing.LookUpPostProcessing(
-            raw_th=cfg.PostProcessing.specs.raw_th,
+        post = neuralfitter.processing.to_emitter.ToEmitterLookUpPixelwise(
+            mask=cfg.PostProcessing.specs.raw_th,
             pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],  # ToDo: remove hard-coding
             xy_unit=cfg.Simulation.xy_unit,
             px_size=cfg.Camera.px_size,
         )
 
     elif cfg.PostProcessing.name == "SpatialIntegration":
-        post = neuralfitter.post_processing.SpatialIntegration(
+        post = neuralfitter.processing.to_emitter.ToEmitterSpatialIntegration(
             raw_th=cfg.PostProcessing.specs.raw_th,
             xy_unit=cfg.Simulation.xy_unit,
             px_size=cfg.Camera.px_size,

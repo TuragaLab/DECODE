@@ -71,7 +71,7 @@ Paths:
   checkpoint_init:   # initialise from checkpoint (i.e. resume training)
   model_init:  # model weights
 PostProcessing:
-  name: SpatialIntegration  # (blank) for no post-processing or LookUp
+  name: SpatialIntegration  # or LookUp
   specs:
     raw_th: 0.5
 Scaling:  # if some values are missing they will be auto-set as described in the respective comments below
