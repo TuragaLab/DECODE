@@ -99,3 +99,22 @@ def test_tar_tensor_parameter(cfg):
 
 def test_setup_post_process(cfg):
     setup_cfg.setup_post_process(cfg)
+
+
+def test_setup_sampler(cfg_trainable):
+    cfg = cfg_trainable
+    n_train = cfg.Simulation.samples
+    n_val = cfg.Test.samples
+
+    s_train, s_val = setup_cfg.setup_sampler(cfg)
+
+    for s, n in zip((s_train, s_val), (n_train, n_val)):
+        s.sample()
+
+        assert s.emitter.frame_ix.min() == 0  # could fail for very low densities
+        assert s.emitter.frame_ix.max() == n - 1
+        assert s.frame.size() == torch.Size([n, *cfg.Simulation.img_size])
+        assert s.bg.size() == torch.Size([n, *cfg.Simulation.img_size])
+        assert s.input[:].size() == torch.Size(
+            [n, cfg.Trainer.frame_window, *cfg.Simulation.img_size]
+        )

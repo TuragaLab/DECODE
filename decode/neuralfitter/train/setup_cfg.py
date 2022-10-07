@@ -251,3 +251,129 @@ def setup_matcher(cfg) -> evaluation.match_emittersets.EmitterMatcher:
         dist_vol=cfg.Evaluation.dist_vol,
     )
     return matcher
+
+
+def setup_emitter_sampler(
+    cfg,
+) -> tuple[
+    simulation.sampler.EmitterSamplerBlinking, simulation.sampler.EmitterSamplerBlinking
+]:
+    """
+    Get emitter samplers for training and validation set
+
+    Args:
+        cfg: config
+
+    Returns:
+        - sampler for training set
+        - sampler for validation set
+    """
+    struct = setup_structure(cfg)
+    color = setup_code(cfg)
+
+    em_sampler_train = simulation.sampler.EmitterSamplerBlinking(
+        structure=struct,
+        code=color,
+        intensity=(cfg.Simulation.intensity.mean, cfg.Simulation.intensity.std),
+        em_num=cfg.Simulation.emitter_avg,
+        lifetime=cfg.Simulation.lifetime_avg,
+        frame_range=cfg.Simulation.samples,
+        xy_unit=cfg.Simulation.xy_unit,
+    )
+
+    em_sampler_val = simulation.sampler.EmitterSamplerBlinking(
+        structure=struct,
+        code=color,
+        intensity=(cfg.Simulation.intensity.mean, cfg.Simulation.intensity.std),
+        em_num=cfg.Simulation.emitter_avg,
+        lifetime=cfg.Simulation.lifetime_avg,
+        frame_range=cfg.Test.samples,
+        xy_unit=cfg.Simulation.xy_unit,
+    )
+
+    return em_sampler_train, em_sampler_val
+
+
+def setup_microscope(
+    cfg,
+) -> tuple[simulation.microscope.Microscope, simulation.microscope.Microscope]:
+    """
+    Get microscopes for the training and validation set
+
+    Args:
+        cfg: config
+
+    Returns:
+        - microscope train set
+        - microscope validation set
+    """
+    psf = setup_psf(cfg)
+
+    mic_train = simulation.microscope.Microscope(
+        psf=psf, frame_range=cfg.Simulation.samples
+    )
+    mic_val = simulation.microscope.Microscope(psf=psf, frame_range=cfg.Test.samples)
+
+    return mic_train, mic_val
+
+
+def setup_tar(cfg) -> neuralfitter.target_generator.TargetGenerator:
+    scaler = setup_tar_scaling(cfg)
+    filter = setup_em_filter(cfg)
+    bg_lane = setup_bg_scaling(cfg)
+
+    return neuralfitter.target_generator.TargetGaussianMixture(
+        n_max=cfg.Target.max_emitters,
+        ix_low=None,
+        ix_high=None,
+        ignore_ix=True,
+        scaler=scaler,
+        filter=filter,
+        aux_lane=bg_lane,
+    )
+
+
+def setup_processor(cfg):
+    scaler_frame = setup_frame_scaling(cfg)
+    tar = setup_tar(cfg)
+    filter_em = setup_em_filter(cfg)
+    post_model = setup_post_model_scaling(cfg)
+    post_processor = setup_post_process(cfg)
+
+    return neuralfitter.process.ProcessingSupervised(
+        pre_input=scaler_frame,
+        tar=tar,
+        tar_em=filter_em,
+        post_model=post_model,
+        post=post_processor,
+    )
+
+
+def setup_sampler(cfg):
+
+    em_train, em_val = setup_emitter_sampler(cfg)
+    bg, bg_val = setup_background(cfg)
+    proc = setup_processor(cfg)
+    mic_train, mic_val = setup_microscope(cfg)
+
+    sampler = neuralfitter.sampler.SamplerSupervised(
+        em=em_train,
+        bg=bg,
+        frames=None,
+        proc=proc,
+        mic=mic_train,
+        bg_mode="sample",
+        window=cfg.Trainer.frame_window,
+    )
+
+    sampler_val = neuralfitter.sampler.SamplerSupervised(
+        em=em_val,
+        bg=bg_val,
+        frames=None,
+        proc=proc,
+        mic=mic_val,
+        bg_mode="sample",
+        window=cfg.Trainer.frame_window,
+    )
+
+    return sampler, sampler_val
