@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from decode.emitter import emitter
-from decode.neuralfitter import post_processing
+from decode.neuralfitter.processing import post as post_processing
 
 
 class TestPostProcessingAbstract:
@@ -25,5 +25,3 @@ class TestPostProcessingAbstract:
 @pytest.mark.skip(reason="deprecated impl")
 class TestConsistentPostProcessing(TestPostProcessingAbstract):
     pass
-
-

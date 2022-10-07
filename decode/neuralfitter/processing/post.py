@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod  # abstract class
 import torch
 from deprecated import deprecated
 
-from ..emitter.emitter import EmitterSet
-from .processing import to_emitter
+from ...emitter.emitter import EmitterSet
+from . import to_emitter
 
 
 class PostProcessing(ABC):
@@ -51,11 +51,6 @@ class PostProcessing(ABC):
         return False
 
 
-@deprecated(version="0.11", reason="Deprecated in favour `ToEmitterEmpty`")
-class NoPostProcessing(to_emitter.ToEmitterEmpty, PostProcessing):
-    pass
-
-
 class LookUpPostProcessing(to_emitter.ToEmitterLookUpPixelwise, PostProcessing):
     # quasi-alias for backwards compatibility
     pass
@@ -63,6 +58,11 @@ class LookUpPostProcessing(to_emitter.ToEmitterLookUpPixelwise, PostProcessing):
 
 class SpatialIntegration(to_emitter.ToEmitterLookUpPixelwise):
     # alias
+    pass
+
+
+@deprecated(version="0.11", reason="Deprecated in favour `ToEmitterEmpty`")
+class NoPostProcessing(to_emitter.ToEmitterEmpty, PostProcessing):
     pass
 
 
