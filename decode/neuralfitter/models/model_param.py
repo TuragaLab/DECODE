@@ -46,7 +46,7 @@ class SimpleSMLMNet(unet_param.UNet2d):
                     inter_features,
                     norm=norm_head,
                     norm_groups=norm_head_groups,
-                    padding=True,
+                    padding=1,
                     activation=activation,
                 )
                 for _ in range(self.ch_out)
@@ -223,7 +223,7 @@ class DoubleMUnet(nn.Module):
                     last_kernel=1,
                     norm=norm_head,
                     norm_groups=norm_head_groups,
-                    padding=True,
+                    padding=1,
                     activation=activation,
                 )
                 for _ in range(self.ch_out)
@@ -375,7 +375,7 @@ class MLTHeads(nn.Module):
         last_kernel,
         norm,
         norm_groups,
-        padding,
+        padding: int,
         activation,
     ):
         super().__init__()
@@ -394,7 +394,7 @@ class MLTHeads(nn.Module):
             in_channels, groups_1, groups_2, activation, padding, self.norm
         )
         self.out_conv = nn.Conv2d(
-            in_channels, out_channels, kernel_size=last_kernel, padding=False
+            in_channels, out_channels, kernel_size=last_kernel, padding=0
         )
 
     def forward(self, x):

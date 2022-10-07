@@ -77,7 +77,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
                     out_channels=ch_out,
                     activation=activation,
                     last_kernel=1,
-                    padding=True,
+                    padding=1,
                     norm=norm_head,
                     norm_groups=norm_head_groups,
                 )
