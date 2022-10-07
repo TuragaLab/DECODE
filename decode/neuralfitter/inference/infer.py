@@ -86,9 +86,9 @@ if __name__ == '__main__':
                                                               yextent=frame_extent[1],
                                                               img_shape=size_procced[-2:]),
 
-        decode.neuralfitter.post_processing.SpatialIntegration(raw_th=0.1,
-                                                               xy_unit='px',
-                                                               px_size=param.Camera.px_size)
+        decode.neuralfitter.post_processing.PostProcessingSpatialIntegration(raw_th=0.1,
+                                                                             xy_unit='px',
+                                                                             px_size=param.Camera.px_size)
 
     ])
 

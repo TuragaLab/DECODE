@@ -90,7 +90,7 @@ def post_processor():
                 yextent=(-0.5, 63.5),
                 img_shape=(64, 64),
             ),
-            neuralfitter.post_processing.LookUpPostProcessing(
+            neuralfitter.post_processing.PostProcessingLookUp(
                 raw_th=0.1,
                 pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],
                 photxyz_sigma_mapping=[5, 6, 7, 8],

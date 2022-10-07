@@ -8,8 +8,6 @@ from . import to_emitter
 
 
 class PostProcessing(ABC):
-    _return_types = ("batch-set", "frame-set")
-
     def __init__(self, xy_unit, px_size):
         """
 
@@ -51,12 +49,12 @@ class PostProcessing(ABC):
         return False
 
 
-class LookUpPostProcessing(to_emitter.ToEmitterLookUpPixelwise, PostProcessing):
+class PostProcessingLookUp(to_emitter.ToEmitterLookUpPixelwise, PostProcessing):
     # quasi-alias for backwards compatibility
     pass
 
 
-class SpatialIntegration(to_emitter.ToEmitterLookUpPixelwise):
+class PostProcessingSpatialIntegration(to_emitter.ToEmitterLookUpPixelwise):
     # alias
     pass
 
@@ -67,7 +65,7 @@ class NoPostProcessing(to_emitter.ToEmitterEmpty, PostProcessing):
 
 
 @deprecated(version="0.11", reason="Not in use or developed anymore.")
-class ConsistencyPostprocessing(PostProcessing):
+class PostProcessingConsistency(PostProcessing):
     """
     PostProcessing implementation that divides the output in hard and easy samples.
     Easy samples are predictions in which we have a single one hot pixel in the
