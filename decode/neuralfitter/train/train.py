@@ -4,6 +4,7 @@ from pathlib import Path
 import argparse
 import hydra
 import pytorch_lightning as pl
+import torch
 
 from . import setup_cfg
 from decode.neuralfitter import model
@@ -11,21 +12,36 @@ from decode.neuralfitter.data import datamodel
 
 
 def train(cfg):
+    if (cs := cfg.Computing.multiprocessing_sharing_strategy) is not None:
+        torch.multiprocessing.set_sharing_strategy(cs)
+
     exp_train, exp_val = setup_cfg.setup_sampler(cfg)
 
     dm = datamodel.DataModel(
         experiment_train=exp_train,
         experiment_val=exp_val,
         num_workers=cfg.Hardware.cpu.worker,
+        batch_size=cfg.Trainer.batch_size,
     )
     proc = setup_cfg.setup_processor(cfg)
     backbone = setup_cfg.setup_model(cfg)
     loss = setup_cfg.setup_loss(cfg)
     evaluator = None
     optimizer = setup_cfg.setup_optimizer(backbone, cfg)
-    m = model.Model(model=backbone, optimizer=optimizer, proc=proc, loss=loss, evaluator=evaluator)
+    m = model.Model(
+        model=backbone,
+        optimizer=optimizer,
+        proc=proc,
+        loss=loss,
+        evaluator=evaluator,
+        batch_size=cfg.Trainer.batch_size,
+    )
 
-    trainer = pl.Trainer(reload_dataloaders_every_n_epochs=1)
+    trainer = pl.Trainer(
+        accelerator="gpu" if "cuda" in cfg.Hardware.device.training else "cpu",
+        precision=cfg.Computing.precision,
+        reload_dataloaders_every_n_epochs=1
+    )
     trainer.fit(model=m, datamodule=dm)
 
 

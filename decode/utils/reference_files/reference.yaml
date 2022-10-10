@@ -12,6 +12,9 @@ Camera:
   qe: 1.0
   read_sigma:
   spur_noise:
+Computing:
+  multiprocessing_sharing_strategy: file_system
+  precision: 32
 Evaluation:
   dist_ax: 500.0
   dist_lat: 250.0
@@ -24,7 +27,6 @@ Hardware:
   cpu:
     worker: 4
     niceness: 0  # only applicable to unix
-    multiprocessing_sharing_strategy:
 Logging:
   no_op: false
   logger:
