@@ -11,6 +11,7 @@ import decode.neuralfitter.inference
 from . import data
 from . import model
 from . import process
+from . import processing
 from . import sampler
 from . import target_generator
 from . import utils

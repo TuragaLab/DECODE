@@ -6,10 +6,8 @@ from typing import Union, Callable
 import torch
 from tqdm import tqdm
 
-from .. import dataset
 from ...emitter import emitter
 from ...utils import hardware
-from ...io import frames as frames_io
 
 
 class Infer:
