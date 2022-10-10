@@ -30,7 +30,7 @@ else:
         "pytest",
         "pyyaml",
         "requests",
-        "scipy",
+        "scipy==1.8",
         "seaborn==0.10",
         "scikit-image",
         "scikit-learn",
