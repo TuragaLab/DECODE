@@ -25,12 +25,11 @@ Hardware:
     training: cuda:0
     simulation: cuda:0
   cpu:
-    worker: 4
+    worker: 16
     niceness: 0  # only applicable to unix
 Logging:
   no_op: false
-  logger:
-    TensorBoardLogger:
+  logger: TensorBoardLogger
 Loss:
   ch_weight:
 Meta:

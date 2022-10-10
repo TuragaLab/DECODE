@@ -9,7 +9,9 @@ from decode import neuralfitter
 from decode import evaluation
 
 
-def setup_logger(cfg) -> Union[loggers.LightningLoggerBase, list[loggers.LightningLoggerBase]]:
+def setup_logger(
+    cfg,
+) -> Union[loggers.LightningLoggerBase, list[loggers.LightningLoggerBase]]:
     """
     Set up logging.
 
@@ -19,17 +21,15 @@ def setup_logger(cfg) -> Union[loggers.LightningLoggerBase, list[loggers.Lightni
     if cfg.Logging.no_op:
         return loggers.base.DummyLogger()
 
-    l = []
+    log = []
 
-    if "TensorBoardLogger" in cfg.Logging.logger:
-        if (kwargs := cfg.Logging.logger.TensorBoardLogger) is None:
-            kwargs = dict()
-        tb = loggers.TensorBoardLogger(save_dir=cfg.Paths.logging, **kwargs)
-        l.append(tb)
+    if cfg.Logging.logger == "TensorBoardLogger":
+        tb = loggers.TensorBoardLogger(save_dir=cfg.Paths.logging)
+        log.append(tb)
     else:
         raise NotImplementedError
 
-    return l
+    return log
 
 
 def setup_psf(cfg) -> simulation.psf_kernel.PSF:
