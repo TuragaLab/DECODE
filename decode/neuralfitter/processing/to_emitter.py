@@ -139,14 +139,14 @@ def _norm_sum(*args):
     return torch.clamp(torch.add(*args), 0.0, 1.0)
 
 
-class SpatialIntegration(ToEmitterLookUpPixelwise):
+class ToEmitterSpatialIntegration(ToEmitterLookUpPixelwise):
     _p_aggregations = ("sum", "norm_sum")  # , 'max', 'pbinom_cdf', 'pbinom_pdf')
 
     def __init__(
         self,
         raw_th: float,
         xy_unit: str,
-        px_size=None,
+        px_size: tuple[float, float] = None,
         pphotxyzbg_mapping: Union[list, tuple] = (0, 1, 2, 3, 4, -1),
         photxyz_sigma_mapping: Union[list, tuple, None] = (5, 6, 7, 8),
         p_aggregation: Union[str, Callable] = "norm_sum",

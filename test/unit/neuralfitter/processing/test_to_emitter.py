@@ -144,7 +144,7 @@ class TestLookUpPostProcessing(TestToEmitter):
 class TestSpatialIntegration(TestLookUpPostProcessing):
     @pytest.fixture
     def post(self):
-        return to_emitter.SpatialIntegration(raw_th=0.1, xy_unit="px")
+        return to_emitter.ToEmitterSpatialIntegration(raw_th=0.1, xy_unit="px")
 
     def test_forward_no_sigma(self, post, pseudo_out_no_sigma):
         post._photxyz_sigma_mapping = None
