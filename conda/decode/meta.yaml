@@ -38,7 +38,7 @@ requirements:
     - scikit-learn
     - spline=0.10.0
     - tensorboard
-    - tifffile >=2021.1,<=2021.11,2
+    - tifffile>=2021.1,<=2022.4.8
     - tqdm
 
   test:

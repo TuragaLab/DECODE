@@ -36,7 +36,7 @@ dependencies:
   - scikit-learn
   - spline=0.10.0
   - tensorboard
-  - tifffile >=2021.1,<2022
+  - tifffile>=2021.1,<=2022.4.8
   - tqdm
 
   - pip

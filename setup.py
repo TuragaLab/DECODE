@@ -35,7 +35,7 @@ else:
         "scikit-image",
         "scikit-learn",
         "tensorboard",
-        "tifffile==2021.*",
+        "tifffile<=2022.4.8",
         "tqdm",
         ]
 
