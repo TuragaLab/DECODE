@@ -19,7 +19,7 @@ requirements:
     - numpy {{ numpy }}
 
   run:
-    - python >=3.6,<3.9
+    - python >=3.7,<3.9
     - {{ pin_compatible('numpy', max_pin='x.x') }}
     - pytorch=1.12.0
     - click
@@ -32,7 +32,7 @@ requirements:
     - pytest
     - pyyaml
     - requests
-    - scipy=1.8
+    - scipy >=1.6,<=1.8
     - seaborn=0.10
     - scikit-image
     - scikit-learn
@@ -43,7 +43,7 @@ requirements:
 
   test:
     requires:
-      - python >=3.6,<4
+      - python >=3.7,<4
       - pytest
     commands:
       - pytest -m "not webbig" -m "not slow" --pyargs decode
