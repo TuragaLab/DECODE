@@ -60,7 +60,7 @@ jobs:
     - uses: conda-incubator/setup-miniconda@v2
       with:
         environment-file: environment.yaml
-        python-version: 3.8
+        python-version: 3.7
         auto-activate-base: false
         activate-environment: decode_dev
 
