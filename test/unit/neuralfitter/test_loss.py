@@ -1,10 +1,19 @@
 from unittest import mock
 
+import numpy as np
 import pytest
 import torch
 
 from decode.generic import test_utils
 from decode.neuralfitter import loss
+
+
+def test_reduction():
+    r = loss.Reduction("mean")
+    x = torch.rand(1, 2, 3, 4)
+    out = r(x)
+
+    np.testing.assert_array_almost_equal(out, x.mean())
 
 
 class TestLossAbstract:
@@ -14,7 +23,7 @@ class TestLossAbstract:
             """Mock loss. Assumes 2 channels."""
 
             def __init__(self):
-                super().__init__()
+                super().__init__(return_loggable=False, reduction=None)
                 self._loss_impl = torch.nn.MSELoss(reduction="none")
 
             def forward(self, output, target, weight):
@@ -138,14 +147,23 @@ class TestPPXYZBLoss(TestLossAbstract):
 
 
 class TestGaussianMixtureModelLoss:
-    @pytest.fixture()
+    @pytest.fixture
     def loss_impl(self):
         return loss.GaussianMMLoss(
             xextent=(-0.5, 31.5), yextent=(-0.5, 31.5), img_shape=(32, 32), device="cpu"
         )
 
-    @pytest.fixture()
+    @pytest.fixture
     def data_handcrafted(self):
+        """
+
+        Returns:
+            - mask
+            - probability map
+            - emitter param
+            - emitter sigma
+            - emitter_param target
+        """
 
         p = torch.zeros((2, 32, 32)) + 1e-8
         pxyz_mu = torch.zeros((2, 4, 32, 32))
@@ -165,6 +183,15 @@ class TestGaussianMixtureModelLoss:
         mask[[0, 1], 0] = 1
 
         return mask, p, pxyz_mu, pxyz_sig, pxyz_tar
+
+    @pytest.fixture
+    def data_mock_forwardable(self):
+        output = torch.rand(2, 10, 16, 16)
+        target_em = torch.rand(2, 250, 4)
+        target_mask = torch.randint(high=2, size=(2, 250), dtype=torch.bool)
+        target_bg = torch.rand(2, 16, 16)
+
+        return output, (target_em, target_mask, target_bg)
 
     def test_loss_forward_backward(self, loss_impl, data_handcrafted):
         mask, p, pxyz_mu, pxyz_sig, pxyz_tar = data_handcrafted
@@ -188,6 +215,7 @@ class TestGaussianMixtureModelLoss:
         out.sum().backward()
 
     def test_ch_static_weight(self, loss_impl, data_handcrafted):
+        loss_impl._reduction._reduction = None
         mask, p, _, _, pxyz_tar = data_handcrafted
         x = torch.rand((2, 9, 32, 32))
         bg_tar = torch.zeros((2, 32, 32))
@@ -214,9 +242,14 @@ class TestGaussianMixtureModelLoss:
         assert (loss_val[:, 1] != 0.0).all()
         assert (loss_val[:, 0] == 0.0).all()
 
-    def test_log(self, loss_impl):
-        x = torch.rand(32, 2)
-        with mock.patch.object(loss_impl, "_logger") as mock_log:
-            loss_impl.log(x)
+    @pytest.mark.parametrize("loggable", [True, False])
+    def test_loggable(self, loggable, data_mock_forwardable, loss_impl):
+        output, target = data_mock_forwardable
+        loss_impl._return_loggable = loggable
 
-        mock_log.log_metrics.assert_called_once_with(x)
+        if not loggable:
+            assert isinstance(loss_impl.forward(output, target, None), torch.Tensor)
+            return
+
+        _, loss_log = loss_impl.forward(output, target, None)
+        assert isinstance(loss_log, dict)

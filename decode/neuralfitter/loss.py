@@ -1,50 +1,41 @@
 from abc import ABC, abstractmethod  # abstract class
-from typing import Any, Union, Tuple, Optional
+from typing import Callable, Union, Optional
 
 import torch
 from torch import distributions
 
-from . import logger as log
 from ..simulation import psf_kernel
 
 
-class Loss(ABC):
-    def __init__(self, logger: Optional[log.Logger] = None):
-        super().__init__()
+class Reduction:
+    def __init__(self, reduction: Union[str, Callable]):
+        """
+        Reduction, mainly for loss
 
-        self._logger = logger
+        Args:
+            reduction: `None`, `mean` or Callable
+        """
+        self._reduction = reduction
+
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        if self._reduction is None:
+            return x
+        if callable(self._reduction):
+            return self._reduction(x)
+        if self._reduction == "mean":
+            return x.mean()
+
+        raise NotImplementedError(f"Reduction mode ({self._reduction}) not supported.")
+
+
+class Loss(ABC):
+    def __init__(self, return_loggable: bool, reduction: Optional[str]):
+        super().__init__()
+        self._return_loggable = return_loggable
+        self._reduction = Reduction(reduction)
 
     def __call__(self, output, target, weight):
         return self.forward(output, target, weight)
-
-    def log(self, val: Any, step: Optional[int] = None) -> None:
-        """
-
-        Args:
-            val:
-            step:
-        """
-        if self._logger is None:
-            return
-
-        raise NotImplementedError
-
-    def _forward_checks(
-        self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor
-    ):
-        """
-        Some sanity checks for forward data
-
-        Args:
-            output:
-            target:
-            weight:
-        """
-        if not (output.size() == target.size() and target.size() == weight.size()):
-            raise ValueError(
-                f"Dimensions of output, target and weight do not match "
-                f"({output.size(), target.size(), weight.size()}."
-            )
 
     @abstractmethod
     def forward(
@@ -62,6 +53,23 @@ class Loss(ABC):
             torch.Tensor
         """
         raise NotImplementedError
+
+    def _forward_checks(
+        self, output: torch.Tensor, target: torch.Tensor, weight: torch.Tensor
+    ):
+        """
+        Sanity checks for forward method
+
+        Args:
+            output:
+            target:
+            weight:
+        """
+        if not (output.size() == target.size() and target.size() == weight.size()):
+            raise ValueError(
+                f"Dimensions of output, target and weight do not match "
+                f"({output.size(), target.size(), weight.size()}."
+            )
 
 
 class PPXYZBLoss(Loss):
@@ -82,6 +90,7 @@ class PPXYZBLoss(Loss):
         chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
         p_fg_weight: float = 1.0,
         forward_safety: bool = True,
+        return_loggable: bool = False,
     ):
         """
 
@@ -91,8 +100,10 @@ class PPXYZBLoss(Loss):
             p_fg_weight: foreground weight
             forward_safety: check sanity of forward arguments
         """
+        super().__init__(return_loggable=return_loggable, reduction=None)
+        if return_loggable:
+            raise NotImplementedError
 
-        super().__init__()
         self.forward_safety = forward_safety
 
         if chweight_stat is not None:
@@ -137,10 +148,6 @@ class PPXYZBLoss(Loss):
 
 
 class GaussianMMLoss(Loss):
-    """
-    Model output is a mean and sigma value which forms a gaussian mixture model.
-    """
-
     def __init__(
         self,
         *,
@@ -150,9 +157,12 @@ class GaussianMMLoss(Loss):
         device: Union[str, torch.device],
         chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
         forward_safety: bool = True,
-        logger: Optional[log.Logger] = None,
+        reduction: str = "mean",
+        return_loggable: bool = False,
     ):
         """
+        Gaussian Mixture Model loss. Assumes the models output to be mean and sigma
+        from which a gaussian is then constructed.
 
         Args:
             xextent: extent in x
@@ -162,9 +172,9 @@ class GaussianMMLoss(Loss):
             chweight_stat: static channel weight,
              e.g. to disable background prediction
             forward_safety: check inputs to the forward method
-            logger:
+            return_loggable:
         """
-        super().__init__(logger=logger)
+        super().__init__(return_loggable=return_loggable, reduction=reduction)
 
         if chweight_stat is not None:
             self._ch_weight = (
@@ -185,9 +195,24 @@ class GaussianMMLoss(Loss):
     def forward(
         self,
         output: torch.Tensor,
-        target: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-        weight: Optional = None,
-    ) -> torch.Tensor:
+        target: tuple[torch.Tensor, torch.BoolTensor, torch.Tensor],
+        weight: Optional[torch.Tensor] = None,
+    ) -> Union[torch.Tensor, tuple[torch.Tensor, dict]]:
+        """
+        Forwards output and target through loss.
+
+        Args:
+            output: model's output tensor of size N x 10 x H x W
+            target: target tuple of
+                - emitter_param of size N x 4 x H x W
+                - emitter_mask of size N x H x W
+                - background: of size N x H x W
+            weight: not supported
+
+        Returns:
+            - loss value
+            - (optional) loggable dict
+        """
 
         if self.forward_safety:
             self._forward_checks(output, target, weight)
@@ -202,15 +227,11 @@ class GaussianMMLoss(Loss):
         # factor 2 because original impl. adds the two terms, but this way
         # it's better for logging
         loss = 2 * torch.stack((gmm_loss, bg_loss), 1) * self._ch_weight
-        return loss
 
-    def log(self, val: torch.Tensor, step: Optional[int] = None) -> None:
-        if self._logger is not None:
-            to_log = {
-                "gmm": val[:, 0].mean().item(),
-                "bg": val[:, 1].mean().item(),
-            }
-            self._logger.log_metrics(to_log, step)
+        if self._return_loggable:
+            return self._reduction(loss), self._loggable(loss)
+
+        return self._reduction(loss)
 
     @staticmethod
     def _format_model_output(output: torch.Tensor) -> tuple[torch.Tensor, ...]:
@@ -241,7 +262,7 @@ class GaussianMMLoss(Loss):
         pxyz_sig: torch.Tensor,
         pxyz_tar: torch.Tensor,
         mask: torch.BoolTensor,
-    ) -> torch.Tensor:
+    ) -> Union[torch.Tensor, tuple[torch.Tensor, dict]]:
         """
         Computes the Gaussian Mixture Loss.
 
@@ -253,7 +274,7 @@ class GaussianMMLoss(Loss):
             mask: activation mask of ground truth values (phot, xyz) size N x M
 
         Returns:
-            torch.Tensor (size N x 1)
+            - torch.Tensor of loss value
 
         """
 
@@ -282,6 +303,13 @@ class GaussianMMLoss(Loss):
             batch_size, -1, 4
         )
 
+        if not (
+            torch.distributions.constraints.simplex.check(
+                prob_normed[p_inds].reshape(batch_size, -1)
+            )
+        ).all():
+            raise ValueError
+
         # set up mixture family
         mix = distributions.Categorical(prob_normed[p_inds].reshape(batch_size, -1))
         comp = distributions.Independent(distributions.Normal(pxyz_mu, pxyz_sig), 1)
@@ -296,6 +324,23 @@ class GaussianMMLoss(Loss):
         loss = log_prob * (-1)
 
         return loss
+
+    def _loggable(self, v: torch.Tensor) -> dict:
+        """
+        Construct loggable
+
+        Args:
+            v: loss value of size N x 2
+
+        Returns:
+             dictionary of relevant metrics for logging
+        """
+        if v.dim() != 2 or v.size(-1) != 2:
+            raise ValueError
+        return {
+            "gmm": v[:, 0].mean().item(),
+            "bg": v[:, 1].mean().item(),
+        }
 
     def _forward_checks(self, output: torch.Tensor, target: tuple, weight: None):
 
