@@ -24,7 +24,7 @@ def setup_logger(
     log = []
 
     if cfg.Logging.logger == "TensorBoardLogger":
-        tb = loggers.TensorBoardLogger(save_dir=cfg.Paths.logging)
+        tb = neuralfitter.logger.TensorboardLogger(save_dir=cfg.Paths.logging)
         log.append(tb)
     else:
         raise NotImplementedError
@@ -36,7 +36,7 @@ def setup_psf(cfg) -> simulation.psf_kernel.PSF:
     from decode import io
 
     # switch between different psf
-    if len(cfg.Simulation.PSF) >= 2:
+    if len(cfg.Simulation.PSF.keys()) >= 2:
         raise NotImplementedError
     if list(cfg.Simulation.PSF.keys())[0] != "CubicSpline":
         raise NotImplementedError
@@ -46,7 +46,7 @@ def setup_psf(cfg) -> simulation.psf_kernel.PSF:
         xextent=cfg.Simulation.psf_extent.x,
         yextent=cfg.Simulation.psf_extent.y,
         img_shape=cfg.Simulation.img_size,
-        device=cfg.Hardware.device_simulation,
+        device=cfg.Hardware.device.simulation,
         roi_size=cfg.Simulation.PSF.CubicSpline.roi_size,
         roi_auto_center=cfg.Simulation.PSF.CubicSpline.roi_auto_center,
     )
@@ -54,39 +54,33 @@ def setup_psf(cfg) -> simulation.psf_kernel.PSF:
     return psf
 
 
-def setup_background(cfg) -> tuple[
-    simulation.background.Background,
-    simulation.background.Background
-]:
+def setup_background(
+    cfg,
+) -> tuple[simulation.background.Background, simulation.background.Background]:
     bg_train = simulation.background.BackgroundUniform(
         bg=cfg.Simulation.bg_uniform,
         size=(cfg.Simulation.samples, *cfg.Simulation.img_size),
-        device=cfg.Hardware.device_simulation,
+        device=cfg.Hardware.device.simulation,
     )
     bg_val = simulation.background.BackgroundUniform(
         bg=cfg.Simulation.bg_uniform,
         size=(cfg.Test.samples, *cfg.Simulation.img_size),
-        device=cfg.Hardware.device_simulation,
+        device=cfg.Hardware.device.simulation,
     )
     return bg_train, bg_val
 
 
-def setup_noise(cfg) -> simulation.camera.Camera:
-    if cfg.CameraPreset == "Perfect":
-        noise = simulation.camera.CameraPerfect(device=cfg.Hardware.device_simulation)
-    elif cfg.CameraPreset is not None:
-        raise NotImplementedError("Automatic camera chose not yet implemented.")
-    else:
-        noise = simulation.camera.CameraEMCCD(
-            qe=cfg.Camera.qe,
-            spur_noise=cfg.Camera.spur_noise,
-            em_gain=cfg.Camera.em_gain,
-            e_per_adu=cfg.Camera.e_per_adu,
-            baseline=cfg.Camera.baseline,
-            read_sigma=cfg.Camera.read_sigma,
-            photon_units=cfg.Camera.convert2photons,
-            device=cfg.Hardware.device_simulation,
-        )
+def setup_noise(cfg) -> simulation.camera.CameraEMCCD:
+    noise = simulation.camera.CameraEMCCD(
+        qe=cfg.Camera.qe,
+        spur_noise=cfg.Camera.spur_noise,
+        em_gain=cfg.Camera.em_gain,
+        e_per_adu=cfg.Camera.e_per_adu,
+        baseline=cfg.Camera.baseline,
+        read_sigma=cfg.Camera.read_sigma,
+        photon_units=cfg.Camera.convert2photons,
+        device=cfg.Hardware.device.simulation,
+    )
     return noise
 
 
@@ -125,7 +119,7 @@ def setup_model(cfg) -> torch.nn.Module:
         upsample_mode=specs.upsample_mode,
         skip_gn_level=specs.skip_gn_level,
         disabled_attributes=disabled_attr,
-        kaiming_normal=specs.init_custom
+        kaiming_normal=specs.init_custom,
     )
     return model
 
@@ -135,8 +129,10 @@ def setup_loss(cfg) -> neuralfitter.loss.Loss:
         xextent=cfg.Simulation.psf_extent.x,
         yextent=cfg.Simulation.psf_extent.y,
         img_shape=cfg.Simulation.img_size,
-        device=cfg.Hardware.device,
+        device=cfg.Hardware.device.training,
         chweight_stat=cfg.Loss.ch_weight,
+        reduction="mean",
+        return_loggable=True,
     )
     return loss
 
@@ -171,32 +167,10 @@ def setup_em_filter(cfg) -> emitter.process.EmitterProcess:
     return f
 
 
-def setup_tar(ix_low, ix_high, cfg):
-    return neuralfitter.utils.processing.TransformSequence(
-        [
-            setup_tar_tensor_parameter(ix_low=ix_low, ix_high=ix_high, cfg=cfg),
-            setup_tar_disable(cfg),
-            setup_tar_scaling(cfg),
-        ]
-    )
-
-
-def setup_tar_tensor_parameter(
-    ix_low, ix_high, cfg
-) -> neuralfitter.target_generator.ParameterList:
-    return neuralfitter.target_generator.ParameterList(
-        n_max=cfg.Target.max_emitters,
-        xextent=cfg.Simulation.psf_extent[0],
-        yextent=cfg.Simulation.psf_extent[1],
-        ix_low=ix_low,
-        ix_high=ix_high,
-        squeeze_batch_dim=True,
-    )
-
-
-def setup_tar_disable(cfg) -> neuralfitter.target_generator.DisableAttributes:
-    return neuralfitter.target_generator.DisableAttributes(
-        attr_ix=cfg.HyperParameter.disabled_attributes
+def setup_frame_scaling(cfg) -> neuralfitter.scale_transform.ScalerAmplitude:
+    return neuralfitter.scale_transform.ScalerAmplitude(
+        scale=cfg.Scaling.input_scale,
+        offset=cfg.Scaling.input_offset,
     )
 
 
@@ -204,7 +178,18 @@ def setup_tar_scaling(cfg) -> neuralfitter.scale_transform.ScalerTargetList:
     return neuralfitter.scale_transform.ScalerTargetList(
         phot=cfg.Scaling.phot_max,
         z=cfg.Scaling.z_max,
-        bg_max=cfg.Scaling.bg_max,
+    )
+
+
+def setup_bg_scaling(cfg) -> neuralfitter.scale_transform.ScalerAmplitude:
+    return neuralfitter.scale_transform.ScalerAmplitude(cfg.Scaling.bg_max)
+
+
+def setup_post_model_scaling(cfg) -> neuralfitter.scale_transform.ScalerModelOutput:
+    return neuralfitter.scale_transform.ScalerModelOutput(
+        phot=cfg.Scaling.phot_max,
+        z=cfg.Scaling.z_max,
+        bg=cfg.Scaling.z_max,
     )
 
 
@@ -232,8 +217,7 @@ def setup_post_process_frame_emitter(
 
     if cfg.PostProcessing.name is None:
         post = neuralfitter.processing.to_emitter.ToEmitterEmpty(
-            xy_unit=cfg.Simulation.xy_unit,
-            px_size=cfg.Camera.px_size
+            xy_unit=cfg.Simulation.xy_unit, px_size=cfg.Camera.px_size
         )
 
     elif cfg.PostProcessing.name == "LookUp":
