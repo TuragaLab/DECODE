@@ -1,8 +1,29 @@
-from abc import ABC
+from abc import ABC, abstractmethod
+from typing import Optional
+
 from pytorch_lightning import loggers
 
 
-class Logger(loggers.LightningLoggerBase, ABC):
+class PrefixDictMixin:
+    @abstractmethod
+    def log_metrics(
+        self, metrics: dict[str, float], step: Optional[int] = None
+    ) -> None:
+        ...
+
+    def log_group(
+        self, metrics: dict[str, float], step: Optional[int] = None, prefix: Optional[str] = None) -> None:
+        if prefix is not None:
+            metrics = {prefix + k: v for k,v in metrics.items()}
+
+        return self.log_metrics(metrics=metrics, step=step)
+
+
+class Logger(PrefixDictMixin, loggers.LightningLoggerBase, ABC):
     # for the moment we just alias lightnings logger base
     # because the api seems reasonable
+    pass
+
+
+class TensorboardLogger(PrefixDictMixin, loggers.TensorBoardLogger):
     pass

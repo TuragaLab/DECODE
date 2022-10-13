@@ -9,6 +9,7 @@ import decode.neuralfitter.scale_transform
 import decode.neuralfitter.train
 import decode.neuralfitter.inference
 from . import data
+from . import logger
 from . import model
 from . import process
 from . import processing
