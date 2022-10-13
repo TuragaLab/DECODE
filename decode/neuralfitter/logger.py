@@ -4,7 +4,7 @@ from typing import Optional
 from pytorch_lightning import loggers
 
 
-class PrefixDictMixin:
+class PrefixDictMixin(ABC):
     @abstractmethod
     def log_metrics(
         self, metrics: dict[str, float], step: Optional[int] = None
@@ -25,5 +25,5 @@ class Logger(PrefixDictMixin, loggers.LightningLoggerBase, ABC):
     pass
 
 
-class TensorboardLogger(PrefixDictMixin, loggers.TensorBoardLogger):
+class TensorboardLogger(loggers.TensorBoardLogger, PrefixDictMixin):
     pass
