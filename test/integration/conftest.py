@@ -1,5 +1,7 @@
 import pytest
 from pathlib import Path
+
+import torch.cuda
 from omegaconf import OmegaConf, DictConfig
 
 from decode import io, utils
@@ -31,9 +33,10 @@ def secrets(repo_dir):
 def cfg() -> DictConfig:
     cfg = io.param.load_reference()
 
-    # overwrite hardware, because testing is only on cpu
-    cfg.Hardware.device = "cpu"
-    cfg.Hardware.device_simulation = "cpu"
+    # overwrite hardware if cuda is not available
+    if not torch.cuda.is_available():
+        cfg.Hardware.device.training = "cpu"
+        cfg.Hardware.device.simulation = "cpu"
 
     return cfg
 
