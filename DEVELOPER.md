@@ -11,9 +11,9 @@ The cubic spline psf is pre-compiled in a different repo / as a separate package
 
             # assuming you are in the repo folder
             
-            pytest decode/test  # all tests
+            pytest test  # all tests
             pytest -m "not webbig"  # without downloading the assets
-            pytest -m "not plot" decode/test  # without the tests that have graphical output
+            pytest -m "not plot" test  # without the tests that have graphical output
 
 4. The package can be used in python as
 
