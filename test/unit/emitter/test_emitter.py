@@ -1,13 +1,12 @@
 import pickle
+from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import pytest
 import torch
 from hypothesis import given, settings, strategies as st
-from pathlib import Path
-from unittest import mock
 
-from decode.generic import test_utils
 from decode.emitter import emitter
 from decode.emitter.emitter import (
     FluorophoreSet,
@@ -15,6 +14,7 @@ from decode.emitter.emitter import (
     CoordinateOnlyEmitter,
     EmitterData,
 )
+from decode.generic import test_utils
 
 
 def test_emitter_data():
@@ -29,8 +29,11 @@ def test_emitter_data():
 def em2d():
     """Effectively 2D EmitterSet"""
 
-    return EmitterSet(xyz=torch.rand((25, 2)), phot=torch.rand(25),
-                      frame_ix=torch.zeros(25, dtype=torch.long))
+    return EmitterSet(
+        xyz=torch.rand((25, 2)),
+        phot=torch.rand(25),
+        frame_ix=torch.zeros(25, dtype=torch.long),
+    )
 
 
 @pytest.fixture()
@@ -196,7 +199,7 @@ class TestEmitterSet:
         """Init and expect warning if specified"""
         em = CoordinateOnlyEmitter(xyz_input, xy_unit=xy_unit, px_size=px_size)
 
-        """Test the respective units"""
+        # test the respective units
         if isinstance(expct_px, str) and expct_px == "err":
             with pytest.raises(ValueError):
                 _ = em.xyz_px
@@ -259,13 +262,13 @@ class TestEmitterSet:
 
         """
 
-        """Init and expect warning if specified"""
+        # init and expect warning if specified
         em = CoordinateOnlyEmitter(
             torch.rand_like(xyz_scr_input), xy_unit=xy_unit, px_size=px_size
         )
         em.xyz_cr = xyz_scr_input**2
 
-        """Test the respective units"""
+        # test the respective units
         if isinstance(expct_px, str) and expct_px == "err":
             with pytest.raises(ValueError):
                 _ = em.xyz_cr_px
@@ -350,14 +353,17 @@ class TestEmitterSet:
             assert em_out.frame_ix.min() >= ix_range[0]
             assert em_out.frame_ix.max() < ix_range[1]
 
-    @pytest.mark.parametrize("ix,ix_low,ix_up,ix_expct", [
-        ([1, 2, 3], None, None, [1, 2, 3]),
-        ([1, 2, 3], 2, 2, []),
-        ([1, 2, 3], 2, 3, [2]),
-        ([1, 2, 3], 2, None, [2, 3]),
-        ([1, 2, 3], None, 1, []),
-        ([1, 2, 3], None, 2, [1])
-    ])
+    @pytest.mark.parametrize(
+        "ix,ix_low,ix_up,ix_expct",
+        [
+            ([1, 2, 3], None, None, [1, 2, 3]),
+            ([1, 2, 3], 2, 2, []),
+            ([1, 2, 3], 2, 3, [2]),
+            ([1, 2, 3], 2, None, [2, 3]),
+            ([1, 2, 3], None, 1, []),
+            ([1, 2, 3], None, 2, [1]),
+        ],
+    )
     def test_get_subset_frame_optionals(self, ix, ix_low, ix_up, ix_expct):
         em = emitter.factory(frame_ix=ix)
         em_out = em.get_subset_frame(ix_low, ix_up)
@@ -369,10 +375,13 @@ class TestEmitterSet:
             (2, {2}),
         ],
     )
-    @pytest.mark.parametrize("attr,selector_attr", [
-        ("frame_ix", "iframe"),
-        ("code", "icode"),
-    ])
+    @pytest.mark.parametrize(
+        "attr,selector_attr",
+        [
+            ("frame_ix", "iframe"),
+            ("code", "icode"),
+        ],
+    )
     def test_iframe(self, selector, expct, attr, selector_attr):
         factory_kwargs = {attr: [0, 1, 2, 3, 4, 5, 6, 7]}
         em = emitter.factory(n=8, **factory_kwargs)
@@ -542,7 +551,7 @@ class TestEmitterSet:
                 emitter.factory(5),
                 emitter.factory(10),
                 False,
-            )
+            ),
         ],
     )
     def test_eq(self, em_a, em_b, expct):
@@ -577,10 +586,10 @@ class TestEmitterSet:
         for d in diff:
             assert em_data_full[d] is None
 
-    @pytest.mark.parametrize("repeats,step_frames,frame_ix_diff_expct", [
-        (2, False, [0, 0, 0, 0, 0, 0]),
-        ([1, 3, 1], True, [0, 0, 1, 2, 0])
-    ])
+    @pytest.mark.parametrize(
+        "repeats,step_frames,frame_ix_diff_expct",
+        [(2, False, [0, 0, 0, 0, 0, 0]), ([1, 3, 1], True, [0, 0, 1, 2, 0])],
+    )
     def test_repeat(self, repeats, step_frames, frame_ix_diff_expct):
         """
         Args:
@@ -599,7 +608,7 @@ class TestEmitterSet:
         assert len(em_repeat) == len(frame_ix_diff_expct)
         np.testing.assert_array_equal(
             (em_repeat.frame_ix - em_repeat_non_shifted.frame_ix),
-            torch.tensor(frame_ix_diff_expct)
+            torch.tensor(frame_ix_diff_expct),
         )
 
 
@@ -615,9 +624,12 @@ def test_emitter_phot_2d():
     assert em[:10].phot.size() == torch.Size([10, 16])
 
 
-@pytest.mark.parametrize("id,id_expct", [
-    ([5, 6, 7], [5, 5, 6, 6, 7, 7]),
-])
+@pytest.mark.parametrize(
+    "id,id_expct",
+    [
+        ([5, 6, 7], [5, 5, 6, 6, 7, 7]),
+    ],
+)
 def test_emitter_linearize_generic_attrs(id, id_expct):
     # tests linearization for attributes that are normally 1D
     phot = torch.rand(3, 2)
@@ -645,13 +657,15 @@ def test_emitter_linearize_coord():
 
 
 def test_emitter_linearize_coord_manual():
-    em = emitter.factory(xyz=[[[1., 2., 3.], [4., 5., 6]]], code=[[1, 0]], id=[42])
+    em = emitter.factory(xyz=[[[1.0, 2.0, 3.0], [4.0, 5.0, 6]]], code=[[1, 0]], id=[42])
     assert em.xyz.size() == torch.Size([1, 2, 3])
     assert em.code.size() == torch.Size([1, 2])
 
     em_lin = em.linearize()
 
-    np.testing.assert_array_equal(em_lin.xyz, torch.tensor([[1., 2., 3], [4., 5., 6]]))
+    np.testing.assert_array_equal(
+        em_lin.xyz, torch.tensor([[1.0, 2.0, 3], [4.0, 5.0, 6]])
+    )
     np.testing.assert_array_equal(em_lin.code, torch.tensor([1, 0]))
 
 
@@ -742,9 +756,10 @@ def test_fluorophore_frame_bucketize():
     )
 
 
-@pytest.mark.parametrize("t_start,t_end,repeats,ontime", [
-    ([-0.5, 3.2, 0.1], [-0.1, 5.2, 1.2], [1, 3, 2], [0.4, 0.8, 1, 0.2, 0.9, 0.2])
-])
+@pytest.mark.parametrize(
+    "t_start,t_end,repeats,ontime",
+    [([-0.5, 3.2, 0.1], [-0.1, 5.2, 1.2], [1, 3, 2], [0.4, 0.8, 1, 0.2, 0.9, 0.2])],
+)
 def test_fluorophore_compute_time_distribution(t_start, t_end, repeats, ontime):
     t_start = torch.tensor(t_start)
     t_end = torch.tensor(t_end)
