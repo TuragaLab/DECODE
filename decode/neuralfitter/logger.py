@@ -12,9 +12,20 @@ class PrefixDictMixin(ABC):
         ...
 
     def log_group(
-        self, metrics: dict[str, float], step: Optional[int] = None, prefix: Optional[str] = None) -> None:
+        self,
+        metrics: dict[str, float],
+        step: Optional[int] = None,
+        prefix: Optional[str] = None,
+    ) -> None:
+        """
+
+        Args:
+            metrics: dictionary of metrics to log
+            step:
+            prefix: prefix to add before metric name
+        """
         if prefix is not None:
-            metrics = {prefix + k: v for k,v in metrics.items()}
+            metrics = {prefix + k: v for k, v in metrics.items()}
 
         return self.log_metrics(metrics=metrics, step=step)
 

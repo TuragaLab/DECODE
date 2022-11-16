@@ -5,83 +5,110 @@ from torch import nn as nn
 from typing import Tuple
 
 
-def rmse_mad_dist(xyz_0: torch.Tensor, xyz_1: torch.Tensor) -> Tuple[float, float, float, float, float, float]:
+def rmse(xyz: torch.Tensor, xyz_ref: torch.Tensor) -> tuple[float, ...]:
     """
-    Calculate RMSE and mean absolute distance.
+    Root mean squared distances
 
     Args:
-        xyz_0: coordinates of set 0,
-        xyz_1: coordinates of set 1
+        xyz:
+        xyz_ref:
 
     Returns:
-        rmse_lat (float): RMSE lateral
-        rmse_ax (float): RMSE axial
-        rmse_vol (float): RMSE volumetric
-        mad_lat (float): Mean Absolute Distance lateral
-        mad_ax (float): Mean Absolute Distance axial
-        mad_vol (float): Mean Absolute Distance vol
+        - rmse lateral
+        - rmse axial
+        - rmse volumetric
     """
-
-    num_tp = xyz_0.size(0)
-    num_gt = xyz_1.size(0)
+    num_tp = xyz.size(0)
+    num_gt = xyz_ref.size(0)
 
     if num_tp != num_gt:
         raise ValueError("The number of points must match.")
 
-    if xyz_0.size(1) not in (2, 3):
-        raise ValueError("Unsupported ")
+    if xyz.size(1) not in (2, 3):
+        raise NotImplementedError("Unsupported dimension")
 
     if num_tp == 0:
-        return (float('nan'),) * 6
+        return (torch.ones(1) * float("nan"),) * 3
 
-    mse_loss = nn.MSELoss(reduction='sum')
+    mse_loss = nn.MSELoss(reduction="sum")
 
-    rmse_lat = ((mse_loss(xyz_0[:, 0], xyz_1[:, 0]) +
-                 mse_loss(xyz_0[:, 1], xyz_1[:, 1])) / num_tp).sqrt()
+    rmse_lat = (
+        (mse_loss(xyz[:, 0], xyz_ref[:, 0]) + mse_loss(xyz[:, 1], xyz_ref[:, 1]))
+        / num_tp
+    ).sqrt()
 
-    rmse_axial = (mse_loss(xyz_0[:, 2], xyz_1[:, 2]) / num_tp).sqrt()
-    rmse_vol = (mse_loss(xyz_0, xyz_1) / num_tp).sqrt()
+    rmse_axial = (mse_loss(xyz[:, 2], xyz_ref[:, 2]) / num_tp).sqrt()
+    rmse_vol = (mse_loss(xyz, xyz_ref) / num_tp).sqrt()
 
-    mad_loss = nn.L1Loss(reduction='sum')
-
-    mad_vol = mad_loss(xyz_0, xyz_1) / num_tp
-    mad_lat = (mad_loss(xyz_0[:, 0], xyz_1[:, 0]) + mad_loss(xyz_0[:, 1], xyz_1[:, 1])) / num_tp
-    mad_axial = mad_loss(xyz_0[:, 2], xyz_1[:, 2]) / num_tp
-
-    return rmse_lat.item(), rmse_axial.item(), rmse_vol.item(), mad_lat.item(), mad_axial.item(), mad_vol.item()
+    return rmse_lat.item(), rmse_axial.item(), rmse_vol.item()
 
 
-def precision_recall_jaccard(tp: int, fp: int, fn: int) -> Tuple[float, float, float, float]:
+def mad(xyz: torch.Tensor, xyz_ref: torch.Tensor) -> tuple[torch.Tensor, ...]:
     """
-    Calculates precision, recall, jaccard index and f1 score
+    Mean absolute distances
 
     Args:
-        tp: number of true positives
-        fp: number of false positives
-        fn: number of false negatives
+        xyz:
+        xyz_ref:
 
     Returns:
-        precision (float): precision value 0-1
-        recall (float): recall value 0-1
-        jaccard (float): jaccard index 0-1
-        f1 (float): f1 score 0-1
-
+        - mad lateral
+        - mad axial
+        - mad volumetric
     """
+    num_tp = xyz.size(0)
+    num_gt = xyz_ref.size(0)
 
-    # convert to float as safety measure
-    tp = float(tp)
-    fp = float(fp)
-    fn = float(fn)
+    if num_tp != num_gt:
+        raise ValueError("The number of points must match.")
 
-    precision = math.nan if (tp + fp) == 0 else tp / (tp + fp)
-    recall = math.nan if (tp + fn) == 0 else tp / (tp + fn)
-    jaccard = math.nan if (tp + fp + fn) == 0 else tp / (tp + fp + fn)
-    f1score = math.nan if (precision + recall) == 0 else (2 * precision * recall) / (precision + recall)
+    if xyz.size(1) not in (2, 3):
+        raise NotImplementedError("Unsupported dimensions")
 
-    return precision, recall, jaccard, f1score
+    if num_tp == 0:
+        return (torch.ones(1) * float("nan"),) * 3
+
+    mad_loss = nn.L1Loss(reduction="sum")
+
+    mad_vol = mad_loss(xyz, xyz_ref) / num_tp
+    mad_lat = (mad_loss(xyz[:, 0], xyz_ref[:, 0]) + mad_loss(xyz[:, 1], xyz_ref[:, 1])) \
+              / num_tp
+    mad_axial = mad_loss(xyz[:, 2], xyz_ref[:, 2]) / num_tp
+
+    return mad_lat.item(), mad_axial.item(), mad_vol.item()
 
 
-def efficiency(jac: float, rmse: float, alpha: float):
+def precision(tp: int, fp: int) -> float:
+    try:
+        return tp / (tp + fp)
+    except ZeroDivisionError:
+        return math.nan
+
+
+def recall(tp: int, fn: int) -> float:
+    try:
+        return tp / (tp + fn)
+    except ZeroDivisionError:
+        return math.nan
+
+
+def jaccard(tp: int, fp: int, fn: int) -> float:
+    try:
+        return tp / (tp + fp + fn)
+    except ZeroDivisionError:
+        return math.nan
+
+
+def f1(tp: int, fp: int, fn: int):
+    prec = precision(tp=tp, fp=fp)
+    rec = recall(tp=tp, fn=fn)
+    try:
+        return (2 * prec * rec) / (prec + rec)
+    except ZeroDivisionError:
+        return math.nan
+
+
+def efficiency(jac: float, rmse: float, alpha: float) -> float:
     """
     Calculate Efficiency following Sage et al. 2019, superres fight club
 
@@ -93,4 +120,4 @@ def efficiency(jac: float, rmse: float, alpha: float):
     Returns:
         effcy (float): efficiency 0-1
     """
-    return (100 - ((100 * (1 - jac)) ** 2 + alpha ** 2 * rmse ** 2) ** 0.5) / 100
+    return (100 - ((100 * (1 - jac)) ** 2 + alpha**2 * rmse**2) ** 0.5) / 100

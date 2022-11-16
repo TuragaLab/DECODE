@@ -15,7 +15,6 @@ def test_prefix_mixin():
         def log_metrics(self, *args, **kwargs):
             self._mock_log(*args, **kwargs)
 
-
     log = MockLogger()
     log.log_group({"a": 1}, prefix="loss/")
     log._mock_log.assert_called_once_with(metrics={"loss/a": 1}, step=None)
