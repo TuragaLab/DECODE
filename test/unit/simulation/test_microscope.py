@@ -43,7 +43,8 @@ def test_microscope(frame_range, len_expct, bg, psf, noise):
         assert frames.max() == pytest.approx(1e10, rel=0.01)
 
 
-def test_microscope_multi_channel():
+@pytest.fixture
+def mic_multi_ch():
     psf = [
         psf_kernel.DeltaPSF((0.0, 32.0), (0.0, 32.0), (32, 32)),
         psf_kernel.DeltaPSF((0.0, 32.0), (0.0, 32.0), (32, 32)),
@@ -51,6 +52,13 @@ def test_microscope_multi_channel():
     noise = [noise_lib.ZeroNoise(), noise_lib.ZeroNoise()]
 
     m = microscope.MicroscopeMultiChannel(psf, noise, (-5, 5), (-2, 0))
+    return m
+
+
+def test_microscope_multi_channel(mic_multi_ch):
+    m = mic_multi_ch
+    m._stack_impl = "stack"
+
     em = emitter_factory(3, frame_ix=[-5, 0, 5], code=[-5, -1, 1], xy_unit="px")
 
     frames = m.forward(em)
@@ -59,6 +67,22 @@ def test_microscope_multi_channel():
     assert (frames[:5] == 0).all()
     assert (frames[6:] == 0).all()
     assert not (frames[5, 1] == 0).all()
+
+
+@pytest.mark.parametrize("stack", [None, "stack"])
+def test_microscope_multi_channel_stack(stack, mic_multi_ch):
+    m = mic_multi_ch
+    m._stack_impl = stack
+
+    em = emitter_factory(3, code=[0, 1, 2], xy_unit="px")
+    out = m.forward(em)
+
+    if stack is None:
+        assert isinstance(out, list)
+    elif stack == "stack":
+        assert isinstance(out, torch.Tensor)
+    else:
+        raise ValueError
 
 
 def test_microscope_channel_modifier():

@@ -1,5 +1,5 @@
 import copy
-from typing import Optional, Iterable, Callable, Union
+from typing import Any, Optional, Iterable, Callable, Union, Sequence
 
 import torch
 
@@ -67,6 +67,7 @@ class MicroscopeMultiChannel:
         noise: list[Optional[noise_lib.NoiseDistribution]],
         frame_range: Optional[tuple[int, int]],
         ch_range: Optional[Union[int, tuple[int, int]]],
+        stack: Optional[Union[str, Callable]] = None,
     ):
         """
         A microscope that has multi channels. Internally this is modelled as a list
@@ -77,12 +78,21 @@ class MicroscopeMultiChannel:
             noise: list of noise
             frame_range: frame range among which frames are sampled
             ch_range: range of active channels
+            stack: stack function, None, `stack` or callable.
         """
         self._microscopes: list[Microscope] = [
             Microscope(psf=p, noise=n, frame_range=frame_range)
             for p, n in zip(psf, noise)
         ]
         self._ch_range = ch_range
+        self._stack_impl = stack
+
+    def _stack(self, x: Sequence[torch.Tensor]) -> Any:
+        if self._stack_impl is None:
+            return x
+        if self._stack_impl == "stack":
+            return torch.stack(x, dim=1)
+        raise ValueError("Unsupported stack implementation.")
 
     def forward(
         self,
@@ -90,7 +100,7 @@ class MicroscopeMultiChannel:
         bg: Optional[Iterable[torch.Tensor]] = None,
         ix_low: Optional[int] = None,
         ix_high: Optional[int] = None,
-    ) -> torch.Tensor:
+    ) -> Any:
         """
         Forward emitters through multi channel microscope
 
@@ -111,9 +121,7 @@ class MicroscopeMultiChannel:
             m.forward(e, bg=b, ix_low=ix_low, ix_high=ix_high)
             for m, e, b in zip(self._microscopes, em_by_channel, bg)
         ]
-        frames = torch.stack(frames, dim=1)
-
-        return frames
+        return self._stack(frames)
 
 
 class MicroscopeChannelSplitter:
