@@ -1,12 +1,12 @@
 import copy
-from deprecated import deprecated
 import warnings
 from pathlib import Path
-from pydantic import BaseModel, root_validator, validator
 from typing import Union, Optional, Iterable
 
 import numpy as np
 import torch
+from deprecated import deprecated
+from pydantic import BaseModel, root_validator, validator
 
 import decode.generic.utils
 from decode.generic import slicing
@@ -732,13 +732,11 @@ class EmitterSet:
             sanity_check=False,
             xy_unit=self.xy_unit,
             px_size=self.px_size,
-            **data_subset
+            **data_subset,
         )
 
     def get_subset_frame(
-            self, frame_start: Optional[int],
-            frame_end: Optional[int],
-            frame_ix_shift=None
+        self, frame_start: Optional[int], frame_end: Optional[int], frame_ix_shift=None
     ):
         """
         Returns emitters that are in the frame range as specified.
@@ -749,10 +747,16 @@ class EmitterSet:
             frame_ix_shift: shift frame index (additive)
 
         """
-        ix_low = self.frame_ix >= frame_start if frame_start is not None \
+        ix_low = (
+            self.frame_ix >= frame_start
+            if frame_start is not None
             else torch.ones_like(self.frame_ix, dtype=torch.bool)
-        ix_high = self.frame_ix < frame_end if frame_end is not None \
+        )
+        ix_high = (
+            self.frame_ix < frame_end
+            if frame_end is not None
             else torch.ones_like(self.frame_ix, dtype=torch.bool)
+        )
 
         ix = ix_low * ix_high
         em = self[ix]
@@ -993,22 +997,31 @@ class EmitterSet:
         """
 
         # get coord-like attributes that have a channel dimension
-        attr_coord_ch = {k: v for k, v in self.data.items()
-                         if ("xyz" in k) and (v is not None) and (v.dim() == 3)}
+        attr_coord_ch = {
+            k: v
+            for k, v in self.data.items()
+            if ("xyz" in k) and (v is not None) and (v.dim() == 3)
+        }
 
         # get remaining attributes that have a channel dimension
-        attr_2d = {k: v for k, v in self.data.items()
-                   if ("xyz" not in k) and (v is not None) and (v.dim() == 2)}
+        attr_2d = {
+            k: v
+            for k, v in self.data.items()
+            if ("xyz" not in k) and (v is not None) and (v.dim() == 2)
+        }
 
         if not (len(attr_coord_ch) >= 1 or len(attr_2d) >= 1):  # nothing to do
             return self
 
         # get number of channel dims
-        n_repeats = {xyz.size(1) for xyz in attr_coord_ch.values()} \
-                  | {generic.size(-1) for generic in attr_2d.values()}
+        n_repeats = {xyz.size(1) for xyz in attr_coord_ch.values()} | {
+            generic.size(-1) for generic in attr_2d.values()
+        }
 
         if len(n_repeats) != 1:
-            raise ValueError("Inconsistent number of channels but channels are present.")
+            raise ValueError(
+                "Inconsistent number of channels but channels are present."
+            )
 
         n_repeats = next(iter(n_repeats))
         em = self.clone().repeat(n_repeats, False)
@@ -1038,8 +1051,13 @@ class CoordinateOnlyEmitter(EmitterSet):
 
         :param xyz: (torch.tensor) N x 2, N x 3
         """
-        super().__init__(xyz, torch.ones_like(xyz[:, 0]), torch.zeros_like(xyz[:, 0]).int(),
-                         xy_unit=xy_unit, px_size=px_size)
+        super().__init__(
+            xyz,
+            torch.ones_like(xyz[:, 0]),
+            torch.zeros_like(xyz[:, 0]).int(),
+            xy_unit=xy_unit,
+            px_size=px_size,
+        )
 
     def _inplace_replace(self, em):
         super().__init__(sanity_check=False, **em.to_dict())
@@ -1057,12 +1075,18 @@ class EmptyEmitterSet(CoordinateOnlyEmitter):
 
 
 class FluorophoreSet:
-    def __init__(self,
-                 xyz: torch.Tensor,
-                 flux: torch.Tensor, t0: torch.Tensor, ontime: torch.Tensor,
-                 xy_unit: str, px_size: Union[tuple, torch.Tensor] = None,
-                 id: Optional[torch.LongTensor] = None,
-                 sanity_check=True, **kwargs):
+    def __init__(
+        self,
+        xyz: torch.Tensor,
+        flux: torch.Tensor,
+        t0: torch.Tensor,
+        ontime: torch.Tensor,
+        xy_unit: str,
+        px_size: Union[tuple, torch.Tensor] = None,
+        id: Optional[torch.LongTensor] = None,
+        sanity_check=True,
+        **kwargs,
+    ):
         """
         Something that starts to emit light at time `t0` and is on for a specific
         ontime. Related to the standard EmitterSet. However, here we do not specify a
@@ -1113,7 +1137,9 @@ class FluorophoreSet:
         return self.t0 + self.ontime
 
     @staticmethod
-    def _compute_time_distribution(t_start: torch.FloatTensor, t_end: torch.FloatTensor) -> (torch.LongTensor, torch.Tensor):
+    def _compute_time_distribution(
+        t_start: torch.FloatTensor, t_end: torch.FloatTensor
+    ) -> (torch.LongTensor, torch.Tensor):
         """
         Compute time distribution, i.e. on how many frames an emitter is visible
         and what the ontime per emitter per frame is
@@ -1134,16 +1160,19 @@ class FluorophoreSet:
         n_frame_per_emitter = decode.generic.utils.cum_count_per_group(pseudo_id)
 
         # ontime since start, to end
-        t_since_start = torch.repeat_interleave(t_start.ceil(), n_frames) \
-                        + n_frame_per_emitter \
-                        - torch.repeat_interleave(t_start, n_frames)
+        t_since_start = (
+            torch.repeat_interleave(t_start.ceil(), n_frames)
+            + n_frame_per_emitter
+            - torch.repeat_interleave(t_start, n_frames)
+        )
 
-        t_to_end = torch.repeat_interleave(t_end, n_frames) \
-                   - (n_frame_per_emitter
-                      + torch.repeat_interleave(t_start.floor(), n_frames))
+        t_to_end = torch.repeat_interleave(t_end, n_frames) - (
+            n_frame_per_emitter + torch.repeat_interleave(t_start.floor(), n_frames)
+        )
 
-        t_total_diff = torch.repeat_interleave(t_end, n_frames) \
-                       - torch.repeat_interleave(t_start, n_frames)
+        t_total_diff = torch.repeat_interleave(
+            t_end, n_frames
+        ) - torch.repeat_interleave(t_start, n_frames)
 
         ontime = t_since_start.minimum(t_to_end).minimum(t_total_diff).clamp(max=1)
 
@@ -1167,7 +1196,7 @@ class FluorophoreSet:
             id=self.id,
             xy_unit=self.xy_unit,
             px_size=self.px_size,
-            **self._em_kwargs
+            **self._em_kwargs,
         ).repeat(n_frames, step_frames=True)
 
         # adjust photons by ontime (i.e. flux * ontime)
@@ -1176,7 +1205,7 @@ class FluorophoreSet:
         return em
 
 
-def factory(n: Optional[int] = None, extent: float = 32., **kwargs) -> EmitterSet:
+def factory(n: Optional[int] = None, extent: float = 32.0, **kwargs) -> EmitterSet:
     """
     Generate a random EmitterSet
 
