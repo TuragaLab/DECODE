@@ -58,15 +58,26 @@ class EmitterData(BaseModel):
     phot_sig: Optional[_Tensor]
     bg_sig: Optional[_Tensor]
 
-    @validator("xyz")
-    def xyz_prep(cls, v):
-        if v.dim() != 2:
+    @staticmethod
+    def _val_coord(v: torch.Tensor) -> torch.Tensor:
+        if v.dim() == 1 or v.dim() > 3:
             raise ValueError("Not supported shape.")
 
-        if v.size(1) == 2:
-            v = torch.cat((v, torch.zeros_like(v[:, [0]])), 1)
+        if v.size(-1) == 2:
+            v = torch.cat((v, torch.zeros_like(v[..., [0]])), -1)
 
         return v
+
+    @validator("xyz")
+    def xyz_prep(cls, v):
+        return cls._val_coord(v)
+
+    @validator("xyz_cr", "xyz_sig")
+    def xyz_optional(cls, v):
+        if v is None:
+            return v
+
+        return cls._val_coord(v)
 
     @root_validator
     def equal_length(cls, v):
@@ -991,9 +1002,13 @@ class EmitterSet:
 
         return em
 
-    def linearize(self):
+    def linearize(self, infer_code: bool = False):
         """
         Linearizes an EmitterSet that has some 2D attributes (e.g. photons).
+
+        Args:
+            infer_code: assigns integer code by channel dimension, no-op if `code`
+             attribute is present
         """
 
         # get coord-like attributes that have a channel dimension
@@ -1024,7 +1039,13 @@ class EmitterSet:
             )
 
         n_repeats = next(iter(n_repeats))
-        em = self.clone().repeat(n_repeats, False)
+        em = self.clone()
+
+        if self.code is None and infer_code:
+            code = torch.arange(n_repeats).unsqueeze(0).repeat(len(em), 1)
+            attr_2d.update({"code": code})
+
+        em = em.repeat(n_repeats, False)
 
         if len(attr_coord_ch) >= 1:
             for k, v in attr_coord_ch.items():

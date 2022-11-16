@@ -669,6 +669,20 @@ def test_emitter_linearize_coord_manual():
     np.testing.assert_array_equal(em_lin.code, torch.tensor([1, 0]))
 
 
+@pytest.mark.parametrize("infer_code", [True, False])
+@pytest.mark.parametrize("code", [None, [[42, 43]]])
+def test_emitter_linearize(infer_code, code):
+    em = emitter.factory(phot=[[1, 2]], code=code)
+    em_lin = em.linearize(infer_code=infer_code)
+
+    if em.code is not None:
+        assert em_lin.code.tolist() == [42, 43]
+    elif infer_code:
+        assert em_lin.code.tolist() == [0, 1]
+    else:
+        assert em_lin.code == em.code is None
+
+
 def test_factory():
     em = emitter.factory(100, xyz=torch.zeros(100, 3), phot_cr=torch.ones(100))
 
