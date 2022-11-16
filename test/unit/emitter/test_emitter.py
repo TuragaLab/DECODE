@@ -618,14 +618,41 @@ def test_emitter_phot_2d():
 @pytest.mark.parametrize("id,id_expct", [
     ([5, 6, 7], [5, 5, 6, 6, 7, 7]),
 ])
-def test_emitter_linearlize(id, id_expct):
+def test_emitter_linearize_generic_attrs(id, id_expct):
+    # tests linearization for attributes that are normally 1D
     phot = torch.rand(3, 2)
-    em = emitter.factory(3, phot=phot, id=id)
+    em = emitter.factory(phot=phot, id=id)
     em_lin = em.linearize()
 
     assert isinstance(em_lin, EmitterSet)
     np.testing.assert_array_equal(em_lin.phot, phot.view(-1))
     assert em_lin.id.tolist() == id_expct
+
+
+def test_emitter_linearize_generic_attrs_manual():
+    em = emitter.factory(phot=[[4, 5, 6, 7], [1, 2, 3, 4]], id=[42, 43])
+    em_lin = em.linearize()
+
+    assert em_lin.phot.tolist() == [4, 5, 6, 7, 1, 2, 3, 4]
+    assert em_lin.id.tolist() == [42, 42, 42, 42, 43, 43, 43, 43]
+
+
+def test_emitter_linearize_coord():
+    em = emitter.factory(xyz=torch.rand(4, 2, 3), code=None)  # 4 em, 2 ch, 3 coord dims
+    em_lin = em.linearize()
+
+    assert em_lin.xyz.size() == torch.Size([8, 3])
+
+
+def test_emitter_linearize_coord_manual():
+    em = emitter.factory(xyz=[[[1., 2., 3.], [4., 5., 6]]], code=[[1, 0]], id=[42])
+    assert em.xyz.size() == torch.Size([1, 2, 3])
+    assert em.code.size() == torch.Size([1, 2])
+
+    em_lin = em.linearize()
+
+    np.testing.assert_array_equal(em_lin.xyz, torch.tensor([[1., 2., 3], [4., 5., 6]]))
+    np.testing.assert_array_equal(em_lin.code, torch.tensor([1, 0]))
 
 
 def test_factory():

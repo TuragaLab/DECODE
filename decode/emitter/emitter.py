@@ -992,20 +992,36 @@ class EmitterSet:
         Linearizes an EmitterSet that has some 2D attributes (e.g. photons).
         """
 
-        # get all 2D attributes (not coordinate-like attributes)
+        # get coord-like attributes that have a channel dimension
+        attr_coord_ch = {k: v for k, v in self.data.items()
+                         if ("xyz" in k) and (v is not None) and (v.dim() == 3)}
+
+        # get remaining attributes that have a channel dimension
         attr_2d = {k: v for k, v in self.data.items()
                    if ("xyz" not in k) and (v is not None) and (v.dim() == 2)}
 
-        if len(attr_2d) >= 1:
-            n_repeats = list(attr_2d.values())[0].size(-1)
+        if not (len(attr_coord_ch) >= 1 or len(attr_2d) >= 1):  # nothing to do
+            return self
 
-            em = self.clone().repeat(n_repeats, False)
+        # get number of channel dims
+        n_repeats = {xyz.size(1) for xyz in attr_coord_ch.values()} \
+                  | {generic.size(-1) for generic in attr_2d.values()}
 
-            for k, v in attr_2d.items():
-                v = v.view(-1)
+        if len(n_repeats) != 1:
+            raise ValueError("Inconsistent number of channels but channels are present.")
+
+        n_repeats = next(iter(n_repeats))
+        em = self.clone().repeat(n_repeats, False)
+
+        if len(attr_coord_ch) >= 1:
+            for k, v in attr_coord_ch.items():
+                v = v.view(-1, v.size(-1))  # linearize away N x C x 3 to (N*C) x 3
                 setattr(em, k, v)
-        else:
-            em = self
+
+        if len(attr_2d) >= 1:
+            for k, v in attr_2d.items():
+                v = v.view(-1)  # linearize away N x C to (N*C)
+                setattr(em, k, v)
 
         return em
 
@@ -1160,7 +1176,7 @@ class FluorophoreSet:
         return em
 
 
-def factory(n: Optional[int] = None, extent: float = 32, **kwargs) -> EmitterSet:
+def factory(n: Optional[int] = None, extent: float = 32., **kwargs) -> EmitterSet:
     """
     Generate a random EmitterSet
 
