@@ -1075,12 +1075,12 @@ class EmitterSet:
 
         if len(attr_coord_ch) >= 1:
             for k, v in attr_coord_ch.items():
-                v = v.view(-1, v.size(-1))  # linearize away N x C x 3 to (N*C) x 3
+                v = v.reshape(-1, v.size(-1))  # linearize away N x C x 3 to (N*C) x 3
                 setattr(em, k, v)
 
         if len(attr_2d) >= 1:
             for k, v in attr_2d.items():
-                v = v.view(-1)  # linearize away N x C to (N*C)
+                v = v.reshape(-1)  # linearize away N x C to (N*C)
                 setattr(em, k, v)
 
         return em
