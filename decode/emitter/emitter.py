@@ -1002,35 +1002,37 @@ class EmitterSet:
 
         return em
 
-    def linearize(self, infer_code: bool = False):
-        """
-        Linearizes an EmitterSet that has some 2D attributes (e.g. photons).
+    def _get_channeled_attrs(self) -> tuple[dict, dict]:
+        """Get coord-like attributes that have a channel dimension.
 
-        Args:
-            infer_code: assigns integer code by channel dimension, no-op if `code`
-             attribute is present
+        Returns:
+            - coord like attributes with channels
+            - other (generic) attributes with channels
         """
-
-        # get coord-like attributes that have a channel dimension
-        attr_coord_ch = {
+        attr_coord = {
             k: v
             for k, v in self.data.items()
             if ("xyz" in k) and (v is not None) and (v.dim() == 3)
         }
 
         # get remaining attributes that have a channel dimension
-        attr_2d = {
+        attr_generic = {
             k: v
             for k, v in self.data.items()
             if ("xyz" not in k) and (v is not None) and (v.dim() == 2)
         }
+        return attr_coord, attr_generic
 
-        if not (len(attr_coord_ch) >= 1 or len(attr_2d) >= 1):  # nothing to do
-            return self
+    @staticmethod
+    def _infer_code_length(attr_coord: dict, attr_generic: dict) -> int:
+        # infers code length by channel dimension
+        if not (len(attr_coord) >= 1 or len(attr_generic) >= 1):  # nothing to do
+            raise ValueError("Can not infer code length if neither coords nor other "
+                             "attributes have channel dimension")
 
         # get number of channel dims
-        n_repeats = {xyz.size(1) for xyz in attr_coord_ch.values()} | {
-            generic.size(-1) for generic in attr_2d.values()
+        n_repeats = {xyz.size(1) for xyz in attr_coord.values()} | {
+            generic.size(-1) for generic in attr_generic.values()
         }
 
         if len(n_repeats) != 1:
@@ -1038,13 +1040,37 @@ class EmitterSet:
                 "Inconsistent number of channels but channels are present."
             )
 
-        n_repeats = next(iter(n_repeats))
-        em = self.clone()
+        return next(iter(n_repeats))
+
+    def infer_code(self) -> torch.Tensor:
+        """
+        Infers code from attributes that have a channel dimension.
+
+        Returns:
+            - codes with integer indexing of size N x C
+        """
+        attr_coord, attr_gen = self._get_channeled_attrs()
+        n_repeats = self._infer_code_length(attr_coord, attr_gen)
+
+        code = torch.arange(n_repeats).unsqueeze(0).repeat(len(self), 1)
+        return code
+
+    def linearize(self, infer_code: bool = False) -> "EmitterSet":
+        """
+        Linearizes an EmitterSet that has some 2D attributes (e.g. photons).
+
+        Args:
+            infer_code: assigns integer code by channel dimension, no-op if `code`
+             attribute is present
+        """
+        attr_coord_ch, attr_2d = self._get_channeled_attrs()
+        n_repeats = self._infer_code_length(attr_coord_ch, attr_2d)
 
         if self.code is None and infer_code:
-            code = torch.arange(n_repeats).unsqueeze(0).repeat(len(em), 1)
+            code = self.infer_code()
             attr_2d.update({"code": code})
 
+        em = self.clone()
         em = em.repeat(n_repeats, False)
 
         if len(attr_coord_ch) >= 1:
@@ -1058,41 +1084,6 @@ class EmitterSet:
                 setattr(em, k, v)
 
         return em
-
-
-@deprecated("deprecated in favor of factory", version="0.11")
-class CoordinateOnlyEmitter(EmitterSet):
-    """
-    A helper class when we only want to provide xyz, but not photons and frame_ix.
-    Useful for testing. Photons will be tensor of 1, frame_ix tensor of 0.
-    """
-
-    def __init__(self, xyz: torch.Tensor, xy_unit: str = None, px_size=None):
-        """
-
-        :param xyz: (torch.tensor) N x 2, N x 3
-        """
-        super().__init__(
-            xyz,
-            torch.ones_like(xyz[:, 0]),
-            torch.zeros_like(xyz[:, 0]).int(),
-            xy_unit=xy_unit,
-            px_size=px_size,
-        )
-
-    def _inplace_replace(self, em):
-        super().__init__(sanity_check=False, **em.to_dict())
-
-
-@deprecated("deprecated in favor of factory", version="0.11")
-class EmptyEmitterSet(CoordinateOnlyEmitter):
-    """An empty emitter set."""
-
-    def __init__(self, xy_unit=None, px_size=None):
-        super().__init__(torch.zeros((0, 3)), xy_unit=xy_unit, px_size=px_size)
-
-    def _inplace_replace(self, em):
-        super().__init__(**em.to_dict())
 
 
 class FluorophoreSet:
@@ -1256,3 +1247,18 @@ def factory(n: Optional[int] = None, extent: float = 32.0, **kwargs) -> EmitterS
         essentials[k] = kwargs.pop(k)
 
     return EmitterSet(**essentials, **kwargs)
+
+
+@deprecated("deprecated in favor of factory", version="0.11")
+class CoordinateOnlyEmitter(EmitterSet):
+    """
+    A helper class when we only want to provide xyz, but not photons and frame_ix.
+    Useful for testing. Photons will be tensor of 1, frame_ix tensor of 0.
+    """
+
+
+@deprecated("deprecated in favor of factory", version="0.11")
+class EmptyEmitterSet(CoordinateOnlyEmitter):
+    """
+    An empty emitter set.
+    """

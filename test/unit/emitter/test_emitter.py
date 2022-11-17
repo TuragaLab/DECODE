@@ -195,11 +195,8 @@ class TestEmitterSet:
     )
     @pytest.mark.filterwarnings("ignore:UserWarning")
     def test_xyz_conversion(self, xyz_input, xy_unit, px_size, expct_px, expct_nm):
+        em = emitter.factory(xyz=xyz_input, xy_unit=xy_unit, px_size=px_size)
 
-        """Init and expect warning if specified"""
-        em = CoordinateOnlyEmitter(xyz_input, xy_unit=xy_unit, px_size=px_size)
-
-        # test the respective units
         if isinstance(expct_px, str) and expct_px == "err":
             with pytest.raises(ValueError):
                 _ = em.xyz_px
@@ -257,18 +254,17 @@ class TestEmitterSet:
         self, xyz_scr_input, xy_unit, px_size, expct_px, expct_nm
     ):
         """
-        Here we test the cramer rao unit conversion. We can reuse the testdata as for the xyz conversion because it does
-        not make a difference for the test candidate.
-
+        Here we test the cramer rao unit conversion. We can reuse the testdata as for
+        the xyz conversion because it does not make a difference for the
+        test candidate.
         """
 
         # init and expect warning if specified
-        em = CoordinateOnlyEmitter(
-            torch.rand_like(xyz_scr_input), xy_unit=xy_unit, px_size=px_size
+        em = emitter.factory(
+            xyz=torch.rand_like(xyz_scr_input), xy_unit=xy_unit, px_size=px_size
         )
         em.xyz_cr = xyz_scr_input**2
 
-        # test the respective units
         if isinstance(expct_px, str) and expct_px == "err":
             with pytest.raises(ValueError):
                 _ = em.xyz_cr_px
@@ -622,6 +618,23 @@ def test_emitter_pickleability():
 def test_emitter_phot_2d():
     em = emitter.factory(100, phot=torch.rand(100, 16))
     assert em[:10].phot.size() == torch.Size([10, 16])
+
+
+@pytest.mark.parametrize("attr,val,repeats", [
+    ("phot", torch.rand(2, 3), 3),
+    ("xyz", torch.rand(2, 4, 3), 4)
+])
+def test_emitter_ifner_code_length(attr, val, repeats):
+    em = emitter.factory(**{attr: val})
+    attr_coord, attr_gen = em._get_channeled_attrs()
+    assert em._infer_code_length(attr_coord, attr_gen) == repeats
+
+
+def test_emitter_infer_code_length():
+    em = emitter.factory(phot=torch.rand(2, 3))
+    out = em.infer_code()
+
+    assert out.tolist() == [[0, 1, 2], [0, 1, 2]]
 
 
 @pytest.mark.parametrize(
