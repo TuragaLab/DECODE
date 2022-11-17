@@ -131,12 +131,12 @@ def test_emitter_composite_attribute_modifier():
 
 
 def test_channel_coordinate_trafo_matrix():
-    m = microscope.CoordTrafoMatrix(torch.rand(3, 3))
+    m = microscope.CoordTrafoMatrix(torch.rand(2, 3, 3))
 
     xyz = torch.rand(10, 3)
     xyz_out = m.forward(xyz)
 
-    assert xyz_out.size() == xyz.size()
+    assert xyz_out.size() == torch.Size([10, 2, 3])
 
 
 @pytest.mark.parametrize("t,color,expct", [

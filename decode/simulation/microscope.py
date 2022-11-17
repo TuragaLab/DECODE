@@ -157,11 +157,16 @@ class EmitterCompositeAttributeModifier(utils.CompositeAttributeModifier):
 class CoordTrafoMatrix:
     def __init__(self, m: torch.Tensor):
         """
-        Transform coordinates by 3x3 matrix.
+        Transform coordinates by (Nx)3x3 matrix. Outputs are coordinates, if the
+        transformation matrix is batched, the different transformations per coordinate
+        are treated as channel dimension, e.g. xyz of size 5 x 3 with matrix of size
+        2 x 3 x 3 will lead to new xyz of size 5 x 2 x 3.
 
         Args:
-            m: 3x3 matrix
+            m: (Cx)3x3 matrix
         """
+        if m.dim() not in {2, 3}:
+            raise NotImplementedError("Not supported dimension of m.")
         self._m = m
 
     def __call__(self, *args, **kwargs):
@@ -169,10 +174,17 @@ class CoordTrafoMatrix:
 
     def forward(self, xyz: torch.Tensor) -> torch.Tensor:
         """
+
         Args:
             xyz: coordinates of size `N x 3` (`N` being the batch dim).
         """
-        return xyz @ self._m
+        xyz = xyz @ self._m
+
+        # batched transformations are treated as channels
+        if self._m.dim() == 3:
+            xyz = xyz.permute(1, 0, -1)
+
+        return xyz
 
 
 class MultiChoricSplitter:
