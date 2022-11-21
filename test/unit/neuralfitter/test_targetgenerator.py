@@ -19,7 +19,7 @@ def tar_pseudo_abstract():
     class _EmitterFilter:
         @staticmethod
         def forward(em):
-            return em[em.phot >= 100.]
+            return em[em.phot >= 100.0]
 
     class _Scaler:
         @staticmethod
@@ -32,7 +32,9 @@ def tar_pseudo_abstract():
 @pytest.mark.parametrize("tar", ["tar_pseudo_abstract"])
 def test_targen_limit_shift_frames(tar, request):
     t = request.getfixturevalue(tar)
-    em = emitter.factory(frame_ix=[-17, 23, -4, -5, 5])  # only one left should be -4 --> 1
+    em = emitter.factory(
+        frame_ix=[-17, 23, -4, -5, 5]
+    )  # only one left should be -4 --> 1
 
     em_out = t._limit_shift_frames(em)
     assert em_out.frame_ix.tolist() == [1, 0]
@@ -57,7 +59,7 @@ def test_targen_scaler(tar, request):
     x_out = tar._scale(x)
 
     assert x_out is not x
-    assert (x_out == 1.).all()
+    assert (x_out == 1.0).all()
 
 
 @pytest.mark.parametrize("switch", [True, False])
@@ -81,7 +83,7 @@ def test_target_gaussian_mixture(switch, ignore_ix):
         ignore_ix=ignore_ix,
     )
 
-    em = emitter.factory(phot=[10.], xyz=[[1., 2., 3.]], xy_unit="px")
+    em = emitter.factory(phot=[10.0], xyz=[[1.0, 2.0, 3.0]], xy_unit="px")
     aux = torch.rand(10, 32, 32)
 
     tar_em, tar_mask, aux_out = tar.forward(em, aux)
@@ -89,9 +91,9 @@ def test_target_gaussian_mixture(switch, ignore_ix):
     m_scaler.forward.assert_called_once()
 
     if switch:
-        (tar_em[..., -1] == 0.).all()
+        (tar_em[..., -1] == 0.0).all()
     else:
-        (tar_em[..., -1] == 3.).all()
+        (tar_em[..., -1] == 3.0).all()
 
     if ignore_ix:
         tar_em.size() == torch.Size([100, 4])
@@ -180,20 +182,20 @@ def test_tar_forwarder(attr):
             assert out is bg
 
 
-@pytest.mark.parametrize("ignore_ix", [True, False])
-def test_paramlist(ignore_ix):
+@pytest.mark.parametrize("range_code", [None, (0, 2)])
+def test_paramlist(range_code):
     tar = target_generator.ParameterList(
-        n_max=100,
+        n_max=5,
         xy_unit="px",
-        ix_low=0,
-        ix_high=3,
-        ignore_ix=ignore_ix,
+        range_frame=[0, 3],
+        range_code=range_code,
     )
 
     em = emitter.EmitterSet(
         xyz=[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
         phot=[3.0, 2.0],
         frame_ix=[0, 2],
+        code=[1, 0],
         xy_unit="px",
     )
 
@@ -202,38 +204,78 @@ def test_paramlist(ignore_ix):
     assert mask.dtype == torch.bool
     assert mask.sum() == len(em)
 
-    if not ignore_ix:
-        assert tar.size() == torch.Size([3, 100, 4])
-        assert mask.size() == torch.Size([3, 100])
-
-        # manual emitter checks
-        np.testing.assert_array_equal(tar[0, 0, 0], em[0].phot)
-        np.testing.assert_array_equal(tar[0, 0, 1:], em[0].xyz.squeeze())
-        np.testing.assert_array_equal(tar[2, 0, 0], em[1].phot)
-        np.testing.assert_array_equal(tar[2, 0, 1:], em[1].xyz.squeeze())
-
-        # check that everything but the filled out emitters are nan
-        assert torch.isnan(tar[0, 1:]).all()
-        assert torch.isnan(tar[1]).all()
-        assert torch.isnan(tar[2, 1:]).all()
-
+    assert tar.size() == torch.Size([3, 5, 4])
+    if range_code is not None:
+        assert mask.size() == torch.Size([3, 5, 2])
     else:
-        assert tar.size() == torch.Size([100, 4])
-        assert mask.size() == torch.Size([100])
+        assert mask.size() == torch.Size([3, 5])
 
-        np.testing.assert_array_equal(tar[:2, 0], em.phot)
-        np.testing.assert_array_equal(tar[:2, 1:], em.xyz)
-        assert torch.isnan(tar[2:]).all()
+    # manual emitter checks
+    np.testing.assert_array_equal(tar[0, 0, 0], em[0].phot)
+    np.testing.assert_array_equal(tar[0, 0, 1:], em[0].xyz.squeeze())
+    np.testing.assert_array_equal(tar[2, 0, 0], em[1].phot)
+    np.testing.assert_array_equal(tar[2, 0, 1:], em[1].xyz.squeeze())
+
+    # check that everything but the filled out emitters are nan
+    assert torch.isnan(tar[0, 1:]).all()
+    assert torch.isnan(tar[1]).all()
+    assert torch.isnan(tar[2, 1:]).all()
+
+
+def test_param_list_sanity():
+    t = target_generator.ParameterList(100, range_frame=(0, 100), range_code=(0, 5))
+    em = emitter.factory(
+        frame_ix=torch.randint(100, size=(1000,)),
+        code=torch.randint(5, size=(1000,)),
+        xy_unit="px",
+    )
+
+    tar, mask = t.forward(em)
+
+    assert len(tar[~torch.isnan(tar[..., 0])]) == len(em)
+    assert mask.sum() == len(em)
+    assert torch.isnan(tar[mask.any(-1)]).sum() == 0
+    assert torch.isnan(tar[~mask.any(-1)]).all()
+
+
+@pytest.mark.parametrize("range_frame", [None, (-2, 6)])
+def test_parameter_list_ignore(range_frame):
+    t = target_generator.ParameterList(20, range_frame=range_frame)
+
+    em = emitter.factory(n=3, frame_ix=[-2, 5, 17])
+    em_out = t._filter_frame(em)
+
+    assert em_out.frame_ix.min() == 0
+    if range_frame is not None:
+        assert em_out.frame_ix.tolist() == [0, 7]
+    else:
+        assert len(em_out) == 3
+        assert (em_out.frame_ix == 0).all()
+
+
+@pytest.mark.parametrize("range_code", [None, (-2, 6)])
+def test_param_list_filter_code_frame_ix(range_code):
+    t = target_generator.ParameterList(20, range_code=range_code)
+
+    em = emitter.factory(n=3, code=[-2, 5, 17])
+    em_out = t._filter_code(em)
+
+    assert em_out.code.min() == 0
+    if range_code is not None:
+        assert set(em_out.code.tolist()) == {0, 7}
+    else:
+        assert len(em_out) == 3
+        assert (em_out.code == 0).all()
 
 
 def test_disable_attr():
-    t = target_generator.DisableAttributes(1, 5.)
+    t = target_generator.DisableAttributes(1, 5.0)
 
     x = torch.rand(1, 3, 7)
     out = t.forward(x)
 
     assert out is not x
-    assert (out[..., 1] == 5.).all()
+    assert (out[..., 1] == 5.0).all()
 
 
 @pytest.fixture()
@@ -261,8 +303,7 @@ def test_tar_embedding_central_pix(roi_size, tar_embd):
     )
 
     em = emitter.factory(
-        frame_ix=torch.randint(low=-20, high=30, size=(1000, )),
-        xy_unit="px"
+        frame_ix=torch.randint(low=-20, high=30, size=(1000,)), xy_unit="px"
     )
 
     x_ix, y_ix = tar._delta_psf.search_bin_index(em.xyz_px)
@@ -293,7 +334,7 @@ def test_tar_embd_roi_px(roi_size):
         ix_high=5,
     )
 
-    em = emitter.factory(frame_ix=torch.randint(-20, 30, size=(1000, )), xy_unit="px")
+    em = emitter.factory(frame_ix=torch.randint(-20, 30, size=(1000,)), xy_unit="px")
 
     x_ix, y_ix = tar._delta_psf.search_bin_index(em.xyz_px)
     batch_ix = em.frame_ix
@@ -322,26 +363,18 @@ def test_tar_embd_forward_handcrafted(tar_embd):
 
     # one emitter outside fov the other one inside
     em_set = emitter.factory(
-        xyz=[[-50., 0., 0.], [15.1, 19.6, 250.]],
-        phot=[5., 4.],
-        xy_unit="px"
+        xyz=[[-50.0, 0.0, 0.0], [15.1, 19.6, 250.0]], phot=[5.0, 4.0], xy_unit="px"
     )
 
     out, _ = tar_embd.forward(em_set)
     out = out[0]  # single frame
 
     np.testing.assert_allclose(
-        out[:, 15, 20],
-        torch.tensor([1., 4., 0.1, -0.4, 250.]),
-        atol=1e-5
+        out[:, 15, 20], torch.tensor([1.0, 4.0, 0.1, -0.4, 250.0]), atol=1e-5
     )
     np.testing.assert_allclose(
-        out[:, 16, 20],
-        torch.tensor([0., 4., -0.9, -0.4, 250.]),
-        atol=1e-5
+        out[:, 16, 20], torch.tensor([0.0, 4.0, -0.9, -0.4, 250.0]), atol=1e-5
     )
     np.testing.assert_allclose(
-        out[:, 15, 21],
-        torch.tensor([0., 4., 0.1, -1.4, 250.]),
-        atol=1e-5
+        out[:, 15, 21], torch.tensor([0.0, 4.0, 0.1, -1.4, 250.0]), atol=1e-5
     )

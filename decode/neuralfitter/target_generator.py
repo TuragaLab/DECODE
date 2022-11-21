@@ -4,8 +4,8 @@ from typing import Any, Callable, Union, Optional, Iterable
 import torch
 
 from .utils import process
-from ..emitter.emitter import EmitterSet
 from ..emitter import process as process_em
+from ..emitter.emitter import EmitterSet
 from ..generic import lazy
 from ..simulation import psf_kernel
 
@@ -72,9 +72,8 @@ class ParameterList:
     def __init__(
         self,
         n_max: int,
-        ix_low: Optional[int] = None,
-        ix_high: Optional[int] = None,
-        ignore_ix: Optional[bool] = False,
+        range_frame: Optional[tuple[Optional[int], Optional[int]]] = None,
+        range_code: Optional[tuple[Optional[int], Optional[int]]] = None,
         xy_unit: str = "px",
     ):
         """
@@ -84,41 +83,45 @@ class ParameterList:
         Args:
             n_max: maximum number of emitters per frame
                 (should be much higher than what you draw on average)
-            ix_low: lower frame index
-            ix_high: upper frame index
-            ignore_ix: ignore frame ix and put all emitter attributes on a single non-batched
-                tensor
+            range_frame: lower and upper frame index to filter,
+             if `None` frame_ix is ignored
+            range_code: lower and upper code index, if `None` code is ignored
             xy_unit: xy unit
         """
 
         super().__init__()
-        self._ix_low = ix_low
-        self._ix_high = ix_high
-        self._ignore_ix = ignore_ix
+
+        self._range_frame = range_frame
+        self._range_code = range_code
         self._n_em = n_max
-        self._xy_unit = xy_unit
 
         if xy_unit not in {"px", "nm"}:
             raise NotImplementedError
+        self._xy_unit = xy_unit
+
+        self._n_frames = (
+            (self._range_frame[1] - self._range_frame[0])
+            if self._range_frame is not None
+            else 1
+        )
+        self._n_codes = (
+            (self._range_code[1] - self._range_code[0])
+            if self._range_code is not None
+            else 1
+        )
 
     def forward(self, em: EmitterSet) -> tuple[torch.Tensor, torch.BoolTensor]:
-        if self._ignore_ix:
-            em = em.clone()
-            em.frame_ix[:] = 0
-
-            n_frames = 1
-        else:
-            # frame filter and shift ix to 0
-            em = em.get_subset_frame(self._ix_low, self._ix_high, -self._ix_low)
-
-            n_frames = self._ix_high - self._ix_low
+        em = self._filter_frame(em)
+        em = self._filter_code(em)
 
         # compute target (i.e. a matrix / tensor in which all params are concatenated)
-        tar = torch.ones((n_frames, self._n_em, 4)) * float("nan")
-        mask = torch.zeros((n_frames, self._n_em), dtype=torch.bool)
+        tar = torch.ones((self._n_frames, self._n_em, 4)) * float("nan")
+        mask = torch.zeros(
+            (self._n_frames, self._n_em, self._n_codes), dtype=torch.bool
+        )
 
         # set number of active elements per frame
-        for i in range(n_frames):
+        for i in range(self._n_frames):
             em_frame = em.iframe[i]
             n_emitter = len(em_frame)
 
@@ -127,15 +130,38 @@ class ParameterList:
                     "Number of actual emitters exceeds number of max. emitters."
                 )
 
-            mask[i, :n_emitter] = True
+            mask[i, range(n_emitter), em_frame.code] = True
             tar[i, :n_emitter, 0] = em_frame.phot
             tar[i, :n_emitter, 1:] = getattr(em_frame, f"xyz_{self._xy_unit}")
 
-        if self._ignore_ix:
+        if self._range_frame is None:
             tar.squeeze_(0)
             mask.squeeze_(0)
+        if self._range_code is None:
+            mask = mask.any(-1)
 
         return tar, mask
+
+    def _filter_frame(self, em: EmitterSet) -> EmitterSet:
+        """filter emitters by frame and shift frame_ix starting at 0"""
+        if self._range_frame is None:
+            em = em.clone()
+            em.frame_ix[:] = 0
+        else:
+            # frame filter and shift start of `internal` ix to 0
+            em = em.get_subset_frame(*self._range_frame, -self._range_frame[0])
+
+        return em
+
+    def _filter_code(self, em: EmitterSet) -> EmitterSet:
+        """filter emitters by code and shift codes to start at 0"""
+        if self._range_code is None:
+            em = em.clone()
+            em.code = torch.zeros_like(em.frame_ix)
+        else:
+            em = em.icode[slice(*self._range_code)]
+            em.code -= self._range_code[0]
+        return em
 
 
 class DisableAttributes:
@@ -174,6 +200,7 @@ class TargetGaussianMixture(TargetGenerator):
         ix_low: Optional[int],
         ix_high: Optional[int],
         ignore_ix: Optional[bool] = False,
+        range_code: Optional[tuple[Optional[int], Optional[int]]] = None,
         xy_unit: str = "px",
         filter: Optional[
             Union[process_em.EmitterProcess, Iterable[process_em.EmitterProcess]]
@@ -191,6 +218,7 @@ class TargetGaussianMixture(TargetGenerator):
             ix_low: lower frame ix
             ix_high: upper frame ix
             ignore_ix: ignore frame ix and put all emitters on a single tensor
+            range_code: range of codes to include, if None, code is ignored
             xy_unit: xy unit used for target
             filter: emitter filter, forward must take emitters and return emitters
             scaler: scaling, forward must take tensor and return tensor
@@ -202,9 +230,8 @@ class TargetGaussianMixture(TargetGenerator):
 
         self._list_impl = ParameterList(
             n_max=n_max,
-            ix_low=ix_low,
-            ix_high=ix_high,
-            ignore_ix=ignore_ix,
+            range_frame=(ix_low, ix_high) if not ignore_ix else None,
+            range_code=range_code,
             xy_unit=xy_unit,
         )
         self._switch = switch
