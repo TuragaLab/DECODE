@@ -1,5 +1,3 @@
-from unittest import mock
-
 import numpy as np
 import pytest
 import torch
@@ -35,7 +33,8 @@ class TestLossAbstract:
     @pytest.fixture(params=[1, 2, 64])
     def random_loss_input(self, request):
         """
-        Random input that should work dimensional-wise but does not have to make sense in terms of values
+        Random input that should work dimensional-wise but does not have to make sense
+        in terms of values
 
         Returns:
             tuple: output, target, weight
@@ -182,7 +181,7 @@ class TestGaussianMixtureModelLoss:
         mask = torch.zeros((2, 3)).long()
         mask[[0, 1], 0] = 1
 
-        return mask, p, pxyz_mu, pxyz_sig, pxyz_tar
+        return mask, p.unsqueeze(1), pxyz_mu, pxyz_sig, pxyz_tar
 
     @pytest.fixture
     def data_mock_forwardable(self):
@@ -198,13 +197,23 @@ class TestGaussianMixtureModelLoss:
         bg_tar = torch.rand((2, 32, 32))
 
         model_out = torch.cat(
-            (p.unsqueeze(1), pxyz_mu, pxyz_sig, torch.rand((2, 1, 32, 32))), 1
+            (p, pxyz_mu, pxyz_sig, torch.rand((2, 1, 32, 32))), 1
         )
         model_out = model_out.clone().requires_grad_(True)
 
         loss_val = loss_impl.forward(model_out, (pxyz_tar, mask, bg_tar), None)
-
         loss_val.mean().backward()
+
+    @pytest.mark.parametrize("n_codes,code_dim", [(None, 1), (3, 3)])
+    def test_format_model_output(self, n_codes, code_dim, loss_impl):
+        loss_impl._n_codes = n_codes
+
+        out = torch.rand(3, 10, 32, 32) \
+            if n_codes is None \
+            else torch.rand(3, 12, 32, 32)
+
+        p, mu, sig, bg = loss_impl._format_model_output(out)
+        assert p.size() == torch.Size([3, code_dim, 32, 32])
 
     def test_compute_impl(self, loss_impl, data_handcrafted):
         mask, p, pxyz_mu, pxyz_sig, pxyz_tar = data_handcrafted
@@ -213,6 +222,41 @@ class TestGaussianMixtureModelLoss:
             p, pxyz_mu.requires_grad_(True), pxyz_sig, pxyz_tar, mask
         )
         out.sum().backward()
+
+    @pytest.mark.parametrize("n_codes", [None, 5])
+    def test_count_loss(self, n_codes, loss_impl):
+        loss_impl._n_codes = n_codes
+
+        if n_codes is not None:
+            p = torch.rand(3, n_codes, 64, 64)
+            mask = torch.randint(2, size=(3, 250, n_codes)).bool()
+        else:
+            p = torch.rand(3, 1, 64, 64)
+            mask = torch.randint(2, size=(3, 250)).bool()
+
+        out = loss_impl._count_loss(p, mask)
+        assert out.size() == torch.Size([3])
+
+    @pytest.mark.parametrize("n_codes", [None, 5])
+    def test_gmm_loss_core(self, n_codes, loss_impl):
+        loss_impl._n_codes = n_codes
+
+        if n_codes is not None:
+            p = torch.rand(2, n_codes, 32, 32)
+            mask = torch.randint(2, size=(2, 250, n_codes)).bool()
+        else:
+            p = torch.rand(2, 1, 32, 32)
+            mask = torch.randint(2, size=(2, 250)).bool()
+
+        pxyz_tar = torch.rand(2, 250, 4)
+        pxyz_mu = torch.rand(2, 4, 32, 32)
+        pxyz_sig = torch.rand_like(pxyz_mu) * 100
+
+        out = loss_impl._gmm_core_loss(
+            p=p, mask=mask, pxyz_tar=pxyz_tar, pxyz_mu=pxyz_mu, pxyz_sig=pxyz_sig
+        )
+
+        assert out.size() == torch.Size([2])
 
     def test_ch_static_weight(self, loss_impl, data_handcrafted):
         loss_impl._reduction._reduction = None

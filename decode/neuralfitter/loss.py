@@ -1,10 +1,10 @@
-from abc import ABC, abstractmethod  # abstract class
-from typing import Callable, Union, Optional
+from abc import ABC, abstractmethod
+from typing import Callable, Union, Optional, Sequence
 
 import torch
 from torch import distributions
 
-from ..simulation import psf_kernel
+from ..generic import utils
 
 
 class Reduction:
@@ -156,6 +156,7 @@ class GaussianMMLoss(Loss):
         img_shape: tuple,
         device: Union[str, torch.device],
         chweight_stat: Union[None, tuple, list, torch.Tensor] = None,
+        n_codes: Optional[int] = None,
         forward_safety: bool = True,
         reduction: str = "mean",
         return_loggable: bool = False,
@@ -169,12 +170,14 @@ class GaussianMMLoss(Loss):
             yextent: extent in y
             img_shape: image size
             device: device used in training (cuda / cpu)
-            chweight_stat: static channel weight,
-             e.g. to disable background prediction
+            chweight_stat: static channel weight, e.g. to disable background prediction
+            n_codes: number of codes if at all
             forward_safety: check inputs to the forward method
+            reduction: loss reduction method
             return_loggable:
         """
         super().__init__(return_loggable=return_loggable, reduction=reduction)
+        self._n_codes = n_codes
 
         if chweight_stat is not None:
             self._ch_weight = (
@@ -187,9 +190,10 @@ class GaussianMMLoss(Loss):
         self._ch_weight = self._ch_weight.reshape(1, 2).to(device)
 
         self._bg_loss = torch.nn.MSELoss(reduction="none")
-        self._offset2coord = psf_kernel.DeltaPSF(
-            xextent=xextent, yextent=yextent, img_shape=img_shape
+        _, _, bin_ctr_x, bin_ctr_y = utils.frame_grid(
+            img_size=img_shape, xextent=xextent, yextent=yextent
         )
+        self._bin_ctr_x, self._bin_ctr_y = bin_ctr_x.to(device), bin_ctr_y.to(device)
         self.forward_safety = forward_safety
 
     def forward(
@@ -197,15 +201,15 @@ class GaussianMMLoss(Loss):
         output: torch.Tensor,
         target: tuple[torch.Tensor, torch.BoolTensor, torch.Tensor],
         weight: Optional[torch.Tensor] = None,
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, dict]]:
+    ) -> torch.Tensor:
         """
         Forwards output and target through loss.
 
         Args:
             output: model's output tensor of size N x 10 x H x W
-            target: target tuple of
+            target: target sequence of
                 - emitter_param of size N x 4 x H x W
-                - emitter_mask of size N x H x W
+                - emitter_mask of size N x N _em (x C)
                 - background: of size N x H x W
             weight: not supported
 
@@ -233,8 +237,7 @@ class GaussianMMLoss(Loss):
 
         return self._reduction(loss)
 
-    @staticmethod
-    def _format_model_output(output: torch.Tensor) -> tuple[torch.Tensor, ...]:
+    def _format_model_output(self, output: torch.Tensor) -> tuple[torch.Tensor, ...]:
         """
         Transforms solely channel based model output into more meaningful variables.
 
@@ -243,14 +246,16 @@ class GaussianMMLoss(Loss):
 
         Returns:
             tuple containing
-                p: N x H x W
+                p: N x C x H x W (C being number of codes)
                 pxyz_mu: N x 4 x H x W
                 pxyz_sig: N x 4 x H x W
                 bg: N x H x W
         """
-        p = output[:, 0]
-        pxyz_mu = output[:, 1:5]
-        pxyz_sig = output[:, 5:-1]
+        n_codes = self._n_codes if self._n_codes is not None else 1
+
+        p = output[:, :n_codes]
+        pxyz_mu = output[:, n_codes:(n_codes + 4)]
+        pxyz_sig = output[:, (n_codes + 4):-1]
         bg = output[:, -1]
 
         return p, pxyz_mu, pxyz_sig, bg
@@ -262,31 +267,82 @@ class GaussianMMLoss(Loss):
         pxyz_sig: torch.Tensor,
         pxyz_tar: torch.Tensor,
         mask: torch.BoolTensor,
-    ) -> Union[torch.Tensor, tuple[torch.Tensor, dict]]:
+    ) -> torch.Tensor:
         """
         Computes the Gaussian Mixture Loss.
 
         Args:
-            p: the model's detection prediction (sigmoid already applied) size N x H x W
+            p: the model's detection prediction (sigmoid already applied)
+             size N x C x H x W
             pxyz_mu: prediction of parameters (phot, xyz) size N x C=4 x H x W
-            pxyz_sig: prediction of uncertainties / sigma values (phot, xyz) size N x C=4 x H x W
-            pxyz_tar: ground truth values (phot, xyz) size N x M x 4 (M being max number of tars)
+            pxyz_sig: prediction of uncertainties / sigma values (phot, xyz)
+             size N x C=4 x H x W
+            pxyz_tar: ground truth values (phot, xyz) size N x M x 4
+             (M being max number of tars)
             mask: activation mask of ground truth values (phot, xyz) size N x M
 
         Returns:
             - torch.Tensor of loss value
 
         """
+        loss_counts = self._count_loss(p=p, mask=mask)
 
-        batch_size = pxyz_mu.size(0)
-        log_prob = 0
+        if mask.sum() == 0:
+            return loss_counts
+
+        loss = loss_counts + self._gmm_core_loss(
+            p=p, mask=mask, pxyz_tar=pxyz_tar, pxyz_mu=pxyz_mu, pxyz_sig=pxyz_sig
+        )
+        return -loss
+
+    def _count_loss(self, p: torch.Tensor, mask: torch.BoolTensor) -> torch.Tensor:
+        """
+        Bernoulli count loss.
+
+        Args:
+            p: probability of size N x C x H x W (C being number of codes)
+            mask: mask of size N x N_em x C x N_attr (N_em being number of emitters)
+        """
+        if self._n_codes is not None:
+            mask = mask.permute(0, -1, 1)
 
         p_mean = p.sum(-1).sum(-1)
         p_var = (p - p**2).sum(-1).sum(-1)  # var estimate of bernoulli
-        p_gauss = distributions.Normal(p_mean, torch.sqrt(p_var))
+        p_gauss = torch.distributions.Normal(p_mean, torch.sqrt(p_var))
 
-        log_prob = log_prob + p_gauss.log_prob(mask.sum(-1)) * mask.sum(-1)
+        log_prob = p_gauss.log_prob(mask.sum(-1)) * mask.sum(-1)
+        log_prob = log_prob.sum(-1)
 
+        return log_prob
+
+    def _gmm_core_loss(
+        self,
+        p: torch.Tensor,
+        mask: torch.BoolTensor,
+        pxyz_tar: torch.Tensor,
+        pxyz_mu: torch.Tensor,
+        pxyz_sig: torch.Tensor,
+    ) -> Union[torch.Tensor, tuple[torch.Tensor, dict]]:
+        """
+        Calculate gaussian mixture component. Evaluates likelihood of true emitters by
+        mixture model.
+
+        Args:
+            p: probability of size N x C x H x W (C being number of codes)
+            mask: mask of size N x N_em (x C) x N_attr (N_em being number of emitters)
+            pxyz_tar: target photon count and positions
+            pxyz_mu: estimated photon count and positions
+            pxyz_sig: estimated phton count and position uncertainty
+
+        Returns:
+            - loss OR
+            - loss and loggable (if return_loggable)
+        """
+        p = p.sum(1)  # gmm core irrespective of codes
+        if self._n_codes is not None:
+            mask = mask.any(2)
+
+        batch_size = pxyz_mu.size(0)
         prob_normed = p / p.sum(-1).sum(-1).view(-1, 1, 1)
 
         # hacky way to get all prob indices
@@ -294,8 +350,8 @@ class GaussianMMLoss(Loss):
         pxyz_mu = pxyz_mu[p_inds[0], :, p_inds[1], p_inds[2]]
 
         # convert px shifts to absolute coordinates
-        pxyz_mu[:, 1] += self._offset2coord.bin_ctr_x[p_inds[1]].to(pxyz_mu.device)
-        pxyz_mu[:, 2] += self._offset2coord.bin_ctr_y[p_inds[2]].to(pxyz_mu.device)
+        pxyz_mu[:, 1] += self._bin_ctr_x[p_inds[1]]
+        pxyz_mu[:, 2] += self._bin_ctr_y[p_inds[2]]
 
         # flatten img dimension --> N x (HxW) x 4
         pxyz_mu = pxyz_mu.reshape(batch_size, -1, 4)
@@ -303,27 +359,18 @@ class GaussianMMLoss(Loss):
             batch_size, -1, 4
         )
 
-        if not (
-            torch.distributions.constraints.simplex.check(
-                prob_normed[p_inds].reshape(batch_size, -1)
-            )
-        ).all():
-            raise ValueError
-
-        # set up mixture family
-        mix = distributions.Categorical(prob_normed[p_inds].reshape(batch_size, -1))
+        # set up mixture family, no validation needed because already normalized
+        mix = distributions.Categorical(
+            prob_normed[p_inds].reshape(batch_size, -1), validate_args=False
+        )
         comp = distributions.Independent(distributions.Normal(pxyz_mu, pxyz_sig), 1)
         gmm = distributions.mixture_same_family.MixtureSameFamily(mix, comp)
 
-        if mask.sum():  # calc log probs if there is anything there
-            pxyz_tar[~mask] = 0.0  # non target could be NaN, needs to be masked out
-            gmm_log = gmm.log_prob(pxyz_tar.transpose(0, 1)).transpose(0, 1)
-            gmm_log = (gmm_log * mask).sum(-1)
-            log_prob = log_prob + gmm_log
+        pxyz_tar[~mask] = 0.0  # non target could be NaN, needs to be masked out
+        gmm_log = gmm.log_prob(pxyz_tar.transpose(0, 1)).transpose(0, 1)
+        gmm_log = (gmm_log * mask).sum(-1)
 
-        loss = log_prob * (-1)
-
-        return loss
+        return gmm_log
 
     def _loggable(self, v: torch.Tensor) -> dict:
         """
@@ -343,7 +390,6 @@ class GaussianMMLoss(Loss):
         }
 
     def _forward_checks(self, output: torch.Tensor, target: tuple, weight: None):
-
         if weight is not None:
             raise NotImplementedError(
                 f"Weight must be None for this loss implementation."
