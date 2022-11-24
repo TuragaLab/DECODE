@@ -14,6 +14,7 @@ from . import model
 from . import process
 from . import processing
 from . import sampler
+from . import spec
 from . import train
 from . import target_generator
 from . import utils
