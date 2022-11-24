@@ -1,6 +1,10 @@
 import functools
+from typing import Optional
 
 import torch
+from deprecated import deprecated
+
+from . import spec
 
 
 class InterpolationSpatial:
@@ -158,6 +162,8 @@ class ScalerOffset:
 
         x_ = x.clone()
 
+        # ToDo: incorporate channel map here
+
         x_[:, 1, :, :] *= (self.sc_phot * self.buffer) ** self.power
         x_[:, 2, :, :] *= (self.sc_x * self.buffer) ** self.power
         x_[:, 3, :, :] *= (self.sc_y * self.buffer) ** self.power
@@ -261,6 +267,71 @@ class ScalerTargetList:
         return x
 
 
+class ScalerModelChannel:
+    def __init__(self, factor: Optional[torch.Tensor], offset: Optional[torch.Tensor]):
+        """
+
+        Args:
+            factor: 1D, size as number of channels or broadcastable with model output
+            offset: 1D, size as number f channels or broadcastable with model output
+        """
+        if factor is not None and factor.dim() == 1:
+            factor = factor.view(1, -1, 1, 1)
+        if offset is not None and offset.dim() == 1:
+            offset = offset.view(1, -1, 1, 1)
+
+        self._factor = factor
+        self._offset = offset
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self._factor is not None:
+            x = x * self._factor
+        if self._offset is not None:
+            x = x + self._offset
+        return x
+
+    @classmethod
+    def from_ch_spec(
+        cls,
+        ch_map: spec.ModelChannelMapGMM,
+        phot: float,
+        z: float,
+        bg: float,
+        sigma_factor: float = 3.,
+        sigma_eps: float = 0.001,
+    ) -> "ScalerModelChannel":
+        """
+        Scaling of sigma channels is
+        `(sigma * sigma_factor + sigma_offset) * scaling[phot/xyz]`
+
+        Args:
+            ch_map: semantic channel map
+            phot: photon scaling
+            z: z scaling
+            bg: background scaling
+            sigma_factor: sigma scaling factor
+            sigma_eps: sigma offset (needed because of loss)
+        """
+
+        factor = torch.ones(ch_map.n)
+        offset = torch.zeros(ch_map.n)
+
+        # scale and offset sigma channels
+        factor[ch_map.ix_sig] *= sigma_factor
+        offset[ch_map.ix_sig] += sigma_eps
+
+        # scale and offset attributes
+        factor[ch_map.ix_phot + ch_map.ix_phot_sig] *= phot
+        offset[ch_map.ix_phot + ch_map.ix_phot_sig] *= phot
+
+        factor[[ch_map.ix_xyz[-1], ch_map.ix_xyz_sig[-1]]] *= z
+        offset[[ch_map.ix_xyz[-1], ch_map.ix_xyz_sig[-1]]] *= z
+        factor[ch_map.ix_bg] *= bg
+
+        return cls(factor=factor, offset=offset)
+
+
+@deprecated(reason="Deprecated in favour of ScalerModelChannel", version="0.11")
 class ScalerModelOutput:
     def __init__(self, phot: float, z: float, bg: float):
         """
@@ -284,8 +355,10 @@ class ScalerModelOutput:
         """
 
         if x.size(-3) != 10:
-            raise ValueError(f"Channel dim must be of size 10, "
-                             f"input tensor is of size {x.size()}")
+            raise ValueError(
+                f"Channel dim must be of size 10, "
+                f"input tensor is of size {x.size()}"
+            )
 
         x = x.clone()
         x[..., 1, :, :] *= self._phot

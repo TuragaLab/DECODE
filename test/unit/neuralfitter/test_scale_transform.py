@@ -1,6 +1,6 @@
 import functools
-from unittest import mock
 
+import numpy as np
 import pytest
 import torch
 
@@ -136,10 +136,40 @@ def test_scaler_tar_list():
     assert (tar_out == 1).all()
 
 
-@pytest.mark.parametrize("x", [
-    torch.ones(10, 64, 64),
-    torch.ones(2, 10, 64, 64),
-])
+@pytest.mark.parametrize(
+    "factor,offset",
+    [([2, 3], None), (None, 2.0), (torch.rand(3, 2, 32, 40), torch.rand(3, 2, 32, 40))],
+)
+def test_scaler_model_channel(factor, offset):
+    factor = torch.tensor(factor) if factor is not None else None
+    offset = torch.tensor(offset) if offset is not None else None
+    s = scale.ScalerModelChannel(factor=factor, offset=offset)
+
+    x = torch.rand(3, 2, 32, 40)
+    assert s.forward(x).size() == x.size()
+
+
+def test_scaler_model_ch_spec():
+    ch_map = scale.spec.ModelChannelMapGMM(3)
+
+    s = scale.ScalerModelChannel.from_ch_spec(ch_map, 5.0, 6.0, 7.0, 3.0, 1e-6)
+    np.testing.assert_array_almost_equal(
+        s._factor.squeeze(),
+        torch.tensor([1.0, 1.0, 1.0, 5.0, 1.0, 1.0, 6.0, 15.0, 3.0, 3.0, 18.0, 7.0]),
+    )
+    np.testing.assert_array_almost_equal(
+        s._offset.squeeze(),
+        torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 5e-6, 0.0, 0.0, 6e-6, 0.0]),
+    )
+
+
+@pytest.mark.parametrize(
+    "x",
+    [
+        torch.ones(10, 64, 64),
+        torch.ones(2, 10, 64, 64),
+    ],
+)
 def test_scaler_model_out(x):
     s = scale.ScalerModelOutput(2, 4, 8)
     # prob, phot, x, y, z, phot_sig, x_sig, y_sig, z_sig, bg
@@ -147,6 +177,6 @@ def test_scaler_model_out(x):
 
     out = s.forward(x)
     assert out is not x
-    assert (out[..., [1, 5], :, :] == 2.).all()
-    assert (out[..., [4, 8], :, :] == 4.).all()
-    assert (out[..., -1, :, :] == 8.).all()
+    assert (out[..., [1, 5], :, :] == 2.0).all()
+    assert (out[..., [4, 8], :, :] == 4.0).all()
+    assert (out[..., -1, :, :] == 8.0).all()
