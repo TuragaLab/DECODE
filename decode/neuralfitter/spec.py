@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Protocol, runtime_checkable
 
 
 class ModelChannelMap(ABC):
@@ -11,7 +12,16 @@ class ModelChannelMap(ABC):
         raise NotImplementedError
 
 
-class ModelChannelMapGMM(ModelChannelMap):
+@runtime_checkable
+class _ModelChannelMapInferredAttr(Protocol):
+    # just for linting
+    ix_phot_sig: list[int]
+    ix_xyz_sig: list[int]
+
+
+class ModelChannelMapGMM(_ModelChannelMapInferredAttr, ModelChannelMap):
+    _delta_mu_sig = 4  # delta ix between mu and sigma
+
     def __init__(self, n_codes: int):
         """
         Helper to map model output of gaussian mixture model to semantic channels.
@@ -65,3 +75,11 @@ class ModelChannelMapGMM(ModelChannelMap):
     @property
     def ix_xyz(self) -> list[int]:
         return self.ix_mu[1:]
+
+    def __getattr__(self, item):
+
+        # _sig attributes are inferred by delta between mu and sigma
+        if "_sig" in item and hasattr(self, item.rstrip("_sig")):
+            return [mu + self._delta_mu_sig for mu in getattr(self, item.rstrip("_sig"))]
+
+        raise AttributeError
