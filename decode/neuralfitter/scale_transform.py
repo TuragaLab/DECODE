@@ -8,13 +8,6 @@ from . import spec
 
 
 class InterpolationSpatial:
-    """
-    Up or downscales by a given method.
-
-    Attributes:
-        dim (int): dimensionality for safety checks
-    """
-
     def __init__(self, mode="nearest", size=None, scale_factor=None, impl=None):
         """
 
@@ -45,8 +38,6 @@ class InterpolationSpatial:
             x:
             dim:
 
-        Returns:
-
         """
 
         n_unsq = 0
@@ -66,8 +57,8 @@ class InterpolationSpatial:
         Forward a tensor through the interpolation process.
 
         Args:
-            x (torch.Tensor): arbitrary tensor complying with the interpolation function.
-                Must have a batch and channel dimension.
+            x (torch.Tensor): arbitrary tensor complying with the interpolation
+             function. Must have a batch and channel dimension.
 
         Returns:
             x_inter: interpolated tensor
@@ -128,7 +119,7 @@ class ScalerOffset:
         self.buffer = buffer
         self.power = power
 
-    def return_inverse(self):
+    def return_inverse(self):  # ToDo: This is a bad name
         """
         Returns the inverse counterpart of this class (instance).
 
@@ -162,8 +153,7 @@ class ScalerOffset:
 
         x_ = x.clone()
 
-        # ToDo: incorporate channel map here
-
+        # ToDo: Generalise by incorporating channel map here
         x_[:, 1, :, :] *= (self.sc_phot * self.buffer) ** self.power
         x_[:, 2, :, :] *= (self.sc_x * self.buffer) ** self.power
         x_[:, 3, :, :] *= (self.sc_y * self.buffer) ** self.power
@@ -297,7 +287,7 @@ class ScalerModelChannel:
         phot: float,
         z: float,
         bg: float,
-        sigma_factor: float = 3.,
+        sigma_factor: float = 3.0,
         sigma_eps: float = 0.001,
     ) -> "ScalerModelChannel":
         """
