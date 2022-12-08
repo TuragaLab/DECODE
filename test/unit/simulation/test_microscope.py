@@ -20,10 +20,13 @@ def noise_poisson():
     return noise_lib.Poisson()
 
 
-@pytest.mark.parametrize("frame_range,len_expct", [
-    ((-5, 5), 10),
-    (17, 17),
-])
+@pytest.mark.parametrize(
+    "frame_range,len_expct",
+    [
+        ((-5, 5), 10),
+        (17, 17),
+    ],
+)
 @pytest.mark.parametrize("bg", [None, torch.ones(32, 40)])
 @pytest.mark.parametrize("noise", [None, mock.MagicMock()])
 def test_microscope(frame_range, len_expct, bg, psf, noise):
@@ -85,6 +88,38 @@ def test_microscope_multi_channel_stack(stack, mic_multi_ch):
         raise ValueError
 
 
+def test_microscope_multi_channel_trafo():
+    psf_0, psf_1 = mock.MagicMock(), mock.MagicMock()
+    trafo_xyz = microscope.XYZTransformationMatrix(
+        torch.stack(
+            [
+                torch.eye(3),
+                torch.tensor([[0, 1, 0], [1, 0, 0], [0, 0, 1]]),
+            ],
+            0,
+        )
+    )
+    trafo_phot = microscope.MultiChoricSplitter(torch.tensor([[0.7, 0.3], [0.3, 0.7]]))
+    m = microscope.MicroscopeMultiChannel(
+        (psf_0, psf_1),
+        [None, None],
+        (0, 2),
+        (0, 2),
+        trafo_xyz=trafo_xyz,
+        trafo_phot=trafo_phot,
+    )
+
+    em = emitter_factory(xyz=[[1.0, 2.0, 3.0]], phot=[1.0], code=[1], xy_unit="px")
+
+    m.forward(em)
+
+    np.testing.assert_array_equal(psf_0.forward.call_args[0][0], torch.tensor([[1.0, 2.0, 3.0]]))
+    assert psf_0.forward.call_args[0][1] == 0.3
+
+    np.testing.assert_array_equal(psf_1.forward.call_args[0][0], torch.tensor([[2.0, 1.0, 3.0]]))
+    assert psf_1.forward.call_args[0][1] == 0.7
+
+
 def test_microscope_channel_modifier():
     def _modifier_factory(factor_xyz, factor_phot, on_code: int):
         def mod(em: EmitterSet) -> EmitterSet:
@@ -108,7 +143,7 @@ def test_microscope_channel_modifier():
     )
 
     em_out = splitter.forward(
-        emitter_factory(xyz=[[8., 10, 12], [10, 14, 18]], code=[0, 1])
+        emitter_factory(xyz=[[8.0, 10, 12], [10, 14, 18]], code=[0, 1])
     )
 
     assert isinstance(em_out, EmitterSet)
@@ -116,12 +151,16 @@ def test_microscope_channel_modifier():
     np.testing.assert_array_equal(em_out.code, torch.LongTensor([0, 0, 1, 1, 2, 2]))
     np.testing.assert_array_almost_equal(
         em_out.xyz,
-        torch.Tensor([[4., 5., 6.],
-                      [10., 14., 18.],
-                      [8., 10., 12.],
-                      [20, 28, 36],
-                      [8, 10, 12],
-                      [10, 14, 18]])
+        torch.Tensor(
+            [
+                [4.0, 5.0, 6.0],
+                [10.0, 14.0, 18.0],
+                [8.0, 10.0, 12.0],
+                [20, 28, 36],
+                [8, 10, 12],
+                [10, 14, 18],
+            ]
+        ),
     )
 
 
@@ -131,7 +170,7 @@ def test_emitter_composite_attribute_modifier():
 
 
 def test_channel_coordinate_trafo_matrix():
-    m = microscope.CoordTrafoMatrix(torch.rand(2, 3, 3))
+    m = microscope.XYZTransformationMatrix(torch.rand(2, 3, 3))
 
     xyz = torch.rand(10, 3)
     xyz_out = m.forward(xyz)
@@ -139,16 +178,19 @@ def test_channel_coordinate_trafo_matrix():
     assert xyz_out.size() == torch.Size([10, 2, 3])
 
 
-@pytest.mark.parametrize("t,color,expct", [
-    ([[1., 0], [0., 1]], [0], [1., 0]),
-    ([[1., 0], [0., 1]], [1], [0., 1.]),
-    ([[0., 1.], [1., 0]], [0], [0., 1.]),
-])
+@pytest.mark.parametrize(
+    "t,color,expct",
+    [
+        ([[1.0, 0], [0.0, 1]], [0], [1.0, 0]),
+        ([[1.0, 0], [0.0, 1]], [1], [0.0, 1.0]),
+        ([[0.0, 1.0], [1.0, 0]], [0], [0.0, 1.0]),
+    ],
+)
 def test_multi_choric_splitter_static(t, color, expct):
     t = torch.Tensor(t)
     m = microscope.MultiChoricSplitter(t)
 
-    phot = torch.Tensor([1.])
+    phot = torch.Tensor([1.0])
     color = torch.LongTensor(color)
     phot_expct = torch.Tensor(expct).unsqueeze(0)
 
@@ -157,29 +199,29 @@ def test_multi_choric_splitter_static(t, color, expct):
 
 
 def test_multi_choric_splitter_sample_transmission():
-    t = torch.Tensor([
-        [0.7, 0.3],
-        [0.2, 0.8],
-    ])
+    t = torch.Tensor(
+        [
+            [0.7, 0.3],
+            [0.2, 0.8],
+        ]
+    )
     t_sig = torch.ones(2, 2)
     m = microscope.MultiChoricSplitter(t, t_sig)
 
     t_sampled = m.sample_transmission()
     assert t_sampled.size() == t.size()
-    assert (t_sampled >= 0.).all(), "Transmission matrix should non-negative."
-    assert (t_sampled.sum(1) == 1.).all(), \
-        "Transmission matrix should be row-wise normalized."
+    assert (t_sampled >= 0.0).all(), "Transmission matrix should non-negative."
+    assert (
+        t_sampled.sum(1) == 1.0
+    ).all(), "Transmission matrix should be row-wise normalized."
 
 
 def test_expand_by_index():
-    x = torch.Tensor([1000., 2000.])
+    x = torch.Tensor([1000.0, 2000.0])
     ix = torch.LongTensor([1, 2])
     ix_max = 4
 
-    x_expct = torch.Tensor([
-        [0, 1000., 0, 0],
-        [0, 0, 2000., 0]
-    ])
+    x_expct = torch.Tensor([[0, 1000.0, 0, 0], [0, 0, 2000.0, 0]])
 
     x_out = microscope.MultiChoricSplitter._expand_col_by_index(x, ix, ix_max)
     np.testing.assert_array_equal(x_out, x_expct)

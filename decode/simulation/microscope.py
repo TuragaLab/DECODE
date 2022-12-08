@@ -1,12 +1,26 @@
 import copy
-from typing import Any, Optional, Iterable, Callable, Union, Sequence
+from abc import ABC, abstractmethod
+from typing import Any, Optional, Iterable, Callable, Union, Sequence, Protocol
 
 import torch
+from deprecated import deprecated
 
 from . import noise as noise_lib
 from . import psf_kernel
 from ..emitter.emitter import EmitterSet
 from ..generic import utils
+
+
+class XYZTransformation(Protocol):
+    @abstractmethod
+    def forward(self, xyz: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError
+
+
+class ChoricTransformation(Protocol):
+    @abstractmethod
+    def forward(self, phot: torch.Tensor, color: torch.Tensor):
+        raise NotImplementedError
 
 
 class Microscope:
@@ -67,6 +81,8 @@ class MicroscopeMultiChannel:
         noise: list[Optional[noise_lib.NoiseDistribution]],
         frame_range: Optional[tuple[int, int]],
         ch_range: Optional[Union[int, tuple[int, int]]],
+        trafo_xyz: Optional[XYZTransformation] = None,
+        trafo_phot: Optional[ChoricTransformation] = None,
         stack: Optional[Union[str, Callable]] = None,
     ):
         """
@@ -78,6 +94,8 @@ class MicroscopeMultiChannel:
             noise: list of noise
             frame_range: frame range among which frames are sampled
             ch_range: range of active channels
+            trafo_xyz: channel-wise coordinate transformer
+            trafo_phot: channel-wise photon transformer
             stack: stack function, None, `stack` or callable.
         """
         self._microscopes: list[Microscope] = [
@@ -85,6 +103,8 @@ class MicroscopeMultiChannel:
             for p, n in zip(psf, noise)
         ]
         self._ch_range = ch_range
+        self._trafo_xyz = trafo_xyz
+        self._trafo_phot = trafo_phot
         self._stack_impl = stack
 
     def _stack(self, x: Sequence[torch.Tensor]) -> Any:
@@ -102,7 +122,7 @@ class MicroscopeMultiChannel:
         ix_high: Optional[int] = None,
     ) -> Any:
         """
-        Forward emitters through multi channel microscope
+        Forward emitters through multichannel microscope
 
         Args:
             em: emitters
@@ -113,6 +133,15 @@ class MicroscopeMultiChannel:
         Returns:
             frames
         """
+        if self._trafo_xyz is not None:
+            em.xyz_px = self._trafo_xyz.forward(em.xyz_px)
+
+        if self._trafo_phot is not None:
+            em.phot = self._trafo_phot.forward(em.phot, em.code)
+
+        if self._trafo_xyz is not None or self._trafo_phot is not None:
+            em.code = em.infer_code()
+            em = em.linearize()
 
         em_by_channel = [em.icode[c] for c in range(*self._ch_range)]
         bg = [None] * len(em_by_channel) if bg is None else bg
@@ -124,11 +153,13 @@ class MicroscopeMultiChannel:
         return self._stack(frames)
 
 
+@deprecated(reason="Not necessary", version="0.11.1dev1")
 class MicroscopeChannelSplitter:
     def __init__(self):
         raise NotImplementedError
 
 
+@deprecated(reason="Not necessary", version="0.11.1dev1")
 class MicroscopeChannelModifier:
     def __init__(self, ch_fn: list[Callable]):
         """
@@ -154,7 +185,7 @@ class EmitterCompositeAttributeModifier(utils.CompositeAttributeModifier):
     pass
 
 
-class CoordTrafoMatrix:
+class XYZTransformationMatrix(XYZTransformation):
     def __init__(self, m: torch.Tensor):
         """
         Transform coordinates by (Nx)3x3 matrix. Outputs are coordinates, if the
@@ -187,7 +218,7 @@ class CoordTrafoMatrix:
         return xyz
 
 
-class MultiChoricSplitter:
+class MultiChoricSplitter(ChoricTransformation):
     def __init__(
         self,
         t: torch.Tensor,
@@ -221,9 +252,12 @@ class MultiChoricSplitter:
 
     def sample_transmission(self):
         """
-        Samples transmission matrix and renormalize it
+        Samples transmission matrix and renormalizes it
         """
         t = torch.normal(self._t_mu, self._t_sig)
+        # normalize twice to account for possible effect of clamp, otherwise
+        # one can get nan
+        t /= torch.sum(t, dim=1, keepdim=True)
         t = t.clamp(min=0.)
         t /= torch.sum(t, dim=1, keepdim=True)
         return t
