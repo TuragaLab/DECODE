@@ -2,7 +2,6 @@ import math
 import torch
 
 from torch import nn as nn
-from typing import Tuple
 
 
 def rmse(xyz: torch.Tensor, xyz_ref: torch.Tensor) -> tuple[float, ...]:
