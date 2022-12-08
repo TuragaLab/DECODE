@@ -225,7 +225,7 @@ class GaussianMMLoss(Loss):
         p, pxyz_mu, pxyz_sig, bg = self._format_model_output(output)
 
         bg_loss = self._bg_loss(bg, tar_bg).sum(-1).sum(-1)
-        gmm_loss = self._compute_gmm_loss(p, pxyz_mu, pxyz_sig, tar_param, tar_mask)
+        gmm_loss = self._gmm_loss(p, pxyz_mu, pxyz_sig, tar_param, tar_mask)
 
         # stack in 2 channels
         # factor 2 because original impl. adds the two terms, but this way
@@ -260,7 +260,7 @@ class GaussianMMLoss(Loss):
 
         return p, pxyz_mu, pxyz_sig, bg
 
-    def _compute_gmm_loss(
+    def _gmm_loss(
         self,
         p: torch.Tensor,
         pxyz_mu: torch.Tensor,

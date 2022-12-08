@@ -218,7 +218,7 @@ class TestGaussianMixtureModelLoss:
     def test_compute_impl(self, loss_impl, data_handcrafted):
         mask, p, pxyz_mu, pxyz_sig, pxyz_tar = data_handcrafted
 
-        out = loss_impl._compute_gmm_loss(
+        out = loss_impl._gmm_loss(
             p, pxyz_mu.requires_grad_(True), pxyz_sig, pxyz_tar, mask
         )
         out.sum().backward()
