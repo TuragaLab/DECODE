@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 import torch
 
@@ -65,3 +67,20 @@ def test_bg_uniform(bg_uniform):
     for out_c in out:
         assert len(out_c.unique()) == 1, "Background should constant per batch element"
     assert ((out >= 0) * (out <= 100)).all(), "Wrong output values."
+
+
+@pytest.mark.parametrize("frame,bg,err", [
+    (mock.MagicMock(), None, None),
+    (mock.MagicMock(), mock.MagicMock(), None),
+    ([mock.MagicMock()], [mock.MagicMock()], None),
+    ([mock.MagicMock()], mock.MagicMock, NotImplementedError),
+    ([mock.MagicMock()], [mock.MagicMock, mock.MagicMock()], ValueError),
+])
+def test_merger(frame,  bg, err):
+    m = background.Merger()
+    if err is None:
+        m.forward(frame, bg)
+
+    else:
+        with pytest.raises(err):
+            m.forward(frame, bg)

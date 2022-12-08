@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod  # abstract class
-from typing import Callable, Iterable, Optional, Union
+from typing import Callable, Iterable, Optional, Union, Sequence
 
 import torch
 
@@ -97,6 +97,41 @@ class BackgroundUniform(Background):
             bg = bg.view(-1, *((1,) * (len(size) - 1)))
 
         return bg.to(device) * torch.ones(size, device=device)
+
+
+class Merger:
+    @classmethod
+    def forward(
+            cls,
+            frame: Union[torch.Tensor, Sequence[torch.Tensor]],
+            bg: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]],
+    ) -> torch.Tensor:
+        """
+        Combine frame and background
+
+        Args:
+            frame:
+            bg:
+
+        """
+        if bg is None:
+            return frame
+
+        if isinstance(frame, Sequence) != isinstance(bg, Sequence):
+            raise NotImplementedError("Either none or both frame and bg must be "
+                                      "Sequence.")
+        elif isinstance(frame, Sequence):
+            if len(frame) != len(bg):
+                raise ValueError("Sequence of unequal length.")
+            frame = [cls._kernel(f, bg) for f, bg in zip(frame, bg)]
+        else:
+            frame = cls._kernel(frame, bg)
+
+        return frame
+
+    @classmethod
+    def _kernel(cls, frame: torch.Tensor, bg: torch.Tensor) -> torch.Tensor:
+        return frame + bg
 
 
 def _get_delta_sampler(val: float):
