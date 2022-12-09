@@ -8,10 +8,9 @@ import scipy.stats
 import seaborn as sns
 import torch
 
-from decode.evaluation.metric import \
-    precision_recall_jaccard, \
-    rmse_mad_dist, \
-    efficiency
+from .metric import \
+    precision, recall, jaccard, rmse, mad, efficiency, f1
+from .metric import rmse, mad
 from ..emitter import EmitterSet
 
 
@@ -78,14 +77,16 @@ class DetectionEvaluation:
             f1 (float): f1 score value
 
         """
+        prec = precision(len(tp), len(fp))
+        rec = recall(len(tp), len(fn))
+        jac = jaccard(len(tp), len(fp), len(fn))
+        f1_score = f1(len(tp), len(fp), len(fn))
 
-        prec, rec, jac, f1 = precision_recall_jaccard(len(tp), len(fp), len(fn))
-
-        """Store last result to cache"""
+        # store last result to cache
         self._tp, self._fp, self._fn = tp, fp, fn
-        self._prec, self._rec, self._jac, self._f1 = prec, rec, jac, f1
+        self._prec, self._rec, self._jac, self._f1 = prec, rec, jac, f1_score
 
-        return self._seg_eval_return(prec=prec, rec=rec, jac=jac, f1=f1)  # namedtuple
+        return self._seg_eval_return(prec=prec, rec=rec, jac=jac, f1=f1_score)
 
 
 class DistanceEvaluation:
@@ -133,11 +134,10 @@ class DistanceEvaluation:
 
         """
 
-        rmse_lat, rmse_axial, rmse_vol, mad_lat, mad_axial, mad_vol = rmse_mad_dist(
-            tp.xyz_nm, tp_match.xyz_nm
-        )
+        rmse_lat, rmse_axial, rmse_vol = rmse(tp.xyz_nm, tp_match.xyz_nm)
+        mad_lat, mad_axial, mad_vol = mad(tp.xyz_nm, tp_match.xyz_nm)
 
-        """Store in cache"""
+        # store in cache
         self._rmse_lat, self._rmse_ax, self._rmse_vol = rmse_lat, rmse_axial, rmse_vol
         self._mad_lat, self._mad_ax, self._mad_vol = mad_lat, mad_axial, mad_vol
 
@@ -164,7 +164,6 @@ class WeightedErrors:
         self.mode = mode
         self.reduction = reduction
 
-        """Sanity check"""
         if self.mode not in self._modes_all:
             raise ValueError(
                 f"Mode {self.mode} not implemented. Available modes are {self._modes_all}"
@@ -207,19 +206,19 @@ class WeightedErrors:
             return (
                 (dxyz.mean(0), dxyz.std(0)),
                 (dphot.mean(), dphot.std()),
-                (dbg.mean(), dbg.std()),
+                (dbg.mean(), dbg.std()) if dbg is not None else None,
             )
 
         elif reduction == "gaussian":
 
             dxyz_mu_sig = torch.stack([norm_fit_nan(dxyz[:, i]) for i in range(3)], 0)
             dphot_mu_sig = norm_fit_nan(dphot)
-            dbg_mu_sig = norm_fit_nan(dbg)
+            dbg_mu_sig = norm_fit_nan(dbg) if dbg is not None else None,
 
             return (
                 (dxyz_mu_sig[:, 0], dxyz_mu_sig[:, 1]),
                 (dphot_mu_sig[0], dphot_mu_sig[1]),
-                (dbg_mu_sig[0], dbg_mu_sig[1]),
+                (dbg_mu_sig[0], dbg_mu_sig[1]) if dbg is not None else None,
             )
 
         else:
@@ -308,22 +307,22 @@ class WeightedErrors:
 
         dxyz = tp.xyz_nm - ref.xyz_nm
         dphot = tp.phot - ref.phot
-        dbg = tp.bg - ref.bg
+        dbg = tp.bg - ref.bg if tp.bg is not None else None
 
         if self.mode == "phot":
             # definition of the 0st / 1st order approximations for the sqrt cramer rao
             xyz_scr_est = 1 / ref.phot.unsqueeze(1).sqrt()
             phot_scr_est = ref.phot.sqrt()
-            bg_scr_est = ref.bg.sqrt()
+            bg_scr_est = ref.bg.sqrt() if ref.bg is not None else None
 
             dxyz_w = dxyz / xyz_scr_est
             dphot_w = dphot / phot_scr_est
-            dbg_w = dbg / bg_scr_est
+            dbg_w = dbg / bg_scr_est if dbg is not None else None
 
         elif self.mode == "crlb":
             dxyz_w = dxyz / ref.xyz_scr_nm
             dphot_w = dphot / ref.phot_scr
-            dbg_w = dbg / ref.bg_scr
+            dbg_w = dbg / ref.bg_scr if dbg is not None else None
 
         else:
             raise ValueError
