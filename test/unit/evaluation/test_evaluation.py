@@ -66,7 +66,11 @@ class TestDistanceEvaluation(TestEval):
         return evaluation.DistanceEvaluation()
 
     test_data = [
-        (em.EmptyEmitterSet("nm"), em.EmptyEmitterSet("nm"), (float("nan"),) * 6)
+        (
+            em.factory(0, xy_unit="nm"),
+            em.factory(0, xy_unit="nm"),
+            (float("nan"),) * 6,
+        )
     ]
 
     @pytest.mark.parametrize("tp,tp_match,expect", test_data)
@@ -159,12 +163,12 @@ class TestWeightedErrors(TestEval):
 
     data_forward_sanity = [
         (
-            em.EmptyEmitterSet(xy_unit="nm"),
-            em.EmptyEmitterSet(xy_unit="nm"),
+            em.factory(0, xy_unit="nm"),
+            em.factory(0, xy_unit="nm"),
             False,
             (torch.empty((0, 3)), torch.empty((0,)), torch.empty((0,))),
         ),
-        (em.factory(5), em.EmptyEmitterSet(), True, None),
+        (em.factory(5), em.factory(0), True, None),
     ]
 
     @pytest.mark.parametrize("tp,ref,expt_err,expt_out", data_forward_sanity)
