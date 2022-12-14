@@ -1,4 +1,4 @@
-from typing import Any, Optional, Protocol
+from typing import Any, Optional, Protocol, Sequence, Union
 
 import torch
 
@@ -94,8 +94,7 @@ class _Forwardable(Protocol):
 class ProcessingSupervised(Processing):
     def __init__(
         self,
-        shared_input: Optional[_Forwardable] = None,
-        pre_input: Optional[_Forwardable] = None,
+        m_input: Optional[_Forwardable] = None,
         tar: Optional[_Forwardable] = None,
         tar_em: Optional[_Forwardable] = None,
         post_model: Optional[_Forwardable] = None,
@@ -105,8 +104,8 @@ class ProcessingSupervised(Processing):
         """
 
         Args:
-            shared_input:
-            pre_input: input processing (must return model input), forward depends on frame only
+            m_input: input processing, forward has frame, emitter and auxiliary
+             arguments; must return model compatible input
             tar: compute target
             tar_em: compute target emitters without actually computing the target,
              useful for validation
@@ -116,24 +115,22 @@ class ProcessingSupervised(Processing):
         """
         super().__init__(mode=mode)
 
-        self._shared_input = shared_input
-        self._pre_input_impl = pre_input
+        self._m_input = m_input
         self._tar = tar
         self._tar_em = tar_em
         self._post_model = post_model
         self._post = post
 
     def input(
-        self, frame: torch.Tensor, em: emitter.EmitterSet, aux: Any
+        self,
+        frame: Union[torch.Tensor, Sequence[torch.Tensor]],
+        em: emitter.EmitterSet,
+        bg: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]] = None,
+        aux: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]] = None,
     ) -> torch.Tensor:
-        if self._shared_input is not None:
-            frame = self._shared_input.forward(frame, em, aux)
-        if self._pre_input_impl is not None:
-            frame = self._pre_input_impl.forward(frame)
+        return self._m_input.forward(frame=frame, em=em, bg=bg, aux=aux)
 
-        return frame
-
-    def tar(self, em: emitter.EmitterSet, aux: Any) -> torch.Tensor:
+    def tar(self, em: emitter.EmitterSet, aux: dict[str, Any]) -> torch.Tensor:
         return self._tar.forward(em, aux)
 
     def tar_em(self, em: emitter.EmitterSet) -> emitter.EmitterSet:

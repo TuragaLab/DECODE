@@ -21,20 +21,15 @@ def test_pre(mode):
         mock_infer.assert_called_once()
 
 
-@pytest.mark.parametrize("pre_input", [None, "mock"])
-@pytest.mark.parametrize("shared_input", [None, "mock"])
-def test_process_supervised_input(pre_input, shared_input):
-    pre_input = mock.MagicMock() if pre_input is not None else None
-    shared_input = mock.MagicMock() if shared_input is not None else None
+def test_process_supervised_input():
+    model_input = mock.MagicMock()
 
-    p = process.ProcessingSupervised(shared_input=shared_input, pre_input=pre_input)
-    frame, em, aux = mock.MagicMock(), mock.MagicMock(), mock.MagicMock()
-    p.input(frame, em, aux)
+    p = process.ProcessingSupervised(m_input=model_input)
 
-    if shared_input is not None:
-        shared_input.forward.assert_called_once_with(frame, em, aux)
-    if pre_input is not None:
-        pre_input.forward.assert_called_once()
+    args = mock.MagicMock(), mock.MagicMock(), mock.MagicMock(), mock.MagicMock()
+    p.input(*args)
+
+    model_input.forward.assert_called_once()
 
 
 def test_process_supervised_tar():
