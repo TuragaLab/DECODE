@@ -1,18 +1,12 @@
+from typing import Callable, Sequence, Union, Optional
+
 import torch
 from torch import nn
-from typing import Union
 
 from . import model_param
 
 
 class SigmaMUNet(model_param.DoubleMUnet):
-    ch_out = 10
-    out_channels_heads = (
-        1,
-        4,
-        4,
-        1,
-    )  # p head, phot,xyz_mu head, phot,xyz_sig head, bg head
 
     sigmoid_ch_ix = [
         0,
@@ -35,6 +29,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
         self,
         ch_in: int,
         *,
+        ch_out_heads: Sequence[int] = (1, 4, 4, 1),
         depth_shared: int,
         depth_union: int,
         initial_features: int,
@@ -47,13 +42,34 @@ class SigmaMUNet(model_param.DoubleMUnet):
         upsample_mode="bilinear",
         skip_gn_level: Union[None, bool] = None,
         activation=nn.ReLU(),
+        activation_last: Optional[dict[Union[str, Callable], list[int]]] = None,
         disabled_attributes=None,
         kaiming_normal=True
     ):
+        """
+
+        Args:
+            ch_in:
+            ch_out_heads: defaults to [1, 4, 4, 1] as prob, photxyz_mu, photxyz_sig, bg
+            depth_shared:
+            depth_union:
+            initial_features:
+            inter_features:
+            norm:
+            norm_groups:
+            norm_head:
+            norm_head_groups:
+            pool_mode:
+            upsample_mode:
+            skip_gn_level:
+            activation:
+            disabled_attributes:
+            kaiming_normal:
+        """
 
         super().__init__(
             ch_in=ch_in,
-            ch_out=self.ch_out,
+            ch_out=sum(ch_out_heads),
             depth_shared=depth_shared,
             depth_union=depth_union,
             initial_features=initial_features,

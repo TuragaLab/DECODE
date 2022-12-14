@@ -61,27 +61,6 @@ class SimpleSMLMNet(unet_param.UNet2d):
         self.bg_nl = torch.sigmoid
 
     @staticmethod
-    def parse(param):
-        activation = eval(param.HyperParameter.arch_param.activation)
-        return SimpleSMLMNet(
-            ch_in=param.HyperParameter.channels_in,
-            ch_out=param.HyperParameter.channels_out,
-            depth=param.HyperParameter.arch_param.depth,
-            initial_features=param.HyperParameter.arch_param.initial_features,
-            inter_features=param.HyperParameter.arch_param.inter_features,
-            p_dropout=param.HyperParameter.arch_param.p_dropout,
-            pool_mode=param.HyperParameter.arch_param.pool_mode,
-            upsample_mode=param.HyperParameter.arch_param.upsample_mode,
-            activation=activation,
-            use_last_nl=param.HyperParameter.arch_param.use_last_nl,
-            norm=param.HyperParameter.arch_param.norm,
-            norm_groups=param.HyperParameter.arch_param.norm_groups,
-            norm_head=param.HyperParameter.arch_param.norm_head,
-            norm_head_groups=param.HyperParameter.arch_param.norm_head_groups,
-            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level,
-        )
-
-    @staticmethod
     def check_target(y_tar):
 
         assert y_tar.dim() == 4, "Wrong dim."
@@ -119,12 +98,9 @@ class SimpleSMLMNet(unet_param.UNet2d):
         return o
 
     def apply_nonlin(self, o):
-        """
-        Apply non linearity in all the other channels
-        :param o:
-        :return:
-        """
-        # Apply for phot, xyz
+        # apply non linearity in all the other channels
+
+        # phot, xyz
         p = o[:, [0]]  # leave unused
         phot = o[:, [1]]
         xyz = o[:, 2:5]
@@ -244,30 +220,6 @@ class DoubleMUnet(nn.Module):
             self.disabled_attr_ix = disabled_attributes
         else:
             self.disabled_attr_ix = [disabled_attributes]
-
-    @classmethod
-    def parse(cls, param, **kwargs):
-        activation = eval(param.HyperParameter.arch_param.activation)
-        return cls(
-            ch_in=param.HyperParameter.channels_in,
-            ch_out=param.HyperParameter.channels_out,
-            ext_features=0,
-            depth_shared=param.HyperParameter.arch_param.depth_shared,
-            depth_union=param.HyperParameter.arch_param.depth_union,
-            initial_features=param.HyperParameter.arch_param.initial_features,
-            inter_features=param.HyperParameter.arch_param.inter_features,
-            activation=activation,
-            use_last_nl=param.HyperParameter.arch_param.use_last_nl,
-            norm=param.HyperParameter.arch_param.norm,
-            norm_groups=param.HyperParameter.arch_param.norm_groups,
-            norm_head=param.HyperParameter.arch_param.norm_head,
-            norm_head_groups=param.HyperParameter.arch_param.norm_head_groups,
-            pool_mode=param.HyperParameter.arch_param.pool_mode,
-            upsample_mode=param.HyperParameter.arch_param.upsample_mode,
-            skip_gn_level=param.HyperParameter.arch_param.skip_gn_level,
-            disabled_attributes=param.HyperParameter.disabled_attributes,
-            **kwargs
-        )
 
     def rescale_last_layer_grad(self, loss, optimizer):
         """
