@@ -1,11 +1,11 @@
 from abc import abstractmethod
+from itertools import zip_longest
 from typing import Any, Callable, Union, Sequence, Optional, Protocol
 
 import torch
-from itertools import zip_longest
 
 from ... import emitter
-from ...simulation import camera, microscope
+from ...simulation import camera, background
 
 
 class ModelInput(Protocol):
@@ -19,47 +19,61 @@ class ModelInput(Protocol):
         raise NotImplementedError
 
 
-class ModelInputINeedToFindAName(ModelInput):
+class ModelInputPostponed(ModelInput):
     def __init__(
         self,
-        noise: Optional[Union[camera.Camera, Sequence[camera.Camera]]],
-        cat_frame: Optional[Callable],
-        cat_input: Optional[Callable],
+        cam: Optional[Union[camera.Camera, Sequence[camera.Camera]]],
+        cat_input: Optional[Callable] = None,
+        merger_bg: Optional[background.Merger] = None
     ):
-        self._noise = (
-            [noise] if noise is not None and not isinstance(noise, Sequence) else noise
+        """
+        Prepares model's input data by combining with background, applying noise
+        and merge everything together.
+
+        Args:
+            cam: camera module
+            cat_input: optional callable that combines frames and auxiliary
+            merger_bg: optional background merger
+        """
+
+        # make it a list because this allows for zipping later on
+        self._noise: Optional[list[cam.Camera]] = (
+            [cam] if cam is not None and not isinstance(cam, Sequence) else cam
         )
-        self._cat_frame = cat_frame
-        self._cat_input = cat_input
+        self._merger_bg = background.Merger() if merger_bg is None else merger_bg
+        self._cat_input_impl = cat_input
 
     def forward(
         self,
         frame: Union[torch.Tensor, Sequence[torch.Tensor]],
         em: emitter.EmitterSet,
         bg: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]] = None,
+        aux: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]] = None,
     ) -> torch.Tensor:
 
         if bg is not None:
-            bg = [bg] if not isinstance(bg, Sequence) else bg
-            frames = [f + bg_ for f, bg_ in zip_longest()]
+            frame = self._merger_bg.forward(frame=frame, bg=bg)
 
         if self._noise is not None:
             frame = [n.forward(f) for n, f in zip_longest(self._noise, frame)]
 
-        frame = self._cat_frame(frame) if self._cat_frame is not None else frame
+        # list of channels and auxiliary to frame tensor
+        frame = self._cat_input(frame, aux) if self._cat_input is not None else frame
 
-        frame = self._cat_input(frame, aux)
+        return frame
 
-
-class MergerFrameBg:
-    def forward(
+    def _cat_input(
         self,
-        frame: Union[torch.Tensor, Sequence[torch.Tensor]],
-        bg: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]],
-    ):
-        x = frame
+        frame: Optional[Union[torch.Tensor, Sequence]],
+        aux: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        if self._cat_input_impl is not None:
+            return self._cat_input_impl(frame, aux)
 
-        if bg is not None:
-            x = frame + bg
+        frame = torch.stack(frame, -3) if isinstance(frame, Sequence) else frame
+        if aux is not None:
+            frame = torch.cat(
+                [frame, torch.stack(aux) if isinstance(aux, Sequence) else aux], -3
+            )
 
-        return x
+        return frame
