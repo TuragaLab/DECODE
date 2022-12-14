@@ -1,41 +1,31 @@
 from unittest import mock
 
-import pytest
 import torch
 
 from decode.emitter import emitter
+from decode.neuralfitter import scale_transform
 from decode.neuralfitter.processing import model_input
 from decode.simulation import camera
 
 
 def test_model_in():
-    noise = [camera.CameraPerfect(), camera.CameraPerfect()]
+    noise = mock.MagicMock()
+    noise.forward.side_effect = lambda x: x
+    noise = [noise] * 2
 
     m = model_input.ModelInputPostponed(
         cam=noise,
-        cat_input=None,
+        scaler_frame=scale_transform.ScalerAmplitude(2.0, 0.0).forward,
+        scaler_aux=scale_transform.ScalerAmplitude(1.0, 1.0).forward,
     )
-    x = [torch.rand(3, 8), torch.rand(3, 8)]
-    em = emitter.factory(100)
-    bg = [torch.rand(3, 8), torch.rand(3, 8)]
-    aux = [torch.zeros(3, 8), torch.rand(3, 8)]
 
-    out = m.forward(x, em=em, bg=bg, aux=aux)
-    
+    out = m.forward(
+        frame=torch.unbind(torch.ones(2, 3, 8) * 1e6),
+        em=None,
+        bg=torch.unbind(torch.zeros(2, 3, 8)),
+        aux=torch.unbind(torch.ones(2, 3, 8)),
+    )
+
     assert out.size() == torch.Size([4, 3, 8])
-
-
-@pytest.mark.parametrize("cat_impl", [None, mock.MagicMock()])
-def test_model_input_postponed_cat_input(cat_impl):
-    m = model_input.ModelInputPostponed(None, cat_input=cat_impl)
-
-    out = m._cat_input(
-        frame=torch.unbind(torch.rand(4, 3, 8), 0),
-        aux=torch.unbind(torch.rand(3, 3, 8), 0)
-    )
-
-    if cat_impl is not None:
-        cat_impl.assert_called_once()
-        return
-
-    assert out.size() == torch.Size([7, 3, 8])
+    assert torch.unique(out[:2]) == 500000.
+    assert torch.unique(out[2:]) == 0.

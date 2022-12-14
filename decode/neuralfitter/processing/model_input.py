@@ -20,19 +20,16 @@ class ModelInput(Protocol):
 
 
 class ModelInputPostponed(ModelInput):
-    def __init__(
-        self,
-        cam: Optional[Union[camera.Camera, Sequence[camera.Camera]]],
-        cat_input: Optional[Callable] = None,
-        merger_bg: Optional[background.Merger] = None
-    ):
+    def __init__(self, cam: Optional[Union[camera.Camera, Sequence[camera.Camera]]],
+                 merger_bg: Optional[background.Merger] = None,
+                 scaler_frame: Optional[Callable[..., torch.Tensor]] = None,
+                 scaler_aux: Optional[Callable[..., torch.Tensor]] = None):
         """
-        Prepares model's input data by combining with background, applying noise
+        Prepares model's input data by combining with background, applying camera noise
         and merge everything together.
 
         Args:
             cam: camera module
-            cat_input: optional callable that combines frames and auxiliary
             merger_bg: optional background merger
         """
 
@@ -41,7 +38,8 @@ class ModelInputPostponed(ModelInput):
             [cam] if cam is not None and not isinstance(cam, Sequence) else cam
         )
         self._merger_bg = background.Merger() if merger_bg is None else merger_bg
-        self._cat_input_impl = cat_input
+        self._scaler_frame = scaler_frame
+        self._scaler_aux = scaler_aux
 
     def forward(
         self,
@@ -57,23 +55,12 @@ class ModelInputPostponed(ModelInput):
         if self._noise is not None:
             frame = [n.forward(f) for n, f in zip_longest(self._noise, frame)]
 
-        # list of channels and auxiliary to frame tensor
-        frame = self._cat_input(frame, aux) if self._cat_input is not None else frame
-
-        return frame
-
-    def _cat_input(
-        self,
-        frame: Optional[Union[torch.Tensor, Sequence]],
-        aux: Optional[torch.Tensor],
-    ) -> torch.Tensor:
-        if self._cat_input_impl is not None:
-            return self._cat_input_impl(frame, aux)
-
         frame = torch.stack(frame, -3) if isinstance(frame, Sequence) else frame
-        if aux is not None:
-            frame = torch.cat(
-                [frame, torch.stack(aux) if isinstance(aux, Sequence) else aux], -3
-            )
+        aux = torch.stack(aux) if isinstance(aux, Sequence) else aux
 
+        frame = self._scaler_frame(frame) if self._scaler_frame is not None else frame
+        aux = self._scaler_aux(aux) if self._scaler_aux is not None else aux
+
+        # list of channels and auxiliary to frame tensor
+        frame = torch.cat([frame, aux]) if aux is not None else frame
         return frame
