@@ -8,27 +8,33 @@ from decode.neuralfitter import sampler
 
 
 def test_delayed_slicer():
-    def product(x, *, y):
-        return x + y
+    def product(x, *, y, factor):
+        return (x + y) * factor
 
-    a = [1, 2, 3]
-    b = [4, 5, 6]
+    a = torch.tensor([1, 2, 3])
+    b = torch.tensor([4, 5, 6])
 
-    s = sampler._DelayedSlicer(product, a, y=b)
-    assert s[0] == 5
-    assert s[:] == [1, 2, 3, 4, 5, 6]
+    s = sampler._DelayedSlicer(
+        product, args=[a], kwargs={"y": b}, kwargs_static={"factor": 5}
+    )
+    assert s[0] == 25
+    assert s[:].tolist() == [25, 35, 45]
 
 
 def test_tensor_delayed():
-    def unsqueezer(x):
-        return x.unsqueeze(0)
+    def unsqueezer(x, dim):
+        return x.unsqueeze(dim)
 
     s = sampler._DelayedTensor(
-        unsqueezer, size=torch.Size([1, 5]), kwargs={"x": torch.rand(5)}
+        unsqueezer,
+        size=torch.Size([1, 5]),
+        kwargs={"x": torch.rand(5)},
+        kwargs_static={"dim": 0},
     )
     assert s.size() == torch.Size([1, 5])
     assert s.size(0) == 1
     assert s.size(1) == 5
+    assert s[:].size() == torch.Size([1, 5])
 
 
 @pytest.mark.parametrize(
@@ -53,7 +59,7 @@ def test_tensor_delayed_auto_size(n, args, kwargs, size_expct):
 @pytest.fixture
 def proc():
     class _DummyProc:
-        def input(self, frame, em, aux):
+        def input(self, frame, em, bg, aux):
             return frame
 
         def tar(self, em, aux):
@@ -72,6 +78,7 @@ def sampler_sup(proc):
         em=em,
         bg=torch.rand(100, 32, 32),
         frames=torch.rand(100, 32, 32),
+        indicator=None,
         proc=proc,
         window=5,
     )
@@ -93,7 +100,7 @@ def test_sampler_input_target(sampler_sup):
 
 @pytest.mark.parametrize("bg_mode", ["sample", "global"])
 def test_sampler_sample(bg_mode, proc):
-    em_return = emitter.factory(frame_ix=torch.randint(100, size=(10000, )))
+    em_return = emitter.factory(frame_ix=torch.randint(100, size=(10000,)))
     bg_return = torch.rand(100, 32, 32)
     em = mock.MagicMock()
     em.sample.return_value = em_return
@@ -101,9 +108,16 @@ def test_sampler_sample(bg_mode, proc):
     bg.sample.return_value = bg_return
 
     mic = mock.MagicMock()
+    mic.forward.return_value = torch.rand(100, 32, 32)
 
     s = sampler.SamplerSupervised(
-        em=em, bg=bg, mic=mic, frames=None, proc=proc, bg_mode=bg_mode
+        em=em,
+        bg=bg,
+        mic=mic,
+        frames=None,
+        indicator=torch.rand(32, 32),
+        proc=proc,
+        bg_mode=bg_mode,
     )
     s.sample()
 
@@ -118,5 +132,6 @@ def test_sampler_sample(bg_mode, proc):
     assert s.emitter is not None
     assert s.emitter != s.emitter_tar
     assert len(s.emitter_tar) < len(s.emitter)
+    assert s.input is not None
     assert s.bg is not None
     assert s.frame is not None

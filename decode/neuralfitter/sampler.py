@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Callable, TypeVar, Protocol, Optional, Union
+from typing import Callable, TypeVar, Protocol, Optional, Union, Sequence
 
 import torch
 
@@ -10,22 +10,16 @@ from ..simulation import microscope, sampler as em_sampler
 
 
 T = TypeVar("T", bound="_TypedSequence")
-
-
-class _Sliceable(Protocol):
-    def __len__(self) -> int:
-        ...
-
-    def __getitem__(self: T, i: Union[int, slice]) -> T:
-        ...
-
-
 TDelayed = TypeVar("TDelayed")
 
 
 class _DelayedSlicer:
     def __init__(
-        self, fn: Callable[..., TDelayed], *args, **kwargs
+        self,
+        fn: Callable[..., TDelayed],
+        args: Optional[list] = None,
+        kwargs: Optional[dict] = None,
+        kwargs_static: Optional[dict] = None,
     ):
         """
         Returns a sliceable handle and executes a function on __getitem__ where input
@@ -35,28 +29,32 @@ class _DelayedSlicer:
         Args:
             fn:
             attr: registered attributes
-            *args:
-            **kwargs:
+            args: list of sliced positional arguments
+            kwargs: list of sliced keyword arguments
+            kwargs_static: list of non-sliced keyword arguments
         """
         self._fn = fn
-        self._args = args
-        self._kwargs = kwargs
+        self._args = args if args is not None else []
+        self._kwargs = kwargs if kwargs is not None else dict()
+        self._kwargs_stat = kwargs_static if kwargs_static is not None else dict()
 
     def __getitem__(self, item) -> TDelayed:
         args = [o[item] for o in self._args]
         kwargs = {k: v[item] for k, v in self._kwargs.items()}
+        kwargs.update(self._kwargs_stat)
 
         return self._fn(*args, **kwargs)
 
 
 class _DelayedTensor(_DelayedSlicer):
     def __init__(
-            self,
-            fn: Callable[..., torch.Tensor],
-            size: Optional[torch.Size] = None,
-            *,
-            args: Optional[Union[list, tuple]] = None,
-            kwargs: Optional[dict] = None,
+        self,
+        fn: Callable[..., torch.Tensor],
+        size: Optional[torch.Size] = None,
+        *,
+        args: Optional[Union[list, tuple]] = None,
+        kwargs: Optional[dict] = None,
+        kwargs_static: Optional[dict] = None,
     ):
         """
         Delay a callable on a tensor.
@@ -71,8 +69,9 @@ class _DelayedTensor(_DelayedSlicer):
         """
         super().__init__(
             fn,
-            *args if args is not None else tuple(),
-            **kwargs if kwargs is not None else dict()
+            args=args,
+            kwargs=kwargs,
+            kwargs_static=kwargs_static,
         )
 
         self._size = size
@@ -106,8 +105,10 @@ class _DelayedTensor(_DelayedSlicer):
             elif len(self._kwargs) >= 1:
                 n = len(next(iter(self._kwargs.values())))
             else:
-                raise ValueError("Cannot auto-determine size if neither arguments nor "
-                                 "keyword arguments were specified.")
+                raise ValueError(
+                    "Cannot auto-determine size if neither arguments nor "
+                    "keyword arguments were specified."
+                )
 
         size_last_dims = self[0].size()
         self._size = torch.Size([n, *size_last_dims])
@@ -122,7 +123,7 @@ class Sampler(ABC):
 
     @property
     @abstractmethod
-    def frame(self) -> _Sliceable:
+    def frame(self) -> Sequence:
         raise NotImplementedError
 
     @property
@@ -130,7 +131,7 @@ class Sampler(ABC):
         raise NotImplementedError
 
     @property
-    def target(self) -> _Sliceable:
+    def target(self) -> Sequence:
         raise NotImplementedError
 
 
@@ -139,7 +140,8 @@ class SamplerSupervised(Sampler):
         self,
         em: Union[emitter.EmitterSet, em_sampler.EmitterSampler],
         bg: Optional[Union[torch.Tensor, "Sampleable"]],
-        frames:  Optional[torch.Tensor],
+        frames: Optional[torch.Tensor],
+        indicator: Optional[torch.Tensor],
         proc: process.ProcessingSupervised,
         window: Optional[int] = 1,
         bg_mode: Optional[str] = None,
@@ -153,6 +155,7 @@ class SamplerSupervised(Sampler):
             em: emitters or sampleable that returns emitters
             bg: background or sampleable that returns background
             frames: (raw) frames or sampleable that returns (raw) frames
+            indicator: auxiliary input
             proc: processing that is able to produce input and target
             window: window size for input
             bg_mode: `global` or `sample`.
@@ -165,6 +168,7 @@ class SamplerSupervised(Sampler):
         self._em_sampler = em if self._em is None else None
         self._bg = bg if not hasattr(bg, "sample") else None
         self._bg_sampler = bg if self._bg is None else None
+        self._indicator = indicator
         self._frames = None  # later
         self._frame_samples = None
         self._proc = proc
@@ -192,10 +196,12 @@ class SamplerSupervised(Sampler):
     def frame(self, v: torch.Tensor):
         self._frames = v
         if v is not None:
-            self._frame_samples = indexing.IxWindow(self._window, None).attach(self._frames)
+            self._frame_samples = indexing.IxWindow(self._window, None).attach(
+                self._frames
+            )
 
     @property
-    def frame_samples(self) -> _Sliceable:
+    def frame_samples(self) -> Sequence:
         return self._frame_samples
 
     @property
@@ -209,8 +215,9 @@ class SamplerSupervised(Sampler):
             kwargs={
                 "frame": self.frame_samples,
                 "em": self.emitter.iframe,
-                "aux": self.bg,
+                "bg": self.bg,
             },
+            kwargs_static={"aux": self._indicator},
         ).auto_size()
 
     @property
@@ -221,8 +228,7 @@ class SamplerSupervised(Sampler):
         """
         return _DelayedSlicer(
             self._proc.tar,
-            em=self.emitter.iframe,
-            aux=self.bg,
+            kwargs={"em": self.emitter.iframe, "aux": self.bg},
         )
 
     def __len__(self) -> int:
