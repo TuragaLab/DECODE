@@ -67,7 +67,7 @@ Optimizer:
     lr: 0.0002
     weight_decay: 0.1
 Paths:
-  calibration:  # spline calib
+  calibration:  # psf calib
   experiment:  # main output dir
   logging:  # logging dir
   checkpoint_init:   # initialise from checkpoint (i.e. resume training)
