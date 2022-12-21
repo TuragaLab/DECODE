@@ -2,10 +2,8 @@ from unittest import mock
 
 import torch
 
-from decode.emitter import emitter
 from decode.neuralfitter import scale_transform
 from decode.neuralfitter.processing import model_input
-from decode.simulation import camera
 
 
 def test_model_in():
@@ -20,12 +18,13 @@ def test_model_in():
     )
 
     out = m.forward(
-        frame=torch.unbind(torch.ones(2, 3, 8) * 1e6),
+        # frames: codes = 2 (as list), temporal, h, W
+        frame=torch.unbind(torch.ones(2, 3, 3, 8) * 1e6),
         em=None,
         bg=torch.unbind(torch.zeros(2, 3, 8)),
         aux=torch.unbind(torch.ones(2, 3, 8)),
     )
 
-    assert out.size() == torch.Size([4, 3, 8])
-    assert torch.unique(out[:2]) == 500000.
-    assert torch.unique(out[2:]) == 0.
+    assert out.size() == torch.Size([8, 3, 8])
+    assert torch.unique(out[:6]) == 500000.
+    assert torch.unique(out[6:]) == 0.
