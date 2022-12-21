@@ -71,6 +71,7 @@ def test_setup_optimizer(cfg):
 
     assert isinstance(o, torch.optim.Optimizer)
 
+
 def test_setup_post_process(cfg):
     setup_cfg.setup_post_process(cfg)
 
