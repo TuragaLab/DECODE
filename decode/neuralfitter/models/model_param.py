@@ -290,7 +290,7 @@ class DoubleMUnet(nn.Module):
             o_head.append(self.mt_heads[i].forward(o))
         o = torch.cat(o_head, 1)
 
-        """Apply the final non-linearities"""
+        # apply the final non-linearities
         if not self.training and not force_no_p_nl:
             o[:, [0]] = self.p_nl(o[:, [0]])
 
