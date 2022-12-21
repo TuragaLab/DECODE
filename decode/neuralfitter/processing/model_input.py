@@ -65,7 +65,7 @@ class ModelInputPostponed(ModelInput):
             frame = self._merger_bg.forward(frame=frame, bg=bg)
 
         if self._noise is not None:
-            frame = [n.forward(f) for n, f in zip_longest(
+            frame = [n.forward(f) for n, f in zip_longest(  # raises err for unequal
                 self._noise,
                 frame if isinstance(frame, Sequence) else (frame,)
             )]
