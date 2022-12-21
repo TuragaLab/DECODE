@@ -28,10 +28,10 @@ def load_reference() -> DictConfig:
 @pydantic.validate_arguments
 def copy_reference(path: pydantic.DirectoryPath) -> tuple[Path, Path]:
     """
-    Copies param references to the desired path
+    Copies reference config to path
 
     Args:
-        path: destination directory
+        path: destination dir
 
     """
     from ..utils import reference_files
