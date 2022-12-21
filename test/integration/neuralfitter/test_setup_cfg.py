@@ -1,4 +1,5 @@
 import inspect
+from typing import get_args
 
 import pytest
 import torch.nn
@@ -30,8 +31,8 @@ def test_setup_psf(path_bead_cal, cfg):
     assert isinstance(psf, simulation.psf_kernel.CubicSplinePSF)
 
 
-def test_setup_background(cfg):
-    bg, bg_val = setup_cfg.setup_background(cfg)
+def test_setup_background(cfg_trainable):
+    bg, bg_val = setup_cfg.setup_background(cfg_trainable)
     assert isinstance(bg, simulation.background.Background)
     assert isinstance(bg_val, simulation.background.Background)
 
@@ -41,10 +42,13 @@ def test_setup_background(cfg):
     [
         setup_cfg.setup_structure,
         setup_cfg.setup_code,
+        setup_cfg.setup_trafo_coord,
+        setup_cfg.setup_trafo_phot,
         setup_cfg.setup_model,
         setup_cfg.setup_loss,
         setup_cfg.setup_em_filter,
         setup_cfg.setup_frame_scaling,
+        setup_cfg.setup_aux_scaling,
         setup_cfg.setup_tar_scaling,
         setup_cfg.setup_bg_scaling,
         setup_cfg.setup_post_model_scaling,
@@ -53,7 +57,6 @@ def test_setup_background(cfg):
         setup_cfg.setup_post_process,
         setup_cfg.setup_matcher,
         setup_cfg.setup_tar,
-        setup_cfg.setup_noise,
     ],
 )
 def test_setup_atomic_signature(fn, cfg):
@@ -65,6 +68,18 @@ def test_setup_atomic_signature(fn, cfg):
     assert isinstance(out, sig.return_annotation)
 
 
+@pytest.mark.parametrize(
+    "fn",
+    [
+        setup_cfg.setup_cameras,
+    ],
+)
+def test_setup_atomic_signature_sequences(fn, cfg):
+    sig = inspect.signature(fn)
+    out = fn(cfg)
+    assert isinstance(out[0], get_args(sig.return_annotation)[0])
+
+
 def test_setup_optimizer(cfg):
     model = setup_cfg.setup_model(cfg)
     o = setup_cfg.setup_optimizer(model, cfg)
@@ -72,14 +87,10 @@ def test_setup_optimizer(cfg):
     assert isinstance(o, torch.optim.Optimizer)
 
 
-def test_setup_post_process(cfg):
-    setup_cfg.setup_post_process(cfg)
-
-
 def test_setup_sampler(cfg_trainable):
     cfg = cfg_trainable
-    n_train = cfg.Simulation.samples
-    n_val = cfg.Test.samples
+    n_train = cfg["Simulation"]["samples"]
+    n_val = cfg["Test"]["samples"]
 
     s_train, s_val = setup_cfg.setup_sampler(cfg)
 
@@ -88,8 +99,8 @@ def test_setup_sampler(cfg_trainable):
 
         assert s.emitter.frame_ix.min() == 0  # could fail for very low densities
         assert s.emitter.frame_ix.max() == n - 1
-        assert s.frame.size() == torch.Size([n, *cfg.Simulation.img_size])
-        assert s.bg.size() == torch.Size([n, *cfg.Simulation.img_size])
+        assert s.frame.size() == torch.Size([n, *cfg["Simulation"]["img_size"]])
+        assert s.bg.size() == torch.Size([n, *cfg["Simulation"]["img_size"]])
         assert s.input[:].size() == torch.Size(
-            [n, cfg.Trainer.frame_window, *cfg.Simulation.img_size]
+            [n, cfg["Trainer"]["frame_window"], *cfg["Simulation"]["img_size"]]
         )

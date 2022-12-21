@@ -124,5 +124,4 @@ class AutoConfig:
 
     def _auto_scale(self, cfg: dict) -> dict:
         # fill scaling parameters by simulation
-        cfg = types.RecursiveNamespace(**cfg)
-        return dict(auto_scale(cfg))
+        return auto_scale(cfg)

@@ -54,34 +54,60 @@ def setup_psf(cfg) -> simulation.psf_kernel.PSF:
     return psf
 
 
+def setup_trafo_coord(cfg) -> simulation.microscope.XYZTransformationMatrix:
+    # ToDo: static, change to real configurable format
+    import numpy as np
+    from scipy.spatial.transform import Rotation as R
+
+    r = R.from_rotvec(np.pi / 16 * np.array([0, 0, 1]))
+    r = torch.from_numpy(r.as_matrix()).float()
+
+    r2 = R.from_rotvec(-0.5 * np.pi / 16 * np.array([0, 0, 1]))
+    r2 = torch.from_numpy(r2.as_matrix()).float()
+
+    return simulation.microscope.XYZTransformationMatrix(
+        torch.stack([torch.eye(3), r, r2], 0)
+    )
+
+
+def setup_trafo_phot(cfg) -> simulation.microscope.MultiChoricSplitter:
+    # ToDo: static, change to real configurable format
+    t = torch.tensor([[0.7, 0.3, 0.0], [0.2, 0.7, 0.1], [0.0, 3.0, 0.7]])
+    return simulation.microscope.MultiChoricSplitter(t)
+
+
 def setup_background(
     cfg,
 ) -> tuple[simulation.background.Background, simulation.background.Background]:
-    bg_train = simulation.background.BackgroundUniform(
-        bg=cfg["Simulation"]["bg_uniform"],
-        size=(cfg["Simulation"]["samples"], *cfg["Simulation"]["img_size"]),
-        device=cfg["Hardware"]["device"]["simulation"],
-    )
-    bg_val = simulation.background.BackgroundUniform(
-        bg=cfg["Simulation"]["bg_uniform"],
-        size=(cfg["Test"]["samples"], *cfg["Simulation"]["img_size"]),
-        device=cfg["Hardware"]["device"]["simulation"],
-    )
-    return bg_train, bg_val
+    bg_train = _setup_background_core(cfg, cfg["Simulation"])
+    bg_test = _setup_background_core(cfg, cfg["Test"])
+    return bg_train, bg_test
 
 
-def setup_noise(cfg) -> simulation.camera.CameraEMCCD:
-    noise = simulation.camera.CameraEMCCD(
-        qe=cfg["Camera"]["qe"],
-        spur_noise=cfg["Camera"]["spur_noise"],
-        em_gain=cfg["Camera"]["em_gain"],
-        e_per_adu=cfg["Camera"]["e_per_adu"],
-        baseline=cfg["Camera"]["baseline"],
-        read_sigma=cfg["Camera"]["read_sigma"],
-        photon_units=cfg["Camera"]["convert2photons"],
+def _setup_background_core(cfg, cfg_sim) -> simulation.background.Background:
+    return simulation.background.BackgroundUniform(
+        bg=cfg_sim["bg"][0]["uniform"],
+        size=(cfg_sim["samples"], *cfg_sim["img_size"]),
         device=cfg["Hardware"]["device"]["simulation"],
     )
-    return noise
+
+
+def setup_cameras(cfg) -> list[simulation.camera.CameraEMCCD]:
+    cam = []
+    for cfg_cam in cfg["Camera"].values():
+        cam.append(
+            simulation.camera.CameraEMCCD(
+                qe=cfg_cam["qe"],
+                spur_noise=cfg_cam["spur_noise"],
+                em_gain=cfg_cam["em_gain"],
+                e_per_adu=cfg_cam["e_per_adu"],
+                baseline=cfg_cam["baseline"],
+                read_sigma=cfg_cam["read_sigma"],
+                photon_units=cfg_cam["convert2photons"],
+                device=cfg["Hardware"]["device"]["simulation"],
+            )
+        )
+    return cam
 
 
 def setup_structure(cfg) -> simulation.structures.StructurePrior:
@@ -169,27 +195,48 @@ def setup_em_filter(cfg) -> emitter.process.EmitterProcess:
 
 def setup_frame_scaling(cfg) -> neuralfitter.scale_transform.ScalerAmplitude:
     return neuralfitter.scale_transform.ScalerAmplitude(
-        scale=cfg["Scaling"]["input_scale"],
-        offset=cfg["Scaling"]["input_offset"],
+        scale=cfg["Scaling"]["input"]["frame"]["scale"],
+        offset=cfg["Scaling"]["input"]["frame"]["offset"],
+    )
+
+
+def setup_aux_scaling(cfg) -> neuralfitter.scale_transform.ScalerAmplitude:
+    return neuralfitter.scale_transform.ScalerAmplitude(
+        scale=cfg["Scaling"]["input"]["aux"]["scale"],
+        offset=cfg["Scaling"]["input"]["aux"]["offset"],
+    )
+
+
+def setup_input_proc(cfg):
+    scaler_frame = setup_frame_scaling(cfg)
+    scaler_aux = setup_aux_scaling(cfg)
+    cams = setup_cameras(cfg)
+
+    return neuralfitter.processing.model_input.ModelInputPostponed(
+        cam=cams,
+        scaler_frame=scaler_frame.forward,
+        scaler_aux=scaler_aux.forward,
     )
 
 
 def setup_tar_scaling(cfg) -> neuralfitter.scale_transform.ScalerTargetList:
     return neuralfitter.scale_transform.ScalerTargetList(
-        phot=cfg["Scaling"]["phot_max"],
-        z=cfg["Scaling"]["z_max"],
+        phot=cfg["Scaling"]["output"]["phot"]["max"],
+        z=cfg["Scaling"]["output"]["z"]["max"],
     )
 
 
 def setup_bg_scaling(cfg) -> neuralfitter.scale_transform.ScalerAmplitude:
-    return neuralfitter.scale_transform.ScalerAmplitude(cfg["Scaling"]["bg_max"])
+    return neuralfitter.scale_transform.ScalerAmplitude(
+        cfg["Scaling"]["output"]["bg"]["max"]
+    )
 
 
 def setup_post_model_scaling(cfg) -> neuralfitter.scale_transform.ScalerModelOutput:
     return neuralfitter.scale_transform.ScalerModelOutput(
-        phot=cfg["Scaling"]["phot_max"],
-        z=cfg["Scaling"]["z_max"],
-        bg=cfg["Scaling"]["z_max"],
+        phot=cfg["Scaling"]["output"]["phot"]["max"],
+        z=cfg["Scaling"]["output"]["z"]["max"],
+        bg=cfg["Scaling"]["output"]["bg"]["max"],
     )
 
 
@@ -217,7 +264,9 @@ def setup_post_process_frame_emitter(
 
     if cfg["PostProcessing"]["name"] is None:
         post = neuralfitter.processing.to_emitter.ToEmitterEmpty(
-            xy_unit=cfg["Simulation"]["xy_unit"], px_size=cfg["Camera"]["px_size"]
+            # ToDo: Generalise
+            xy_unit=cfg["Simulation"]["xy_unit"],
+            px_size=cfg["Camera"][0]["px_size"],
         )
 
     elif cfg["PostProcessing"]["name"] == "LookUp":
@@ -225,14 +274,14 @@ def setup_post_process_frame_emitter(
             mask=cfg["PostProcessing"]["specs"]["raw_th"],
             pphotxyzbg_mapping=[0, 1, 2, 3, 4, -1],  # ToDo: remove hard-coding
             xy_unit=cfg["Simulation"]["xy_unit"],
-            px_size=cfg["Camera"]["px_size"],
+            px_size=cfg["Camera"][0]["px_size"],
         )
 
     elif cfg["PostProcessing"]["name"] == "SpatialIntegration":
         post = neuralfitter.processing.to_emitter.ToEmitterSpatialIntegration(
             raw_th=cfg["PostProcessing"]["specs"]["raw_th"],
             xy_unit=cfg["Simulation"]["xy_unit"],
-            px_size=cfg["Camera"]["px_size"],
+            px_size=cfg["Camera"][0]["px_size"],
         )
     else:
         raise NotImplementedError
@@ -273,7 +322,7 @@ def setup_emitter_sampler(
         code=color,
         intensity=(
             cfg["Simulation"]["intensity"]["mean"],
-            cfg["Simulation"]["intensity"]["std"]
+            cfg["Simulation"]["intensity"]["std"],
         ),
         em_num=cfg["Simulation"]["emitter_avg"],
         lifetime=cfg["Simulation"]["lifetime_avg"],
@@ -284,7 +333,10 @@ def setup_emitter_sampler(
     em_sampler_val = simulation.sampler.EmitterSamplerBlinking(
         structure=struct,
         code=color,
-        intensity=(cfg["Simulation"]["intensity"]["mean"], cfg["Simulation"]["intensity"]["std"]),
+        intensity=(
+            cfg["Simulation"]["intensity"]["mean"],
+            cfg["Simulation"]["intensity"]["std"],
+        ),
         em_num=cfg["Simulation"]["emitter_avg"],
         lifetime=cfg["Simulation"]["lifetime_avg"],
         frame_range=cfg["Test"]["samples"],
@@ -309,19 +361,37 @@ def setup_microscope(
     """
     psf = setup_psf(cfg)
 
-    raise NotImplementedError("Noise not added.")
     mic_train = simulation.microscope.Microscope(
-        psf=psf,
-        noise=None,
-        frame_range=cfg["Simulation"]["samples"]
+        psf=psf, noise=None, frame_range=cfg["Simulation"]["samples"]
     )
     mic_val = simulation.microscope.Microscope(
-        psf=psf,
-        noise=None,
-        frame_range=cfg["Test"]["samples"]
+        psf=psf, noise=None, frame_range=cfg["Test"]["samples"]
     )
 
     return mic_train, mic_val
+
+
+def _setup_microscope_core(cfg, cfg_sim, psf):
+    if cfg_sim.code == [0]:
+        m = simulation.microscope.Microscope(
+            psf=psf, noise=None, frame_range=cfg_sim["samples"]
+        )
+    else:
+        codes = torch.tensor(cfg_sim.code)
+        n_codes = len(codes)
+        trafo_xyz = setup_trafo_coord(cfg)
+        trafo_phot = setup_trafo_phot(cfg)
+
+        m = simulation.microscope.MicroscopeMultiChannel(
+            psf=[psf] * n_codes,
+            noise=None,
+            trafo_xyz=trafo_xyz,
+            trafo_phot=trafo_phot,
+            frame_range=cfg_sim["samples"],
+            ch_range=(codes.min().item(), codes.max().item() + 1),
+        )
+
+        return m
 
 
 def setup_tar(cfg) -> neuralfitter.target_generator.TargetGenerator:
@@ -341,15 +411,19 @@ def setup_tar(cfg) -> neuralfitter.target_generator.TargetGenerator:
 
 
 def setup_processor(cfg):
-    scaler_frame = setup_frame_scaling(cfg)
+    model_input = setup_input_proc(cfg)
     tar = setup_tar(cfg)
     filter_em = setup_em_filter(cfg)
     post_model = setup_post_model_scaling(cfg)
     post_processor = setup_post_process(cfg)
 
-    return neuralfitter.process.ProcessingSupervised(tar=tar, tar_em=filter_em,
-                                                     post_model=post_model,
-                                                     post=post_processor)
+    return neuralfitter.process.ProcessingSupervised(
+        m_input=model_input,
+        tar=tar,
+        tar_em=filter_em,
+        post_model=post_model,
+        post=post_processor,
+    )
 
 
 def setup_sampler(cfg):
