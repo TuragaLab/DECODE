@@ -1,23 +1,27 @@
-# Minimal set of parameters to train DECODE. The fields shown here are most commonly
-# filled out or are possibly changed.
+# This is the reference .yaml file which comprises the complete set of parameters.
+# You may modify each of those, those with values are defaults, those without values are
+#   1. needed
+#   2. derived / automatically determined
 Camera:
-  baseline:
-  e_per_adu:
-  em_gain:
-  mirror_dim:   # this field is only active during fitting per inference .py file
-  px_size:
-  read_sigma:
-  spur_noise:
+  0:
+    baseline:
+    e_per_adu:
+    em_gain:
+    mirror_dim:   # this field is only active during fitting per inference .py file
+    px_size:
+    read_sigma:
+    spur_noise:
 Paths:
-  calibration:  # spline calib
-  experiment:  # training output dir
-  logging:  # logging base dir
-  checkpoint:  # path to checkpoint (e.g. resume training or for fitting)
+  calibration:  # psf calib
+  experiment:  # main output dir
+  logging:  # logging dir
 Simulation:
-  bg_uniform:  # tuple or single value
+  bg:
+    0:
+      uniform:  # tuple or single value
+  emitter_extent:
+    z: [-750., 750.]  # range in z [nm]
   intensity:
     mean:  # mean intensity (i.e. photon flux)
     std:  # intensity spread
-  lifetime_avg:
-Trainer:
-  train_dim: 3  # 3 or 2 or 3D or 2D respectively
+  lifetime_avg:  # average lifetime
