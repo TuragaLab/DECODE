@@ -188,17 +188,12 @@ class TestGreedyMatching(TestMatcherABC):
 
     @pytest.mark.parametrize("xyz_tar,xyz_out", test_data_forward)
     def test_forward(self, matcher, xyz_tar, xyz_out):
-        """Tests the sanity"""
-
-        """Setup"""
         matcher.dist_lat = 1
         em_tar = decode.emitter_factory(xyz=xyz_tar, xy_unit='nm')
         em_out = decode.emitter_factory(xyz=xyz_out, xy_unit='nm')
 
-        """Run"""
         tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
 
-        """Assertions"""
         assert len(tp) == len(tp_match)
         assert len(tp) + len(fp) == len(em_out)
         assert len(tp) + len(fn) == len(em_tar)
@@ -212,12 +207,9 @@ class TestGreedyMatching(TestMatcherABC):
         xyz_tar = torch.zeros((1000, 3))
         xyz_out = torch.zeros_like(xyz_tar)
         xyz_out[:, 0] = torch.randn_like(xyz_out[:, 0])
-
         em_tar = decode.emitter_factory(xyz=xyz_tar, xy_unit='nm')
         em_out = decode.emitter_factory(xyz=xyz_out, xy_unit='nm')
 
-        """Run"""
         tp, fp, fn, tp_match = matcher.forward(em_out, em_tar)
 
-        """Assert"""
         assert len(tp) / len(em_tar) == pytest.approx(0.7, abs=0.1)

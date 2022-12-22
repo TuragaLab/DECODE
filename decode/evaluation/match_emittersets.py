@@ -5,50 +5,41 @@ from collections import namedtuple
 import numpy as np
 import torch
 
-from ..emitter.emitter import EmitterSet
+from ..emitter import emitter
 
 
 class EmitterMatcher(ABC):
-    """
-    Abstract emitter matcher class.
-
-    """
-
     _return_match = namedtuple('MatchResult', ['tp', 'fp', 'fn', 'tp_match'])  # return-type as namedtuple
 
     def __init__(self):
         super().__init__()
 
     @abstractmethod
-    def forward(self, output: EmitterSet, target: EmitterSet) -> _return_match:
+    def forward(self, output: emitter.EmitterSet, target: emitter.EmitterSet) -> _return_match:
         """
-        All implementations shall implement this forward method which takes output and reference set of emitters
-        and outputs true positives, false positives, false negatives and matching ground truth (matched to the true positives).
+
 
         Args:
             output: output set of emitters
             target: reference set of emitters
 
         Returns:
-            (EmitterSet, EmitterSet, EmitterSet, EmitterSet)
+            (emitter.EmitterSet, emitter.EmitterSet, emitter.EmitterSet, emitter.EmitterSet)
 
                 - **tp**: true positives
                 - **fp**: false positives
                 - **fn**: false negatives
-                - **tp_match**: ground truths that have been matched to the true positives
+                - **tp_match**: ground truths that have been matched to the true
+                  positives
 
         """
         raise NotImplementedError
 
 
 class GreedyHungarianMatching(EmitterMatcher):
-    """
-    Matching emitters in a greedy 'hungarian' fashion, by using best first search.
-
-    """
-
     def __init__(self, *, match_dims: int, dist_ax: float = None, dist_lat: float = None, dist_vol: float = None):
         """
+        Match emitters in a greedy 'hungarian' fashion, by using best first search.
 
         Args:
             match_dims: match in 2D or 3D
@@ -63,7 +54,7 @@ class GreedyHungarianMatching(EmitterMatcher):
         self.dist_lat = dist_lat
         self.dist_vol = dist_vol
 
-        """Sanity checks"""
+        # sanity checks
         if self.match_dims not in (2, 3):
             raise ValueError("Not supported match dimensionality.")
 
@@ -74,14 +65,7 @@ class GreedyHungarianMatching(EmitterMatcher):
         if self.dist_lat is None and self.dist_ax is None and self.dist_vol is None:
             warnings.warn("You specified neither a lateral, axial nor volumetric threshold. Are you sure about this?")
 
-    @classmethod
-    def parse(cls, param):
-        return cls(match_dims=param.Evaluation.match_dims,
-                   dist_lat=param.Evaluation.dist_lat,
-                   dist_ax=param.Evaluation.dist_ax,
-                   dist_vol=param.Evaluation.dist_vol)
-
-    def filter(self, xyz_out, xyz_tar) -> torch.Tensor:
+    def filter(self, xyz_out: torch.Tensor, xyz_tar: torch.Tensor) -> torch.Tensor:
         """
         Filter kernel to rule out unwanted matches. Batch implemented, i.e. input can be 2 or 3 dimensional, where the
         latter dimensions are the dimensions of interest.
@@ -101,7 +85,8 @@ class GreedyHungarianMatching(EmitterMatcher):
             xyz_tar = xyz_tar.unsqueeze(0)
             sque_ret = True  # squeeze before return
 
-        filter_mask = torch.ones((xyz_out.size(0), xyz_out.size(1), xyz_tar.size(1))).bool()  # dim: B x N x M
+        # dim: B x N x M
+        filter_mask = torch.ones((xyz_out.size(0), xyz_out.size(1), xyz_tar.size(1))).bool()
 
         if self.dist_lat is not None:
             dist_mat = torch.cdist(xyz_out[:, :, :2], xyz_tar[:, :, :2], p=2)
@@ -121,15 +106,13 @@ class GreedyHungarianMatching(EmitterMatcher):
         return filter_mask
 
     @staticmethod
-    def _rule_out_kernel(dists):
+    def _rule_out_kernel(dists: torch.Tensor):
         """
-        Kernel which goes through the distance matrix, picks shortest distance and assign match.
-        Actual 'greedy' kernel
+        Kernel which goes through the distance matrix, picks the shortest distance and
+        assigns match; actual 'greedy' kernel
 
         Args:
             dists: distance matrix
-
-        Returns:
 
         """
         assert dists.dim() == 2
@@ -189,9 +172,18 @@ class GreedyHungarianMatching(EmitterMatcher):
 
         return tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool
 
-    def forward(self, output: EmitterSet, target: EmitterSet):
+    def forward(self, output: emitter.EmitterSet, target: emitter.EmitterSet):
+        """
 
-        """Setup split in frames. Determine the frame range automatically so as to cover everything."""
+        Args:
+            output:
+            target:
+
+        Returns:
+
+        """
+        # split in frames. Determine the frame range automatically to cover
+        # everything
         if len(output) >= 1 and len(target) >= 1:
             frame_low = output.frame_ix.min() if output.frame_ix.min() < target.frame_ix.min() else target.frame_ix.min()
             frame_high = output.frame_ix.max() if output.frame_ix.max() > target.frame_ix.max() else target.frame_ix.max()
@@ -202,14 +194,18 @@ class GreedyHungarianMatching(EmitterMatcher):
             frame_low = target.frame_ix.min()
             frame_high = target.frame_ix.max()
         else:
-            return (emitter.EmptyEmitterSet(xy_unit=target.xyz, px_size=target.px_size),) * 4
+            return (emitter.factory(0, xy_unit=target.xyz, px_size=target.px_size),) * 4
 
-        out_pframe = output.split_in_frames(frame_low.item(), frame_high.item())
-        tar_pframe = target.split_in_frames(frame_low.item(), frame_high.item())
+        frame_low = frame_low.item()
+        frame_high = frame_high.item() + 1  # pythonic indexing
 
-        tpl, fpl, fnl, tpml = [], [], [], []  # true positive list, false positive list, false neg. ...
+        out_pframe = output.split_in_frames(frame_low, frame_high)
+        tar_pframe = target.split_in_frames(frame_low, frame_high)
 
-        """Match the emitters framewise"""
+        # true positive list, false positive list, false neg. ...
+        tpl, fpl, fnl, tpml = [], [], [], []
+
+        # match emitters frame-wise
         for out_f, tar_f in zip(out_pframe, tar_pframe):
             filter_mask = self.filter(out_f.xyz_nm, tar_f.xyz_nm)  # batch implemented
             tp_ix, tp_match_ix, tp_ix_bool, tp_match_ix_bool = self._match_kernel(out_f.xyz_nm, tar_f.xyz_nm,
@@ -220,16 +216,16 @@ class GreedyHungarianMatching(EmitterMatcher):
             fpl.append(out_f[~tp_ix_bool])
             fnl.append(tar_f[~tp_match_ix_bool])
 
-        """Concat them back"""
-        tp = EmitterSet.cat(tpl)
-        fp = EmitterSet.cat(fpl)
-        fn = EmitterSet.cat(fnl)
-        tp_match = EmitterSet.cat(tpml)
+        # concat them back
+        tp = emitter.EmitterSet.cat(tpl)
+        fp = emitter.EmitterSet.cat(fpl)
+        fn = emitter.EmitterSet.cat(fnl)
+        tp_match = emitter.EmitterSet.cat(tpml)
 
-        """Let tp and tp_match share the same id's. IDs of ground truth are copied to true positives."""
-        if (tp_match.id == -1).all().item():
-            tp_match.id = torch.arange(len(tp_match)).type(tp_match.id.dtype)
+        # let t tp and tp_match share the same id's. IDs of ground truth are copied to
+        # true positives
+        if tp_match.id is None:
+            tp_match.id = torch.arange(len(tp_match), dtype=torch.long)
 
-        tp.id = tp_match.id.type(tp.id.dtype)
-
+        tp.id = tp_match.id
         return self._return_match(tp=tp, fp=fp, fn=fn, tp_match=tp_match)
