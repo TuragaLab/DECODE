@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 from pytorch_lightning import loggers
 from deprecated import deprecated
@@ -104,7 +106,7 @@ def setup_cameras(cfg) -> list[simulation.camera.CameraEMCCD]:
                 baseline=cfg_cam["baseline"],
                 read_sigma=cfg_cam["read_sigma"],
                 photon_units=cfg_cam["convert2photons"],
-                device=cfg["Hardware"]["device"]["simulation"],
+                device="cpu",  # cfg["Hardware"]["device"]["simulation"],
             )
         )
     return cam
@@ -200,7 +202,9 @@ def setup_frame_scaling(cfg) -> neuralfitter.scale_transform.ScalerAmplitude:
     )
 
 
-def setup_aux_scaling(cfg) -> neuralfitter.scale_transform.ScalerAmplitude:
+def setup_aux_scaling(cfg) -> Optional[neuralfitter.scale_transform.ScalerAmplitude]:
+    if cfg["Scaling"]["input"]["aux"] is None:
+        return None
     return neuralfitter.scale_transform.ScalerAmplitude(
         scale=cfg["Scaling"]["input"]["aux"]["scale"],
         offset=cfg["Scaling"]["input"]["aux"]["offset"],
@@ -215,7 +219,7 @@ def setup_input_proc(cfg):
     return neuralfitter.processing.model_input.ModelInputPostponed(
         cam=cams,
         scaler_frame=scaler_frame.forward,
-        scaler_aux=scaler_aux.forward,
+        scaler_aux=scaler_aux.forward if scaler_aux is not None else None,
     )
 
 
@@ -437,6 +441,7 @@ def setup_sampler(cfg):
         em=em_train,
         bg=bg,
         frames=None,
+        indicator=None,
         proc=proc,
         mic=mic_train,
         bg_mode="sample",
@@ -447,6 +452,7 @@ def setup_sampler(cfg):
         em=em_val,
         bg=bg_val,
         frames=None,
+        indicator=None,
         proc=proc,
         mic=mic_val,
         bg_mode="sample",
