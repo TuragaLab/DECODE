@@ -56,6 +56,7 @@ def test_setup_background(cfg_trainable):
         setup_cfg.setup_post_process_offset,
         setup_cfg.setup_post_process,
         setup_cfg.setup_matcher,
+        setup_cfg.setup_evaluator,
         setup_cfg.setup_tar,
     ],
 )

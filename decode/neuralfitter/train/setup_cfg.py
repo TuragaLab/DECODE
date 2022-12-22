@@ -134,20 +134,20 @@ def setup_model(cfg) -> torch.nn.Module:
 
     model = neuralfitter.models.SigmaMUNet(
         ch_in=cfg["Model"]["channels_in"],
-        depth_shared=specs.depth_shared,
-        depth_union=specs.depth_union,
-        initial_features=specs.initial_features,
-        inter_features=specs.inter_features,
+        depth_shared=specs["depth_shared"],
+        depth_union=specs["depth_union"],
+        initial_features=specs["initial_features"],
+        inter_features=specs["inter_features"],
         activation=activation,
-        norm=specs.norm,
-        norm_groups=specs.norm_groups,
-        norm_head=specs.norm_head,
-        norm_head_groups=specs.norm_head_groups,
-        pool_mode=specs.pool_mode,
-        upsample_mode=specs.upsample_mode,
-        skip_gn_level=specs.skip_gn_level,
+        norm=specs["norm"],
+        norm_groups=specs["norm_groups"],
+        norm_head=specs["norm_head"],
+        norm_head_groups=specs["norm_head_groups"],
+        pool_mode=specs["pool_mode"],
+        upsample_mode=specs["upsample_mode"],
+        skip_gn_level=specs["skip_gn_level"],
         disabled_attributes=disabled_attr,
-        kaiming_normal=specs.init_custom,
+        kaiming_normal=specs["init_custom"],
     )
     return model
 
@@ -301,6 +301,14 @@ def setup_matcher(cfg) -> evaluation.match_emittersets.EmitterMatcher:
         dist_vol=cfg["Evaluation"]["dist_vol"],
     )
     return matcher
+
+
+def setup_evaluator(cfg) -> evaluation.evaluation.EvaluationSMLM:
+    matcher = setup_matcher(cfg)
+    evaluator = evaluation.evaluation.EvaluationSMLM(
+        matcher=matcher,
+    )
+    return evaluator
 
 
 def setup_emitter_sampler(
