@@ -1,7 +1,7 @@
 import copy
 import warnings
 from pathlib import Path
-from typing import Union, Optional, Iterable
+from typing import Union, Optional, Sequence
 
 import numpy as np
 import torch
@@ -625,9 +625,10 @@ class EmitterSet:
 
         return torch.sqrt(tot_var)
 
-    @staticmethod
+    @classmethod
     def cat(
-        emittersets: Iterable,
+        cls,
+        emittersets: Sequence,
         remap_frame_ix: Union[None, torch.Tensor] = None,
         step_frame_ix: int = None,
     ):
@@ -644,6 +645,8 @@ class EmitterSet:
         Returns:
             concatenated emitters
         """
+        if len(emittersets) == 0:
+            return factory(0)
 
         meta = []
         data = []
@@ -670,7 +673,8 @@ class EmitterSet:
 
         # concatenate data in list of dicts to dict of concatenated tensors
         data = {
-            # cat key-wise, if value of key is None in first emitter, it will be None in all
+            # cat key-wise, if value of key is None in first emitter,
+            # it will be None in all
             k: torch.cat([x[k] for x in data], 0) if data[0][k] is not None else None
             for k in data[0]
         }
@@ -687,7 +691,7 @@ class EmitterSet:
                 px_size = m["px_size"]
                 break
 
-        return EmitterSet(xy_unit=xy_unit, px_size=px_size, **data)
+        return cls(xy_unit=xy_unit, px_size=px_size, **data)
 
     def sort_by_frame_(self):
         """

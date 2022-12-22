@@ -422,6 +422,10 @@ class TestEmitterSet:
             assert (s.frame_ix == f_ix).all(), "Incorrect frame ix."
 
     def test_cat_emittersets(self):
+        cat_sets = EmitterSet.cat([])
+        assert len(cat_sets) == 0
+        assert cat_sets.xy_unit is None
+        assert cat_sets.px_size is None
 
         sets = [emitter.factory(50), emitter.factory(20)]
         cat_sets = EmitterSet.cat(sets, None, 1)
