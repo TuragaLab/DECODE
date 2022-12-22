@@ -1,3 +1,4 @@
+import omegaconf
 import pytest
 
 from decode.utils import param_auto
@@ -36,6 +37,14 @@ def test_autofill_dict_raise():
         param_auto._autofill_dict({"a": 2}, {"b": 42}, mode_missing="raise")
 
 
+@pytest.mark.parametrize("return_type", [None, dict, omegaconf.DictConfig])
+def test_auto_config_return_type(return_type):
+    auto = param_auto.AutoConfig(fill=False, fill_test=False,
+                                 auto_scale=False, return_type=return_type)
+    out = auto.parse(dict())
+    assert isinstance(out, return_type if return_type is not None else dict)
+
+
 def test_auto_config_fill():
     auto = param_auto.AutoConfig()
     cfg_out = auto._fill(dict())
@@ -65,4 +74,3 @@ def test_auto_config_fill_scaling():
     cfg_out = auto._auto_scale(cfg)
     cfg_scale = cfg_out["Scaling"]
     assert all ([v is not None for v in cfg_scale["input"]["frame"].values()])
-

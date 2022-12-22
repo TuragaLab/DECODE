@@ -1,6 +1,9 @@
+from typing import Literal, Union
+
+import omegaconf
+
 from ..io import param
 from typing import Optional, Sequence
-from . import types
 
 
 def _autofill_dict(x: dict, reference: dict, mode_missing: str = "include") -> dict:
@@ -54,30 +57,40 @@ def auto_scale(cfg):
             var = value
         return var
 
-    cfg.Scaling.input.frame.scale = set_if_none(
-        cfg.Scaling.input.frame.scale, cfg.Simulation.intensity.mean / 50
+    cfg["Scaling"]["input"]["frame"]["scale"] = set_if_none(
+        cfg["Scaling"]["input"]["frame"]["scale"],
+        cfg["Simulation"]["intensity"]["mean"] / 50,
     )
-    cfg.Scaling.output.phot.max = set_if_none(
-        cfg.Scaling.output.phot.max,
-        cfg.Simulation.intensity.mean + 8 * cfg.Simulation.intensity.std,
+    cfg["Scaling"]["output"]["phot"]["max"] = set_if_none(
+        cfg["Scaling"]["output"]["phot"]["max"],
+        cfg["Simulation"]["intensity"]["mean"]
+        + 8 * cfg["Simulation"]["intensity"]["std"],
     )
 
-    cfg.Scaling.output.z.max = set_if_none(
-        cfg.Scaling.output.z.max, cfg.Simulation.emitter_extent.z[1] * 1.2
+    cfg["Scaling"]["output"]["z"]["max"] = set_if_none(
+        cfg["Scaling"]["output"]["z"]["max"],
+        cfg["Simulation"]["emitter_extent"]["z"][1] * 1.2,
     )
-    if cfg.Scaling.input.frame.offset is None:
-        if isinstance(cfg.Simulation.bg[0].uniform, Sequence):
-            cfg.Scaling.input.frame.offset = (
-                cfg.Simulation.bg[0].uniform[1] + cfg.Simulation.bg[0].uniform[0]
+    if cfg["Scaling"]["input"]["frame"]["offset"] is None:
+        if isinstance(cfg["Simulation"]["bg"][0]["uniform"], Sequence):
+            cfg["Scaling"]["input"]["frame"]["offset"] = (
+                cfg["Simulation"]["bg"][0]["uniform"][1]
+                + cfg["Simulation"]["bg"][0]["uniform"][0]
             ) / 2
         else:
-            cfg.Scaling.input.frame.offset = cfg.Simulation.bg[0].uniform[0]
+            cfg["Scaling"]["input"]["frame"]["offset"] = cfg["Simulation"]["bg"][0][
+                "uniform"
+            ][0]
 
-    if cfg.Scaling.output.bg.max is None:
-        if isinstance(cfg.Simulation.bg[0].uniform, Sequence):
-            cfg.Scaling.output.bg.max = cfg.Simulation.bg[0].uniform[1] * 1.2
+    if cfg["Scaling"]["output"]["bg"]["max"] is None:
+        if isinstance(cfg["Simulation"]["bg"][0]["uniform"], Sequence):
+            cfg["Scaling"]["output"]["bg"]["max"] = (
+                cfg["Simulation"]["bg"][0]["uniform"][1] * 1.2
+            )
         else:
-            cfg.Scaling.output.bg.max = cfg.Simulation.bg[0].uniform * 1.2
+            cfg["Scaling"]["output"]["bg"]["max"] = (
+                cfg["Simulation"]["bg"][0]["uniform"] * 1.2
+            )
 
     return cfg
 
@@ -89,6 +102,7 @@ class AutoConfig:
         fill_test: bool = True,
         auto_scale: bool = True,
         ref: Optional[dict] = None,
+        return_type: Optional[Literal[dict, omegaconf.DictConfig]] = None,
     ):
         """
         Automate config handling
@@ -98,18 +112,26 @@ class AutoConfig:
             fill_test: fill test set values by training set / simulation
             auto_scale: infer scaling parameters
             ref: reference dict for automatic filling
+            return_type: return type of parsing. If none, dictionary will be returned
         """
         self._do_fill = fill
         self._do_fill_test = fill_test
         self._do_auto_scale = auto_scale
         self._reference = ref if ref is not None else dict(**param.load_reference())
+        self._return_type = return_type if return_type is not None else dict
 
-    def parse(self, cfg: dict) -> dict:
-        cfg = self._fill(cfg) if self._do_fill else cfg
+    def parse(self, cfg: dict) -> Union[dict, omegaconf.DictConfig]:
+        cfg = self._fill(cfg)  # if self._do_fill else cfg
         cfg = self._fill_test(cfg) if self._do_fill_test else cfg
         cfg = self._auto_scale(cfg) if self._do_auto_scale else cfg
 
-        return cfg
+        return self._convert_return_type(cfg)
+
+    def _convert_return_type(self, cfg: dict) -> Union[dict, omegaconf.DictConfig]:
+        if self._return_type is dict:
+            return cfg
+        if self._return_type is omegaconf.DictConfig:
+            return omegaconf.OmegaConf.create(cfg)
 
     def _fill(self, cfg: dict) -> dict:
         # fill config by reference
