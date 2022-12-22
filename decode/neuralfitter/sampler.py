@@ -211,7 +211,7 @@ class SamplerSupervised(Sampler):
     @property
     def input(self) -> _DelayedTensor:
         return _DelayedTensor(
-            self._proc.input,
+            self._proc.pre_train,
             kwargs={
                 "frame": self.frame_samples,
                 "em": self.emitter.iframe,
