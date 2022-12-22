@@ -4,8 +4,9 @@ from pathlib import Path
 import torch.cuda
 from omegaconf import OmegaConf, DictConfig
 
-from decode import io, utils
+from decode import io
 from decode.generic import asset_handler
+from decode.utils import param_auto
 
 
 @pytest.fixture
@@ -44,29 +45,24 @@ def cfg() -> DictConfig:
 @pytest.fixture
 def cfg_trainable(cfg, tmpdir) -> DictConfig:
     """
-    A trainable config. Successively fill out all parameters necessary for training.
+    A trainable config. Complete set of parameters for training
 
     Args:
         cfg: reference config
     """
-    cfg = utils.types.RecursiveNamespace(**OmegaConf.to_object(cfg))
+    auto = param_auto.AutoConfig(fill=False, fill_test=True)
 
-    cfg.Simulation.bg_uniform = (10., 100.)
+    cfg.Simulation.bg[0].uniform = (10., 100.)
     cfg.Simulation.intensity.mean = 5000
     cfg.Simulation.intensity.std = 1000
     cfg.Simulation.lifetime_avg = 1.
 
-    # Todo: Replace scaling by auto
-    cfg.Scaling.input_scale = 100.
-    cfg.Scaling.input_offset = 10.
-    cfg.Scaling.bg_max = 120.
-    cfg.Scaling.phot_max = 13000.
-    cfg.Scaling.z_max = 900.
-
     cfg.Paths.calibration = asset_handler.load_asset("bead_cal")
-    cfg.Paths.experiment = tmpdir / "model"
-    cfg.Paths.logging = tmpdir / "log"
+    cfg.Paths.experiment = str(tmpdir / "model")
+    cfg.Paths.logging = str(tmpdir / "log")
 
     cfg.Trainer.max_epochs = 3
+
+    cfg = auto.parse(cfg)
 
     return cfg
