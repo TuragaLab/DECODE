@@ -11,11 +11,11 @@ import pydantic
 from omegaconf import OmegaConf, DictConfig
 
 
-def _load(p: Union[str, Path, IO[Any]]) -> DictConfig:
-    return OmegaConf.load(p)
+def _load(p: Union[str, Path, IO[Any]]) -> dict:
+    return OmegaConf.to_container(OmegaConf.load(p))
 
 
-def load_reference() -> DictConfig:
+def load_reference() -> dict:
     """Loads reference config."""
     from ..utils import reference_files
 
