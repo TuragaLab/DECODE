@@ -5,7 +5,6 @@ import torch
 from deprecated import deprecated
 
 from . import noise as noise_distributions
-from ..neuralfitter import sampling
 
 
 class Camera(ABC):
@@ -258,6 +257,7 @@ class _SCMOS(CameraEMCCD):
         Returns:
             read-out noise window samples
         """
+        from ..neuralfitter import sampling
         return sampling.sample_crop(self._read_sigma, size_nxy)
 
     def forward_on_sampled_sensor_window(
