@@ -6,7 +6,9 @@ from ..io import param
 from typing import Optional, Sequence
 
 
-def _autofill_dict(x: dict, reference: dict, mode_missing: str = "include") -> dict:
+def _autofill_dict(
+    x: dict, reference: dict, mode_missing: str = "include", cut_reference: bool = True
+) -> dict:
     """
     Fill dict `x` with keys and values of reference if they are not present in x.
 
@@ -18,6 +20,9 @@ def _autofill_dict(x: dict, reference: dict, mode_missing: str = "include") -> d
          part of the output dict.
          `include` means that they are.
          `raise` will raise an error if x contains more keys than reference does
+        cut_reference: allow x to cut deeper hierarchy of reference if elementary
+         value is set. True: x: {"a": 5}, ref: {"a": {"b": 6}} -> {"a": 5}, error if
+         false
     """
     out = dict()
     if mode_missing == "exclude":  # create new dict and copy from ref
@@ -31,8 +36,20 @@ def _autofill_dict(x: dict, reference: dict, mode_missing: str = "include") -> d
         raise ValueError(f"Not supported mode_missing type: {mode_missing}")
 
     for k, v in reference.items():
-        if isinstance(v, dict):
-            out[k] = _autofill_dict(x[k] if k in x else {}, v)
+        if k in x and not isinstance(x[k], dict):
+            # x cuts off deeper dicts of reference
+            if cut_reference:
+                out[k] = x[k]
+            else:
+                raise ValueError(f"x cuts away deeper nested values of reference but "
+                                 f"cutting is not allowed.")
+        elif isinstance(v, dict):
+            out[k] = _autofill_dict(
+                x[k] if k in x else {},
+                v,
+                mode_missing=mode_missing,
+                cut_reference=cut_reference,
+            )
         elif k in x:  # below here never going to be a dict
             out[k] = x[k]
         else:

@@ -10,6 +10,9 @@ def test_autofill_dict(mode_missing):
         "a": 1,
         "z": {"x": 4},
         "only_in_a": 2,
+        "kill_ref": None,
+        "kill_ref_val": 5,
+
     }
 
     ref = {
@@ -17,24 +20,30 @@ def test_autofill_dict(mode_missing):
         "b": None,
         "c": 3,
         "z": {"x": 5, "y": 6},
+        "kill_ref": {"b": 5},
+        "kill_ref_val": {"b": 42},
     }
 
-    a_ = param_auto._autofill_dict(a, ref, mode_missing=mode_missing)
+    out = param_auto._autofill_dict(a, ref, mode_missing=mode_missing)
 
-    assert a_["a"] == 1
-    assert a_["b"] is None
-    assert a_["c"] == 3
-    assert a_["z"]["x"] == 4
-    assert a_["z"]["y"] == 6
+    assert out["a"] == 1
+    assert out["b"] is None
+    assert out["c"] == 3
+    assert out["z"]["x"] == 4
+    assert out["z"]["y"] == 6
+    assert out["kill_ref"] is None
+    assert out["kill_ref_val"] == 5
     if mode_missing == "exclude":
-        assert "only_in_a" not in a_.keys()
+        assert "only_in_a" not in out.keys()
     elif mode_missing == "include":
-        assert a_["only_in_a"] == 2
+        assert out["only_in_a"] == 2
 
 
 def test_autofill_dict_raise():
     with pytest.raises(ValueError):
         param_auto._autofill_dict({"a": 2}, {"b": 42}, mode_missing="raise")
+    with pytest.raises(ValueError):
+        param_auto._autofill_dict({"a": 2}, {"a": {"b": 3}}, cut_reference=False)
 
 
 @pytest.mark.parametrize("return_type", [None, dict, omegaconf.DictConfig])
