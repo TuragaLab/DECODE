@@ -536,7 +536,7 @@ class EvaluationSMLM:  #  ToDo: Better name
         self._eval_loose = DetectionEvaluation()
 
     def forward(self, em: EmitterSet, em_ref: EmitterSet) -> dict:
-        em = self._em_filter.forward(em)
+        em = self._em_filter.forward(em) if self._em_filter is not None else em
         tp, fp, fn, tp_match = self._matcher.forward(em, em_ref)
 
         metrics = dict()
