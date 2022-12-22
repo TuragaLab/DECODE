@@ -1,17 +1,18 @@
 import warnings
 from collections import namedtuple
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, Optional
 
 import matplotlib.pyplot as plt
 import scipy.stats
 import seaborn as sns
 import torch
 
-from .metric import \
-    precision, recall, jaccard, rmse, mad, efficiency, f1
+from .metric import precision, recall, jaccard, efficiency, f1
 from .metric import rmse, mad
 from ..emitter import EmitterSet
+from ..emitter import process
+from . import match_emittersets
 
 
 @dataclass
@@ -213,7 +214,7 @@ class WeightedErrors:
 
             dxyz_mu_sig = torch.stack([norm_fit_nan(dxyz[:, i]) for i in range(3)], 0)
             dphot_mu_sig = norm_fit_nan(dphot)
-            dbg_mu_sig = norm_fit_nan(dbg) if dbg is not None else None,
+            dbg_mu_sig = (norm_fit_nan(dbg) if dbg is not None else None,)
 
             return (
                 (dxyz_mu_sig[:, 0], dxyz_mu_sig[:, 1]),
@@ -320,8 +321,8 @@ class WeightedErrors:
             dbg_w = dbg / bg_scr_est if dbg is not None else None
 
         elif self.mode == "crlb":
-            dxyz_w = dxyz / ref.xyz_scr_nm
-            dphot_w = dphot / ref.phot_scr
+            dxyz_w = dxyz / ref.xyz_scr_nm if ref.xyz_scr is not None else None
+            dphot_w = dphot / ref.phot_scr if ref.phot_scr is not None else None
             dbg_w = dbg / ref.bg_scr if dbg is not None else None
 
         else:
@@ -375,7 +376,7 @@ class SMLMEvaluation:
     )
 
     descriptors = {
-        "pred": "Precision",
+        "prec": "Precision",
         "rec": "Recall",
         "jac": "Jaccard Index",
         "rmse_lat": "RMSE lateral",
@@ -522,3 +523,24 @@ class SMLMEvaluation:
             dphot_red_mu=weight_out.dphot_red[0].item(),
             dphot_red_sig=weight_out.dphot_red[1].item(),
         )
+
+
+class EvaluationSMLM:  #  ToDo: Better name
+    def __init__(
+        self, matcher: match_emittersets.EmitterMatcher, em_filter: Optional[
+                process.EmitterProcess] = None
+    ):
+        self._matcher = matcher
+        self._em_filter = em_filter
+        self._eval_matched = DistanceEvaluation()
+        self._eval_loose = DetectionEvaluation()
+
+    def forward(self, em: EmitterSet, em_ref: EmitterSet) -> dict:
+        em = self._em_filter.forward(em)
+        tp, fp, fn, tp_match = self._matcher.forward(em, em_ref)
+
+        metrics = dict()
+        metrics.update(self._eval_loose.forward(tp=tp, fp=fp, fn=fn)._asdict())
+        metrics.update(self._eval_matched.forward(tp=tp, tp_match=tp_match)._asdict())
+
+        return metrics

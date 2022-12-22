@@ -3,8 +3,9 @@ import pytest
 import math
 import torch
 
-from decode.evaluation import evaluation
+from decode.evaluation import evaluation, match_emittersets
 from decode.emitter import emitter as em
+from decode.emitter import process
 from decode.generic import test_utils
 
 
@@ -264,7 +265,7 @@ class TestSMLMEval:
 
     def test_descriptors(self, evaluator):
         descriptors = {
-            "pred": "Precision",
+            "prec": "Precision",
             "rec": "Recall",
             "jac": "Jaccard Index",
             "rmse_lat": "RMSE lateral",
@@ -283,3 +284,21 @@ class TestSMLMEval:
 
         assert isinstance(evaluator.descriptors, dict)
         assert evaluator.descriptors == descriptors
+
+
+def test_evaluation_smlm():
+    matcher = match_emittersets.GreedyHungarianMatching(
+        match_dims=2, dist_ax=200.0, dist_lat=100, dist_vol=None
+    )
+    em_filter = process.EmitterFilterGeneric(prob=lambda p: p >= 0.5)
+    e = evaluation.EvaluationSMLM(matcher=matcher, em_filter=em_filter)
+
+    em_out = em.factory(
+        6, prob=torch.tensor([0.0, 0.2, 0.4, 0.6, 0.8, 1.0]), xy_unit="nm"
+    )
+    em_tar = em.factory(xyz=torch.tensor([[1.0, 2.0, 3.0]]), xy_unit="nm")
+
+    out = e.forward(em_out, em_tar)
+
+    assert "prec" in out
+    assert "rmse_lat" in out
