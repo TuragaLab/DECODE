@@ -20,10 +20,13 @@ class ModelInput(Protocol):
 
 
 class ModelInputPostponed(ModelInput):
-    def __init__(self, cam: Optional[Union[camera.Camera, Sequence[camera.Camera]]],
-                 merger_bg: Optional[background.Merger] = None,
-                 scaler_frame: Optional[Callable[..., torch.Tensor]] = None,
-                 scaler_aux: Optional[Callable[..., torch.Tensor]] = None):
+    def __init__(
+        self,
+        cam: Optional[Union[camera.Camera, Sequence[camera.Camera]]],
+        merger_bg: Optional[background.Merger] = None,
+        scaler_frame: Optional[Callable[..., torch.Tensor]] = None,
+        scaler_aux: Optional[Callable[..., torch.Tensor]] = None,
+    ):
         """
         Prepares model's input data by combining with background, applying camera noise
         and merge everything together.
@@ -48,14 +51,26 @@ class ModelInputPostponed(ModelInput):
         bg: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]] = None,
         aux: Optional[Union[torch.Tensor, Sequence[torch.Tensor]]] = None,
     ) -> torch.Tensor:
+        """
+
+        Args:
+            frame: of size T x H x W (T being the temporal window)
+            em: not used
+            bg: background tensor or sequence of background tensors
+            aux: tensor of auxiliary model input or sequence of tensors
+
+        """
 
         if bg is not None:
             frame = self._merger_bg.forward(frame=frame, bg=bg)
 
         if self._noise is not None:
-            frame = [n.forward(f) for n, f in zip_longest(self._noise, frame)]
+            frame = [n.forward(f) for n, f in zip_longest(  # raises err for unequal
+                self._noise,
+                frame if isinstance(frame, Sequence) else (frame,)
+            )]
 
-        frame = torch.stack(frame, -3) if isinstance(frame, Sequence) else frame
+        frame = torch.cat(frame, -3) if isinstance(frame, Sequence) else frame
         aux = torch.stack(aux) if isinstance(aux, Sequence) else aux
 
         frame = self._scaler_frame(frame) if self._scaler_frame is not None else frame

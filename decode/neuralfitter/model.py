@@ -18,7 +18,7 @@ class Model(pl.LightningModule):
         model: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
         loss: torch.nn.Module,
-        proc: process.Processing,
+        proc: process.ProcessingSupervised,
         evaluator: Optional[_EvaluatorEmitter],
         batch_size: int,
     ):
@@ -81,5 +81,9 @@ class Model(pl.LightningModule):
         em_out = emitter.EmitterSet.cat(self._em_val_out)
         em_tar = emitter.EmitterSet.cat(self._em_val_tar)
 
+        # emitter based metrics
         metrics = self._evaluator.forward(em_out, em_tar)
         self.logger.log_group(metrics)
+
+        # ToDo: emitter based distributions
+        # ToDo: graphical samples

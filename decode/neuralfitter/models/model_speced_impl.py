@@ -97,7 +97,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
                     norm=norm_head,
                     norm_groups=norm_head_groups,
                 )
-                for ch_out in self.out_channels_heads
+                for ch_out in ch_out_heads
             ]
         )
 

@@ -3,15 +3,16 @@
 #   1. needed
 #   2. derived / automatically determined
 Camera:
-  baseline:
-  convert2photons: true
-  e_per_adu:
-  em_gain:
-  mirror_dim:   # this field is only active during fitting per inference .py file
-  px_size:
-  qe: 1.0
-  read_sigma:
-  spur_noise:
+  0:
+    baseline:
+    convert2photons: true
+    e_per_adu:
+    em_gain:
+    mirror_dim:   # this field is only active during fitting per inference .py file
+    px_size:
+    qe: 1.0
+    read_sigma:
+    spur_noise:
 Computing:
   multiprocessing_sharing_strategy: file_system
   precision: 32
@@ -66,7 +67,7 @@ Optimizer:
     lr: 0.0002
     weight_decay: 0.1
 Paths:
-  calibration:  # spline calib
+  calibration:  # psf calib
   experiment:  # main output dir
   logging:  # logging dir
   checkpoint_init:   # initialise from checkpoint (i.e. resume training)
@@ -76,13 +77,24 @@ PostProcessing:
   specs:
     raw_th: 0.5
 Scaling:  # if some values are missing they will be auto-set as described in the respective comments below
-  input_scale:  # intensity_mu / 50
-  input_offset:  # bg_uniform (mean)
-  bg_max:  # 1.2 * upper limit of bg val
-  phot_max:  # intensity_mu + 8 * sigma
-  z_max:  # 1.2 * upper simulation extent
+  input:
+    frame:
+      offset: # bg_uniform (mean)
+      scale:  # intensity_mu / 50
+    aux:
+      offset:
+      scale:
+  output:
+    phot:
+      max:  # intensity_mu + 8 * sigma
+    bg:
+      max:  # 1.2 * upper limit of bg val
+    z:
+      max:  # 1.2 * upper simulation extent
 Simulation:
-  bg_uniform:  # tuple or single value
+  bg:
+    0:
+      uniform:  # tuple or single value
   code: [0]  # color / channel code
   density:  # either density xor emitter avg
   emitter_avg: 20  # either density xor emitter avg
