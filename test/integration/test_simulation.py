@@ -111,12 +111,8 @@ def processor(target, post_model, post_processor):
     frame_scale = neuralfitter.scale_transform.ScalerAmplitude(scale=1000.0)
     em_filter = emitter.process.EmitterFilterGeneric(phot=lambda x: x > 100.0)
 
-    return neuralfitter.process.ProcessingSupervised(
-        pre_input=frame_scale,
-        tar=target,
-        post_model=post_model,
-        post=post_processor,
-    )
+    return neuralfitter.process.ProcessingSupervised(tar=target, post_model=post_model,
+                                                     post=post_processor)
 
 
 def test_processor(samplers, microscope, processor):
@@ -143,10 +139,7 @@ def test_sampler_dataset_dataloader(num_workers, samplers, psf, target, noise):
     mic = simulation.microscope.Microscope(psf=psf, noise=None, frame_range=(-5, 5))
     shared_input = neuralfitter.utils.process.InputMerger(noise=noise)
 
-    proc = neuralfitter.process.ProcessingSupervised(
-        shared_input=shared_input,
-        tar=target,
-    )
+    proc = neuralfitter.process.ProcessingSupervised(m_input=shared_input, tar=target)
 
     s = neuralfitter.sampler.SamplerSupervised(
         em=em,
