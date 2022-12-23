@@ -36,8 +36,8 @@ def cfg() -> DictConfig:
 
     # overwrite hardware if cuda is not available
     if not torch.cuda.is_available():
-        cfg.Hardware.device.training = "cpu"
-        cfg.Hardware.device.simulation = "cpu"
+        cfg["Hardware"]["device"]["training"] = "cpu"
+        cfg["Hardware"]["device"]["simulation"] = "cpu"
 
     return cfg
 
