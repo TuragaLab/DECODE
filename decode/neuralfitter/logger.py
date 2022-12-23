@@ -47,6 +47,7 @@ class LogTensorMixin(ABC):
         colormap: str = "gray",
         colorbar: bool = True,
     ):
+        t = t.detach().cpu()
         if unbind is not None:
             t = torch.unbind(t, dim=unbind)
         t = [t] if not isinstance(t, Sequence) else t
