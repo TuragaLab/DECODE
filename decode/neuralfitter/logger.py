@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Sequence, Union
 
 import matplotlib.pyplot as plt
+import torch
 from pytorch_lightning import loggers
 from pytorch_lightning.utilities import rank_zero_only
 
@@ -32,6 +33,32 @@ class PrefixDictMixin(ABC):
         return self.log_metrics(metrics=metrics, step=step)
 
 
+class LogTensorMixin(ABC):
+    @abstractmethod
+    def log_figure(self, figure: plt.figure, name: str, step: int, close: bool):
+        ...
+
+    def log_tensor(
+        self,
+        t: Union[torch.Tensor, Sequence[torch.Tensor]],
+        name: str,
+        step: Optional[int] = None,
+        unbind: Optional[int] = None,
+        colormap: str = "gray",
+        colorbar: bool = True,
+    ):
+        if unbind is not None:
+            t = torch.unbind(t, dim=unbind)
+        t = [t] if not isinstance(t, Sequence) else t
+
+        for i, tt in enumerate(t):
+            f, ax = plt.subplots()
+            cax = ax.matshow(tt.numpy(), cmap=colormap)
+            if colorbar:
+                plt.colorbar(cax)
+            self.log_figure(name=f"{name}/{i}", figure=f, step=step, close=True)
+
+
 class Logger(PrefixDictMixin, loggers.LightningLoggerBase, ABC):
     def log_figure(
         self,
@@ -52,7 +79,7 @@ class Logger(PrefixDictMixin, loggers.LightningLoggerBase, ABC):
             plt.close(figure)
 
 
-class TensorboardLogger(loggers.TensorBoardLogger, Logger):
+class TensorboardLogger(loggers.TensorBoardLogger, LogTensorMixin, Logger):
     @rank_zero_only
     def log_figure(
         self,

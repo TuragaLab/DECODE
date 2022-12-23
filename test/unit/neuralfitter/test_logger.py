@@ -2,6 +2,7 @@ from unittest import mock
 
 import matplotlib.pyplot as plt
 import pytest
+import torch
 from pytorch_lightning.loggers.base import DummyLogger
 
 from decode.neuralfitter import logger
@@ -19,6 +20,21 @@ def test_prefix_mixin():
     log = MockLogger()
     log.log_group({"a": 1}, prefix="loss/")
     log._mock_log.assert_called_once_with(metrics={"loss/a": 1}, step=None)
+
+
+def test_log_tensor_mixin():
+    class MockLogger(logger.LogTensorMixin, DummyLogger):
+        def __init__(self):
+            super().__init__()
+            self._mock_log = mock.MagicMock()
+
+        def log_figure(self, f, *args, **kwargs):
+            self._mock_log(f, *args, **kwargs)
+            plt.close(f)
+
+    log = MockLogger()
+    log.log_tensor(torch.rand(32, 32), "tensor", step=0)
+    log._mock_log.assert_called_once()
 
 
 @pytest.mark.parametrize("log_impl", [logger.TensorboardLogger])
