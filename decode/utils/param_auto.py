@@ -31,7 +31,10 @@ def _autofill_dict(
         out = x
     elif mode_missing == "raise":
         if not set(x.keys()).issubset(set(reference.keys())):
-            raise ValueError("There are more keys in `x` than in `reference`.")
+            raise ValueError(
+                f"There are more keys in `x` than in `reference`."
+                f"\n{set(x.keys()) - set(reference.keys())}"
+            )
     else:
         raise ValueError(f"Not supported mode_missing type: {mode_missing}")
 
@@ -41,8 +44,10 @@ def _autofill_dict(
             if cut_reference:
                 out[k] = x[k]
             else:
-                raise ValueError(f"x cuts away deeper nested values of reference but "
-                                 f"cutting is not allowed.")
+                raise ValueError(
+                    f"x cuts away deeper nested values of reference but "
+                    f"cutting is not allowed."
+                )
         elif isinstance(v, dict):
             out[k] = _autofill_dict(
                 x[k] if k in x else {},
