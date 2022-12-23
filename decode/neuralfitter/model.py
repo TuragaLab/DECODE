@@ -17,15 +17,18 @@ class Model(pl.LightningModule):
         self,
         model: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
+        lr_sched: torch.optim.lr_scheduler.StepLR,
         loss: torch.nn.Module,
         proc: process.ProcessingSupervised,
         evaluator: Optional[_EvaluatorEmitter],
         batch_size: int,
     ):
         super().__init__()
+        self.automatic_optimization = False
 
         self._model = model
         self._opt = optimizer
+        self._lr_sched = lr_sched
         self._proc = proc
         self._loss = loss
         self._evaluator = evaluator
@@ -70,9 +73,12 @@ class Model(pl.LightningModule):
         em_out.frame_ix += batch_ix * self.batch_size
 
         self._em_val_out.append(em_out)
-        self._em_val_tar.append(y_em_val)
+        self._em_val_tar.extend(y_em_val)
 
         return loss
+
+    def on_train_epoch_end(self) -> None:
+        self._lr_sched.step()
 
     def on_validation_epoch_end(self) -> None:
         if self._evaluator is None:
@@ -83,7 +89,7 @@ class Model(pl.LightningModule):
 
         # emitter based metrics
         metrics = self._evaluator.forward(em_out, em_tar)
-        self.logger.log_group(metrics)
+        self.logger.log_group(metrics, prefix="eval/", step=self.current_epoch)
 
         # ToDo: emitter based distributions
         # ToDo: graphical samples

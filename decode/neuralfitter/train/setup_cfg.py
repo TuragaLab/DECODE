@@ -174,14 +174,15 @@ def setup_optimizer(model: torch.nn.Module, cfg) -> torch.optim.Optimizer:
     return opt
 
 
-@deprecated(reason="Will be deprecated.", version="0.11")
 def setup_scheduler(opt: torch.optim.Optimizer, cfg) -> torch.optim.lr_scheduler.StepLR:
     catalog = {
         "ReduceLROnPlateau": torch.optim.lr_scheduler.ReduceLROnPlateau,
         "StepLR": torch.optim.lr_scheduler.StepLR,
     }
-    lr_sched = catalog[cfg["HyperParameter"]["learning_rate_scheduler"]]
-    lr_sched = lr_sched(opt, **cfg["HyperParameter"]["learning_rate_scheduler_param"])
+    lr_sched = catalog[cfg["Trainer"]["schedulers"]["learning_rate"]["name"]]
+    lr_sched = lr_sched(
+        opt, **cfg["Trainer"]["schedulers"]["learning_rate"]["specs"]
+    )
 
     return lr_sched
 
@@ -340,6 +341,7 @@ def setup_emitter_sampler(
         lifetime=cfg["Simulation"]["lifetime_avg"],
         frame_range=cfg["Simulation"]["samples"],
         xy_unit=cfg["Simulation"]["xy_unit"],
+        px_size=cfg["Camera"][0]["px_size"],
     )
 
     em_sampler_val = simulation.sampler.EmitterSamplerBlinking(
@@ -353,6 +355,7 @@ def setup_emitter_sampler(
         lifetime=cfg["Simulation"]["lifetime_avg"],
         frame_range=cfg["Test"]["samples"],
         xy_unit=cfg["Simulation"]["xy_unit"],
+        px_size=cfg["Camera"][0]["px_size"],
     )
 
     return em_sampler_train, em_sampler_val
