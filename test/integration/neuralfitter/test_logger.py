@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+
 from decode.neuralfitter import logger
 
 
@@ -12,3 +14,7 @@ def test_logger(tmpdir):
     # get events file
     p = next(Path(tmpdir).rglob("event*"))
     assert p.stat().st_size > 100, "TB event file too small."
+
+    # plotting
+    tb.log_figure("dummy", plt.figure(), close=True, step=0)
+    assert p.stat().st_size > 1000, "TB event file too small after plotting"

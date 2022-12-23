@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
+import matplotlib.pyplot as plt
 from pytorch_lightning import loggers
+from pytorch_lightning.utilities import rank_zero_only
 
 
 class PrefixDictMixin(ABC):
@@ -31,10 +33,34 @@ class PrefixDictMixin(ABC):
 
 
 class Logger(PrefixDictMixin, loggers.LightningLoggerBase, ABC):
-    # for the moment we just alias lightnings logger base
-    # because the api seems reasonable
-    pass
+    def log_figure(
+        self,
+        name: str,
+        figure: plt.figure,
+        step: Optional[int] = None,
+        close: bool = True,
+    ) -> None:
+        """
+        Logs a matplotlib figure.
+        Args:
+            name: name of the figure
+            figure: plt figure handle
+            step: step number at which the figure should be recorded
+            close: close figure after logging
+        """
+        if close:
+            plt.close(figure)
 
 
-class TensorboardLogger(loggers.TensorBoardLogger, PrefixDictMixin):
-    pass
+class TensorboardLogger(loggers.TensorBoardLogger, Logger):
+    @rank_zero_only
+    def log_figure(
+        self,
+        name: str,
+        figure: plt.figure,
+        step: Optional[int] = None,
+        close: bool = True,
+    ) -> None:
+        self.experiment.add_figure(
+            tag=name, figure=figure, global_step=step, close=close
+        )
