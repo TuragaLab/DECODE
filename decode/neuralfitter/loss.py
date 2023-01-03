@@ -311,7 +311,10 @@ class GaussianMMLoss(Loss):
         p_gauss = torch.distributions.Normal(p_mean, torch.sqrt(p_var))
 
         log_prob = p_gauss.log_prob(mask.sum(-1)) * mask.sum(-1)
-        log_prob = log_prob.sum(-1)
+        # ToDo: This is not entirely understood, however diag returns for n_codes = 1
+        # the same as previous version
+        log_prob = torch.diag(log_prob, 0)
+        # log_prob = log_prob.sum(-1)
 
         return log_prob
 
