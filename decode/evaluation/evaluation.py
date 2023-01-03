@@ -31,7 +31,9 @@ class Classification:
 
 
 class DetectionEvaluation:
-    _seg_eval_return = namedtuple("seg_eval", ["prec", "rec", "jac", "f1"])
+    _seg_eval_return = namedtuple(
+        "seg_eval", ["prec", "rec", "jac", "f1", "n_tar", "n_out", "n_tp"]
+    )
 
     def __init__(self):
         self._tp = None
@@ -87,7 +89,15 @@ class DetectionEvaluation:
         self._tp, self._fp, self._fn = tp, fp, fn
         self._prec, self._rec, self._jac, self._f1 = prec, rec, jac, f1_score
 
-        return self._seg_eval_return(prec=prec, rec=rec, jac=jac, f1=f1_score)
+        return self._seg_eval_return(
+            prec=prec,
+            rec=rec,
+            jac=jac,
+            f1=f1_score,
+            n_tar=len(tp) + len(fn),
+            n_out=len(tp) + len(fp),
+            n_tp=len(tp),
+        )
 
 
 class DistanceEvaluation:
@@ -527,8 +537,9 @@ class SMLMEvaluation:
 
 class EvaluationSMLM:  #  ToDo: Better name
     def __init__(
-        self, matcher: match_emittersets.EmitterMatcher, em_filter: Optional[
-                process.EmitterProcess] = None
+        self,
+        matcher: match_emittersets.EmitterMatcher,
+        em_filter: Optional[process.EmitterProcess] = None,
     ):
         self._matcher = matcher
         self._em_filter = em_filter

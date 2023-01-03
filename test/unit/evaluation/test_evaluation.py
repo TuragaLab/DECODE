@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import pytest
 import math
 import torch
+import itertools
 
 from decode.evaluation import evaluation, match_emittersets
 from decode.emitter import emitter as em
@@ -29,12 +30,17 @@ class TestDetectionEvaluation(TestEval):
         return evaluation.DetectionEvaluation()
 
     test_data = [
-        (em.factory(0), em.factory(0), em.factory(0), (float("nan"),) * 4),
+        (
+            em.factory(0),
+            em.factory(0),
+            em.factory(0),
+            (float("nan"), float("nan"), float("nan"), float("nan"), 0, 0, 0),
+        ),
         (
             em.factory(0),
             em.factory(1),
             em.factory(0),
-            (0.0, float("nan"), 0.0, float("nan")),
+            (0.0, float("nan"), 0.0, float("nan"), 0, 1, 0),
         ),
     ]
 
@@ -52,7 +58,7 @@ class TestDetectionEvaluation(TestEval):
         """
         out = evaluator.forward(tp, fp, fn)
 
-        for o, e in zip(out, expect):  # check all the outcomes
+        for o, e in itertools.zip_longest(out, expect, fillvalue=None):  # check all the outcomes
             if math.isnan(o) or math.isnan(e):
                 assert math.isnan(o)
                 assert math.isnan(e)
