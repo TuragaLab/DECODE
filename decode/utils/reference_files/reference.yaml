@@ -21,8 +21,11 @@ Evaluation:
   dist_lat: 250.0
   dist_vol:
   match_dims: 3
+  filter:
+    prob: [0.5, null]
 Hardware:
   device:
+    lightning: cuda:0
     training: cuda:0
     simulation: cuda:0
   cpu:
@@ -75,7 +78,7 @@ Paths:
 PostProcessing:
   name: SpatialIntegration  # or LookUp
   specs:
-    raw_th: 0.5
+    raw_th: 0.1
 Scaling:  # if some values are missing they will be auto-set as described in the respective comments below
   input:
     frame:

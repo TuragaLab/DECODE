@@ -308,6 +308,7 @@ def setup_evaluator(cfg) -> evaluation.evaluation.EvaluationSMLM:
     matcher = setup_matcher(cfg)
     evaluator = evaluation.evaluation.EvaluationSMLM(
         matcher=matcher,
+        em_filter=emitter.process.EmitterFilterGeneric(**cfg["Evaluation"]["filter"])
     )
     return evaluator
 
