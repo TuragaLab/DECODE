@@ -56,3 +56,12 @@ def test_tensorboard_log_figure(tmpdir, step_idx):
     mock_log.assert_called_once_with(
         tag="dummy", figure=f, global_step=step_idx, close=True
     )
+
+
+def test_tensorboard_log_hist(tmpdir):
+    tb = logger.TensorboardLogger(tmpdir)
+
+    with mock.patch.object(tb.experiment, "add_histogram") as mock_hist:
+        tb.log_hist("dummy_hist", torch.randn(100), step=0)
+
+    mock_hist.assert_called_once()

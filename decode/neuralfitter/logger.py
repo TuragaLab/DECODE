@@ -6,6 +6,9 @@ import torch
 from pytorch_lightning import loggers
 from pytorch_lightning.utilities import rank_zero_only
 
+from .. import emitter
+from ..plot import plot
+
 
 class PrefixDictMixin(ABC):
     @abstractmethod
@@ -47,10 +50,10 @@ class LogTensorMixin(ABC):
         colormap: str = "gray",
         colorbar: bool = True,
     ):
-        t = t.detach().cpu()
         if unbind is not None:
             t = torch.unbind(t, dim=unbind)
         t = [t] if not isinstance(t, Sequence) else t
+        t = [tt.detach().cpu() for tt in t]
 
         for i, tt in enumerate(t):
             f, ax = plt.subplots()
@@ -79,6 +82,21 @@ class Logger(PrefixDictMixin, loggers.LightningLoggerBase, ABC):
         if close:
             plt.close(figure)
 
+    def log_emitter(
+            self,
+            name: str,
+            em: Optional[emitter.EmitterSet] = None,
+            em_tar: Optional[emitter.EmitterSet] = None,
+            frame: Optional[torch.Tensor] = None,
+            step: Optional[int] = None,
+    ):
+        plot.PlotFrameCoord(
+            frame=frame.cpu(),
+            pos_out=em.xyz_px if em is not None else None,
+            pos_tar=em_tar.xyz_px if em_tar is not None else None,
+        ).plot()
+        self.log_figure(name=name, figure=plt.gcf(), step=step, close=True)
+
 
 class TensorboardLogger(loggers.TensorBoardLogger, LogTensorMixin, Logger):
     @rank_zero_only
@@ -92,3 +110,7 @@ class TensorboardLogger(loggers.TensorBoardLogger, LogTensorMixin, Logger):
         self.experiment.add_figure(
             tag=name, figure=figure, global_step=step, close=close
         )
+
+    @rank_zero_only
+    def log_hist(self, name: str, vals: torch.Tensor, step: Optional[int] = None):
+        self.experiment.add_histogram(tag=name, values=vals, global_step=step)
