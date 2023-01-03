@@ -94,7 +94,6 @@ class ProcessingSupervised:
             x: model output
 
         """
-        x = self.post_model(x)
         return self._post.forward(x)
 
     def post_model(self, x: torch.Tensor) -> torch.Tensor:

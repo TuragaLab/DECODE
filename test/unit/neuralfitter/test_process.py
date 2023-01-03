@@ -27,4 +27,4 @@ def test_process_supervised_flow():
 
     p.post(mock.MagicMock())
     post.forward.assert_called_once()
-    post_model.forward.assert_called_once()
+    post_model.forward.assert_not_called()
