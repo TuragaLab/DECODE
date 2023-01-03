@@ -147,6 +147,13 @@ class EmitterFilterFrame(EmitterProcess):
 
 class _RangeFilter:
     def __init__(self, low: Optional[Any], high: Optional[Any], inverse: bool = False):
+        """
+
+        Args:
+            low: inclusive
+            high: exclusive
+            inverse:
+        """
         self._low = low
         self._high = high
         self._inverse = inverse
