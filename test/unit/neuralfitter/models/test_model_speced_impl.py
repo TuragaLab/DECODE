@@ -14,7 +14,7 @@ class TestSigmaMUNet:
             depth_shared=1,
             depth_union=1,
             initial_features=8,
-            inter_features=8
+            inter_features=8,
         )
 
     def test_forward(self, model):
@@ -40,3 +40,19 @@ class TestSigmaMUNet:
         model = model.apply(model.weight_init)
 
         assert not test_utils.same_weights(model_old, model)
+
+
+def test_sigma_semantic_multi():
+    m = model_impl.SigmaMUNet(
+        ch_in_map=[[0, 3, 4], [1, 3, 4], [2, 3, 4]],
+        ch_out_heads=(3, 4, 4, 1),
+        depth_shared=1,
+        depth_union=1,
+        initial_features=8,
+        inter_features=8,
+    )
+
+    x = torch.rand(2, 5, 64, 64)
+    out = m.forward(x)
+
+    assert out.size() == (2, 12, 64, 64)
