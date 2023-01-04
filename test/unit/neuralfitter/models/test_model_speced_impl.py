@@ -10,7 +10,7 @@ class TestSigmaMUNet:
     @pytest.fixture()
     def model(self):
         return model_impl.SigmaMUNet(
-            3,
+            ch_in_map=[[0], [1], [2]],
             depth_shared=1,
             depth_union=1,
             initial_features=8,

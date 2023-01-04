@@ -27,8 +27,8 @@ class SigmaMUNet(model_param.DoubleMUnet):
 
     def __init__(
         self,
-        ch_in: int,
         *,
+        ch_in_map: Sequence[Sequence[int]],
         ch_out_heads: Sequence[int] = (1, 4, 4, 1),
         depth_shared: int,
         depth_union: int,
@@ -49,7 +49,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
         """
 
         Args:
-            ch_in:
+            ch_in_map: list of list of input channels for each shared net
             ch_out_heads: defaults to [1, 4, 4, 1] as prob, photxyz_mu, photxyz_sig, bg
             depth_shared:
             depth_union:
@@ -67,24 +67,11 @@ class SigmaMUNet(model_param.DoubleMUnet):
             kaiming_normal:
         """
 
-        super().__init__(
-            ch_in=ch_in,
-            ch_out=sum(ch_out_heads),
-            depth_shared=depth_shared,
-            depth_union=depth_union,
-            initial_features=initial_features,
-            inter_features=inter_features,
-            norm=norm,
-            norm_groups=norm_groups,
-            norm_head=norm_head,
-            norm_head_groups=norm_head_groups,
-            pool_mode=pool_mode,
-            upsample_mode=upsample_mode,
-            skip_gn_level=skip_gn_level,
-            activation=activation,
-            disabled_attributes=disabled_attributes,
-            use_last_nl=False,
-        )
+        super().__init__(ch_in_map=ch_in_map, ch_out=sum(ch_out_heads), depth_shared=depth_shared, depth_union=depth_union,
+                         initial_features=initial_features, inter_features=inter_features, activation=activation,
+                         use_last_nl=False, norm=norm, norm_groups=norm_groups, norm_head=norm_head,
+                         norm_head_groups=norm_head_groups, pool_mode=pool_mode, upsample_mode=upsample_mode,
+                         skip_gn_level=skip_gn_level, disabled_attributes=disabled_attributes)
 
         self.mt_heads = torch.nn.ModuleList(
             [

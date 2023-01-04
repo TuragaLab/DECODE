@@ -1,3 +1,5 @@
+from typing import Sequence
+
 import torch
 from torch import nn as nn
 
@@ -144,7 +146,7 @@ class DoubleMUnet(nn.Module):
 
     def __init__(
         self,
-        ch_in_map: list[list[int]],
+        ch_in_map: Sequence[Sequence[int]],
         ch_out: int,
         depth_shared: int = 3,
         depth_union: int = 3,
