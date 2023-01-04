@@ -4,6 +4,7 @@ import torch
 from deprecated import deprecated
 
 from ..emitter import emitter
+from ..generic import lazy
 
 
 @deprecated(version="0.11.0", reason="No purpose, too abstract")
@@ -96,6 +97,7 @@ class ProcessingSupervised:
         """
         return self._post.forward(x)
 
+    @lazy.no_op_on("_post_model")
     def post_model(self, x: torch.Tensor) -> torch.Tensor:
         """
         Process model output only to post-processing necessary to compute the loss

@@ -1,14 +1,16 @@
 from unittest import mock
 
+import pytest
+
 from decode.neuralfitter import process
 
 
-def test_process_supervised_flow():
+@pytest.mark.parametrize("post_model", [None, mock.MagicMock()])
+def test_process_supervised_flow(post_model):
     # very superficial mocked base test to check whether the respective flow is correct
     model_input = mock.MagicMock()
     tar = mock.MagicMock()
     tar_em = mock.MagicMock()
-    post_model = mock.MagicMock()
     post = mock.MagicMock()
 
     p = process.ProcessingSupervised(
@@ -27,4 +29,11 @@ def test_process_supervised_flow():
 
     p.post(mock.MagicMock())
     post.forward.assert_called_once()
-    post_model.forward.assert_not_called()
+    if post_model is not None:
+        post_model.forward.assert_not_called()
+
+    m = p.post_model(mock.MagicMock())
+    if post_model is not None:
+        post_model.forward.assert_called_once()
+    else:
+        assert m is not None
