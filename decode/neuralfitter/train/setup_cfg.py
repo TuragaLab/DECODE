@@ -430,14 +430,13 @@ def setup_processor(cfg):
     model_input = setup_input_proc(cfg)
     tar = setup_tar(cfg)
     filter_em = setup_em_filter(cfg)
-    post_model = setup_post_model_scaling(cfg)
     post_processor = setup_post_process(cfg)
 
     return neuralfitter.process.ProcessingSupervised(
         m_input=model_input,
         tar=tar,
         tar_em=filter_em,
-        post_model=post_model,
+        post_model=None,
         post=post_processor,
     )
 
