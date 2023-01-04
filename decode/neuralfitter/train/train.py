@@ -1,19 +1,37 @@
+import argparse
+import copy
+import logging
+import structlog
+import socket
 import sys
+from datetime import datetime
 from pathlib import Path
 
-import argparse
 import hydra
 import omegaconf
 import pytorch_lightning as pl
 import torch
 
-from decode.neuralfitter.train import setup_cfg
+import decode
 from decode.neuralfitter import model
 from decode.neuralfitter.data import datamodel
-from decode.utils import param_auto
+from decode.neuralfitter.train import setup_cfg
+from decode.utils import param_auto, system, hardware
+
+
+logger = structlog.get_logger()
+
+
+def log(cfg_raw, cfg_filled):
+    logger.info("DECODE", version=decode.__version__)
+    logger.info("System", system=system.collect_system())
+    logger.info("Hardware", hardware=hardware.collect_hardware())
+    logger.info("Input cfg", cfg=cfg_raw)
+    logger.info("Resulting cfg", cfg=cfg_filled)
 
 
 def train(cfg: omegaconf.DictConfig):
+    cfg_backup = copy.copy(cfg)
     auto_cfg = param_auto.AutoConfig(
         fill=True, fill_test=True, auto_scale=True, return_type=omegaconf.DictConfig
     )
@@ -55,35 +73,39 @@ def train(cfg: omegaconf.DictConfig):
     proc = setup_cfg.setup_processor(cfg)
     backbone = setup_cfg.setup_model(cfg)
     loss = setup_cfg.setup_loss(cfg)
-    evaluator = None
+    evaluator = setup_cfg.setup_evaluator(cfg)
     optimizer = setup_cfg.setup_optimizer(backbone, cfg)
+    lr_sched = setup_cfg.setup_scheduler(optimizer, cfg)
     m = model.Model(
         model=backbone,
         optimizer=optimizer,
+        lr_sched=lr_sched,
         proc=proc,
         loss=loss,
         evaluator=evaluator,
         batch_size=cfg.Trainer.batch_size,
     )
-    m_ckpt = pl.callbacks.ModelCheckpoint(dirpath=cfg.Paths.experiment)
-    logger = setup_cfg.setup_logger(cfg)
+    m_ckpt = pl.callbacks.ModelCheckpoint(dirpath=path_exp)
+    logger_training = setup_cfg.setup_logger(cfg)
 
     trainer = pl.Trainer(
         default_root_dir=cfg.Paths.experiment,
-        accelerator="gpu" if "cuda" in cfg.Hardware.device.training else "cpu",
+        accelerator="gpu" if "cuda" in cfg.Hardware.device.lightning else "cpu",
+        devices=[int(cfg.Hardware.device.lightning.lstrip("cuda:"))] if "cuda" in cfg.Hardware.device.lightning else None,
         precision=cfg.Computing.precision,
         reload_dataloaders_every_n_epochs=1,
-        logger=logger,
+        logger=logger_training,
         max_epochs=cfg.Trainer.max_epochs,
-        callbacks=[m_ckpt],
+        # gradient_clip_val=0.03,
+        # gradient_clip_algorithm="norm",
+        callbacks=[m_ckpt, pl.callbacks.LearningRateMonitor("epoch")],
+        num_sanity_val_steps=0,
     )
     trainer.fit(
         model=m,
         datamodule=dm,
         ckpt_path=cfg.Paths.checkpoint_init,  # resumes training if not None
     )
-
-    print("Done")
 
 
 def parse_args():
@@ -126,6 +148,9 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    structlog.configure(
+        logger_factory=structlog.stdlib.LoggerFactory(),
+    )
     args = parse_args()
 
     # hack hydra and fake sys args
@@ -136,6 +161,12 @@ if __name__ == "__main__":
 
     config_file = Path(args.config)
     config_dir = config_file.parent
+
+    if not config_file.is_file():
+        raise FileNotFoundError(
+            f"Config file does not exist at {config_file.absolute()}"
+        )
+
     train_wrapped = hydra.main(config_path=config_dir, config_name=config_file.stem)(
         train
     )
