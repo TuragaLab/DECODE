@@ -14,7 +14,9 @@ Camera:
     read_sigma:
     spur_noise:
 Computing:
-  multiprocessing_sharing_strategy: file_system
+  multiprocessing:
+    sharing_strategy: file_system
+    start_method:
   precision: 32
 Evaluation:
   dist_ax: 500.0

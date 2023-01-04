@@ -20,8 +20,29 @@ def train(cfg: omegaconf.DictConfig):
     cfg = omegaconf.OmegaConf.to_container(cfg)
     cfg = auto_cfg.parse(cfg)
 
-    if (cs := cfg.Computing.multiprocessing_sharing_strategy) is not None:
-        torch.multiprocessing.set_sharing_strategy(cs)
+    # setup experiment paths and dump backups
+    path_exp = Path(cfg.Paths.experiment)
+    exp_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + socket.gethostname()
+    path_exp = path_exp / exp_id
+    path_exp.mkdir(exist_ok=False)
+
+    path_cfg_in = path_exp / "param_run_in.yaml"
+    path_cfg_run = path_exp / "param_run.yaml"
+
+    omegaconf.OmegaConf.save(cfg_backup, path_cfg_in)
+    omegaconf.OmegaConf.save(cfg, path_cfg_run)
+
+    # setup logging
+    path_log = path_exp / "training.log"
+    fh = logging.FileHandler(filename=path_log)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(fh)
+    log(cfg_backup, cfg)
+
+    if (st := cfg.Computing.multiprocessing.sharing_strategy) is not None:
+        torch.multiprocessing.set_sharing_strategy(st)
+    if (sm := cfg.Computing.multiprocessing.start_method) is not None:
+        torch.multiprocessing.set_start_method(sm)
 
     exp_train, exp_val = setup_cfg.setup_sampler(cfg)
 
