@@ -137,30 +137,45 @@ class SimpleSMLMNet(unet_param.UNet2d):
 
 
 class DoubleMUnet(nn.Module):
+    p_nl = torch.sigmoid  # only in inference, during training
+    phot_nl = torch.sigmoid
+    xyz_nl = torch.tanh
+    bg_nl = torch.sigmoid
+
     def __init__(
         self,
-        ch_in,
-        ch_out,
-        ext_features=0,
-        depth_shared=3,
-        depth_union=3,
-        initial_features=64,
-        inter_features=64,
+        ch_in_map: list[list[int]],
+        ch_out: int,
+        depth_shared: int = 3,
+        depth_union: int = 3,
+        initial_features: int = 64,
+        inter_features: int = 64,
         activation=nn.ReLU(),
         use_last_nl=True,
         norm=None,
         norm_groups=None,
         norm_head=None,
         norm_head_groups=None,
-        pool_mode="Conv2d",
+        pool_mode="StrideConv",
         upsample_mode="bilinear",
         skip_gn_level=None,
         disabled_attributes=None,
     ):
         super().__init__()
 
+        if len({len(m) for m in ch_in_map}) != 1:
+            raise ValueError("All maps must have the same number of channels.")
+        n_groups = len(ch_in_map)
+        n_ch_group = len(ch_in_map[0])
+
+        self.ch_in_map = ch_in_map
+        self.ch_out = ch_out
+        self._n_groups = n_groups
+        self._n_ch_group = n_ch_group
+        self._use_last_nl = use_last_nl
+
         self.unet_shared = unet_param.UNet2d(
-            1 + ext_features,
+            n_ch_group,
             inter_features,
             depth=depth_shared,
             pad_convs=True,
@@ -174,7 +189,7 @@ class DoubleMUnet(nn.Module):
         )
 
         self.unet_union = unet_param.UNet2d(
-            ch_in * inter_features,
+            n_groups * inter_features,
             inter_features,
             depth=depth_union,
             pad_convs=True,
@@ -187,10 +202,6 @@ class DoubleMUnet(nn.Module):
             skip_gn_level=skip_gn_level,
         )
 
-        assert ch_in in (1, 3)
-        # assert ch_out in (5, 6)
-        self.ch_in = ch_in
-        self.ch_out = ch_out
         self.mt_heads = nn.ModuleList(
             [
                 MLTHeads(
@@ -205,13 +216,6 @@ class DoubleMUnet(nn.Module):
                 for _ in range(self.ch_out)
             ]
         )
-
-        self._use_last_nl = use_last_nl
-
-        self.p_nl = torch.sigmoid  # only in inference, during training
-        self.phot_nl = torch.sigmoid
-        self.xyz_nl = torch.tanh
-        self.bg_nl = torch.sigmoid
 
         # convert to list
         if disabled_attributes is None or isinstance(
@@ -255,6 +259,7 @@ class DoubleMUnet(nn.Module):
             o:
 
         """
+        raise NotImplementedError("Only implemented for single channel output")
         # Apply for phot, xyz
         p = o[:, [0]]  # leave unused
         phot = o[:, [1]]
@@ -300,23 +305,17 @@ class DoubleMUnet(nn.Module):
         return o
 
     def _forward_core(self, x) -> torch.Tensor:
-        if self.ch_in == 3:
-            x0 = x[:, [0]]
-            x1 = x[:, [1]]
-            x2 = x[:, [2]]
+        # core, i.e. shared and union networks
+        out_shared = [None] * self._n_groups
 
-            o0 = self.unet_shared.forward(x0)
-            o1 = self.unet_shared.forward(x1)
-            o2 = self.unet_shared.forward(x2)
+        # map input channels through shared network iteratively
+        for i, ch_map in enumerate(self.ch_in_map):
+            out_shared[i] = self.unet_shared.forward(x[:, ch_map, :, :])
 
-            o = torch.cat((o0, o1, o2), 1)
+        out_shared = torch.cat(out_shared, 1)
+        out_union = self.unet_union.forward(out_shared)
 
-        elif self.ch_in == 1:
-            o = self.unet_shared.forward(x)
-
-        o = self.unet_union.forward(o)
-
-        return o
+        return out_union
 
 
 class MLTHeads(nn.Module):
