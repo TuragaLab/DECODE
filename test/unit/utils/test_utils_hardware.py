@@ -22,6 +22,13 @@ def test__specific_device_by_str(device_str, device, ix):
             hardware._specific_device_by_str(device_str)
 
 
+def test_collect_hardware():
+    out = hardware.collect_hardware()
+
+    if torch.cuda.is_available():
+        assert len(out["cuda"]) == torch.cuda.device_count()
+
+
 @pytest.mark.parametrize("device_cap, device_cap_str", [((3, 5), "3.5"), ((7, 5), "7.5")])
 def test_get_device_capability(device_cap, device_cap_str):
 
