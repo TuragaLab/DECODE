@@ -21,8 +21,7 @@ dependencies:
 
   # actual package
   - python=3.10
-  - pytorch=1.13
-  - pytorch-lightning
+  - pytorch=1.13.1
   - click
   - deprecated
   - gitpython>=3.1
@@ -45,12 +44,14 @@ dependencies:
   - scikit-image
   - scikit-learn
   - spline>=0.10.0
+  - structlog
   - tensorboard
   - tifffile>=2020.2
   - tqdm
 
   - pip
   - pip:
+      - pytorch-lightning==1.8.6
       - mat73
       - sphinx-markdown-tables==0.0.17
       - zernike
