@@ -51,6 +51,7 @@ dependencies:
 
   - pip
   - pip:
+      - black[d]
       - pytorch-lightning==1.8.6
       - mat73
       - sphinx-markdown-tables==0.0.17
