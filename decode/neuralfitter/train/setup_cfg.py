@@ -133,7 +133,7 @@ def setup_model(cfg) -> torch.nn.Module:
     disabled_attr = 3 if cfg["Trainer"]["train_dim"] == 2 else None
 
     model = neuralfitter.models.SigmaMUNet(
-        ch_in=cfg["Model"]["channels_in"],
+        ch_in_map=cfg["Model"]["ch_in_map"],
         depth_shared=specs["depth_shared"],
         depth_union=specs["depth_union"],
         initial_features=specs["initial_features"],
