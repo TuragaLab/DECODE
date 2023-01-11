@@ -133,6 +133,8 @@ class MicroscopeMultiChannel:
         Returns:
             frames
         """
+        em = em.clone()
+
         if self._trafo_xyz is not None:
             em.xyz_px = self._trafo_xyz.forward(em.xyz_px)
 
@@ -140,7 +142,7 @@ class MicroscopeMultiChannel:
             em.phot = self._trafo_phot.forward(em.phot, em.code)
 
         if self._trafo_xyz is not None or self._trafo_phot is not None:
-            em.code = em.infer_code()
+            em.code = em.infer_code() + self._ch_range[0]
             em = em.linearize()
 
         em_by_channel = [em.icode[c] for c in range(*self._ch_range)]
