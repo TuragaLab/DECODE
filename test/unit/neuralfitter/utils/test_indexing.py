@@ -1,5 +1,6 @@
 import pickle
 from unittest import mock
+from typing import Sequence
 
 import numpy as np
 import pytest
@@ -71,3 +72,26 @@ def test_ix_window_pickleable():
     x_win = win.attach(x)
     x_re = pickle.loads(pickle.dumps(x_win))
     assert (x_re[5] == x_win[5]).all()
+
+
+@pytest.mark.parametrize(
+    "tensor", [
+        torch.rand(100, 32, 32),
+        torch.unbind(torch.rand(2, 100, 32, 32), 0)
+    ]
+)
+def test_window_delayed(tensor):
+    w = indexing._WindowDelayed(tensor, fn=indexing.IxWindow(3, 100))
+
+    if isinstance(tensor, (list, tuple)):
+        assert isinstance(w[0], tuple)
+        t0, t1 = w[0]
+        assert t0.size() == (3, 32, 32)
+        assert t1.size() == (3, 32, 32)
+
+        t0, t1 = w[:]
+        assert t0.size() == (100, 3, 32, 32)
+        assert t1.size() == (100, 3, 32, 32)
+    else:
+        assert w[0].size() == (3, 32, 32)
+        assert w[:].size() == (100, 3, 32, 32)

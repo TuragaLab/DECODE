@@ -1,4 +1,4 @@
-from typing import Optional, Union, Any, Callable, TypeVar
+from typing import Optional, Union, Any, Callable, TypeVar, Sequence
 
 import torch
 
@@ -6,7 +6,7 @@ import torch
 class IxWindow:
     def __init__(self, win: int, n: Optional[int]):
         """
-        'Window' an index, that make convolution like.
+        'Window' an index, i.e. make convolution like.
 
         Args:
             win: window size
@@ -64,6 +64,7 @@ class IxWindow:
 
     def attach(self, x: Any):
         self._n = len(x)
+        # return sampler._DelayedSlicer(self._compute, args=(x,))
         return _WindowDelayed(x, self._compute)
 
 
@@ -71,9 +72,14 @@ T = TypeVar("T")
 
 
 class _WindowDelayed:
-    def __init__(self, obj, fn: Callable[..., T]):
+    def __init__(
+        self,
+        obj: Union[torch.Tensor, tuple[torch.Tensor], list[torch.Tensor]],
+        fn: Callable[..., T],
+    ):
         """
         Helper class to delay slicing for ix_window.
+
         Args:
             obj: object to window
             fn: callable to compute window
@@ -85,4 +91,7 @@ class _WindowDelayed:
         return len(self._obj)
 
     def __getitem__(self, item: int) -> T:
-        return self._obj[self._fn(item), ...]
+        """"""
+        if isinstance(self._obj, torch.Tensor):
+            return self._obj[self._fn(item), ...]
+        return tuple(t[self._fn(item), ...] for t in self._obj)

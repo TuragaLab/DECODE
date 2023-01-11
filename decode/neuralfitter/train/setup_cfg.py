@@ -1,14 +1,13 @@
-from typing import Optional
+from typing import Optional, Sequence
+from typing import Union
 
 import torch
 from pytorch_lightning import loggers
-from deprecated import deprecated
-from typing import Union
 
 from decode import emitter
-from decode import simulation
-from decode import neuralfitter
 from decode import evaluation
+from decode import neuralfitter
+from decode import simulation
 
 
 def setup_logger(
@@ -80,15 +79,29 @@ def setup_trafo_phot(cfg) -> simulation.microscope.MultiChoricSplitter:
 
 def setup_background(
     cfg,
-) -> tuple[simulation.background.Background, simulation.background.Background]:
-    bg_train = _setup_background_core(cfg, cfg["Simulation"])
-    bg_test = _setup_background_core(cfg, cfg["Test"])
+) -> tuple[
+    Union[simulation.background.Background, Sequence[simulation.background.Background]],
+    Union[simulation.background.Background, Sequence[simulation.background.Background]],
+]:
+    bg_train = [
+        _setup_background_core(cfg, cfg["Simulation"], cfg_bg)
+        for cfg_bg in cfg["Simulation"]["bg"].values()
+    ]
+    bg_test = [
+        _setup_background_core(cfg, cfg["Test"], cfg_bg)
+        for cfg_bg in cfg["Test"]["bg"].values()
+    ]
+    if len(bg_train) == 1:
+        bg_train = bg_train[0]
+    if len(bg_test) == 1:
+        bg_test = bg_test[0]
+
     return bg_train, bg_test
 
 
-def _setup_background_core(cfg, cfg_sim) -> simulation.background.Background:
+def _setup_background_core(cfg, cfg_sim, cfg_bg) -> simulation.background.Background:
     return simulation.background.BackgroundUniform(
-        bg=cfg_sim["bg"][0]["uniform"],
+        bg=cfg_bg["uniform"],
         size=(cfg_sim["samples"], *cfg_sim["img_size"]),
         device=cfg["Hardware"]["device"]["simulation"],
     )
@@ -133,7 +146,7 @@ def setup_model(cfg) -> torch.nn.Module:
     disabled_attr = 3 if cfg["Trainer"]["train_dim"] == 2 else None
 
     model = neuralfitter.models.SigmaMUNet(
-        ch_in=cfg["Model"]["channels_in"],
+        ch_in_map=cfg["Model"]["ch_in_map"],
         depth_shared=specs["depth_shared"],
         depth_union=specs["depth_union"],
         initial_features=specs["initial_features"],
@@ -180,9 +193,7 @@ def setup_scheduler(opt: torch.optim.Optimizer, cfg) -> torch.optim.lr_scheduler
         "StepLR": torch.optim.lr_scheduler.StepLR,
     }
     lr_sched = catalog[cfg["Trainer"]["schedulers"]["learning_rate"]["name"]]
-    lr_sched = lr_sched(
-        opt, **cfg["Trainer"]["schedulers"]["learning_rate"]["specs"]
-    )
+    lr_sched = lr_sched(opt, **cfg["Trainer"]["schedulers"]["learning_rate"]["specs"])
 
     return lr_sched
 
@@ -308,7 +319,7 @@ def setup_evaluator(cfg) -> evaluation.evaluation.EvaluationSMLM:
     matcher = setup_matcher(cfg)
     evaluator = evaluation.evaluation.EvaluationSMLM(
         matcher=matcher,
-        em_filter=emitter.process.EmitterFilterGeneric(**cfg["Evaluation"]["filter"])
+        em_filter=emitter.process.EmitterFilterGeneric(**cfg["Evaluation"]["filter"]),
     )
     return evaluator
 
@@ -376,13 +387,8 @@ def setup_microscope(
         - microscope validation set
     """
     psf = setup_psf(cfg)
-
-    mic_train = simulation.microscope.Microscope(
-        psf=psf, noise=None, frame_range=cfg["Simulation"]["samples"]
-    )
-    mic_val = simulation.microscope.Microscope(
-        psf=psf, noise=None, frame_range=cfg["Test"]["samples"]
-    )
+    mic_train = _setup_microscope_core(cfg, cfg.Simulation, psf)
+    mic_val = _setup_microscope_core(cfg, cfg.Test, psf)
 
     return mic_train, mic_val
 
@@ -400,14 +406,14 @@ def _setup_microscope_core(cfg, cfg_sim, psf):
 
         m = simulation.microscope.MicroscopeMultiChannel(
             psf=[psf] * n_codes,
-            noise=None,
+            noise=[None] * n_codes,
             trafo_xyz=trafo_xyz,
             trafo_phot=trafo_phot,
             frame_range=cfg_sim["samples"],
             ch_range=(codes.min().item(), codes.max().item() + 1),
         )
 
-        return m
+    return m
 
 
 def setup_tar(cfg) -> neuralfitter.target_generator.TargetGenerator:

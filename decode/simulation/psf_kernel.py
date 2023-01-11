@@ -567,8 +567,7 @@ class CubicSplinePSF(PSF):
         # over 5 because 5 derivatives, over 2 because you return drv and roi
         return self.max_roi_chunk // (5 * 2)
 
-    """Pickle"""
-
+    # pickle customisation
     def __getstate__(self):
         """
         Returns dict without spline implementation attribute because C++ / CUDA implementation is not (yet) implemented

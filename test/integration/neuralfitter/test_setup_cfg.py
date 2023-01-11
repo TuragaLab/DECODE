@@ -31,10 +31,22 @@ def test_setup_psf(path_bead_cal, cfg):
     assert isinstance(psf, simulation.psf_kernel.CubicSplinePSF)
 
 
-def test_setup_background(cfg_trainable):
+@pytest.mark.parametrize("n_bg", [1, 2])
+def test_setup_background(n_bg, cfg_trainable):
+    # parametrize over multicolor background
+    cfg_bg = cfg_trainable["Simulation"]["bg"]
+    cfg_bg = {i: cfg_bg[0] for i in range(n_bg)}
+    cfg_trainable["Simulation"]["bg"] = cfg_bg
+    cfg_trainable["Test"]["bg"] = cfg_bg
+
     bg, bg_val = setup_cfg.setup_background(cfg_trainable)
-    assert isinstance(bg, simulation.background.Background)
-    assert isinstance(bg_val, simulation.background.Background)
+
+    if n_bg == 1:
+        assert isinstance(bg, simulation.background.Background)
+        assert isinstance(bg_val, simulation.background.Background)
+    else:
+        assert isinstance(bg, list)
+        assert isinstance(bg_val, list)
 
 
 @pytest.mark.parametrize(

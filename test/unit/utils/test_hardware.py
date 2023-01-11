@@ -1,7 +1,7 @@
-import torch
-import pytest
+from unittest.mock import patch
 
-from unittest.mock import patch, Mock
+import pytest
+import torch
 
 from decode.utils import hardware
 

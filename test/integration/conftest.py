@@ -52,16 +52,17 @@ def cfg_trainable(cfg, tmpdir) -> DictConfig:
     """
     auto = param_auto.AutoConfig(fill=False, fill_test=True)
 
-    cfg.Simulation.bg[0].uniform = (10., 100.)
-    cfg.Simulation.intensity.mean = 5000
-    cfg.Simulation.intensity.std = 1000
-    cfg.Simulation.lifetime_avg = 1.
+    cfg["Simulation"]["bg"] = {0: {"uniform": (10., 100.)}}
 
-    cfg.Paths.calibration = asset_handler.load_asset("bead_cal")
-    cfg.Paths.experiment = str(tmpdir / "model")
-    cfg.Paths.logging = str(tmpdir / "log")
+    cfg["Simulation"]["intensity"]["mean"] = 5000
+    cfg["Simulation"]["intensity"]["std"] = 1000
+    cfg["Simulation"]["lifetime_avg"] = 1.
 
-    cfg.Trainer.max_epochs = 3
+    cfg["Paths"]["calibration"] = asset_handler.load_asset("bead_cal")
+    cfg["Paths"]["experiment"] = str(tmpdir / "model")
+    cfg["Paths"]["logging"] = str(tmpdir / "log")
+
+    cfg["Trainer"]["max_epochs"] = 3
 
     cfg = auto.parse(cfg)
 
