@@ -53,8 +53,9 @@ def mic_multi_ch():
         psf_kernel.DeltaPSF((0.0, 32.0), (0.0, 32.0), (32, 32)),
     ]
     noise = [noise_lib.ZeroNoise(), noise_lib.ZeroNoise()]
+    trafo_phot = microscope.MultiChoricSplitter(torch.tensor([[0.7, 0.3], [0.3, 0.7]]))
 
-    m = microscope.MicroscopeMultiChannel(psf, noise, (-5, 5), (-2, 0))
+    m = microscope.MicroscopeMultiChannel(psf, noise, (-5, 5), (-2, 0), trafo_phot=trafo_phot)
     return m
 
 
@@ -63,8 +64,11 @@ def test_microscope_multi_channel(mic_multi_ch):
     m._stack_impl = "stack"
 
     em = emitter_factory(3, frame_ix=[-5, 0, 5], code=[-5, -1, 1], xy_unit="px")
+    em_in = em.clone()
 
-    frames = m.forward(em)
+    frames = m.forward(em_in)
+
+    assert em_in == em
 
     assert frames.size() == torch.Size([10, 2, 32, 32])
     assert (frames[:5] == 0).all()
@@ -141,12 +145,11 @@ def test_microscope_channel_modifier():
             _modifier_factory(4.0, 4.0, 2),
         ]
     )
-
-    em_out = splitter.forward(
-        emitter_factory(xyz=[[8.0, 10, 12], [10, 14, 18]], code=[0, 1])
-    )
+    em = emitter_factory(xyz=[[8.0, 10, 12], [10, 14, 18]], code=[0, 1])
+    em_out = splitter.forward(em)
 
     assert isinstance(em_out, EmitterSet)
+    assert em_out is not em
     assert len(em_out) == 6
     np.testing.assert_array_equal(em_out.code, torch.LongTensor([0, 0, 1, 1, 2, 2]))
     np.testing.assert_array_almost_equal(
@@ -175,26 +178,29 @@ def test_channel_coordinate_trafo_matrix():
     xyz = torch.rand(10, 3)
     xyz_out = m.forward(xyz)
 
+    assert xyz_out is not xyz
     assert xyz_out.size() == torch.Size([10, 2, 3])
 
 
 @pytest.mark.parametrize(
     "t,color,expct",
     [
-        ([[1.0, 0], [0.0, 1]], [0], [1.0, 0]),
-        ([[1.0, 0], [0.0, 1]], [1], [0.0, 1.0]),
-        ([[0.0, 1.0], [1.0, 0]], [0], [0.0, 1.0]),
+        ([[1.0, 0], [0.0, 1]], [-1], [1.0, 0]),
+        ([[1.0, 0], [0.0, 1]], [0], [0.0, 1.0]),
+        ([[0.0, 1.0], [1.0, 0]], [-1], [0.0, 1.0]),
     ],
 )
 def test_multi_choric_splitter_static(t, color, expct):
     t = torch.Tensor(t)
-    m = microscope.MultiChoricSplitter(t)
+    m = microscope.MultiChoricSplitter(t, ix_low=-1)
 
     phot = torch.Tensor([1.0])
     color = torch.LongTensor(color)
     phot_expct = torch.Tensor(expct).unsqueeze(0)
 
     phot_out = m.forward(phot, color)
+
+    assert phot_out is not phot
     np.testing.assert_array_equal(phot_out, phot_expct)
 
 

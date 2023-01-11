@@ -223,23 +223,27 @@ class MultiChoricSplitter(ChoricTransformation):
         self,
         t: torch.Tensor,
         t_sig: Optional[torch.Tensor] = None,
+        ix_low: Optional[int] = 0,
     ):
         """
         Resembles a multi-choric beam splitter by a transmission matrix
         (which can be sampled).
 
         Args:
-            t:
-            t_sig:
+            t: transmission matrix of size `C x C`
+            t_sig: standard deviation of transmission matrix of size `C x C`
+            ix_low: lower index of the channel range
         """
         self._t = t
         self._t_mu = copy.copy(t)
         self._t_sig = t_sig
+        self._ix_low = ix_low
 
     def forward(
         self, phot: torch.Tensor, color: Optional[torch.LongTensor]
     ) -> torch.Tensor:
         if color is not None:
+            color = color - self._ix_low
             phot = self._expand_col_by_index(phot, color, len(self._t))
 
         return phot @ self._t
