@@ -224,7 +224,7 @@ class GaussianMMLoss(Loss):
         tar_param, tar_mask, tar_bg = target
         p, pxyz_mu, pxyz_sig, bg = self._format_model_output(output)
 
-        bg_loss = self._bg_loss(bg, tar_bg).sum(-1).sum(-1)
+        bg_loss = self._bg_loss(bg, tar_bg).sum(-1).sum(-1).sum(-1)
         gmm_loss = self._gmm_loss(p, pxyz_mu, pxyz_sig, tar_param, tar_mask)
 
         # stack in 2 channels
@@ -252,11 +252,16 @@ class GaussianMMLoss(Loss):
                 bg: N x H x W
         """
         n_codes = self._n_codes if self._n_codes is not None else 1
+        if output.size(-3) != 8 + 2 * n_codes:
+            raise ValueError(
+                f"Tensor of size {output.size()} not supported, "
+                f"expected 8 + 2 * n_codes channels."
+            )
 
         p = output[:, :n_codes]
-        pxyz_mu = output[:, n_codes:(n_codes + 4)]
-        pxyz_sig = output[:, (n_codes + 4):-1]
-        bg = output[:, -1]
+        pxyz_mu = output[:, n_codes : (n_codes + 4)]
+        pxyz_sig = output[:, (n_codes + 4) : (n_codes + 8)]
+        bg = output[:, (n_codes + 8) :]
 
         return p, pxyz_mu, pxyz_sig, bg
 
@@ -401,8 +406,14 @@ class GaussianMMLoss(Loss):
         if output.dim() != 4:
             raise ValueError(f"Output must have 4 dimensions (N,C,H,W).")
 
-        if output.size(1) != 10:
+        n_ch = 10 if self._n_codes is None else 8 + 2 * self._n_codes
+        if output.size(1) != n_ch:
             raise ValueError(f"Wrong number of channels.")
 
         if len(target) != 3:
             raise ValueError(f"Wrong length of target.")
+
+        if target[-1].dim() != 4:
+            raise ValueError(
+                f"Target background without channel dimension is deprecated as of v0.11"
+            )

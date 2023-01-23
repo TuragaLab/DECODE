@@ -188,13 +188,15 @@ class TestGaussianMixtureModelLoss:
         output = torch.rand(2, 10, 16, 16)
         target_em = torch.rand(2, 250, 4)
         target_mask = torch.randint(high=2, size=(2, 250), dtype=torch.bool)
-        target_bg = torch.rand(2, 16, 16)
+        target_bg = torch.rand(2, 1, 16, 16)
 
         return output, (target_em, target_mask, target_bg)
 
     def test_loss_forward_backward(self, loss_impl, data_handcrafted):
+        # loss_impl._n_codes = 2
+
         mask, p, pxyz_mu, pxyz_sig, pxyz_tar = data_handcrafted
-        bg_tar = torch.rand((2, 32, 32))
+        bg_tar = torch.rand((2, 1, 32, 32))
 
         model_out = torch.cat(
             (p, pxyz_mu, pxyz_sig, torch.rand((2, 1, 32, 32))), 1
@@ -210,10 +212,13 @@ class TestGaussianMixtureModelLoss:
 
         out = torch.rand(3, 10, 32, 32) \
             if n_codes is None \
-            else torch.rand(3, 12, 32, 32)
+            else torch.rand(3, 14, 32, 32)
 
         p, mu, sig, bg = loss_impl._format_model_output(out)
         assert p.size() == torch.Size([3, code_dim, 32, 32])
+        assert mu.size() == torch.Size([3, 4, 32, 32])
+        assert sig.size() == torch.Size([3, 4, 32, 32])
+        assert bg.size() == torch.Size([3, code_dim, 32, 32])
 
     def test_compute_impl(self, loss_impl, data_handcrafted):
         mask, p, pxyz_mu, pxyz_sig, pxyz_tar = data_handcrafted
@@ -262,8 +267,8 @@ class TestGaussianMixtureModelLoss:
         loss_impl._reduction._reduction = None
         mask, p, _, _, pxyz_tar = data_handcrafted
         x = torch.rand((2, 9, 32, 32))
-        bg_tar = torch.zeros((2, 32, 32))
-        bg_out = torch.rand_like(bg_tar).unsqueeze(1)
+        bg_tar = torch.zeros((2, 1, 32, 32))
+        bg_out = torch.rand_like(bg_tar)
 
         model_out = torch.cat((x, bg_out), 1).requires_grad_(True)
 
