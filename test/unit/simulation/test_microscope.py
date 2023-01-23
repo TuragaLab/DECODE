@@ -53,9 +53,18 @@ def mic_multi_ch():
         psf_kernel.DeltaPSF((0.0, 32.0), (0.0, 32.0), (32, 32)),
     ]
     noise = [noise_lib.ZeroNoise(), noise_lib.ZeroNoise()]
-    trafo_phot = microscope.MultiChoricSplitter(torch.tensor([[0.7, 0.3], [0.3, 0.7]]), ix_low=-5)
+    trafo_phot = microscope.MultiChoricSplitter(
+        torch.tensor([[0.7, 0.3], [0.3, 0.7]]),
+        ix_low=-5
+    )
 
-    m = microscope.MicroscopeMultiChannel(psf, noise, (-5, 5), (-5, -3), trafo_phot=trafo_phot)
+    m = microscope.MicroscopeMultiChannel(
+        psf=psf,
+        noise=noise,
+        frame_range=(-5, 5),
+        ch_range=(-5, -3),
+        trafo_phot=trafo_phot
+    )
     return m
 
 
@@ -71,11 +80,14 @@ def test_microscope_multi_channel(mic_multi_ch):
     assert em_in == em
 
     assert frames.size() == torch.Size([10, 2, 32, 32])
+    # check that the correct values are in he correct channels
+    # easy with delta psf because it outputs a single non-zero value with
+    # the same value as the photon count
     np.testing.assert_array_equal(frames[:3].unique(), torch.tensor([0., 0.3, 0.7]))
-    assert frames[0, 0].max() == 0.7
-    assert frames[0, 1].max() == 0.3
-    assert frames[1, 0].max() == 0.3
-    assert frames[1, 1].max() == 0.7
+    np.testing.assert_array_equal(frames[0, 0].unique(), torch.tensor([0., 0.7]))
+    np.testing.assert_array_equal(frames[0, 1].unique(), torch.tensor([0., 0.3]))
+    np.testing.assert_array_equal(frames[1, 0].unique(), torch.tensor([0., 0.3]))
+    np.testing.assert_array_equal(frames[1, 1].unique(), torch.tensor([0., 0.7]))
     assert (frames[3:] == 0).all()
 
 

@@ -100,7 +100,7 @@ class MicroscopeMultiChannel:
         """
         self._microscopes: list[Microscope] = [
             Microscope(psf=p, noise=n, frame_range=frame_range)
-            for p, n in zip(psf, noise)
+            for p, n in zip(psf, noise, strict=True)
         ]
         self._ch_range = ch_range
         self._trafo_xyz = trafo_xyz
@@ -150,7 +150,7 @@ class MicroscopeMultiChannel:
 
         frames = [
             m.forward(e, bg=b, ix_low=ix_low, ix_high=ix_high)
-            for m, e, b in zip(self._microscopes, em_by_channel, bg)
+            for m, e, b in zip(self._microscopes, em_by_channel, bg, strict=True)
         ]
         return self._stack(frames)
 
