@@ -66,6 +66,7 @@ Model:
     up_mode: upsample
     use_last_nl:
   ch_in_map: [[0], [1], [2]]
+  ch_out_heads: [1, 4, 4, 1]
 Optimizer:
   name: AdamW
   specs:

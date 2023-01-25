@@ -147,6 +147,7 @@ def setup_model(cfg) -> torch.nn.Module:
 
     model = neuralfitter.models.SigmaMUNet(
         ch_in_map=cfg["Model"]["ch_in_map"],
+        ch_out_heads=cfg["Model"]["ch_out_heads"],
         depth_shared=specs["depth_shared"],
         depth_union=specs["depth_union"],
         initial_features=specs["initial_features"],
@@ -172,6 +173,7 @@ def setup_loss(cfg) -> neuralfitter.loss.Loss:
         img_shape=cfg["Simulation"]["img_size"],
         device=cfg["Hardware"]["device"]["training"],
         chweight_stat=cfg["Loss"]["ch_weight"],
+        n_codes=len(cfg["Simulation"]["code"]),
         reduction="mean",
         return_loggable=True,
     )
@@ -421,8 +423,12 @@ def setup_tar(cfg) -> neuralfitter.target_generator.TargetGenerator:
     filter = setup_em_filter(cfg)
     bg_lane = setup_bg_scaling(cfg)
 
+    if (range_code := cfg["Simulation"]["code"]) is not None:
+        range_code = (cfg["Simulation"]["code"][0], cfg["Simulation"]["code"][-1] + 1)
+
     return neuralfitter.target_generator.TargetGaussianMixture(
         n_max=cfg["Target"]["max_emitters"],
+        range_code=range_code,
         ix_low=None,
         ix_high=None,
         ignore_ix=True,
