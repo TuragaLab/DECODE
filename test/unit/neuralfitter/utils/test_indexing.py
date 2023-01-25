@@ -1,11 +1,11 @@
 import pickle
 from unittest import mock
-from typing import Sequence
 
 import numpy as np
 import pytest
 import torch
 
+from decode.neuralfitter import sampler
 from decode.neuralfitter.utils import indexing
 
 
@@ -75,15 +75,25 @@ def test_ix_window_pickleable():
 
 
 @pytest.mark.parametrize(
-    "tensor", [
-        torch.rand(100, 32, 32),
-        torch.unbind(torch.rand(2, 100, 32, 32), 0)
-    ]
+    "x,recurse",
+    [
+        (torch.rand(100, 32, 32), False),
+        (np.random.rand(100, 32, 32), False),
+        (torch.unbind(torch.rand(2, 100, 32, 32), 0), True),
+        (
+            sampler._InterleavedSlicer(torch.unbind(torch.rand(2, 100, 32, 32), 0)),
+            False,
+        ),
+    ],
 )
-def test_window_delayed(tensor):
-    w = indexing._WindowDelayed(tensor, fn=indexing.IxWindow(3, 100))
+def test_window_delayed(x, recurse):
+    w = indexing._WindowDelayed(
+        x,
+        fn=indexing.IxWindow(3, 100),
+        auto_recurse=recurse,
+    )
 
-    if isinstance(tensor, (list, tuple)):
+    if isinstance(x, (list, tuple)):
         assert isinstance(w[0], tuple)
         t0, t1 = w[0]
         assert t0.size() == (3, 32, 32)
@@ -92,6 +102,14 @@ def test_window_delayed(tensor):
         t0, t1 = w[:]
         assert t0.size() == (100, 3, 32, 32)
         assert t1.size() == (100, 3, 32, 32)
-    else:
+    elif isinstance(x, torch.Tensor):
         assert w[0].size() == (3, 32, 32)
         assert w[:].size() == (100, 3, 32, 32)
+    elif isinstance(x, np.ndarray):
+        assert w[0].shape == (3, 32, 32)
+        assert w[:].shape == (100, 3, 32, 32)
+    elif isinstance(x, sampler._InterleavedSlicer):
+        assert w[42][0].size() == (3, 32, 32)
+        assert w[:][0].size() == (100, 3, 32, 32)
+    else:
+        raise ValueError("Invalid test.")

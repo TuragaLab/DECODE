@@ -76,6 +76,7 @@ class _WindowDelayed:
         self,
         obj: Union[torch.Tensor, tuple[torch.Tensor], list[torch.Tensor]],
         fn: Callable[..., T],
+        auto_recurse: bool = True,
     ):
         """
         Helper class to delay slicing for ix_window.
@@ -83,15 +84,17 @@ class _WindowDelayed:
         Args:
             obj: object to window
             fn: callable to compute window
+            auto_recurse: if True, will recurse into nested sequences
         """
         self._obj = obj
         self._fn = fn
+        self._auto_recurse = auto_recurse
 
     def __len__(self) -> int:
         return len(self._obj)
 
-    def __getitem__(self, item: int) -> T:
-        """"""
-        if isinstance(self._obj, torch.Tensor):
-            return self._obj[self._fn(item), ...]
-        return tuple(t[self._fn(item), ...] for t in self._obj)
+    def __getitem__(self, item: int) -> Union[T, tuple[T, ...]]:
+        if not isinstance(self._obj, torch.Tensor) and self._auto_recurse:
+            return tuple(t[self._fn(item), ...] for t in self._obj)
+
+        return self._obj[self._fn(item), ...]
