@@ -292,7 +292,7 @@ class EmitterSet:
                 power=self._power_auto_conversion_attrs[attr_base],
             )
 
-        raise AttributeError
+        raise AttributeError(f"Attribute {item} not found.")
 
     @property
     def meta(self) -> dict:
