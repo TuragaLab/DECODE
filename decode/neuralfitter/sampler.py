@@ -17,7 +17,7 @@ class _DelayedSlicer:
     def __init__(
         self,
         fn: Callable[..., TDelayed],
-        args: Optional[list] = None,
+        args: Optional[Sequence] = None,
         kwargs: Optional[dict] = None,
         kwargs_static: Optional[dict] = None,
     ):
@@ -116,6 +116,24 @@ class _DelayedTensor(_DelayedSlicer):
         return self
 
 
+class _InterleavedSlicer:
+    def __init__(self, x: Sequence[torch.Tensor]):
+        """
+        Helper to slice a sequence of tensors in a batched manner, i.e. slicing on the
+        sequence will be forwarded to each tensor in the sequence.
+
+        Args:
+            x: sequence of tensors
+        """
+        self._x = x
+
+    def __len__(self):
+        raise ValueError("Length is ill-defined for interleaved tensors.")
+
+    def __getitem__(self, item) -> tuple[torch.Tensor, ...]:
+        return tuple(x[item] for x in self._x)
+
+
 class Sampler(ABC):
     @abstractmethod
     def __len__(self) -> int:
@@ -166,8 +184,8 @@ class SamplerSupervised(Sampler):
 
         self._em = em if not hasattr(em, "sample") else None
         self._em_sampler = em if self._em is None else None
-        self._bg = bg if not hasattr(bg, "sample") else None
-        self._bg_sampler = bg if self._bg is None else None
+        self._bg = None  # later
+        self._bg_sampler = None  # later
         self._indicator = indicator
         self._frames = None  # later
         self._frame_samples = None
@@ -175,6 +193,20 @@ class SamplerSupervised(Sampler):
         self._window = window
         self._bg_mode = bg_mode
         self._mic = mic
+
+        # for bg we need to differentiate between sampler, sequence of samplers and
+        # direct tensors
+        if bg is None:
+            self._bg = None
+            self._bg_sampler = None
+        elif isinstance(bg, torch.Tensor):
+            self._bg = bg
+            self._bg_sampler = None
+        elif hasattr(bg, "sample") or (
+            isinstance(bg, Sequence) and hasattr(bg[0], "sample")
+        ):
+            self._bg = None
+            self._bg_sampler = bg
 
         # let property setter automatically determine
         # (therefore actually set with self.frame instead of self._frame)
@@ -215,7 +247,11 @@ class SamplerSupervised(Sampler):
             kwargs={
                 "frame": self.frame_samples,
                 "em": self.emitter.iframe,
-                "bg": self.bg,
+                # background can be tuple of tensors or tensor. Slicing needs to be
+                # forwarded to each tensor in the tuple (in the former case).
+                "bg": _InterleavedSlicer(self.bg)
+                if not isinstance(self.bg, torch.Tensor)
+                else self.bg,
             },
             kwargs_static={"aux": self._indicator},
         ).auto_size()
@@ -228,15 +264,31 @@ class SamplerSupervised(Sampler):
         """
         return _DelayedSlicer(
             self._proc.tar,
-            kwargs={"em": self.emitter.iframe, "aux": self.bg},
+            kwargs={
+                "em": self.emitter.iframe,
+                "aux": _InterleavedSlicer(self.bg)
+                if not isinstance(self.bg, torch.Tensor) else self.bg,
+            },
         )
 
     def __len__(self) -> int:
-        return len(self.frame)
+        if not isinstance(self.frame, Sequence):
+            return len(self.frame)
+        else:
+            if not all(len(f) == len(self.frame[0]) for f in self.frame):
+                raise ValueError(
+                    "All channels need to have the same frame length, but got "
+                    f"{[len(f) for f in self.frame]}"
+                )
+        return len(self.frame[0])
 
     def sample(self):
         em = self._em_sampler.sample()
-        bg = self._bg_sampler.sample()
+        bg = (
+            self._bg_sampler.sample()
+            if not isinstance(self._bg_sampler, Sequence)
+            else [s.sample() for s in self._bg_sampler]
+        )
 
         if self._bg_mode == "sample":
             f = self._mic.forward(em=em, bg=None)

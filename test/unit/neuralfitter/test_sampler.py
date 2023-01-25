@@ -56,11 +56,31 @@ def test_tensor_delayed_auto_size(n, args, kwargs, size_expct):
     assert len(s) == s.size(0)
 
 
+@pytest.mark.parametrize("item", [0, slice(1, 5), [1, 2, 3], slice(None, None)])
+def test_interleaved_slicer(item):
+    x = [torch.rand(10, 20, 30), torch.rand(10, 20, 30)]
+    s = sampler._InterleavedSlicer(x)
+
+    assert s[item][0].size() == x[0][item].size()
+
+
+def test_interleaved_slicer_exceptions():
+    with pytest.raises(ValueError) as err:
+        len(sampler._InterleavedSlicer(torch.rand(5)))
+
+
 @pytest.fixture
 def proc():
     class _DummyProc:
         def input(self, frame, em, bg, aux):
             return frame
+
+        def pre_train(self, frame, em, bg, aux):
+            if not isinstance(frame, torch.Tensor):
+                frame = torch.cat(frame, 0)
+            if not isinstance(bg, torch.Tensor):
+                bg = torch.stack(bg, 0)
+            return frame + bg
 
         def tar(self, em, aux):
             return em
@@ -99,16 +119,21 @@ def test_sampler_input_target(sampler_sup):
 
 
 @pytest.mark.parametrize("bg_mode", ["sample", "global"])
-def test_sampler_sample(bg_mode, proc):
+@pytest.mark.parametrize("n_codes", [1, 2])
+def test_sampler_sample(bg_mode, n_codes, proc):
     em_return = emitter.factory(frame_ix=torch.randint(100, size=(10000,)))
-    bg_return = torch.rand(100, 32, 32)
+    bg_return = torch.rand(100, 32, 32) \
+        if n_codes == 1 \
+        else torch.unbind(torch.rand(100, n_codes, 32, 32), dim=1)
     em = mock.MagicMock()
     em.sample.return_value = em_return
     bg = mock.MagicMock()
     bg.sample.return_value = bg_return
 
     mic = mock.MagicMock()
-    mic.forward.return_value = torch.rand(100, 32, 32)
+    mic.forward.return_value = torch.rand(100, 32, 32) \
+        if n_codes == 1 \
+        else torch.unbind(torch.rand(100, n_codes, 32, 32), dim=1)
 
     s = sampler.SamplerSupervised(
         em=em,
@@ -120,6 +145,8 @@ def test_sampler_sample(bg_mode, proc):
         bg_mode=bg_mode,
     )
     s.sample()
+
+    assert len(s) == 100
 
     mic.forward.assert_called_once()
     if bg_mode == "sample":
