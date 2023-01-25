@@ -54,7 +54,7 @@ class ModelChannelMapGMM(_ModelChannelMapInferredAttr, ModelChannelMap):
 
     @property
     def n_bg(self) -> int:
-        return 1
+        return self._n_codes
 
     @property
     def ix_prob(self) -> list[int]:
@@ -72,7 +72,7 @@ class ModelChannelMapGMM(_ModelChannelMapInferredAttr, ModelChannelMap):
 
     @property
     def ix_bg(self) -> list[int]:
-        return self._ix[-1:]
+        return self._ix[-self.n_bg :]
 
     @property
     def ix_phot(self) -> list[int]:
@@ -93,7 +93,10 @@ class ModelChannelMapGMM(_ModelChannelMapInferredAttr, ModelChannelMap):
             dictionary with channel key and tensor
         """
         if x.dim() != 4:
-            warnings.warn(f"Unexpected tensor size {x.size()}")
+            warnings.warn(
+                f"Unexpected tensor size {x.size()}."
+                f" Tensor should be of size N x C x H x W."
+            )
 
         return {
             "prob": x[:, self.ix_prob],
