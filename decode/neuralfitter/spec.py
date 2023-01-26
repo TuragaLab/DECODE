@@ -15,6 +15,37 @@ class ModelChannelMap(ABC):
     def n(self) -> int:
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def ix_prob(self) -> list[int]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def ix_phot(self) -> list[int]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def ix_xyz(self) -> list[int]:
+        raise NotImplementedError
+
+    @property
+    def ix_bg(self) -> list[int]:
+        raise NotImplementedError
+
+    def split_tensor(self, t: torch.Tensor) -> dict:
+        """
+        Split (model output) tensor into semantic channels
+
+        Args:
+            t: tensor of size `N x C (x H x W)`
+
+        Returns:
+            dictionary with channel key and tensor
+        """
+        raise NotImplementedError
+
 
 @runtime_checkable
 class _ModelChannelMapInferredAttr(Protocol):
