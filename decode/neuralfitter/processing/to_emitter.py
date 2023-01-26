@@ -134,8 +134,9 @@ class ToEmitterLookUpPixelwise(ToEmitter):
             torch.Tensor: code, size :math: `M`
         """
         if m.dim() != 4:
-            raise ValueError(f"Mask must be 4D (N, C, H, W), "
-                             f"got tensor of size {m.size()}")
+            raise ValueError(
+                f"Mask must be 4D (N, C, H, W), " f"got tensor of size {m.size()}"
+            )
 
         m_agg = m.max(dim=1)[0]
 
@@ -148,20 +149,18 @@ class ToEmitterLookUpPixelwise(ToEmitter):
         code = code.permute(1, 0, 2, 3)[:, m_agg].squeeze(0)
         return code
 
+
 def _norm_sum(*args):
     return torch.clamp(torch.add(*args), 0.0, 1.0)
 
 
 class ToEmitterSpatialIntegration(ToEmitterLookUpPixelwise):
-    _p_aggregations = ("sum", "norm_sum")  # , 'max', 'pbinom_cdf', 'pbinom_pdf')
-
     def __init__(
         self,
         raw_th: float,
+        ch_map: spec.ModelChannelMap,
         xy_unit: str,
         px_size: tuple[float, float] = None,
-        pphotxyzbg_mapping: Union[list, tuple] = (0, 1, 2, 3, 4, -1),
-        photxyz_sigma_mapping: Union[list, tuple, None] = (5, 6, 7, 8),
         p_aggregation: Union[str, Callable] = "norm_sum",
         _split_th: float = 0.6,
     ):
@@ -186,8 +185,7 @@ class ToEmitterSpatialIntegration(ToEmitterLookUpPixelwise):
             mask=raw_th,
             xy_unit=xy_unit,
             px_size=px_size,
-            pphotxyzbg_mapping=pphotxyzbg_mapping,
-            photxyz_sigma_mapping=photxyz_sigma_mapping,
+            ch_map=ch_map,
         )
         self._raw_th = raw_th
         self._split_th = _split_th
@@ -199,48 +197,50 @@ class ToEmitterSpatialIntegration(ToEmitterLookUpPixelwise):
 
     def _non_max_suppression(self, p: torch.Tensor) -> torch.Tensor:
         """
+        Non-maximum suppression-like algorithm to handle local clusters and
+        to distinguish between local clusters that are a single emitter and
+        those that are multiple emitters
 
         Args:
-            p: probability map
+            p: probability map of size :math:`(N, C, H, W)`
         """
         with torch.no_grad():
             p_copy = p.clone()
 
             # Probability values > 0.3 are regarded as possible locations
-            p_clip = torch.where(p > self._raw_th, p, torch.zeros_like(p))[:, None]
+            p_clip = torch.where(p > self._raw_th, p, torch.zeros_like(p))
 
             # localize maximum values within a 3x3 patch
             pool = torch.nn.functional.max_pool2d(p_clip, 3, 1, padding=1)
-            max_mask1 = torch.eq(p[:, None], pool).float()
+            max_mask1 = torch.eq(p, pool).float()
 
             # Add probability values from the 4 adjacent pixels
             diag = 0.0  # 1/np.sqrt(2)
             filt = (
-                torch.tensor([[diag, 1.0, diag], [1, 1, 1], [diag, 1, diag]])
+                torch.tensor(
+                    [[diag, 1.0, diag], [1, 1, 1], [diag, 1, diag]],
+                    device=p.device
+                )
                 .unsqueeze(0)
                 .unsqueeze(0)
-                .to(p.device)
             )
-            conv = torch.nn.functional.conv2d(p[:, None], filt, padding=1)
+            conv = torch.cat([torch.nn.functional.conv2d(pp.unsqueeze(1), filt, padding=1) for pp in torch.unbind(p, dim=1)], dim=1)
             p_ps1 = max_mask1 * conv
 
             # to identify two fluorophores in adjacent pixels we look
             # for probablity values > 0.6 that are not part of the first mask
-            p_copy *= 1 - max_mask1[:, 0]
-            # p_clip = torch.where(p_copy > split_th, p_copy, torch.zeros_like(p_copy))[:, None]
+            p_copy *= 1 - max_mask1
             max_mask2 = torch.where(
                 p_copy > self._split_th,
                 torch.ones_like(p_copy),
                 torch.zeros_like(p_copy),
-            )[:, None]
+            )
             p_ps2 = max_mask2 * conv
 
-            # this is our final clustered probablity which we then threshold
+            # this is our final clustered probability which we then threshold
             # (normally > 0.7) to get our final discrete locations
             p_ps = self._p_aggregation(p_ps1, p_ps2)
-            assert p_ps.size(1) == 1
-
-            return p_ps.squeeze(1)
+            return p_ps
 
     @classmethod
     def _set_p_aggregation(cls, p_aggr: Union[str, Callable]) -> Callable:
@@ -260,7 +260,7 @@ class ToEmitterSpatialIntegration(ToEmitterLookUpPixelwise):
             elif p_aggr == "norm_sum":
                 return _norm_sum
             else:
-                raise ValueError
+                raise NotImplementedError(f"Unknown p_aggregation {p_aggr}")
 
         else:
             return p_aggr
