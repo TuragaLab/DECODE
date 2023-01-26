@@ -11,10 +11,10 @@ from decode.utils import future
 ])
 def test_zip_strict(args, strict, err):
     if err is None:
-        future.zip(*args, strict=True)
+        future.zip(*args, strict=strict)
     else:
         with pytest.raises(err):
             if sys.version < "3.10":
-                future.zip(*args, strict=True)
+                future.zip(*args, strict=strict)
             else:
-                list(future.zip(*args, strict=True))
+                list(future.zip(*args, strict=strict))
