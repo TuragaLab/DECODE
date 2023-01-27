@@ -192,7 +192,7 @@ class ToEmitterSpatialIntegration(ToEmitterLookUpPixelwise):
         self._p_aggregation = self._set_p_aggregation(p_aggregation)
 
     def forward(self, x: torch.Tensor) -> emitter.EmitterSet:
-        x[:, 0] = self._non_max_suppression(x[:, 0])
+        x[:, self._ch_map.ix_prob] = self._non_max_suppression(x[:, self._ch_map.ix_prob])
         return super().forward(x)
 
     def _non_max_suppression(self, p: torch.Tensor) -> torch.Tensor:
@@ -224,7 +224,8 @@ class ToEmitterSpatialIntegration(ToEmitterLookUpPixelwise):
                 .unsqueeze(0)
                 .unsqueeze(0)
             )
-            conv = torch.cat([torch.nn.functional.conv2d(pp.unsqueeze(1), filt, padding=1) for pp in torch.unbind(p, dim=1)], dim=1)
+            # change channels to batch dim and back to get channel independent conv.
+            conv = torch.nn.functional.conv2d(p.view(-1, 1, *p.shape[-2:]), filt, padding=1).view(p.shape)
             p_ps1 = max_mask1 * conv
 
             # to identify two fluorophores in adjacent pixels we look

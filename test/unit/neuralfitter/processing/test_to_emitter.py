@@ -197,6 +197,7 @@ class TestSpatialIntegration(TestLookUpPostProcessing):
 
         p_out = post._non_max_suppression(p)
 
+        assert 0 <= p_out.min() < p_out.max() <= 1.
         np.testing.assert_array_equal(p[:, 0], p[:, 1])
 
         try:
