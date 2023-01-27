@@ -43,7 +43,7 @@ def cfg() -> DictConfig:
 
 
 @pytest.fixture
-def cfg_trainable(cfg, tmpdir) -> DictConfig:
+def cfg_trainable(cfg, tmpdir, request) -> DictConfig:
     """
     A trainable config. Complete set of parameters for training
 
@@ -52,18 +52,44 @@ def cfg_trainable(cfg, tmpdir) -> DictConfig:
     """
     auto = param_auto.AutoConfig(fill=False, fill_test=True)
 
-    cfg["Simulation"]["bg"] = {0: {"uniform": (10., 100.)}}
+    cfg["Camera"][0]["baseline"] = 100
+    cfg["Camera"][0]["e_per_adu"] = 40
+    cfg["Camera"][0]["em_gain"] = 100
+    cfg["Camera"][0]["read_sigma"] = 80.
+    cfg["Camera"][0]["spur_noise"] = 0.
 
+    cfg["Scaling"]["input"]["aux"] = None
+
+    cfg["Simulation"]["bg"] = {0: {"uniform": (10., 100.)}}
     cfg["Simulation"]["intensity"]["mean"] = 5000
     cfg["Simulation"]["intensity"]["std"] = 1000
     cfg["Simulation"]["lifetime_avg"] = 1.
+    cfg["Simulation"]["code"] = [0]
 
     cfg["Paths"]["calibration"] = asset_handler.load_asset("bead_cal")
     cfg["Paths"]["experiment"] = str(tmpdir / "model")
     cfg["Paths"]["logging"] = str(tmpdir / "log")
 
     cfg["Trainer"]["max_epochs"] = 3
+    cfg = auto.parse(cfg)
+    return cfg
 
+
+@pytest.fixture
+def cfg_multi(cfg_trainable) -> DictConfig:
+    auto = param_auto.AutoConfig(fill=False, fill_test=True, auto_scale=False)
+    cfg = cfg_trainable
+
+    code = [0, 1, 2]
+
+    cfg["Simulation"]["code"] = code
+    cfg["Camera"] = {i: cfg["Camera"][0] for i in code}
+    cfg["Simulation"]["bg"] = {
+        i: cfg["Simulation"]["bg"][0] for i in code
+    }
+
+    # need to overwrite test again because it changes
+    cfg["Test"] = {"samples": cfg["Test"]["samples"]}
     cfg = auto.parse(cfg)
 
     return cfg
