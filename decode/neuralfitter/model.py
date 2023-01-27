@@ -5,6 +5,7 @@ import torch
 
 from decode.emitter import emitter
 from decode.neuralfitter import logger, process
+from decode.evaluation import predict_dist
 
 
 class _EvaluatorEmitter(Protocol):
@@ -179,8 +180,28 @@ class Model(pl.LightningModule):
                 step=self.current_epoch,
             )
             self.logger.log_hist(
+                name="output_em_dist_val/x",
+                vals=em_out.xyz[:, 0],
+                step=self.current_epoch,
+            )
+            self.logger.log_hist(
+                name="output_em_dist_val/y",
+                vals=em_out.xyz[:, 1],
+                step=self.current_epoch,
+            )
+            self.logger.log_hist(
                 name="output_em_dist_val/z",
                 vals=em_out.xyz[:, 2],
+                step=self.current_epoch,
+            )
+            self.logger.log_hist(
+                name="output_em_dist_val/x_offset",
+                vals=predict_dist.px_pointer_dist(em_out.xyz[:, 0], -0.5, 1.),
+                step=self.current_epoch,
+            )
+            self.logger.log_hist(
+                name="output_em_dist_val/y_offset",
+                vals=predict_dist.px_pointer_dist(em_out.xyz[:, 1], -0.5, 1.),
                 step=self.current_epoch,
             )
 
