@@ -62,10 +62,10 @@ class IxWindow:
 
         return ix.tolist()
 
-    def attach(self, x: Any):
+    def attach(self, x: Any, **kwargs) -> "_WindowDelayed":
         self._n = len(x)
         # return sampler._DelayedSlicer(self._compute, args=(x,))
-        return _WindowDelayed(x, self._compute)
+        return _WindowDelayed(x, self._compute, **kwargs)
 
 
 T = TypeVar("T")
