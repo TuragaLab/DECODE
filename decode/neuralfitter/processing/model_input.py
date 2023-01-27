@@ -6,6 +6,7 @@ import torch
 
 from ... import emitter
 from ...simulation import camera, background
+from ...utils import future
 
 
 class ModelInput(Protocol):
@@ -65,10 +66,14 @@ class ModelInputPostponed(ModelInput):
             frame = self._merger_bg.forward(frame=frame, bg=bg)
 
         if self._noise is not None:
-            frame = [n.forward(f) for n, f in zip_longest(  # raises err for unequal
-                self._noise,
-                frame if isinstance(frame, Sequence) else (frame,)
-            )]
+            frame = [
+                n.forward(f)
+                for n, f in future.zip(  # raises err for unequal
+                    self._noise,
+                    frame if isinstance(frame, Sequence) else (frame,),
+                    strict=True,
+                )
+            ]
 
         frame = torch.cat(frame, -3) if isinstance(frame, Sequence) else frame
         aux = torch.stack(aux) if isinstance(aux, Sequence) else aux
