@@ -149,7 +149,10 @@ class TestGaussianMixtureModelLoss:
     @pytest.fixture
     def loss_impl(self):
         return loss.GaussianMMLoss(
-            xextent=(-0.5, 31.5), yextent=(-0.5, 31.5), img_shape=(32, 32), device="cpu"
+            xextent=(-0.5, 31.5),
+            yextent=(-0.5, 31.5),
+            img_shape=(32, 32),
+            device="cpu",
         )
 
     @pytest.fixture
@@ -198,21 +201,40 @@ class TestGaussianMixtureModelLoss:
         mask, p, pxyz_mu, pxyz_sig, pxyz_tar = data_handcrafted
         bg_tar = torch.rand((2, 1, 32, 32))
 
-        model_out = torch.cat(
-            (p, pxyz_mu, pxyz_sig, torch.rand((2, 1, 32, 32))), 1
-        )
+        model_out = torch.cat((p, pxyz_mu, pxyz_sig, torch.rand((2, 1, 32, 32))), 1)
         model_out = model_out.clone().requires_grad_(True)
 
         loss_val = loss_impl.forward(model_out, (pxyz_tar, mask, bg_tar), None)
         loss_val.mean().backward()
 
+    @pytest.mark.parametrize("n_codes", [None, 3])
+    def test_loss_forward_backward_mock_data(self, n_codes):
+        lo = loss.GaussianMMLoss(
+            xextent=(-0.5, 63.5),
+            yextent=(-0.5, 63.5),
+            img_shape=(64, 64),
+            device="cpu",
+            n_codes=n_codes,
+        )
+        n_codes_implicit = 1 if n_codes is None else n_codes
+
+        output = torch.rand(2, 8 + 2 * n_codes_implicit, 64, 64)
+        target_em = torch.rand(2, 250, 4)
+        if n_codes is not None:
+            target_mask = torch.randint(high=2, size=(2, 250, n_codes), dtype=torch.bool)
+        else:
+            target_mask = torch.randint(high=2, size=(2, 250), dtype=torch.bool)
+        target_bg = torch.rand(2, n_codes_implicit, 64, 64)
+
+        lo.forward(output, (target_em, target_mask, target_bg), None)
+
     @pytest.mark.parametrize("n_codes,code_dim", [(None, 1), (3, 3)])
     def test_format_model_output(self, n_codes, code_dim, loss_impl):
         loss_impl._n_codes = n_codes
 
-        out = torch.rand(3, 10, 32, 32) \
-            if n_codes is None \
-            else torch.rand(3, 14, 32, 32)
+        out = (
+            torch.rand(3, 10, 32, 32) if n_codes is None else torch.rand(3, 14, 32, 32)
+        )
 
         p, mu, sig, bg = loss_impl._format_model_output(out)
         assert p.size() == torch.Size([3, code_dim, 32, 32])
