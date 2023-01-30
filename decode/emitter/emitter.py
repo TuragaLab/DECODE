@@ -133,24 +133,24 @@ class EmitterSet:
     _xy_units = ("px", "nm")
 
     def __init__(
-            self,
-            xyz: torch.Tensor,
-            phot: torch.Tensor,
-            frame_ix: torch.LongTensor,
-            id: Optional[torch.LongTensor] = None,
-            *,
-            code: Optional[torch.Tensor] = None,
-            prob: Optional[torch.Tensor] = None,
-            bg: Optional[torch.Tensor] = None,
-            xyz_cr: Optional[torch.Tensor] = None,
-            phot_cr: Optional[torch.Tensor] = None,
-            bg_cr: Optional[torch.Tensor] = None,
-            xyz_sig: Optional[torch.Tensor] = None,
-            phot_sig: Optional[torch.Tensor] = None,
-            bg_sig: Optional[torch.Tensor] = None,
-            sanity_check: bool = True,
-            xy_unit: str = None,
-            px_size: Union[tuple, torch.Tensor] = None,
+        self,
+        xyz: torch.Tensor,
+        phot: torch.Tensor,
+        frame_ix: torch.LongTensor,
+        id: Optional[torch.LongTensor] = None,
+        *,
+        code: Optional[torch.Tensor] = None,
+        prob: Optional[torch.Tensor] = None,
+        bg: Optional[torch.Tensor] = None,
+        xyz_cr: Optional[torch.Tensor] = None,
+        phot_cr: Optional[torch.Tensor] = None,
+        bg_cr: Optional[torch.Tensor] = None,
+        xyz_sig: Optional[torch.Tensor] = None,
+        phot_sig: Optional[torch.Tensor] = None,
+        bg_sig: Optional[torch.Tensor] = None,
+        sanity_check: bool = True,
+        xy_unit: str = None,
+        px_size: Union[tuple, torch.Tensor] = None,
     ):
         """
         Initialises EmitterSet of :math:`N` emitters.
@@ -255,7 +255,7 @@ class EmitterSet:
     @property
     def xyz_sig_tot_nm(self) -> torch.Tensor:
         return (
-            (self.xyz_sig_nm ** 2).sum(1).sqrt()
+            (self.xyz_sig_nm**2).sum(1).sqrt()
             if self.xyz_sig_nm is not None
             else None
         )
@@ -274,8 +274,9 @@ class EmitterSet:
 
     @property
     def device(self) -> torch.device:
-        if not all(self.xyz.device == v.device for k, v in self.data.items()
-                   if v is not None):
+        if not all(
+            self.xyz.device == v.device for k, v in self.data.items() if v is not None
+        ):
             raise ValueError("Not all attributes are on the same device")
         return self.xyz.device
 
@@ -622,8 +623,8 @@ class EmitterSet:
         x_sig_var = torch.var(xyz_sigma_nm[:, 0])
         y_sig_var = torch.var(xyz_sigma_nm[:, 1])
         tot_var = (
-                xyz_sigma_nm[:, 0] ** 2
-                + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sigma_nm[:, 1]) ** 2
+            xyz_sigma_nm[:, 0] ** 2
+            + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sigma_nm[:, 1]) ** 2
         )
 
         if use_3d:
@@ -643,10 +644,10 @@ class EmitterSet:
 
     @classmethod
     def cat(
-            cls,
-            emittersets: Sequence,
-            remap_frame_ix: Union[None, torch.Tensor] = None,
-            step_frame_ix: int = None,
+        cls,
+        emittersets: Sequence,
+        remap_frame_ix: Union[None, torch.Tensor] = None,
+        step_frame_ix: int = None,
     ):
         """
         Concatenate multiple emittersets into one emitterset which is returned.
@@ -747,9 +748,9 @@ class EmitterSet:
 
         # PyTorch single element support
         if (
-                not isinstance(ix, torch.BoolTensor)
-                and isinstance(ix, torch.Tensor)
-                and ix.numel() == 1
+            not isinstance(ix, torch.BoolTensor)
+            and isinstance(ix, torch.Tensor)
+            and ix.numel() == 1
         ):
             ix = [int(ix)]
 
@@ -767,8 +768,7 @@ class EmitterSet:
         )
 
     def get_subset_frame(
-            self, frame_start: Optional[int], frame_end: Optional[int],
-            frame_ix_shift=None
+        self, frame_start: Optional[int], frame_end: Optional[int], frame_ix_shift=None
     ):
         """
         Returns emitters that are in the frame range as specified.
@@ -839,12 +839,12 @@ class EmitterSet:
         k = chunks
         # https://stackoverflow.com/questions/2130016/splitting-a-list-into-n-parts-of-approximately-equal-length/37414115#37414115
         return [
-            l[i * (n // k) + min(i, n % k): (i + 1) * (n // k) + min(i + 1, n % k)]
+            l[i * (n // k) + min(i, n % k) : (i + 1) * (n // k) + min(i + 1, n % k)]
             for i in range(k)
         ]
 
     def filter_by_sigma(
-            self, fraction: float, dim: Optional[int] = None, return_low=True
+        self, fraction: float, dim: Optional[int] = None, return_low=True
     ):
         """
         Filter by sigma values. Returns EmitterSet.
@@ -871,8 +871,8 @@ class EmitterSet:
         y_sig_var = torch.var(xyz_sig[:, 1])
         z_sig_var = torch.var(xyz_sig[:, 2])
         tot_var = (
-                xyz_sig[:, 0] ** 2
-                + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sig[:, 1]) ** 2
+            xyz_sig[:, 0] ** 2
+            + (torch.sqrt(x_sig_var / y_sig_var) * xyz_sig[:, 1]) ** 2
         )
 
         if is_3d:
@@ -932,13 +932,13 @@ class EmitterSet:
             if self.px_size is None:
                 raise ValueError("Conversion not possible if px size is not specified.")
 
-            return self._convert_coordinates(factor=1 / self.px_size ** power, xyz=xyz)
+            return self._convert_coordinates(factor=1 / self.px_size**power, xyz=xyz)
 
         elif in_unit == "px" and tar_unit == "nm":
             if self.px_size is None:
                 raise ValueError("Conversion not possible if px size is not specified.")
 
-            return self._convert_coordinates(factor=self.px_size ** power, xyz=xyz)
+            return self._convert_coordinates(factor=self.px_size**power, xyz=xyz)
 
         else:
             raise ValueError("Unsupported conversion.")
@@ -1048,8 +1048,10 @@ class EmitterSet:
     def _infer_code_length(attr_coord: dict, attr_generic: dict) -> int:
         # infers code length by channel dimension
         if not (len(attr_coord) >= 1 or len(attr_generic) >= 1):  # nothing to do
-            raise ValueError("Can not infer code length if neither coords nor other "
-                             "attributes have channel dimension")
+            raise ValueError(
+                "Can not infer code length if neither coords nor other "
+                "attributes have channel dimension"
+            )
 
         # get number of channel dims
         n_repeats = {xyz.size(1) for xyz in attr_coord.values()} | {
@@ -1109,16 +1111,16 @@ class EmitterSet:
 
 class FluorophoreSet:
     def __init__(
-            self,
-            xyz: torch.Tensor,
-            flux: torch.Tensor,
-            t0: torch.Tensor,
-            ontime: torch.Tensor,
-            xy_unit: str,
-            px_size: Union[tuple, torch.Tensor] = None,
-            id: Optional[torch.LongTensor] = None,
-            sanity_check=True,
-            **kwargs,
+        self,
+        xyz: torch.Tensor,
+        flux: torch.Tensor,
+        t0: torch.Tensor,
+        ontime: torch.Tensor,
+        xy_unit: str,
+        px_size: Union[tuple, torch.Tensor] = None,
+        id: Optional[torch.LongTensor] = None,
+        sanity_check=True,
+        **kwargs,
     ):
         """
         Something that starts to emit light at time `t0` and is on for a specific
@@ -1171,7 +1173,7 @@ class FluorophoreSet:
 
     @staticmethod
     def _compute_time_distribution(
-            t_start: torch.FloatTensor, t_end: torch.FloatTensor
+        t_start: torch.FloatTensor, t_end: torch.FloatTensor
     ) -> (torch.LongTensor, torch.Tensor):
         """
         Compute time distribution, i.e. on how many frames an emitter is visible
@@ -1194,13 +1196,13 @@ class FluorophoreSet:
 
         # ontime since start, to end
         t_since_start = (
-                torch.repeat_interleave(t_start.ceil(), n_frames)
-                + n_frame_per_emitter
-                - torch.repeat_interleave(t_start, n_frames)
+            torch.repeat_interleave(t_start.ceil(), n_frames)
+            + n_frame_per_emitter
+            - torch.repeat_interleave(t_start, n_frames)
         )
 
         t_to_end = torch.repeat_interleave(t_end, n_frames) - (
-                n_frame_per_emitter + torch.repeat_interleave(t_start.floor(), n_frames)
+            n_frame_per_emitter + torch.repeat_interleave(t_start.floor(), n_frames)
         )
 
         t_total_diff = torch.repeat_interleave(
