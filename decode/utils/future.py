@@ -5,7 +5,7 @@ from typing import Sequence
 
 def sys_check(version, fn_builtin):
     """
-    
+
     Args:
         version: threshold version, below which an own implementation of zip will be
          used
@@ -40,7 +40,6 @@ def zip(*args: tuple[Sequence, ...], strict: bool = False) -> builtins.zip:
     Returns:
         generator
     """
-    # raise NotImplementedError
     if strict:
         if not all(len(args[0]) == len(a) for a in args):
             raise ValueError("All arguments must have same length.")
