@@ -11,10 +11,11 @@ from decode.emitter import emitter
 from decode.emitter.emitter import (
     FluorophoreSet,
     EmitterSet,
-    CoordinateOnlyEmitter,
     EmitterData,
 )
 from decode.generic import test_utils
+
+from .. import commons
 
 
 def test_emitter_data():
@@ -840,3 +841,14 @@ def test_flurophore_sanity():
             px_size=None,
         )
     assert str(err.value) == "Negative ontime encountered."
+
+
+@pytest.mark.parametrize("device", commons._get_device_types_available())
+def test_emitter_to(device):
+    # this is to test .to and .device
+    em = emitter.factory(10)
+    em_out = em.to(device)
+
+    assert em.xyz.device == torch.device("cpu")
+    assert em_out.xyz.device == device
+    assert em_out.device == device
