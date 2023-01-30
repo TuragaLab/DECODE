@@ -252,10 +252,11 @@ class GaussianMMLoss(Loss):
                 bg: N x H x W
         """
         n_codes = self._n_codes if self._n_codes is not None else 1
-        if output.size(-3) != 8 + 2 * n_codes:
+        n_ch_expct = 8 + 2 * n_codes
+        if output.size(-3) != n_ch_expct:
             raise ValueError(
                 f"Tensor of size {output.size()} not supported, "
-                f"expected 8 + 2 * n_codes channels."
+                f"expected 8 + 2 * n_codes (i.e. {n_ch_expct}) channels."
             )
 
         p = output[:, :n_codes]
@@ -295,9 +296,10 @@ class GaussianMMLoss(Loss):
         if mask.sum() == 0:
             return loss_counts
 
-        loss = loss_counts + self._gmm_core_loss(
+        loss_gmm_core = self._gmm_core_loss(
             p=p, mask=mask, pxyz_tar=pxyz_tar, pxyz_mu=pxyz_mu, pxyz_sig=pxyz_sig
         )
+        loss = loss_counts + loss_gmm_core
         return -loss
 
     def _count_loss(self, p: torch.Tensor, mask: torch.BoolTensor) -> torch.Tensor:
@@ -306,7 +308,10 @@ class GaussianMMLoss(Loss):
 
         Args:
             p: probability of size N x C x H x W (C being number of codes)
-            mask: mask of size N x N_em x C x N_attr (N_em being number of emitters)
+            mask: mask of size N x N_em x C (N_em being number of emitters)
+
+        Returns:
+            - loss of size N
         """
         if self._n_codes is not None:
             mask = mask.permute(0, -1, 1)
@@ -317,9 +322,9 @@ class GaussianMMLoss(Loss):
 
         log_prob = p_gauss.log_prob(mask.sum(-1)) * mask.sum(-1)
         # ToDo: This is not entirely understood, however diag returns for n_codes = 1
-        # the same as previous version
-        log_prob = torch.diag(log_prob, 0)
-        # log_prob = log_prob.sum(-1)
+        # the same as previous version. However this breaks for batch size > code size
+        # log_prob = torch.diag(log_prob, 0)
+        log_prob = log_prob.sum(-1)  # ToDo: Or mean?
 
         return log_prob
 
@@ -343,8 +348,7 @@ class GaussianMMLoss(Loss):
             pxyz_sig: estimated phton count and position uncertainty
 
         Returns:
-            - loss OR
-            - loss and loggable (if return_loggable)
+            - loss of size N
         """
         p = p.sum(1)  # gmm core irrespective of codes
         if self._n_codes is not None:
@@ -413,7 +417,20 @@ class GaussianMMLoss(Loss):
         if len(target) != 3:
             raise ValueError(f"Wrong length of target.")
 
-        if target[-1].dim() != 4:
+        tar_em, tar_mask, tar_bg = target
+        if tar_em.dim() != 3:
+            raise ValueError(f"Target emitter must have 3 dimensions (N,N_em,N_attr).")
+        if tar_em.size()[:-1] != tar_mask.size()[:2]:
+            raise ValueError(f"Target emitter attrs and mask must have same N and N_em.")
+
+        if self._n_codes is not None:
+            if tar_mask.dim() != 3:
+                raise ValueError(f"Target mask must have 3 dimensions (N,N_em,N_codes).")
+        else:
+            if tar_mask.dim() != 2:
+                raise ValueError(f"Target mask must have 2 dimensions (N,N_em).")
+
+        if tar_bg.dim() != 4:
             raise ValueError(
                 f"Target background without channel dimension is deprecated as of v0.11"
             )

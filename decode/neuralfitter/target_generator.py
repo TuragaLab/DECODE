@@ -250,6 +250,8 @@ class TargetGaussianMixture(TargetGenerator):
         tar_list = self._scale(tar_list)
 
         if self._bg_lane is not None:
+            # ToDo: change this to mor sophisticated stack
+            aux = torch.stack(aux, dim=0) if not isinstance(aux, torch.Tensor) else aux
             aux = self._bg_lane.forward(aux)
 
         return tar_list, tar_mask, aux

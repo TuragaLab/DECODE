@@ -6,6 +6,7 @@ from deprecated import deprecated
 
 from ...emitter import emitter
 from . import to_emitter
+from .. import spec
 from .. import scale_transform
 from .. import coord_transform
 
@@ -42,10 +43,10 @@ class PostProcessing(ABC):
 class PostProcessingGaussianMixture(PostProcessing):
     def __init__(
         self,
-        scaler: Optional[scale_transform.ScalerModelOutput] = None,
+        scaler: Optional[scale_transform.ScalerModelChannel] = None,
         coord_convert: Optional[coord_transform.Offset2Coordinate] = None,
         frame_to_emitter: Optional[to_emitter.ToEmitter] = None,
-        coord_ch_ix: tuple[int, ...] = (2, 3),
+        ch_map: Optional[spec.ModelChannelMap] = None,
     ):
         """
 
@@ -53,14 +54,13 @@ class PostProcessingGaussianMixture(PostProcessing):
             scaler: re-scales model output
             coord_convert: convert coordinates
             frame_to_emitter: extracts emitters from frame
-            coord_ch_ix: define which channels are x, y to be passed on to the coord
-             converter
+            ch_map:
         """
         super().__init__()
         self._scaler = scaler
         self._coord = coord_convert
         self._frame2em = frame_to_emitter
-        self._coord_ch_ix = coord_ch_ix
+        self._ch_map = ch_map
 
     def forward(self, x: torch.Tensor) -> Union[emitter.EmitterSet, torch.Tensor]:
         """
@@ -75,8 +75,8 @@ class PostProcessingGaussianMixture(PostProcessing):
         if self._scaler is not None:
             x = self._scaler.forward(x)
         if self._coord is not None:
-            x[..., self._coord_ch_ix, :, :] = self._coord.forward(
-                x[..., self._coord_ch_ix, :, :]
+            x[..., self._ch_map.ix_xyz[:-1], :, :] = self._coord.forward(
+                x[..., self._ch_map.ix_xyz[:-1], :, :]
             )
         if self._frame2em is not None:
             x = self._frame2em.forward(x)

@@ -4,25 +4,13 @@ import torch
 from torch import nn
 
 from . import model_param
+from .. import spec
 
 
 class SigmaMUNet(model_param.DoubleMUnet):
-
-    sigmoid_ch_ix = [
-        0,
-        1,
-        5,
-        6,
-        7,
-        8,
-        9,
-    ]  # channel indices with respective activation function
-    tanh_ch_ix = [2, 3, 4]
-
-    p_ch_ix = [0]  # channel indices of the respective parameters
-    pxyz_mu_ch_ix = slice(1, 5)
-    pxyz_sig_ch_ix = slice(5, 9)
-    bg_ch_ix = [10]
+    # pxyz_mu_ch_ix = slice(1, 5)
+    # pxyz_sig_ch_ix = slice(5, 9)
+    # bg_ch_ix = [10]
     sigma_eps_default = 0.001
 
     def __init__(
@@ -30,6 +18,7 @@ class SigmaMUNet(model_param.DoubleMUnet):
         *,
         ch_in_map: Sequence[Sequence[int]],
         ch_out_heads: Sequence[int] = (1, 4, 4, 1),
+        ch_map: spec.ModelChannelMapGMM,
         depth_shared: int,
         depth_union: int,
         initial_features: int,
@@ -73,6 +62,12 @@ class SigmaMUNet(model_param.DoubleMUnet):
                          norm_head_groups=norm_head_groups, pool_mode=pool_mode, upsample_mode=upsample_mode,
                          skip_gn_level=skip_gn_level, disabled_attributes=disabled_attributes)
 
+        self._ch_map = ch_map
+        self._ix_sigmoid = self._ch_map.ix_prob \
+                           + self._ch_map.ix_phot \
+                           + self._ch_map.ix_sig \
+                           + self._ch_map.ix_bg
+        self._ix_tanh = self._ch_map.ix_xyz
         self.mt_heads = torch.nn.ModuleList(
             [
                 model_param.MLTHeads(
@@ -117,17 +112,20 @@ class SigmaMUNet(model_param.DoubleMUnet):
         x = torch.cat(x_heads, dim=1)
 
         # clamp prob before sigmoid
-        x[:, [0]] = torch.clamp(x[:, [0]], min=-8.0, max=8.0)
+        x[:, self._ch_map.ix_prob] = torch.clamp(
+            x[:, self._ch_map.ix_prob], min=-8.0, max=8.0
+        )
 
         # apply non linearities
-        x[:, self.sigmoid_ch_ix] = torch.sigmoid(x[:, self.sigmoid_ch_ix])
-        x[:, self.tanh_ch_ix] = torch.tanh(x[:, self.tanh_ch_ix])
+        x[:, self._ix_sigmoid] = torch.sigmoid(x[:, self._ix_sigmoid])
+        x[:, self._ix_tanh] = torch.tanh(x[:, self._ix_tanh])
 
         # add epsilon to sigmas and rescale
-        x[:, self.pxyz_sig_ch_ix] = x[:, self.pxyz_sig_ch_ix] * 3 + self.sigma_eps
+        x[:, self._ch_map.ix_sig] = x[:, self._ch_map.ix_sig] * 3 + self.sigma_eps
 
         # disabled attributes get set to constants
         if self.disabled_attr_ix is not None:
+            raise NotImplementedError(f"This needs to be adapted to multi-code model.")
             for ix in self.disabled_attr_ix:
                 # Set means to 0
                 x[:, 1 + ix] = x[:, 1 + ix] * 0

@@ -1,5 +1,5 @@
 import functools
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 from deprecated import deprecated
@@ -258,7 +258,12 @@ class ScalerTargetList:
 
 
 class ScalerModelChannel:
-    def __init__(self, factor: Optional[torch.Tensor], offset: Optional[torch.Tensor]):
+    def __init__(
+            self,
+            factor: Optional[torch.Tensor],
+            offset: Optional[torch.Tensor],
+            device: Optional[Union[str, torch.device]] = None,
+    ):
         """
 
         Args:
@@ -272,6 +277,10 @@ class ScalerModelChannel:
 
         self._factor = factor
         self._offset = offset
+
+        if device is not None:
+            self._factor = self._factor.to(device)
+            self._offset = self._offset.to(device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self._factor is not None:
@@ -289,6 +298,7 @@ class ScalerModelChannel:
         bg: float,
         sigma_factor: float = 3.0,
         sigma_eps: float = 0.001,
+        **kwargs,
     ) -> "ScalerModelChannel":
         """
         Scaling of sigma channels is
@@ -318,44 +328,13 @@ class ScalerModelChannel:
         offset[[ch_map.ix_xyz[-1], ch_map.ix_xyz_sig[-1]]] *= z
         factor[ch_map.ix_bg] *= bg
 
-        return cls(factor=factor, offset=offset)
+        return cls(factor=factor, offset=offset, **kwargs)
 
 
-@deprecated(reason="Deprecated in favour of ScalerModelChannel", version="0.11")
+@deprecated(
+    reason="Deprecated in favour of ScalerModelChannel",
+    version="0.11",
+    action="error"
+)
 class ScalerModelOutput:
-    def __init__(self, phot: float, z: float, bg: float):
-        """
-        Rescale network output.
-
-        Args:
-            phot: scale factor photon
-            z: scale factor z value
-            bg: scale factor background
-        """
-        self._phot = phot
-        self._z = z
-        self._bg_max = bg
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Scale network output.
-
-        Args:
-            x:
-        """
-
-        if x.size(-3) != 10:
-            raise ValueError(
-                f"Channel dim must be of size 10, "
-                f"input tensor is of size {x.size()}"
-            )
-
-        x = x.clone()
-        x[..., 1, :, :] *= self._phot
-        x[..., 5, :, :] *= self._phot  # sigma_phot rescaling
-
-        x[..., 4, :, :] *= self._z  # z
-        x[..., 8, :, :] *= self._z  # sig_z
-        x[..., -1, :, :] *= self._bg_max
-
-        return x
+    ...

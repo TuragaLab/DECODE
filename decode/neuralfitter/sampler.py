@@ -128,7 +128,10 @@ class _InterleavedSlicer:
         self._x = x
 
     def __len__(self):
-        raise ValueError("Length is ill-defined for interleaved tensors.")
+        if all(len(x) == len(self._x[0]) for x in self._x):
+            return len(self._x[0])
+        else:
+            raise ValueError("Length is ill-defined if tensors are not of same length.")
 
     def __getitem__(self, item) -> tuple[torch.Tensor, ...]:
         return tuple(x[item] for x in self._x)
@@ -228,9 +231,11 @@ class SamplerSupervised(Sampler):
     def frame(self, v: torch.Tensor):
         self._frames = v
         if v is not None:
-            self._frame_samples = indexing.IxWindow(self._window, None).attach(
-                self._frames
-            )
+            self._frames = _InterleavedSlicer(v) \
+                if not isinstance(v, torch.Tensor)\
+                else v
+            self._frame_samples = indexing.IxWindow(self._window, None) \
+                .attach(self._frames, auto_recurse=False)
 
     @property
     def frame_samples(self) -> Sequence:

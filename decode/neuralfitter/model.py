@@ -1,10 +1,11 @@
-from typing import Optional, Protocol
+from typing import Any, Optional, Protocol
 
 import pytorch_lightning as pl
 import torch
 
 from decode.emitter import emitter
 from decode.neuralfitter import logger, process
+from decode.evaluation import predict_dist
 
 
 class _EvaluatorEmitter(Protocol):
@@ -42,6 +43,11 @@ class Model(pl.LightningModule):
 
     def configure_optimizers(self):
         return self._opt
+
+    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
+        if len(batch) == 3:
+            return super().transfer_batch_to_device(batch[:-1], device, dataloader_idx) + (batch[-1], )
+        return super().transfer_batch_to_device(batch, device, dataloader_idx)
 
     def training_step(self, batch, batch_ix: int):
         opt = self.optimizers()
@@ -81,6 +87,8 @@ class Model(pl.LightningModule):
 
     def validation_step(self, batch, batch_ix: int):
         x, y_ref, y_em_val = batch
+        # convert em dict back to em set
+
 
         y_raw = self._model.forward(x)
         y_post = self._proc.post_model(y_raw)
@@ -179,8 +187,28 @@ class Model(pl.LightningModule):
                 step=self.current_epoch,
             )
             self.logger.log_hist(
+                name="output_em_dist_val/x",
+                vals=em_out.xyz[:, 0],
+                step=self.current_epoch,
+            )
+            self.logger.log_hist(
+                name="output_em_dist_val/y",
+                vals=em_out.xyz[:, 1],
+                step=self.current_epoch,
+            )
+            self.logger.log_hist(
                 name="output_em_dist_val/z",
                 vals=em_out.xyz[:, 2],
+                step=self.current_epoch,
+            )
+            self.logger.log_hist(
+                name="output_em_dist_val/x_offset",
+                vals=predict_dist.px_pointer_dist(em_out.xyz[:, 0], -0.5, 1.),
+                step=self.current_epoch,
+            )
+            self.logger.log_hist(
+                name="output_em_dist_val/y_offset",
+                vals=predict_dist.px_pointer_dist(em_out.xyz[:, 1], -0.5, 1.),
                 step=self.current_epoch,
             )
 

@@ -3,7 +3,8 @@ from decode.io import param
 
 def test_load_reference():
     ref = param.load_reference()
-    assert "calibration_file" in ref.InOut
+    assert isinstance(ref, dict)
+    assert "calibration" in ref["Paths"]
 
 
 def test_copy_reference(tmpdir):
