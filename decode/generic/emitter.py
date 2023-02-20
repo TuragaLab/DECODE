@@ -733,7 +733,7 @@ class EmitterSet:
 
         return self[filt_sig]
 
-    def hist_detection(self) -> dict():
+    def hist_detection(self) -> dict:
         """
         Compute hist for detection associated attributes.
 
