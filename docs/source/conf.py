@@ -22,7 +22,7 @@ copyright = '2020, Artur Speiser, Lucas-Raphael Mueller et al.'
 author = 'Artur Speiser, Lucas-Raphael Mueller et al.'
 
 # The full version, including alpha/beta/rc tags
-release = '0.9.a'
+release = '0.10.1'
 
 
 # -- General configuration ---------------------------------------------------
