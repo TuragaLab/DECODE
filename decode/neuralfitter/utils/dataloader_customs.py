@@ -22,7 +22,7 @@ def smlm_collate(batch):
             numel = sum([len(x.view(-1)) for x in batch])
             storage = elem.storage()._new_shared(numel)
             out = elem.new(storage)
-        out = out.reshape(len(batch), *batch[0].shape)
+            out = out.reshape(len(batch), *batch[0].shape)
         return torch.stack(batch, 0, out=out)
     elif isinstance(elem, (list, tuple)):
         # check to make sure that the elements in batch have consistent size
