@@ -52,3 +52,4 @@ wheels:
   decode: https://github.com/TuragaLab/DECODE/releases/download/v0.10.0/decode-0.10.0-py3-none-any.whl
   spline_py37: https://github.com/TuragaLab/SplinePSF/releases/download/v0.10.0/spline-0.10.0-cp37-cp37m-linux_x86_64.whl
   spline_py38: https://github.com/TuragaLab/SplinePSF/releases/download/v0.10.1rc3/spline-0.10.1rc3-cp38-cp38-linux_x86_64.whl
+  spline_py39: https://github.com/TuragaLab/SplinePSF/releases/download/v0.10.1rc3/spline-0.10.1rc3-cp39-cp39-linux_x86_64.whl
