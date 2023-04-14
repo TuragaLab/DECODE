@@ -2,6 +2,10 @@ name: Gateway Test
 
 on:
   push:
+    branches:
+      - main
+      - master
+      - 'release/**'
   pull_request:
   schedule:
     - cron:  '0 8 * * *'  # once a day at 8 @ master branch
