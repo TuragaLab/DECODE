@@ -53,3 +53,4 @@ wheels:
   spline_py37: https://github.com/TuragaLab/SplinePSF/releases/download/v0.10.0/spline-0.10.0-cp37-cp37m-linux_x86_64.whl
   spline_py38: https://github.com/TuragaLab/SplinePSF/releases/download/v0.10.1rc3/spline-0.10.1rc3-cp38-cp38-linux_x86_64.whl
   spline_py39: https://github.com/TuragaLab/SplinePSF/releases/download/v0.10.1rc3/spline-0.10.1rc3-cp39-cp39-linux_x86_64.whl
+  spline_py310:  https://github.com/TuragaLab/SplinePSF/releases/download/v0.10.1rc3/spline-0.10.1rc3-cp310-cp310-linux_x86_64.whl
